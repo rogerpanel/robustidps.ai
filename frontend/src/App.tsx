@@ -9,17 +9,20 @@ import {
   ShieldCheck,
   Wifi,
   WifiOff,
+  Brain,
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/Upload'
 import AblationStudio from './pages/AblationStudio'
 import LiveMonitor from './pages/LiveMonitor'
+import Models from './pages/Models'
 import About from './pages/About'
 import { fetchHealth } from './utils/api'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/upload', label: 'Upload & Analyse', icon: Upload },
+  { to: '/models', label: 'Models', icon: Brain },
   { to: '/ablation', label: 'Ablation Studio', icon: FlaskConical },
   { to: '/live', label: 'Live Monitor', icon: Radio },
   { to: '/about', label: 'About', icon: Info },
@@ -100,6 +103,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/upload" element={<UploadPage />} />
+          <Route path="/models" element={<Models />} />
           <Route path="/ablation" element={<AblationStudio />} />
           <Route path="/live" element={<LiveMonitor />} />
           <Route path="/about" element={<About />} />

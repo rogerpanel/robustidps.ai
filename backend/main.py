@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from models.surrogate import SurrogateIDS
+from models.model_registry import list_models, load_model as registry_load, MODEL_INFO
 from features import extract_features
 from uncertainty import predict_with_uncertainty
 from ablation import run_ablation
@@ -48,6 +49,8 @@ app.add_middleware(
 # Model loading
 # ---------------------------------------------------------------------------
 model: SurrogateIDS | None = None
+loaded_models: dict = {}  # cache: model_id -> nn.Module
+active_model_id: str = "surrogate"
 job_store: dict = {}
 
 
@@ -64,10 +67,25 @@ def load_model() -> SurrogateIDS:
     return m
 
 
+def get_model(model_id: str | None = None):
+    """Get a model by ID, using cache. Falls back to active model."""
+    global active_model_id
+    mid = model_id or active_model_id
+    if mid == "surrogate":
+        return model
+    if mid not in loaded_models:
+        try:
+            loaded_models[mid] = registry_load(mid, device=DEVICE, dropout=0.05)
+        except Exception:
+            return model  # fallback to surrogate
+    return loaded_models[mid]
+
+
 @app.on_event("startup")
 async def startup():
     global model
     model = load_model()
+    loaded_models["surrogate"] = model
 
 
 # ---------------------------------------------------------------------------
@@ -148,10 +166,34 @@ async def health():
     return {"status": "ok", "model_loaded": model is not None}
 
 
+@app.get("/api/models")
+async def get_available_models():
+    """List all available models with metadata."""
+    return {
+        "models": list_models(),
+        "active_model": active_model_id,
+    }
+
+
+@app.post("/api/models/{model_id}/activate")
+async def activate_model(model_id: str):
+    """Switch the active model."""
+    global active_model_id
+    if model_id not in MODEL_INFO:
+        return JSONResponse(
+            {"error": f"Unknown model: {model_id}"},
+            status_code=400,
+        )
+    active_model_id = model_id
+    _ = get_model(model_id)  # pre-load
+    return {"active_model": active_model_id}
+
+
 @app.get("/api/model_info")
 async def model_info():
     return {
         "model": "SurrogateIDS",
+        "active_model": active_model_id,
         "n_features": SurrogateIDS.N_FEATURES,
         "n_classes": SurrogateIDS.N_CLASSES,
         "n_branches": SurrogateIDS.N_BRANCHES,
@@ -210,16 +252,19 @@ async def predict(file: UploadFile = File(...)):
 async def predict_uncertain(
     file: UploadFile = File(...),
     mc_passes: int = Form(default=50),
+    model_name: str = Form(default=""),
 ):
     data = await file.read()
     features, metadata, labels_encoded, label_names = extract_features(data, file.filename or "upload.csv")
+    selected = get_model(model_name if model_name else None)
     result = predict_with_uncertainty(
-        model, features.to(DEVICE),
+        selected, features.to(DEVICE),
         labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
         n_mc=mc_passes,
     )
     payload = _build_predictions(features, metadata, labels_encoded, label_names, result)
     payload["job_id"] = str(uuid.uuid4())[:8]
+    payload["model_used"] = model_name if model_name else active_model_id
     return payload
 
 
@@ -227,24 +272,39 @@ async def predict_uncertain(
 async def ablation_endpoint(
     file: UploadFile = File(...),
     disabled_branches: str = Form(default="[]"),
+    model_name: str = Form(default=""),
 ):
     data = await file.read()
     features, metadata, labels_encoded, label_names = extract_features(data, file.filename or "upload.csv")
 
     disabled = set(json.loads(disabled_branches))
+    selected = get_model(model_name if model_name else None)
 
-    # Full ablation study
-    results = run_ablation(
-        model, features.to(DEVICE),
-        labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
-    )
-
-    # Also run with custom disabled set
-    if disabled:
+    # Full ablation study (only supported for surrogate)
+    if hasattr(selected, 'N_BRANCHES') and selected.N_BRANCHES == 7:
+        results = run_ablation(
+            selected, features.to(DEVICE),
+            labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
+        )
+    else:
+        # Non-surrogate model — run single full-model prediction
         with torch.no_grad():
-            model.eval()
-            custom_preds = model(features.to(DEVICE), disabled_branches=disabled).argmax(-1)
-            full_preds = model(features.to(DEVICE)).argmax(-1)
+            selected.eval()
+            preds = selected(features.to(DEVICE)).argmax(-1)
+            if labels_encoded is not None:
+                acc = (preds == labels_encoded.to(DEVICE)).float().mean().item()
+            else:
+                acc = 1.0
+            results = {
+                "Full System": {"accuracy": acc, "accuracy_drop": 0.0, "disabled": []},
+            }
+
+    # Also run with custom disabled set (only for surrogate)
+    if disabled and hasattr(selected, 'N_BRANCHES'):
+        with torch.no_grad():
+            selected.eval()
+            custom_preds = selected(features.to(DEVICE), disabled_branches=disabled).argmax(-1)
+            full_preds = selected(features.to(DEVICE)).argmax(-1)
             if labels_encoded is not None:
                 custom_acc = (custom_preds == labels_encoded.to(DEVICE)).float().mean().item()
                 full_acc = (full_preds == labels_encoded.to(DEVICE)).float().mean().item()
@@ -266,7 +326,11 @@ async def ablation_endpoint(
             "disabled": v["disabled"],
         }
 
-    return {"ablation": clean, "branch_names": SurrogateIDS.BRANCH_NAMES}
+    return {
+        "ablation": clean,
+        "branch_names": SurrogateIDS.BRANCH_NAMES,
+        "model_used": model_name if model_name else active_model_id,
+    }
 
 
 @app.websocket("/ws/stream")

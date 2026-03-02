@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import FileUpload from '../components/FileUpload'
 import AblationChart from '../components/AblationChart'
+import ModelSelector from '../components/ModelSelector'
 import { runAblation } from '../utils/api'
 import { Loader2 } from 'lucide-react'
 
@@ -16,6 +17,7 @@ const BRANCH_NAMES = [
 
 export default function AblationStudio() {
   const [file, setFile] = useState<File | null>(null)
+  const [selectedModel, setSelectedModel] = useState('surrogate')
   const [enabled, setEnabled] = useState<boolean[]>(new Array(7).fill(true))
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<Record<string, { accuracy: number; accuracy_drop: number; disabled: number[] }> | null>(null)
@@ -35,7 +37,7 @@ export default function AblationStudio() {
       const disabled = enabled
         .map((v, i) => (v ? -1 : i))
         .filter((i) => i >= 0)
-      const res = await runAblation(file, disabled)
+      const res = await runAblation(file, disabled, selectedModel)
       setData(res.ablation)
     } catch {
       setError('Failed to run ablation. Is the backend running?')
@@ -53,24 +55,37 @@ export default function AblationStudio() {
         </p>
       </div>
 
-      {/* Branch toggles */}
-      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
-        <h3 className="text-sm font-medium text-text-secondary mb-4">Dissertation Methods</h3>
-        <div className="flex flex-wrap gap-3">
-          {BRANCH_NAMES.map((name, i) => (
-            <button
-              key={i}
-              onClick={() => toggle(i)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
-                enabled[i]
-                  ? 'bg-accent-blue/15 border-accent-blue text-accent-blue'
-                  : 'bg-accent-red/10 border-accent-red/30 text-accent-red line-through'
-              }`}
-            >
-              <span className="font-mono text-xs mr-2">M{i + 1}</span>
-              {name}
-            </button>
-          ))}
+      {/* Model selector + Branch toggles */}
+      <div className="grid grid-cols-3 gap-6">
+        <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h3 className="text-sm font-medium text-text-secondary mb-4">
+            Dissertation Methods
+            {selectedModel !== 'surrogate' && (
+              <span className="ml-2 text-accent-amber text-xs">(ablation only available with SurrogateIDS)</span>
+            )}
+          </h3>
+          <div className="flex flex-wrap gap-3">
+            {BRANCH_NAMES.map((name, i) => (
+              <button
+                key={i}
+                onClick={() => toggle(i)}
+                disabled={selectedModel !== 'surrogate'}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+                  selectedModel !== 'surrogate'
+                    ? 'bg-bg-card/50 border-bg-card text-text-secondary opacity-50'
+                    : enabled[i]
+                    ? 'bg-accent-blue/15 border-accent-blue text-accent-blue'
+                    : 'bg-accent-red/10 border-accent-red/30 text-accent-red line-through'
+                }`}
+              >
+                <span className="font-mono text-xs mr-2">M{i + 1}</span>
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <ModelSelector value={selectedModel} onChange={setSelectedModel} compact />
         </div>
       </div>
 

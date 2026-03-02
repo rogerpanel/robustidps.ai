@@ -3,12 +3,14 @@ import FileUpload from '../components/FileUpload'
 import ThreatTable from '../components/ThreatTable'
 import UncertaintyChart from '../components/UncertaintyChart'
 import ConfusionMatrix from '../components/ConfusionMatrix'
+import ModelSelector from '../components/ModelSelector'
 import { uploadAndPredict } from '../utils/api'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Loader2 } from 'lucide-react'
 
 export default function UploadPage() {
   const [mcPasses, setMcPasses] = useState(50)
+  const [selectedModel, setSelectedModel] = useState('surrogate')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +19,7 @@ export default function UploadPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = await uploadAndPredict(file, mcPasses)
+      const data = await uploadAndPredict(file, mcPasses, selectedModel)
       setResults(data)
       localStorage.setItem('robustidps_results', JSON.stringify(data))
     } catch (err) {
@@ -50,6 +52,7 @@ export default function UploadPage() {
 
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
           <h3 className="text-sm font-medium text-text-secondary">Settings</h3>
+          <ModelSelector value={selectedModel} onChange={setSelectedModel} compact />
           <div>
             <label className="text-xs text-text-secondary block mb-1">
               MC Dropout Passes: {mcPasses}

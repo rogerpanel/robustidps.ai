@@ -136,6 +136,37 @@ export default function About() {
         </table>
       </div>
 
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h2 className="text-lg font-display font-semibold mb-3">Alternative Standalone Models</h2>
+        <p className="text-sm text-text-secondary mb-3">
+          In addition to the 7-branch SurrogateIDS, the following research models are available as
+          standalone alternatives via the Models page.
+        </p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-text-secondary text-xs">
+              <th className="px-3 py-2 text-left">Model</th>
+              <th className="px-3 py-2 text-left">Paper</th>
+              <th className="px-3 py-2 text-left">Approach</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ['Neural ODE (TA-BN-ODE)', 'Temporal Adaptive Neural ODEs', 'Continuous-time ODE + Hawkes point process'],
+              ['Optimal Transport (PPFOT-IDS)', 'DP Optimal Transport for Multi-Cloud IDS', 'Wasserstein domain adaptation + DP'],
+              ['FedGTD', 'Federated Graph Temporal Dynamics', 'Byzantine-resilient federated graph learning'],
+              ['SDE-TGNN', 'SDE Temporal Graph Neural Networks', 'Stochastic DE + temporal graph attention'],
+            ].map(([name, paper, approach]) => (
+              <tr key={name} className="border-t border-bg-card/50">
+                <td className="px-3 py-2 font-medium text-accent-purple">{name}</td>
+                <td className="px-3 py-2 text-xs text-text-secondary">{paper}</td>
+                <td className="px-3 py-2 text-xs text-text-secondary">{approach}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div className="text-xs text-text-secondary">
         <p>Author: Roger Nick Anaedevha | MEPhI, Moscow</p>
         <p>Dissertation: Adversarially Robust AI-based Intrusion Detection Systems</p>

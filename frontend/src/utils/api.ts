@@ -10,6 +10,18 @@ export async function fetchModelInfo() {
   return res.json();
 }
 
+export async function fetchModels() {
+  const res = await fetch(`${API}/api/models`);
+  return res.json();
+}
+
+export async function activateModel(modelId: string) {
+  const res = await fetch(`${API}/api/models/${modelId}/activate`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
 export async function uploadFile(file: File) {
   const form = new FormData();
   form.append('file', file);
@@ -22,10 +34,11 @@ export async function getResults(jobId: string) {
   return res.json();
 }
 
-export async function uploadAndPredict(file: File, mcPasses = 50) {
+export async function uploadAndPredict(file: File, mcPasses = 50, modelName = '') {
   const form = new FormData();
   form.append('file', file);
   form.append('mc_passes', String(mcPasses));
+  if (modelName) form.append('model_name', modelName);
   const res = await fetch(`${API}/api/predict_uncertain`, {
     method: 'POST',
     body: form,
@@ -33,10 +46,11 @@ export async function uploadAndPredict(file: File, mcPasses = 50) {
   return res.json();
 }
 
-export async function runAblation(file: File, disabledBranches: number[]) {
+export async function runAblation(file: File, disabledBranches: number[], modelName = '') {
   const form = new FormData();
   form.append('file', file);
   form.append('disabled_branches', JSON.stringify(disabledBranches));
+  if (modelName) form.append('model_name', modelName);
   const res = await fetch(`${API}/api/ablation`, {
     method: 'POST',
     body: form,
