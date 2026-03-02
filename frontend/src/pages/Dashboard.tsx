@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
 import { Activity, ShieldAlert, ShieldCheck, Gauge } from 'lucide-react'
 import StatCard from '../components/StatCard'
 import AttackDistribution from '../components/AttackDistribution'
 import ConfidenceHistogram from '../components/ConfidenceHistogram'
 import { SAMPLE_RESULTS } from '../utils/api'
+import { useAnalysis } from '../hooks/useAnalysis'
 
 interface Results {
   n_flows: number
@@ -22,22 +22,8 @@ interface Results {
 }
 
 export default function Dashboard() {
-  const [data, setData] = useState<Results | null>(null)
-
-  useEffect(() => {
-    const stored = localStorage.getItem('robustidps_results')
-    if (stored) {
-      try {
-        setData(JSON.parse(stored))
-      } catch {
-        setData(SAMPLE_RESULTS as unknown as Results)
-      }
-    } else {
-      setData(SAMPLE_RESULTS as unknown as Results)
-    }
-  }, [])
-
-  if (!data) return null
+  const { results: analysisResults } = useAnalysis()
+  const data = (analysisResults as unknown as Results) || (SAMPLE_RESULTS as unknown as Results)
 
   const benignPct = data.n_flows > 0 ? ((data.n_benign / data.n_flows) * 100).toFixed(1) : '0'
   const confidences = data.predictions?.map((p) => p.confidence) ?? []

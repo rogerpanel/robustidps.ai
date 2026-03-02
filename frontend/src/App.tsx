@@ -10,6 +10,7 @@ import {
   Wifi,
   WifiOff,
   Brain,
+  Loader2,
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/Upload'
@@ -18,6 +19,7 @@ import LiveMonitor from './pages/LiveMonitor'
 import Models from './pages/Models'
 import About from './pages/About'
 import { fetchHealth } from './utils/api'
+import { useAnalysis } from './hooks/useAnalysis'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -30,6 +32,7 @@ const NAV = [
 
 export default function App() {
   const [online, setOnline] = useState<boolean | null>(null)
+  const { loading: analysisRunning } = useAnalysis()
 
   useEffect(() => {
     fetchHealth()
@@ -72,7 +75,13 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-bg-card">
+        <div className="p-4 border-t border-bg-card space-y-2">
+          {analysisRunning && (
+            <div className="flex items-center gap-2 text-xs text-accent-blue">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>Analysing...</span>
+            </div>
+          )}
           <div className="flex items-center gap-2 text-xs">
             {online === true ? (
               <>

@@ -4,29 +4,17 @@ import ThreatTable from '../components/ThreatTable'
 import UncertaintyChart from '../components/UncertaintyChart'
 import ConfusionMatrix from '../components/ConfusionMatrix'
 import ModelSelector from '../components/ModelSelector'
-import { uploadAndPredict } from '../utils/api'
+import { useAnalysis } from '../hooks/useAnalysis'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Loader2 } from 'lucide-react'
 
 export default function UploadPage() {
   const [mcPasses, setMcPasses] = useState(50)
   const [selectedModel, setSelectedModel] = useState('surrogate')
-  const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Record<string, unknown> | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { loading, results, error, runAnalysis } = useAnalysis()
 
-  const handleUpload = async (file: File) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await uploadAndPredict(file, mcPasses, selectedModel)
-      setResults(data)
-      localStorage.setItem('robustidps_results', JSON.stringify(data))
-    } catch (err) {
-      setError('Failed to analyse file. Is the backend running?')
-    } finally {
-      setLoading(false)
-    }
+  const handleUpload = (file: File) => {
+    runAnalysis(file, mcPasses, selectedModel)
   }
 
   const predictions = (results?.predictions ?? []) as Array<Record<string, unknown>>

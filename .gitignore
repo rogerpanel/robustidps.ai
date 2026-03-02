@@ -22,3 +22,6 @@ Thumbs.db
 
 # Weights are tracked (small enough for demo)
 # backend/weights/
+
+# Scaler pickles are auto-generated per sklearn version — never commit
+backend/weights/scaler_*.pkl
