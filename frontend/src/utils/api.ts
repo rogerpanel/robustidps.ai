@@ -80,6 +80,22 @@ export function connectStream(
   return ws;
 }
 
+export async function fetchAnalytics() {
+  const res = await fetch(`${API}/api/analytics`);
+  return res.json();
+}
+
+export async function exportResults(jobId: string) {
+  const res = await fetch(`${API}/api/export/${jobId}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `robustidps_results_${jobId}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // Sample/fallback data for offline mode
 export const SAMPLE_RESULTS = {
   job_id: 'demo',

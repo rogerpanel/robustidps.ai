@@ -8,6 +8,8 @@ Endpoints:
   POST   /api/predict             Upload + predict in one call
   POST   /api/predict_uncertain   Predict with MC Dropout uncertainty
   POST   /api/ablation            Run ablation study
+  GET    /api/analytics           Pre-computed benchmark / research metrics
+  GET    /api/export/{job_id}     Export results as CSV
   GET    /api/model_info          Model metadata and branch names
   GET    /api/health              Health check
   WS     /ws/stream               WebSocket: stream predictions row-by-row
@@ -19,17 +21,20 @@ import os
 import uuid
 from pathlib import Path
 
+import io
+
 import torch
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from models.surrogate import SurrogateIDS
 from models.model_registry import list_models, load_model as registry_load, MODEL_INFO
 from features import extract_features
 from uncertainty import predict_with_uncertainty
 from ablation import run_ablation
+from benchmark import get_analytics_payload
 
 WEIGHTS_DIR = Path(__file__).parent / "weights"
 DEVICE = os.getenv("DEVICE", "cpu")
@@ -331,6 +336,61 @@ async def ablation_endpoint(
         "branch_names": SurrogateIDS.BRANCH_NAMES,
         "model_used": model_name if model_name else active_model_id,
     }
+
+
+@app.get("/api/analytics")
+async def analytics():
+    """Return pre-computed benchmark data for the Analytics page."""
+    return get_analytics_payload()
+
+
+@app.get("/api/export/{job_id}")
+async def export_results(job_id: str):
+    """Export prediction results as downloadable CSV."""
+    if job_id not in job_store:
+        return JSONResponse({"error": "job not found"}, status_code=404)
+    job = job_store[job_id]
+
+    # Re-run lightweight prediction (no MC) for export
+    selected = get_model()
+    selected.eval()
+    with torch.no_grad():
+        logits = selected(job["features"].to(DEVICE))
+        probs = torch.softmax(logits, dim=-1)
+        preds = probs.argmax(-1).cpu()
+        confs = probs.max(-1).values.cpu()
+
+    import csv
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow([
+        "flow_id", "src_ip", "dst_ip", "label_predicted", "label_true",
+        "confidence", "severity", "action",
+    ])
+    from benchmark import ACTION_MAP
+    metadata = job["metadata"]
+    label_names = job["label_names"]
+    for i in range(len(preds)):
+        cls_idx = preds[i].item()
+        label = SurrogateIDS.CLASS_NAMES[cls_idx] if cls_idx < len(SurrogateIDS.CLASS_NAMES) else f"class_{cls_idx}"
+        sev = SurrogateIDS.severity_for(label)
+        writer.writerow([
+            i,
+            str(metadata["src_ip"].iloc[i]) if "src_ip" in metadata.columns else "",
+            str(metadata["dst_ip"].iloc[i]) if "dst_ip" in metadata.columns else "",
+            label,
+            label_names[i] if label_names else "",
+            round(float(confs[i]), 4),
+            sev,
+            ACTION_MAP.get(sev, {}).get("action", "MONITOR"),
+        ])
+
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=robustidps_results_{job_id}.csv"},
+    )
 
 
 @app.websocket("/ws/stream")
