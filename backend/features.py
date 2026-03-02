@@ -159,7 +159,10 @@ def _select_features_cicids2018(df: pd.DataFrame) -> pd.DataFrame:
     for feat_name in CICIDS2018_FEATURES_FULL:
         col = _find_column(df, feat_name)
         if col is not None:
-            selected.append(df[col].astype(float, errors="ignore"))
+            # Force numeric — coerce non-numeric values (control chars, Infinity, etc.) to NaN
+            series = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+            series.name = feat_name
+            selected.append(series)
         else:
             selected.append(pd.Series(0.0, index=df.index, name=feat_name))
 
@@ -333,7 +336,10 @@ def extract_features(file_bytes: bytes, filename: str = "upload.csv"):
         df = pcap_to_dataframe(file_bytes, filename)
         fmt = "cicids2018"  # PCAP → flow features → treated as CICIDS2018
     else:
-        df = pd.read_csv(io.BytesIO(file_bytes), low_memory=False)
+        # Clean raw bytes: strip control characters that break CSV parsing
+        # CSE-CIC-2018 files often contain \x1a (Ctrl-Z / EOF) from Windows
+        cleaned = file_bytes.replace(b'\x1a', b'').replace(b'\x00', b'')
+        df = pd.read_csv(io.BytesIO(cleaned), low_memory=False, encoding_errors="replace")
         # Strip whitespace from column names
         df.columns = [c.strip() for c in df.columns]
         fmt = detect_format(df)
@@ -354,6 +360,9 @@ def extract_features(file_bytes: bytes, filename: str = "upload.csv"):
         for i in range(n_cols, N_FEATURES):
             numeric[f"pad_{i}"] = 0.0
 
+    # Force all columns to numeric (handles stray strings, control chars, "Infinity")
+    for col in numeric.columns:
+        numeric[col] = pd.to_numeric(numeric[col], errors="coerce")
     values = numeric.values.astype(np.float32)
     values = np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
 
