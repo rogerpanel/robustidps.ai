@@ -1,14 +1,18 @@
 import { useCallback, useState } from 'react'
-import { Upload, FileText } from 'lucide-react'
+import { Upload, FileText, FileArchive } from 'lucide-react'
 
 interface Props {
   onFileSelect: (file: File) => void
   loading?: boolean
+  acceptPcap?: boolean
 }
 
-export default function FileUpload({ onFileSelect, loading }: Props) {
+export default function FileUpload({ onFileSelect, loading, acceptPcap = true }: Props) {
   const [drag, setDrag] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
+
+  const acceptStr = acceptPcap ? '.csv,.pcap,.pcapng' : '.csv'
+  const isPcap = fileName?.match(/\.(pcap|pcapng)$/i)
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -50,18 +54,30 @@ export default function FileUpload({ onFileSelect, loading }: Props) {
     >
       {fileName ? (
         <>
-          <FileText className="w-10 h-10 text-accent-green" />
+          {isPcap ? (
+            <FileArchive className="w-10 h-10 text-accent-purple" />
+          ) : (
+            <FileText className="w-10 h-10 text-accent-green" />
+          )}
           <span className="text-text-primary font-mono text-sm">{fileName}</span>
+          {isPcap && (
+            <span className="text-xs text-accent-purple">PCAP file — will be converted to flow features</span>
+          )}
         </>
       ) : (
         <>
           <Upload className="w-10 h-10 text-text-secondary" />
           <span className="text-text-secondary text-sm">
-            Drop a CSV file here or click to browse
+            Drop a {acceptPcap ? 'CSV or PCAP' : 'CSV'} file here or click to browse
           </span>
+          {acceptPcap && (
+            <span className="text-xs text-text-secondary/60">
+              Supports: .csv (CIC-IoT-2023, CSE-CIC-IDS2018) &middot; .pcap / .pcapng
+            </span>
+          )}
         </>
       )}
-      <input type="file" accept=".csv" className="hidden" onChange={handleChange} />
+      <input type="file" accept={acceptStr} className="hidden" onChange={handleChange} />
     </label>
   )
 }
