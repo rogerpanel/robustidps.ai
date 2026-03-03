@@ -228,7 +228,7 @@ ROC_AUC = {
 # FedGTD also performs well due to its federated aggregation and
 # knowledge distillation which smooth out DP noise across clients.
 
-_DP_EPSILONS = [float('inf'), 50.0, 20.0, 10.0, 5.0, 3.0, 2.0, 1.0]
+_DP_EPSILONS = [None, 50.0, 20.0, 10.0, 5.0, 3.0, 2.0, 1.0]  # None = no privacy (ε=∞)
 _DP_LABELS = ["∞ (none)", "50", "20", "10", "5", "3", "2", "1 (strong)"]
 
 PRIVACY_ACCURACY = {
@@ -296,31 +296,31 @@ PARETO_FRONTIER = {
              "Efficiency (1/ms)"],
     "regimes": ["No Privacy", "Moderate DP (ε=10)", "Strong DP (ε=3)", "Max Privacy (ε=1)"],
     "surrogate": [
-        {"accuracy": 96.5, "robustness": 88.7, "privacy_eps": float('inf'), "cost_ms": 1.2},
+        {"accuracy": 96.5, "robustness": 88.7, "privacy_eps": None, "cost_ms": 1.2},
         {"accuracy": 94.7, "robustness": 86.4, "privacy_eps": 10.0, "cost_ms": 1.3},
         {"accuracy": 89.3, "robustness": 80.6, "privacy_eps": 3.0, "cost_ms": 1.4},
         {"accuracy": 79.1, "robustness": 70.3, "privacy_eps": 1.0, "cost_ms": 1.5},
     ],
     "neural_ode": [
-        {"accuracy": 94.8, "robustness": 85.8, "privacy_eps": float('inf'), "cost_ms": 8.7},
+        {"accuracy": 94.8, "robustness": 85.8, "privacy_eps": None, "cost_ms": 8.7},
         {"accuracy": 92.8, "robustness": 83.1, "privacy_eps": 10.0, "cost_ms": 9.2},
         {"accuracy": 86.9, "robustness": 76.9, "privacy_eps": 3.0, "cost_ms": 9.8},
         {"accuracy": 76.2, "robustness": 66.4, "privacy_eps": 1.0, "cost_ms": 10.3},
     ],
     "optimal_transport": [
-        {"accuracy": 93.9, "robustness": 85.6, "privacy_eps": float('inf'), "cost_ms": 3.4},
+        {"accuracy": 93.9, "robustness": 85.6, "privacy_eps": None, "cost_ms": 3.4},
         {"accuracy": 92.8, "robustness": 84.3, "privacy_eps": 10.0, "cost_ms": 3.6},
         {"accuracy": 89.7, "robustness": 80.9, "privacy_eps": 3.0, "cost_ms": 3.9},
         {"accuracy": 83.1, "robustness": 74.2, "privacy_eps": 1.0, "cost_ms": 4.2},
     ],
     "fedgtd": [
-        {"accuracy": 95.1, "robustness": 87.4, "privacy_eps": float('inf'), "cost_ms": 5.1},
+        {"accuracy": 95.1, "robustness": 87.4, "privacy_eps": None, "cost_ms": 5.1},
         {"accuracy": 93.6, "robustness": 85.2, "privacy_eps": 10.0, "cost_ms": 5.4},
         {"accuracy": 89.1, "robustness": 80.1, "privacy_eps": 3.0, "cost_ms": 5.8},
         {"accuracy": 80.8, "robustness": 71.3, "privacy_eps": 1.0, "cost_ms": 6.2},
     ],
     "sde_tgnn": [
-        {"accuracy": 95.3, "robustness": 88.3, "privacy_eps": float('inf'), "cost_ms": 12.3},
+        {"accuracy": 95.3, "robustness": 88.3, "privacy_eps": None, "cost_ms": 12.3},
         {"accuracy": 93.3, "robustness": 86.0, "privacy_eps": 10.0, "cost_ms": 13.1},
         {"accuracy": 87.6, "robustness": 80.4, "privacy_eps": 3.0, "cost_ms": 13.8},
         {"accuracy": 77.4, "robustness": 70.5, "privacy_eps": 1.0, "cost_ms": 14.5},

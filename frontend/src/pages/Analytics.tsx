@@ -749,9 +749,9 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
               </thead>
               <tbody>
                 {models.map((mid) =>
-                  (pareto[mid] as Array<{accuracy: number; robustness: number; privacy_eps: number; cost_ms: number}>).map((pt, ri) => {
+                  (pareto[mid] as Array<{accuracy: number; robustness: number; privacy_eps: number | null; cost_ms: number}>).map((pt, ri) => {
                     // Composite score: accuracy + robustness + privacy_reward - cost_penalty
-                    const privReward = pt.privacy_eps === Infinity ? 0 : (1 / pt.privacy_eps) * 100
+                    const privReward = pt.privacy_eps == null ? 0 : (1 / pt.privacy_eps) * 100
                     const composite = +((pt.accuracy + pt.robustness) / 2 + privReward - pt.cost_ms * 0.5).toFixed(1)
                     return (
                       <tr
@@ -767,7 +767,7 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
                         <td className="px-2 py-1.5 text-center font-mono">{pt.accuracy.toFixed(1)}%</td>
                         <td className="px-2 py-1.5 text-center font-mono">{pt.robustness.toFixed(1)}%</td>
                         <td className="px-2 py-1.5 text-center font-mono">
-                          {pt.privacy_eps === Infinity ? '∞' : pt.privacy_eps.toFixed(1)}
+                          {pt.privacy_eps == null ? '∞' : pt.privacy_eps.toFixed(1)}
                         </td>
                         <td className="px-2 py-1.5 text-center font-mono">{pt.cost_ms.toFixed(1)}</td>
                         <td className={`px-2 py-1.5 text-center font-mono font-bold ${
