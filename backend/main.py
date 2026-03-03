@@ -287,10 +287,13 @@ async def ablation_endpoint(
 
     # Full ablation study (only supported for surrogate)
     if hasattr(selected, 'N_BRANCHES') and selected.N_BRANCHES == 7:
-        results = run_ablation(
+        ablation_result = run_ablation(
             selected, features.to(DEVICE),
             labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
         )
+        single = ablation_result["single"]
+        pairwise = ablation_result["pairwise"]
+        incremental = ablation_result["incremental"]
     else:
         # Non-surrogate model — run single full-model prediction
         with torch.no_grad():
@@ -300,9 +303,14 @@ async def ablation_endpoint(
                 acc = (preds == labels_encoded.to(DEVICE)).float().mean().item()
             else:
                 acc = 1.0
-            results = {
-                "Full System": {"accuracy": acc, "accuracy_drop": 0.0, "disabled": []},
+            single = {
+                "Full System": {
+                    "accuracy": acc, "precision": 0.0, "recall": 0.0,
+                    "f1": 0.0, "accuracy_drop": 0.0, "disabled": [],
+                },
             }
+        pairwise = {}
+        incremental = []
 
     # Also run with custom disabled set (only for surrogate)
     if disabled and hasattr(selected, 'N_BRANCHES'):
@@ -316,23 +324,28 @@ async def ablation_endpoint(
             else:
                 custom_acc = (custom_preds == full_preds).float().mean().item()
                 full_acc = 1.0
-            results["Custom"] = {
-                "accuracy": custom_acc,
-                "accuracy_drop": full_acc - custom_acc,
+            single["Custom"] = {
+                "accuracy": custom_acc, "precision": 0.0, "recall": 0.0,
+                "f1": 0.0, "accuracy_drop": full_acc - custom_acc,
                 "disabled": list(disabled),
             }
 
     # Serialise (remove tensors)
     clean = {}
-    for k, v in results.items():
+    for k, v in single.items():
         clean[k] = {
             "accuracy": round(v["accuracy"], 4),
+            "precision": round(v.get("precision", 0.0), 4),
+            "recall": round(v.get("recall", 0.0), 4),
+            "f1": round(v.get("f1", 0.0), 4),
             "accuracy_drop": round(v.get("accuracy_drop", 0.0), 4),
             "disabled": v["disabled"],
         }
 
     return {
         "ablation": clean,
+        "pairwise": pairwise,
+        "incremental": incremental,
         "branch_names": SurrogateIDS.BRANCH_NAMES,
         "model_used": model_name if model_name else active_model_id,
     }
