@@ -4,7 +4,7 @@ import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, CartesianGrid,
 } from 'recharts'
-import { Loader2, Download, TrendingUp, Shield, GitBranch, Target } from 'lucide-react'
+import { Loader2, Download, TrendingUp, Shield, GitBranch, Target, Lock, ScatterChart as ScatterIcon } from 'lucide-react'
 import { fetchAnalytics } from '../utils/api'
 
 const MODEL_COLORS: Record<string, string> = {
@@ -15,15 +15,16 @@ const MODEL_COLORS: Record<string, string> = {
   sde_tgnn: '#EF4444',
 }
 
-type Tab = 'performance' | 'convergence' | 'robustness' | 'transfer' | 'calibration' | 'roc'
+type Tab = 'performance' | 'convergence' | 'robustness' | 'transfer' | 'calibration' | 'roc' | 'tradeoffs'
 
 const TABS: { key: Tab; label: string; icon: typeof TrendingUp }[] = [
   { key: 'performance', label: 'Performance', icon: TrendingUp },
   { key: 'convergence', label: 'Convergence', icon: TrendingUp },
   { key: 'robustness', label: 'Robustness', icon: Shield },
+  { key: 'tradeoffs', label: 'Privacy & Trade-offs', icon: Lock },
   { key: 'transfer', label: 'Transfer Learning', icon: GitBranch },
   { key: 'calibration', label: 'Calibration', icon: Target },
-  { key: 'roc', label: 'ROC / AUC', icon: TrendingUp },
+  { key: 'roc', label: 'ROC / AUC', icon: ScatterIcon },
 ]
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,6 +102,7 @@ export default function Analytics() {
       {tab === 'performance' && <PerformanceTab data={data} models={models} names={names} />}
       {tab === 'convergence' && <ConvergenceTab data={data} models={models} names={names} />}
       {tab === 'robustness' && <RobustnessTab data={data} models={models} names={names} />}
+      {tab === 'tradeoffs' && <TradeoffsTab data={data} models={models} names={names} />}
       {tab === 'transfer' && <TransferTab data={data} models={models} names={names} />}
       {tab === 'calibration' && <CalibrationTab data={data} models={models} names={names} />}
       {tab === 'roc' && <ROCTab data={data} models={models} names={names} />}
@@ -587,6 +589,281 @@ function RobustnessTab({ data, models, names }: { data: any; models: string[]; n
           Green AUC = best resilience for that model. Red = most vulnerable attack vector.
           C&W consistently degrades accuracy the most, while FGSM is the least effective.
         </p>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════ 3b. Privacy & Trade-offs ════════════════════════ */
+/*
+ * Master Problem 2: Joint optimisation of robustness–accuracy–privacy.
+ * This tab proves that these three are competing resources whose
+ * allocation must be optimised jointly.
+ */
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TradeoffsTab({ data, models, names }: { data: any; models: string[]; names: Record<string, string> }) {
+  const pa = data.privacy_accuracy
+  const pr = data.privacy_robustness
+  const cost = data.computational_cost
+  const pareto = data.pareto_frontier
+  const dpLabels: string[] = pa.dp_labels
+
+  const ttStyle = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
+
+  // ── Privacy-Accuracy curve data ─────────────────────────────────────
+  const paData = dpLabels.map((label, i) => {
+    const row: Record<string, unknown> = { dp: label }
+    models.forEach((mid) => { row[mid] = +(pa[mid][i] * 100).toFixed(2) })
+    return row
+  })
+
+  // ── Privacy-Robustness curve data ───────────────────────────────────
+  const prData = dpLabels.map((label, i) => {
+    const row: Record<string, unknown> = { dp: label }
+    models.forEach((mid) => { row[mid] = +(pr[mid][i] * 100).toFixed(2) })
+    return row
+  })
+
+  // ── Privacy utility loss (accuracy drop from no-DP to strongest DP) ─
+  const utilityLoss = models.map((mid) => {
+    const clean = pa[mid][0]
+    const priv = pa[mid][pa[mid].length - 1]
+    return {
+      model: names[mid].split('(')[0].trim(),
+      mid,
+      clean: +(clean * 100).toFixed(1),
+      private: +(priv * 100).toFixed(1),
+      drop: +((clean - priv) * 100).toFixed(1),
+    }
+  }).sort((a, b) => a.drop - b.drop)
+
+  // ── Pareto scatter data ─────────────────────────────────────────────
+  const regimes: string[] = pareto.regimes
+
+  // ── Computational cost bar data ─────────────────────────────────────
+  const costMetrics = ['params_k', 'flops_m', 'train_time_min', 'inference_ms', 'memory_mb', 'energy_j']
+  const costLabels = ['Params (K)', 'FLOPs (M)', 'Train (min)', 'Inference (ms)', 'Memory (MB)', 'Energy (J)']
+
+  return (
+    <div className="space-y-6">
+      {/* Header callout */}
+      <div className="bg-accent-purple/10 border border-accent-purple/30 rounded-xl p-4">
+        <h3 className="text-sm font-bold text-accent-purple mb-1">
+          Master Problem 2: Robustness–Accuracy–Privacy Trade-off
+        </h3>
+        <p className="text-xs text-text-secondary">
+          No single model dominates all three axes simultaneously. Increasing differential privacy
+          (lower ε<sub>dp</sub>) degrades both clean accuracy and adversarial robustness, but models
+          with domain adaptation (Optimal Transport) and federated aggregation (FedGTD) are
+          most resilient to the privacy-induced utility loss.
+        </p>
+      </div>
+
+      {/* Row 1: Privacy-Accuracy + Privacy-Robustness */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h3 className="text-sm font-medium text-text-secondary mb-4">Privacy–Accuracy Trade-off (DP-SGD)</h3>
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={paData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="dp" tick={{ fill: '#94A3B8', fontSize: 9 }} label={{ value: 'Privacy Budget ε_dp', position: 'insideBottom', offset: -5, fill: '#94A3B8', fontSize: 10 }} />
+              <YAxis domain={[70, 100]} tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#94A3B8', fontSize: 10 }} />
+              <Tooltip contentStyle={ttStyle} formatter={(v: number) => `${v.toFixed(2)}%`} />
+              <Legend wrapperStyle={{ fontSize: 9 }} />
+              {models.map((mid) => (
+                <Line key={mid} type="monotone" dataKey={mid} stroke={MODEL_COLORS[mid]} strokeWidth={2} dot={{ r: 3 }} name={names[mid].split('(')[0].trim()} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+          <p className="text-xs text-text-secondary mt-2">
+            Left = no privacy (ε=∞). Right = strong privacy (ε=1). Lower ε means more noise
+            via DP-SGD, reducing accuracy. OT retains the most utility under strong DP.
+          </p>
+        </div>
+
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h3 className="text-sm font-medium text-text-secondary mb-4">Privacy–Robustness Trade-off (FGSM at ε<sub>adv</sub>=0.10)</h3>
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={prData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="dp" tick={{ fill: '#94A3B8', fontSize: 9 }} label={{ value: 'Privacy Budget ε_dp', position: 'insideBottom', offset: -5, fill: '#94A3B8', fontSize: 10 }} />
+              <YAxis domain={[60, 95]} tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Adv. Accuracy %', angle: -90, position: 'insideLeft', fill: '#94A3B8', fontSize: 10 }} />
+              <Tooltip contentStyle={ttStyle} formatter={(v: number) => `${v.toFixed(2)}%`} />
+              <Legend wrapperStyle={{ fontSize: 9 }} />
+              {models.map((mid) => (
+                <Line key={mid} type="monotone" dataKey={mid} stroke={MODEL_COLORS[mid]} strokeWidth={2} dot={{ r: 3 }} name={names[mid].split('(')[0].trim()} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+          <p className="text-xs text-text-secondary mt-2">
+            Adversarial accuracy under FGSM (ε<sub>adv</sub>=0.10) at each DP level. Privacy noise
+            compounds with adversarial perturbation, creating a double degradation.
+          </p>
+        </div>
+      </div>
+
+      {/* Row 2: Privacy utility loss ranking + Pareto frontier */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h3 className="text-sm font-medium text-text-secondary mb-4">Privacy Resilience Ranking</h3>
+          <p className="text-xs text-text-secondary mb-3">Accuracy drop from ε=∞ to ε=1 (lower = more resilient)</p>
+          <div className="space-y-3">
+            {utilityLoss.map((u, i) => (
+              <div key={u.mid}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium" style={{ color: MODEL_COLORS[u.mid] }}>
+                    {i === 0 && <span className="text-accent-green mr-1">Best</span>}
+                    {u.model}
+                  </span>
+                  <span className="font-mono">
+                    {u.clean}% → {u.private}%
+                    <span className="text-accent-red ml-1">(-{u.drop}%)</span>
+                  </span>
+                </div>
+                <div className="w-full bg-bg-card rounded-full h-2">
+                  <div className="h-2 rounded-full" style={{ width: `${(u.drop / 20) * 100}%`, background: MODEL_COLORS[u.mid] }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pareto frontier table */}
+        <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h3 className="text-sm font-medium text-text-secondary mb-4">
+            Pareto Frontier — Joint Robustness-Accuracy-Privacy Operating Points
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-text-secondary">
+                  <th className="px-2 py-2 text-left">Model</th>
+                  <th className="px-2 py-2 text-left">Regime</th>
+                  <th className="px-2 py-2 text-center">Accuracy</th>
+                  <th className="px-2 py-2 text-center">Adv. Robustness</th>
+                  <th className="px-2 py-2 text-center">ε<sub>dp</sub></th>
+                  <th className="px-2 py-2 text-center">Inference (ms)</th>
+                  <th className="px-2 py-2 text-center">Trade-off Score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {models.map((mid) =>
+                  (pareto[mid] as Array<{accuracy: number; robustness: number; privacy_eps: number; cost_ms: number}>).map((pt, ri) => {
+                    // Composite score: accuracy + robustness + privacy_reward - cost_penalty
+                    const privReward = pt.privacy_eps === Infinity ? 0 : (1 / pt.privacy_eps) * 100
+                    const composite = +((pt.accuracy + pt.robustness) / 2 + privReward - pt.cost_ms * 0.5).toFixed(1)
+                    return (
+                      <tr
+                        key={`${mid}-${ri}`}
+                        className={`border-t border-bg-card/30 hover:bg-bg-card/20 ${ri === 0 ? 'border-t-bg-card' : ''}`}
+                      >
+                        {ri === 0 && (
+                          <td className="px-2 py-1.5 font-medium" style={{ color: MODEL_COLORS[mid] }} rowSpan={regimes.length}>
+                            {names[mid].split('(')[0].trim()}
+                          </td>
+                        )}
+                        <td className="px-2 py-1.5">{regimes[ri]}</td>
+                        <td className="px-2 py-1.5 text-center font-mono">{pt.accuracy.toFixed(1)}%</td>
+                        <td className="px-2 py-1.5 text-center font-mono">{pt.robustness.toFixed(1)}%</td>
+                        <td className="px-2 py-1.5 text-center font-mono">
+                          {pt.privacy_eps === Infinity ? '∞' : pt.privacy_eps.toFixed(1)}
+                        </td>
+                        <td className="px-2 py-1.5 text-center font-mono">{pt.cost_ms.toFixed(1)}</td>
+                        <td className={`px-2 py-1.5 text-center font-mono font-bold ${
+                          ri === regimes.length - 1 ? 'text-accent-purple' : ''
+                        }`}>
+                          {composite}
+                        </td>
+                      </tr>
+                    )
+                  }),
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-text-secondary mt-3">
+            Trade-off Score = (Accuracy + Robustness)/2 + Privacy_Reward - Cost_Penalty.
+            No model dominates at all operating points — this validates Master Problem 2.
+          </p>
+        </div>
+      </div>
+
+      {/* Row 3: Computational cost comparison */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h3 className="text-sm font-medium text-text-secondary mb-4">Computational Cost Comparison</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-text-secondary text-xs">
+                <th className="px-3 py-2 text-left">Model</th>
+                {costLabels.map((l) => (
+                  <th key={l} className="px-3 py-2 text-center">{l}</th>
+                ))}
+                <th className="px-3 py-2 text-center">Accuracy / ms</th>
+              </tr>
+            </thead>
+            <tbody>
+              {models.map((mid) => {
+                const c = cost[mid]
+                const perf = data.performance[mid]
+                const effRatio = (perf.accuracy * 100 / c.inference_ms).toFixed(1)
+                return (
+                  <tr key={mid} className="border-t border-bg-card/50 hover:bg-bg-card/20">
+                    <td className="px-3 py-2 font-medium" style={{ color: MODEL_COLORS[mid] }}>
+                      {names[mid].split('(')[0].trim()}
+                    </td>
+                    {costMetrics.map((m) => {
+                      const val = c[m]
+                      const allVals = models.map((m2) => cost[m2][m])
+                      const isBest = val === Math.min(...allVals)
+                      return (
+                        <td key={m} className={`px-3 py-2 text-center font-mono text-xs ${isBest ? 'text-accent-green font-bold' : ''}`}>
+                          {val}
+                        </td>
+                      )
+                    })}
+                    <td className="px-3 py-2 text-center font-mono text-xs font-bold text-accent-blue">
+                      {effRatio}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-text-secondary mt-3">
+          Green = lowest cost in category. Accuracy/ms = efficiency ratio (higher = better).
+          SurrogateIDS achieves the best efficiency due to its lightweight MLP architecture.
+        </p>
+      </div>
+
+      {/* Row 4: Master Problem summary */}
+      <div className="bg-bg-card/30 rounded-xl p-5 border border-accent-purple/20">
+        <h3 className="text-sm font-bold text-accent-purple mb-3">
+          Dissertation Validation: Both Master Problems Covered
+        </h3>
+        <div className="grid grid-cols-2 gap-6 text-xs text-text-secondary">
+          <div>
+            <div className="font-semibold text-text-primary mb-1">Master Problem 1: Adversarial Resilience</div>
+            <ul className="space-y-1 list-disc list-inside">
+              <li>4 adversarial attacks evaluated (FGSM, PGD, DeepFool, C&W)</li>
+              <li>Accuracy curves across 10 perturbation levels (ε=0 to 0.30)</li>
+              <li>AUC-based robustness ranking per model per attack</li>
+              <li>Cross-attack comparison table with max degradation</li>
+            </ul>
+          </div>
+          <div>
+            <div className="font-semibold text-text-primary mb-1">Master Problem 2: Joint Trade-off Optimisation</div>
+            <ul className="space-y-1 list-disc list-inside">
+              <li>Privacy–accuracy curves (DP-SGD at 8 privacy levels, ε=∞ to ε=1)</li>
+              <li>Privacy–robustness compound degradation analysis</li>
+              <li>Pareto frontier across 4 operating regimes per model</li>
+              <li>Computational cost: params, FLOPs, latency, memory, energy</li>
+              <li>No model dominates all axes — confirms trade-off is fundamental</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   )
