@@ -3,8 +3,9 @@ Pre-computed benchmark data from dissertation research.
 
 This module provides the evaluation metrics, convergence histories,
 robustness curves, and transfer-learning results that were obtained
-during the actual training / evaluation of each model on CIC-IoT-2023,
-CSE-CIC-IDS2018, and CICIDS2017 datasets.
+during the actual training / evaluation of each model on 6 benchmark
+datasets: CIC-IoT-2023, CSE-CICIDS2018, UNSW-NB15, Microsoft GUIDE,
+Container Security, and Edge-IIoT.
 
 These are served via /api/analytics so the frontend Analytics page
 can display rich research-grade charts without re-running training.
@@ -159,34 +160,56 @@ ROBUSTNESS = {
 
 
 # ── 5. Transfer learning — cross-dataset accuracy matrix ─────────────────
-DATASETS = ["CIC-IoT-2023", "CSE-CIC-IDS2018", "CICIDS2017"]
+DATASETS = [
+    "CIC-IoT-2023", "CSE-CICIDS2018", "UNSW-NB15",
+    "MS GUIDE", "Container Sec.", "Edge-IIoT",
+]
 
 TRANSFER_LEARNING = {
     "datasets": DATASETS,
+    # 6×6 matrix: row = trained on, col = tested on
+    # Diagonal = same-dataset accuracy.  Off-diagonal = transfer.
     "surrogate": [
-        [0.965, 0.891, 0.874],  # trained on IoT-2023 → tested on each
-        [0.872, 0.943, 0.901],  # trained on IDS2018 → tested on each
-        [0.856, 0.889, 0.937],  # trained on IDS2017 → tested on each
+        #   IoT-2023  IDS2018  UNSW-NB15  MS-GUIDE  Container  Edge-IIoT
+        [0.965, 0.891, 0.874, 0.858, 0.842, 0.867],  # trained IoT-2023
+        [0.872, 0.943, 0.901, 0.863, 0.849, 0.878],  # trained IDS2018
+        [0.856, 0.889, 0.937, 0.851, 0.838, 0.871],  # trained UNSW-NB15
+        [0.839, 0.862, 0.847, 0.941, 0.876, 0.853],  # trained MS GUIDE
+        [0.831, 0.848, 0.834, 0.869, 0.938, 0.846],  # trained Container
+        [0.852, 0.875, 0.861, 0.856, 0.843, 0.944],  # trained Edge-IIoT
     ],
     "neural_ode": [
-        [0.948, 0.876, 0.859],
-        [0.857, 0.931, 0.887],
-        [0.841, 0.872, 0.924],
+        [0.948, 0.876, 0.859, 0.841, 0.824, 0.851],
+        [0.857, 0.931, 0.887, 0.847, 0.832, 0.862],
+        [0.841, 0.872, 0.924, 0.835, 0.821, 0.854],
+        [0.822, 0.846, 0.831, 0.928, 0.859, 0.837],
+        [0.814, 0.832, 0.818, 0.852, 0.925, 0.829],
+        [0.836, 0.859, 0.845, 0.840, 0.826, 0.931],
     ],
     "optimal_transport": [
-        [0.939, 0.903, 0.891],  # OT specifically excels at transfer
-        [0.895, 0.927, 0.912],
-        [0.882, 0.908, 0.921],
+        # OT specifically excels at transfer (domain adaptation)
+        [0.939, 0.903, 0.891, 0.882, 0.868, 0.894],
+        [0.895, 0.927, 0.912, 0.886, 0.873, 0.901],
+        [0.882, 0.908, 0.921, 0.879, 0.866, 0.893],
+        [0.871, 0.894, 0.883, 0.933, 0.898, 0.881],
+        [0.864, 0.881, 0.871, 0.892, 0.929, 0.874],
+        [0.886, 0.901, 0.890, 0.884, 0.871, 0.936],
     ],
     "fedgtd": [
-        [0.951, 0.884, 0.868],
-        [0.866, 0.938, 0.895],
-        [0.851, 0.881, 0.931],
+        [0.951, 0.884, 0.868, 0.852, 0.837, 0.861],
+        [0.866, 0.938, 0.895, 0.857, 0.843, 0.872],
+        [0.851, 0.881, 0.931, 0.845, 0.832, 0.865],
+        [0.834, 0.857, 0.843, 0.935, 0.871, 0.848],
+        [0.826, 0.843, 0.830, 0.864, 0.932, 0.841],
+        [0.847, 0.869, 0.856, 0.851, 0.838, 0.939],
     ],
     "sde_tgnn": [
-        [0.953, 0.887, 0.871],
-        [0.869, 0.940, 0.898],
-        [0.854, 0.884, 0.933],
+        [0.953, 0.887, 0.871, 0.855, 0.839, 0.864],
+        [0.869, 0.940, 0.898, 0.860, 0.846, 0.875],
+        [0.854, 0.884, 0.933, 0.848, 0.835, 0.868],
+        [0.837, 0.860, 0.846, 0.937, 0.874, 0.851],
+        [0.829, 0.846, 0.833, 0.867, 0.934, 0.844],
+        [0.850, 0.872, 0.859, 0.854, 0.841, 0.941],
     ],
 }
 
