@@ -351,40 +351,85 @@ function ConvergenceTab({ data, models, names }: { data: any; models: string[]; 
 
 /* ═══════════════════════ 3. Robustness Under Perturbation ════════════════ */
 
+const ATTACK_COLORS: Record<string, string> = {
+  fgsm: '#3B82F6',
+  pgd: '#A855F7',
+  deepfool: '#F59E0B',
+  cw: '#EF4444',
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function RobustnessTab({ data, models, names }: { data: any; models: string[]; names: Record<string, string> }) {
   const rob = data.robustness
   const eps: number[] = rob.epsilons
+  const attacks: string[] = rob.attacks
+  const attackNames: Record<string, string> = rob.attack_names
+  const [selectedAttack, setSelectedAttack] = useState(attacks[0])
+  const [selectedModel, setSelectedModel] = useState(models[0])
 
-  const lineData = eps.map((e, i) => {
+  // ── Data for per-attack chart (all models on one attack) ────────────
+  const perAttackData = eps.map((e, i) => {
     const row: Record<string, unknown> = { epsilon: e }
-    models.forEach((mid) => { row[mid] = +(rob[mid][i] * 100).toFixed(2) })
+    models.forEach((mid) => { row[mid] = +(rob[selectedAttack][mid][i] * 100).toFixed(2) })
     return row
   })
 
-  // Robustness score: area under accuracy-vs-epsilon curve (higher = more robust)
-  const robScores = models.map((mid) => {
-    const vals: number[] = rob[mid]
+  // ── Data for per-model chart (all attacks on one model) ─────────────
+  const perModelData = eps.map((e, i) => {
+    const row: Record<string, unknown> = { epsilon: e }
+    attacks.forEach((atk) => { row[atk] = +(rob[atk][selectedModel][i] * 100).toFixed(2) })
+    return row
+  })
+
+  // ── Robustness AUC scores per attack ────────────────────────────────
+  const aucScores = (atk: string, mid: string) => {
+    const vals: number[] = rob[atk][mid]
     let area = 0
     for (let i = 1; i < eps.length; i++) {
       area += (eps[i] - eps[i - 1]) * (vals[i] + vals[i - 1]) / 2
     }
-    return { model: names[mid].split('(')[0].trim(), score: +(area / eps[eps.length - 1] * 100).toFixed(2), mid }
-  }).sort((a, b) => b.score - a.score)
+    return +(area / eps[eps.length - 1] * 100).toFixed(2)
+  }
+
+  // ── Ranking for current attack ──────────────────────────────────────
+  const ranking = models
+    .map((mid) => ({ mid, model: names[mid].split('(')[0].trim(), score: aucScores(selectedAttack, mid) }))
+    .sort((a, b) => b.score - a.score)
+
+  const ttStyle = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
   return (
     <div className="space-y-6">
+      {/* Attack selector */}
+      <div className="flex gap-2 flex-wrap">
+        {attacks.map((atk) => (
+          <button
+            key={atk}
+            onClick={() => setSelectedAttack(atk)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+              selectedAttack === atk
+                ? 'text-white border-transparent'
+                : 'bg-bg-card/50 text-text-secondary hover:text-text-primary border-bg-card'
+            }`}
+            style={selectedAttack === atk ? { background: ATTACK_COLORS[atk] } : {}}
+          >
+            {attackNames[atk]}
+          </button>
+        ))}
+      </div>
+
+      {/* Row 1: Per-attack curve + ranking */}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">
-            Accuracy Under FGSM Adversarial Perturbation
+            Accuracy Under {attackNames[selectedAttack]}
           </h3>
           <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={lineData}>
+            <LineChart data={perAttackData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="epsilon" tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Perturbation \u03B5', position: 'insideBottom', offset: -5, fill: '#94A3B8', fontSize: 11 }} />
-              <YAxis domain={[60, 100]} tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#94A3B8', fontSize: 11 }} />
-              <Tooltip contentStyle={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }} formatter={(v: number) => `${v.toFixed(2)}%`} />
+              <YAxis domain={[55, 100]} tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#94A3B8', fontSize: 11 }} />
+              <Tooltip contentStyle={ttStyle} formatter={(v: number) => `${v.toFixed(2)}%`} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               {models.map((mid) => (
                 <Line key={mid} type="monotone" dataKey={mid} stroke={MODEL_COLORS[mid]} strokeWidth={2} dot={{ r: 3 }} name={names[mid].split('(')[0].trim()} />
@@ -393,73 +438,155 @@ function RobustnessTab({ data, models, names }: { data: any; models: string[]; n
           </ResponsiveContainer>
         </div>
 
-        {/* Robustness ranking */}
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
-          <h3 className="text-sm font-medium text-text-secondary mb-4">Robustness Score (AUC)</h3>
+          <h3 className="text-sm font-medium text-text-secondary mb-4">
+            Robustness Ranking — {selectedAttack.toUpperCase()}
+          </h3>
           <div className="space-y-3">
-            {robScores.map((r, i) => (
+            {ranking.map((r, i) => (
               <div key={r.mid} className="flex items-center gap-3">
-                <span className={`text-lg font-bold ${i === 0 ? 'text-accent-green' : 'text-text-secondary'}`}>
-                  #{i + 1}
-                </span>
+                <span className={`text-lg font-bold ${i === 0 ? 'text-accent-green' : 'text-text-secondary'}`}>#{i + 1}</span>
                 <div className="flex-1">
                   <div className="text-sm font-medium" style={{ color: MODEL_COLORS[r.mid] }}>{r.model}</div>
                   <div className="w-full bg-bg-card rounded-full h-2 mt-1">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{ width: `${r.score}%`, background: MODEL_COLORS[r.mid] }}
-                    />
+                    <div className="h-2 rounded-full" style={{ width: `${r.score}%`, background: MODEL_COLORS[r.mid] }} />
                   </div>
                 </div>
                 <span className="text-xs font-mono text-text-secondary">{r.score}%</span>
               </div>
             ))}
           </div>
-          <p className="text-xs text-text-secondary mt-4">
-            Robustness Score = normalized AUC of accuracy across all perturbation levels.
-            Higher is more resilient to adversarial attacks.
-          </p>
         </div>
       </div>
 
-      {/* Drop table */}
+      {/* Row 2: Per-model multi-attack overlay */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-text-secondary">
+              All 4 Attacks on {names[selectedModel].split('(')[0].trim()}
+            </h3>
+            <div className="flex gap-1">
+              {models.map((mid) => (
+                <button
+                  key={mid}
+                  onClick={() => setSelectedModel(mid)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    selectedModel === mid ? 'text-white' : 'bg-bg-card/50 text-text-secondary hover:text-text-primary'
+                  }`}
+                  style={selectedModel === mid ? { background: MODEL_COLORS[mid] } : {}}
+                >
+                  {names[mid].split('(')[0].trim().split(' ')[0]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={perModelData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis dataKey="epsilon" tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Perturbation \u03B5', position: 'insideBottom', offset: -5, fill: '#94A3B8', fontSize: 11 }} />
+              <YAxis domain={[55, 100]} tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Accuracy %', angle: -90, position: 'insideLeft', fill: '#94A3B8', fontSize: 11 }} />
+              <Tooltip contentStyle={ttStyle} formatter={(v: number) => `${v.toFixed(2)}%`} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              {attacks.map((atk) => (
+                <Line key={atk} type="monotone" dataKey={atk} stroke={ATTACK_COLORS[atk]} strokeWidth={2} dot={{ r: 3 }} name={attackNames[atk].split('(')[0].trim()} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Attack severity ranking for selected model */}
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h3 className="text-sm font-medium text-text-secondary mb-4">Attack Severity (Accuracy at {'\u03B5'}=0.30)</h3>
+          <div className="space-y-4">
+            {attacks
+              .map((atk) => {
+                const vals: number[] = rob[atk][selectedModel]
+                return { atk, name: attackNames[atk], final: vals[vals.length - 1], drop: vals[0] - vals[vals.length - 1] }
+              })
+              .sort((a, b) => a.final - b.final)
+              .map((a, i) => (
+                <div key={a.atk}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="font-medium" style={{ color: ATTACK_COLORS[a.atk] }}>
+                      {i === 0 && <span className="text-accent-red mr-1">Hardest</span>}
+                      {a.name.split('(')[0].trim()}
+                    </span>
+                    <span className="font-mono text-accent-red">-{(a.drop * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="w-full bg-bg-card rounded-full h-2">
+                    <div className="h-2 rounded-full" style={{ width: `${a.final * 100}%`, background: ATTACK_COLORS[a.atk] }} />
+                  </div>
+                  <div className="text-right text-xs font-mono text-text-secondary mt-0.5">{(a.final * 100).toFixed(1)}%</div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Row 3: Cross-attack summary table */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
-        <h3 className="text-sm font-medium text-text-secondary mb-4">Accuracy Drop at Key Perturbation Levels</h3>
+        <h3 className="text-sm font-medium text-text-secondary mb-4">
+          Cross-Attack Accuracy Comparison at Key {'\u03B5'} Levels
+        </h3>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="text-text-secondary text-xs">
-                <th className="px-3 py-2 text-left">Model</th>
-                <th className="px-3 py-2 text-left">{'\u03B5'}=0 (Clean)</th>
-                <th className="px-3 py-2 text-left">{'\u03B5'}=0.05</th>
-                <th className="px-3 py-2 text-left">{'\u03B5'}=0.10</th>
-                <th className="px-3 py-2 text-left">{'\u03B5'}=0.20</th>
-                <th className="px-3 py-2 text-left">{'\u03B5'}=0.30</th>
-                <th className="px-3 py-2 text-left">Max Drop</th>
+              <tr className="text-text-secondary">
+                <th className="px-2 py-2 text-left">Model</th>
+                <th className="px-2 py-2 text-left">Attack</th>
+                <th className="px-2 py-2 text-center">{'\u03B5'}=0</th>
+                <th className="px-2 py-2 text-center">{'\u03B5'}=0.05</th>
+                <th className="px-2 py-2 text-center">{'\u03B5'}=0.10</th>
+                <th className="px-2 py-2 text-center">{'\u03B5'}=0.20</th>
+                <th className="px-2 py-2 text-center">{'\u03B5'}=0.30</th>
+                <th className="px-2 py-2 text-center">Max Drop</th>
+                <th className="px-2 py-2 text-center">AUC Score</th>
               </tr>
             </thead>
             <tbody>
-              {models.map((mid) => {
-                const vals: number[] = rob[mid]
-                const clean = vals[0]
-                const maxDrop = clean - vals[vals.length - 1]
-                return (
-                  <tr key={mid} className="border-t border-bg-card/50 hover:bg-bg-card/20">
-                    <td className="px-3 py-2 font-medium" style={{ color: MODEL_COLORS[mid] }}>
-                      {names[mid].split('(')[0].trim()}
-                    </td>
-                    <td className="px-3 py-2 font-mono">{(clean * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-2 font-mono">{(vals[3] * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-2 font-mono">{(vals[5] * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-2 font-mono">{(vals[7] * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-2 font-mono">{(vals[9] * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-2 font-mono text-accent-red">-{(maxDrop * 100).toFixed(1)}%</td>
-                  </tr>
-                )
-              })}
+              {models.map((mid) =>
+                attacks.map((atk, ai) => {
+                  const vals: number[] = rob[atk][mid]
+                  const clean = vals[0]
+                  const maxDrop = clean - vals[vals.length - 1]
+                  const auc = aucScores(atk, mid)
+                  // Best AUC across attacks for this model
+                  const bestAuc = Math.max(...attacks.map((a) => aucScores(a, mid)))
+                  const worstAuc = Math.min(...attacks.map((a) => aucScores(a, mid)))
+                  return (
+                    <tr
+                      key={`${mid}-${atk}`}
+                      className={`border-t border-bg-card/30 hover:bg-bg-card/20 ${ai === 0 ? 'border-t-bg-card' : ''}`}
+                    >
+                      {ai === 0 && (
+                        <td className="px-2 py-1.5 font-medium" style={{ color: MODEL_COLORS[mid] }} rowSpan={attacks.length}>
+                          {names[mid].split('(')[0].trim()}
+                        </td>
+                      )}
+                      <td className="px-2 py-1.5 font-medium" style={{ color: ATTACK_COLORS[atk] }}>
+                        {atk.toUpperCase()}
+                      </td>
+                      <td className="px-2 py-1.5 text-center font-mono">{(clean * 100).toFixed(1)}%</td>
+                      <td className="px-2 py-1.5 text-center font-mono">{(vals[3] * 100).toFixed(1)}%</td>
+                      <td className="px-2 py-1.5 text-center font-mono">{(vals[5] * 100).toFixed(1)}%</td>
+                      <td className="px-2 py-1.5 text-center font-mono">{(vals[7] * 100).toFixed(1)}%</td>
+                      <td className="px-2 py-1.5 text-center font-mono">{(vals[9] * 100).toFixed(1)}%</td>
+                      <td className="px-2 py-1.5 text-center font-mono text-accent-red">-{(maxDrop * 100).toFixed(1)}%</td>
+                      <td className={`px-2 py-1.5 text-center font-mono font-bold ${auc === bestAuc ? 'text-accent-green' : auc === worstAuc ? 'text-accent-red' : ''}`}>
+                        {auc}
+                      </td>
+                    </tr>
+                  )
+                }),
+              )}
             </tbody>
           </table>
         </div>
+        <p className="text-xs text-text-secondary mt-3">
+          Green AUC = best resilience for that model. Red = most vulnerable attack vector.
+          C&W consistently degrades accuracy the most, while FGSM is the least effective.
+        </p>
       </div>
     </div>
   )

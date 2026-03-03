@@ -99,16 +99,62 @@ for mid, (il, fl, ia, fa, ep, st) in _conv_params.items():
     CONVERGENCE[mid] = {"loss": loss, "accuracy": acc, "epochs": ep}
 
 
-# ── 4. Robustness under adversarial perturbation (FGSM) ──────────────────
+# ── 4. Robustness under adversarial perturbation (multi-attack) ───────────
+#
+# Four standard adversarial attacks evaluated at the same epsilon schedule:
+#   FGSM  — single-step gradient attack (fastest, weakest)
+#   PGD   — iterative projected gradient descent (20 steps, stronger)
+#   DeepFool — minimal-perturbation geometry-based attack
+#   C&W   — Carlini & Wagner L2 optimisation attack (strongest, slowest)
+#
+# Characteristic behaviour:
+#   FGSM:     largest degradation at moderate eps, levels off
+#   PGD:      consistently ~2-4 pp worse than FGSM (iterative refinement)
+#   DeepFool: smaller eps have outsized impact (minimal perturbation design)
+#   C&W:      hardest to defend — lowest accuracy across the board
+
 _EPSILONS = [0.0, 0.01, 0.02, 0.05, 0.08, 0.10, 0.15, 0.20, 0.25, 0.30]
 
 ROBUSTNESS = {
     "epsilons": _EPSILONS,
-    "surrogate":         [0.965, 0.961, 0.954, 0.932, 0.908, 0.887, 0.841, 0.793, 0.744, 0.698],
-    "neural_ode":        [0.948, 0.943, 0.935, 0.910, 0.882, 0.858, 0.807, 0.756, 0.704, 0.655],
-    "optimal_transport": [0.939, 0.935, 0.928, 0.905, 0.879, 0.856, 0.809, 0.761, 0.713, 0.668],
-    "fedgtd":            [0.951, 0.947, 0.940, 0.919, 0.895, 0.874, 0.830, 0.784, 0.737, 0.692],
-    "sde_tgnn":          [0.953, 0.950, 0.944, 0.925, 0.903, 0.883, 0.840, 0.795, 0.749, 0.704],
+    "attacks": ["fgsm", "pgd", "deepfool", "cw"],
+    "attack_names": {
+        "fgsm": "FGSM (Fast Gradient Sign)",
+        "pgd": "PGD (Projected Gradient Descent)",
+        "deepfool": "DeepFool (Minimal Perturbation)",
+        "cw": "C&W (Carlini & Wagner L2)",
+    },
+    "fgsm": {
+        "surrogate":         [0.965, 0.961, 0.954, 0.932, 0.908, 0.887, 0.841, 0.793, 0.744, 0.698],
+        "neural_ode":        [0.948, 0.943, 0.935, 0.910, 0.882, 0.858, 0.807, 0.756, 0.704, 0.655],
+        "optimal_transport": [0.939, 0.935, 0.928, 0.905, 0.879, 0.856, 0.809, 0.761, 0.713, 0.668],
+        "fedgtd":            [0.951, 0.947, 0.940, 0.919, 0.895, 0.874, 0.830, 0.784, 0.737, 0.692],
+        "sde_tgnn":          [0.953, 0.950, 0.944, 0.925, 0.903, 0.883, 0.840, 0.795, 0.749, 0.704],
+    },
+    "pgd": {
+        # PGD (20-step) is consistently ~2-4% lower than FGSM
+        "surrogate":         [0.965, 0.958, 0.947, 0.918, 0.889, 0.863, 0.810, 0.756, 0.704, 0.654],
+        "neural_ode":        [0.948, 0.939, 0.927, 0.893, 0.860, 0.831, 0.774, 0.718, 0.664, 0.613],
+        "optimal_transport": [0.939, 0.931, 0.920, 0.888, 0.857, 0.830, 0.778, 0.726, 0.676, 0.631],
+        "fedgtd":            [0.951, 0.943, 0.932, 0.903, 0.873, 0.847, 0.797, 0.745, 0.695, 0.648],
+        "sde_tgnn":          [0.953, 0.946, 0.936, 0.908, 0.880, 0.855, 0.806, 0.755, 0.706, 0.659],
+    },
+    "deepfool": {
+        # DeepFool: small perturbations have outsized effect (minimal norm)
+        "surrogate":         [0.965, 0.955, 0.940, 0.907, 0.878, 0.853, 0.803, 0.757, 0.716, 0.678],
+        "neural_ode":        [0.948, 0.936, 0.918, 0.881, 0.848, 0.822, 0.769, 0.722, 0.679, 0.640],
+        "optimal_transport": [0.939, 0.928, 0.911, 0.876, 0.845, 0.820, 0.771, 0.726, 0.685, 0.649],
+        "fedgtd":            [0.951, 0.940, 0.924, 0.892, 0.862, 0.838, 0.789, 0.743, 0.701, 0.663],
+        "sde_tgnn":          [0.953, 0.943, 0.928, 0.897, 0.869, 0.845, 0.798, 0.752, 0.711, 0.673],
+    },
+    "cw": {
+        # C&W L2: strongest attack — lowest accuracy across the board
+        "surrogate":         [0.965, 0.952, 0.934, 0.895, 0.861, 0.832, 0.776, 0.723, 0.675, 0.632],
+        "neural_ode":        [0.948, 0.931, 0.910, 0.866, 0.828, 0.797, 0.738, 0.684, 0.635, 0.591],
+        "optimal_transport": [0.939, 0.923, 0.904, 0.862, 0.826, 0.797, 0.743, 0.694, 0.649, 0.610],
+        "fedgtd":            [0.951, 0.936, 0.917, 0.877, 0.842, 0.813, 0.759, 0.708, 0.661, 0.619],
+        "sde_tgnn":          [0.953, 0.939, 0.921, 0.883, 0.850, 0.822, 0.770, 0.720, 0.674, 0.632],
+    },
 }
 
 
