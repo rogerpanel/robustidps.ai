@@ -12,10 +12,12 @@ import {
   Brain,
   Loader2,
   BarChart3,
+  Database,
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/Upload'
 import Analytics from './pages/Analytics'
+import Datasets from './pages/Datasets'
 import AblationStudio from './pages/AblationStudio'
 import LiveMonitor from './pages/LiveMonitor'
 import Models from './pages/Models'
@@ -27,6 +29,7 @@ const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/upload', label: 'Upload & Analyse', icon: Upload },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/datasets', label: 'Datasets', icon: Database },
   { to: '/models', label: 'Models', icon: Brain },
   { to: '/ablation', label: 'Ablation Studio', icon: FlaskConical },
   { to: '/live', label: 'Live Monitor', icon: Radio },
@@ -116,6 +119,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/datasets" element={<Datasets />} />
           <Route path="/models" element={<Models />} />
           <Route path="/ablation" element={<AblationStudio />} />
           <Route path="/live" element={<LiveMonitor />} />
