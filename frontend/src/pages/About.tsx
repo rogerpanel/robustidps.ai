@@ -83,7 +83,7 @@ export default function About() {
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h2 className="text-lg font-display font-semibold mb-3">Architecture</h2>
         <div className="font-mono text-xs text-text-secondary space-y-1 leading-relaxed">
-          <p>Input: CIC-IoT-2023 / CICIDS2018 CSV (83 flow features)</p>
+          <p>Input: CIC-IoT-2023 / CICIDS2018 / UNSW-NB15 / PCAP (83 flow features)</p>
           <p>&nbsp;&nbsp;&darr;</p>
           <p>Feature Extraction &amp; StandardScaler normalisation</p>
           <p>&nbsp;&nbsp;&darr;</p>
@@ -98,7 +98,7 @@ export default function About() {
           <p>&nbsp;&nbsp;&darr;</p>
           <p>Fusion Layer &rarr; 34-class classification</p>
           <p>&nbsp;&nbsp;&darr;</p>
-          <p>MC Dropout (50 passes) &rarr; Epistemic + Aleatoric uncertainty</p>
+          <p>MC Dropout (20 passes) &rarr; Epistemic + Aleatoric uncertainty</p>
           <p>&nbsp;&nbsp;&darr;</p>
           <p>Ablation: disable any branch &rarr; measure accuracy drop</p>
         </div>
@@ -167,9 +167,35 @@ export default function About() {
         </table>
       </div>
 
-      <div className="text-xs text-text-secondary">
-        <p>Author: Roger Nick Anaedevha | MEPhI, Moscow</p>
-        <p>Dissertation: Adversarially Robust AI-based Intrusion Detection Systems</p>
+      {/* ── Dissertation & Author Info ──────────────────────────────────── */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h2 className="text-lg font-display font-semibold mb-4">Dissertation Information</h2>
+        <div className="space-y-3">
+          <div>
+            <p className="text-sm font-medium text-text-primary">
+              Adversarially Robust AI-based Hybrid Intrusion Detection and Prevention Systems
+            </p>
+            <p className="text-xs text-text-secondary mt-1">PhD Dissertation Application</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-bg-card">
+            <div>
+              <p className="text-xs text-text-secondary uppercase tracking-wider mb-1">Author</p>
+              <p className="text-sm font-medium text-text-primary">Roger Nick Anaedevha</p>
+              <p className="text-xs text-text-secondary">ICIS, MEPhI, Moscow</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-secondary uppercase tracking-wider mb-1">Supervisor</p>
+              <p className="text-sm font-medium text-text-primary">Alexander Gennadievich Trofimov</p>
+              <p className="text-xs text-text-secondary">ICIS, MEPhI, Moscow</p>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-bg-card">
+            <p className="text-xs text-text-secondary">
+              National Research Nuclear University MEPhI (Moscow Engineering Physics Institute)
+              &mdash; Institute of Cyber Intelligence Systems (ICIS)
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )

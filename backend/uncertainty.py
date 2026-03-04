@@ -58,7 +58,7 @@ def _mc_chunk(model, chunk: torch.Tensor, n_mc: int):
 
 def predict_with_uncertainty(model, features: torch.Tensor,
                              labels: torch.Tensor | None = None,
-                             n_mc: int = 50) -> dict:
+                             n_mc: int = 20) -> dict:
     """MC-Dropout inference with automatic chunking for large inputs."""
     n = features.size(0)
     all_preds, all_conf, all_epi, all_ale, all_mean = [], [], [], [], []
