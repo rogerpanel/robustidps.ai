@@ -29,6 +29,8 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     full_name = Column(String(255), default="")
     role = Column(String(50), default="analyst")  # admin | analyst | viewer
+    organization = Column(String(255), default="")
+    use_case = Column(String(100), default="")  # Industry Work | Academic Research | ...
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_login = Column(DateTime, nullable=True)

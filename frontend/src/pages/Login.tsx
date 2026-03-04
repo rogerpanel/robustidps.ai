@@ -4,6 +4,14 @@ import { setAuth, type AuthUser } from '../utils/auth'
 
 const API = import.meta.env.VITE_API_URL || ''
 
+const USE_CASE_OPTIONS = [
+  'Industry Work',
+  'Academic Research',
+  'Evaluation & Assessment',
+  'Government / Defense',
+  'Personal / Self-Study',
+]
+
 interface Props {
   onLogin: () => void
 }
@@ -13,6 +21,8 @@ export default function Login({ onLogin }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
+  const [organization, setOrganization] = useState('')
+  const [useCase, setUseCase] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,7 +39,7 @@ export default function Login({ onLogin }: Props) {
         res = await fetch(`${API}/api/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, full_name: fullName }),
+          body: JSON.stringify({ email, password, full_name: fullName, organization, use_case: useCase }),
         })
       } else {
         const form = new URLSearchParams()
@@ -88,18 +98,49 @@ export default function Login({ onLogin }: Props) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegister && (
-              <div>
-                <label className="block text-sm text-text-secondary mb-1">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                  placeholder="Roger Anaedevha"
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                    placeholder="Roger Anaedevha"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Organisation
+                  </label>
+                  <input
+                    type="text"
+                    value={organization}
+                    onChange={(e) => setOrganization(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                    placeholder="e.g. MEPhI, MIT, Cisco, etc."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Reason of Use
+                  </label>
+                  <select
+                    value={useCase}
+                    onChange={(e) => setUseCase(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                  >
+                    <option value="">Select a reason...</option>
+                    {USE_CASE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
 
             <div>

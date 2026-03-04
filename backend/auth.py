@@ -32,10 +32,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=Fals
 
 # ── Schemas ───────────────────────────────────────────────────────────────
 
+USE_CASE_OPTIONS = [
+    "Industry Work",
+    "Academic Research",
+    "Evaluation & Assessment",
+    "Government / Defense",
+    "Personal / Self-Study",
+]
+
+
 class UserCreate(BaseModel):
     email: str
     password: str
     full_name: str = ""
+    organization: str = ""
+    use_case: str = ""
 
 
 class UserResponse(BaseModel):
@@ -43,6 +54,8 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     role: str
+    organization: str
+    use_case: str
     is_active: bool
     created_at: datetime.datetime
 
@@ -121,7 +134,9 @@ def require_role(*roles: str):
 def _user_response(u: User) -> UserResponse:
     return UserResponse(
         id=u.id, email=u.email, full_name=u.full_name,
-        role=u.role, is_active=u.is_active, created_at=u.created_at,
+        role=u.role, organization=u.organization or "",
+        use_case=u.use_case or "", is_active=u.is_active,
+        created_at=u.created_at,
     )
 
 
@@ -144,6 +159,8 @@ def register(body: UserCreate, db: Session = Depends(get_db)):
         email=body.email,
         password_hash=hash_password(body.password),
         full_name=body.full_name,
+        organization=body.organization,
+        use_case=body.use_case,
         role="admin" if is_first else "analyst",
     )
     db.add(user)

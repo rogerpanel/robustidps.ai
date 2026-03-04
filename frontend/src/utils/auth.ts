@@ -10,6 +10,8 @@ export interface AuthUser {
   email: string
   full_name: string
   role: 'admin' | 'analyst' | 'viewer'
+  organization: string
+  use_case: string
   is_active: boolean
   created_at: string
 }
