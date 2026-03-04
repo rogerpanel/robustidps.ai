@@ -33,13 +33,12 @@ ssh "${SSH_USER}@${SERVER_IP}" "cd ${APP_DIR} && docker compose -f docker-compos
 
 echo "[4/5] Checking health..."
 sleep 10
-ssh "${SSH_USER}@${SERVER_IP}" "curl -sf http://localhost/api/health && echo ' OK' || echo ' Backend still starting...'"
+ssh "${SSH_USER}@${SERVER_IP}" "curl -sfk https://localhost/api/health && echo ' OK' || echo ' Backend still starting...'"
 
 echo "[5/5] Verifying HTTPS..."
 ssh "${SSH_USER}@${SERVER_IP}" "curl -sfk https://localhost/ > /dev/null && echo 'HTTPS OK' || echo 'HTTPS not yet responding'"
 
 echo ""
 echo "============================================"
-echo "  Deployed! Visit: http://${SERVER_IP}"
-echo "  After Cloudflare DNS: https://robustidps.ai"
+echo "  Deployed! Visit: https://robustidps.ai"
 echo "============================================"
