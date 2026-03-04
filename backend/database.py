@@ -99,8 +99,27 @@ SessionLocal = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
 
 
 def init_db():
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, and add missing columns."""
     Base.metadata.create_all(bind=engine)
+    _migrate_columns()
+
+
+def _migrate_columns():
+    """Add any columns that are in the models but missing from the DB."""
+    import sqlalchemy as sa
+    inspector = sa.inspect(engine)
+    for table_name, model_cls in [("users", User)]:
+        if not inspector.has_table(table_name):
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table_name)}
+        for col in model_cls.__table__.columns:
+            if col.name not in existing:
+                col_type = col.type.compile(engine.dialect)
+                default = "''" if isinstance(col.type, sa.String) else "NULL"
+                with engine.begin() as conn:
+                    conn.execute(sa.text(
+                        f'ALTER TABLE {table_name} ADD COLUMN {col.name} {col_type} DEFAULT {default}'
+                    ))
 
 
 def get_db():
