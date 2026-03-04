@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { Loader2, Download, TrendingUp, Shield, GitBranch, Target, Lock, ScatterChart as ScatterIcon } from 'lucide-react'
 import { fetchAnalytics } from '../utils/api'
+import PageGuide from '../components/PageGuide'
 
 const MODEL_COLORS: Record<string, string> = {
   surrogate: '#3B82F6',
@@ -70,6 +71,16 @@ export default function Analytics() {
 
   return (
     <div className="space-y-6">
+      <PageGuide
+        title="How to use Analytics & Evaluation"
+        steps={[
+          { title: 'Browse tabs', desc: 'Use the 7 tabs to compare all 5 dissertation models: Performance, Convergence, Robustness, Privacy, Transfer Learning, Calibration, and ROC/AUC.' },
+          { title: 'Compare models', desc: 'Each chart shows all models side by side. Hover for exact values. Models are color-coded consistently across all tabs.' },
+          { title: 'Export data', desc: 'Click "Export All Metrics (JSON)" to download the full benchmark data for external analysis or publication.' },
+        ]}
+        tip="These are pre-computed benchmark metrics from the dissertation research. No file upload needed — this page always works."
+      />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold">Analytics & Evaluation</h1>
         <button

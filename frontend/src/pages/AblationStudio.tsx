@@ -12,6 +12,7 @@ import {
   ToggleLeft,
   ToggleRight,
 } from 'lucide-react'
+import PageGuide from '../components/PageGuide'
 
 const BRANCH_NAMES = [
   'CT-TGNN (Neural ODE)',
@@ -93,6 +94,17 @@ export default function AblationStudio() {
 
   return (
     <div className="space-y-6">
+      <PageGuide
+        title="How to use Ablation Studio"
+        steps={[
+          { title: 'Upload a dataset', desc: 'Drop a CSV to evaluate the ensemble. Each of the 7 dissertation methods (branches) is tested independently.' },
+          { title: 'Toggle branches', desc: 'Click the colored cards to enable/disable individual methods. A disabled branch is removed from the ensemble.' },
+          { title: 'Observe impact', desc: 'The "Accuracy Drop" shows how much each method contributes. Higher drop = more important branch.' },
+          { title: 'Experiment freely', desc: 'Toggle any combination and click "Re-run". Results persist across page navigation.' },
+        ]}
+        tip="The 7 branches represent: Neural ODE, Multi-scale GNN, Zero-shot LLM, Post-quantum crypto, State-space model, Bayesian transformer, and Game-theoretic defence."
+      />
+
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>

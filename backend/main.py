@@ -38,7 +38,7 @@ from benchmark import get_analytics_payload
 
 WEIGHTS_DIR = Path(__file__).parent / "weights"
 DEVICE = os.getenv("DEVICE", "cpu")
-MC_PASSES = int(os.getenv("MC_PASSES", "50"))
+MC_PASSES = int(os.getenv("MC_PASSES", "20"))
 
 app = FastAPI(title="RobustIDPS.ai", version="1.0.0")
 
@@ -259,7 +259,7 @@ MAX_ROWS = 10_000  # Cap rows to keep MC Dropout feasible on CPU
 @app.post("/api/predict_uncertain")
 async def predict_uncertain(
     file: UploadFile = File(...),
-    mc_passes: int = Form(default=50),
+    mc_passes: int = Form(default=20),
     model_name: str = Form(default=""),
 ):
     data = await file.read()

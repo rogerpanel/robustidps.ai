@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Play, Pause, Upload } from 'lucide-react'
 import FileUpload from '../components/FileUpload'
+import PageGuide from '../components/PageGuide'
 import { uploadFile, connectStream } from '../utils/api'
 
 interface FlowEvent {
@@ -82,10 +83,21 @@ export default function LiveMonitor() {
     <div className="space-y-6">
       <h1 className="text-2xl font-display font-bold">Live Monitor</h1>
 
+      <PageGuide
+        title="How to use Live Monitor"
+        steps={[
+          { title: 'Upload a dataset', desc: 'Drop a CSV file (CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15) or PCAP capture. The file is uploaded and features are extracted server-side.' },
+          { title: 'Press Start', desc: 'Flows stream via WebSocket in real time. Each row is classified by the IDS model as it arrives.' },
+          { title: 'Adjust speed', desc: 'Use the speed slider (10-1000 flows/sec) to control playback rate. Slower speeds let you observe individual detections.' },
+          { title: 'Monitor threats', desc: 'Watch the threat/benign counters update live. Severity is color-coded: red = critical, orange = high, amber = medium, green = low, blue = benign.' },
+        ]}
+        tip="Tip: For PCAP files, flows are automatically extracted using NFStream before streaming. Use a small CSV (<5K rows) for smooth real-time visualization."
+      />
+
       {!jobId ? (
         <div className="max-w-lg">
           <p className="text-sm text-text-secondary mb-4">
-            Upload a CSV file first, then stream its flows in real time.
+            Upload a CSV or PCAP file to start. Flows will be streamed and classified in real time.
           </p>
           <FileUpload onFileSelect={handleUpload} />
         </div>

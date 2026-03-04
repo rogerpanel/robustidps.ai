@@ -6,6 +6,7 @@ import {
 import StatCard from '../components/StatCard'
 import AttackDistribution from '../components/AttackDistribution'
 import ConfidenceHistogram from '../components/ConfidenceHistogram'
+import PageGuide from '../components/PageGuide'
 import { SAMPLE_RESULTS } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
 
@@ -98,6 +99,17 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <PageGuide
+        title="How to use the SOC Dashboard"
+        steps={[
+          { title: 'Upload first', desc: 'Go to Upload & Analyse to analyse a dataset. Results automatically populate this dashboard.' },
+          { title: 'Review severity', desc: 'The 5 severity panels show threat distribution. Click severity chips in the table to filter by level.' },
+          { title: 'Drill into threats', desc: 'Click any row in the threat table to expand it and see uncertainty scores, true label, and recommended SOC action.' },
+          { title: 'Export results', desc: 'Click "Export Detections (CSV)" to download all predictions with actions for your SIEM or ticketing system.' },
+        ]}
+        tip="Tip: The dashboard shows sample data when no file has been analysed. Upload a real dataset to see live results."
+      />
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-display font-bold">SOC Dashboard</h1>
         {predictions.length > 0 && (

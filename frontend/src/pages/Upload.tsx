@@ -5,6 +5,7 @@ import UncertaintyChart from '../components/UncertaintyChart'
 import ConfusionMatrix from '../components/ConfusionMatrix'
 import ModelSelector from '../components/ModelSelector'
 import { useAnalysis } from '../hooks/useAnalysis'
+import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { Loader2, Database, AlertTriangle } from 'lucide-react'
 
@@ -60,7 +61,7 @@ function DatasetSummary({ info, fileName }: { info: DatasetInfo; fileName: strin
 }
 
 export default function UploadPage() {
-  const [mcPasses, setMcPasses] = useState(50)
+  const [mcPasses, setMcPasses] = useState(20)
   const [selectedModel, setSelectedModel] = useState('surrogate')
   const { loading, results, error, fileName, runAnalysis } = useAnalysis()
 
@@ -84,6 +85,17 @@ export default function UploadPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-display font-bold">Upload & Analyse</h1>
+
+      <PageGuide
+        title="How to use Upload & Analyse"
+        steps={[
+          { title: 'Choose a dataset', desc: 'Drag & drop a CSV (CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15) or PCAP file. The format is auto-detected.' },
+          { title: 'Adjust settings', desc: 'Select a model and set MC Dropout passes (fewer = faster, more = more precise uncertainty). Default: 20 passes.' },
+          { title: 'Wait for analysis', desc: 'The backend runs multiple forward passes for uncertainty quantification. Large datasets (>10K rows) are automatically sampled.' },
+          { title: 'Review results', desc: 'See the Dataset Summary, Threat Table, Uncertainty Chart, Confusion Matrix (if ground-truth labels exist), and Per-Class Metrics.' },
+        ]}
+        tip="Supported benchmarks: CIC-IoT-2023 (46 features), CSE-CIC-IDS2018 (79 features), UNSW-NB15 (49 features). Any CSV with numeric columns will also work as generic format."
+      />
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
