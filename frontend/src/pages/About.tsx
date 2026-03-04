@@ -156,6 +156,7 @@ export default function About() {
               ['Optimal Transport (PPFOT-IDS)', 'DP Optimal Transport for Multi-Cloud IDS', 'Wasserstein domain adaptation + DP'],
               ['FedGTD', 'Federated Graph Temporal Dynamics', 'Byzantine-resilient federated graph learning'],
               ['SDE-TGNN', 'SDE Temporal Graph Neural Networks', 'Stochastic DE + temporal graph attention'],
+              ['CyberSecLLM', 'Cybersecurity Foundation Model (IEEE TNNLS)', 'Mamba SSM + cross-attention KB + MoE'],
             ].map(([name, paper, approach]) => (
               <tr key={name} className="border-t border-bg-card/50">
                 <td className="px-3 py-2 font-medium text-accent-purple">{name}</td>

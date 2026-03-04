@@ -162,6 +162,7 @@ export default function Models() {
                 ['Optimal Transport', 'Wasserstein domain adaptation', 'DP-preserving multi-cloud transfer', 'Cross-cloud deployment'],
                 ['FedGTD', 'Graph + federated + game-theoretic', 'Byzantine-resilient aggregation', 'Distributed multi-org IDS'],
                 ['SDE-TGNN', 'Stochastic DE + temporal GNN', 'Drift-diffusion uncertainty', 'Noisy network environments'],
+                ['CyberSecLLM', 'Mamba SSM + CrossAttn + MoE', 'Foundation model on all 6 datasets', 'Maximum accuracy & transfer'],
               ].map(([name, approach, innovation, best]) => (
                 <tr key={name} className="border-t border-bg-card/50">
                   <td className="px-3 py-2 font-medium text-accent-blue">{name}</td>

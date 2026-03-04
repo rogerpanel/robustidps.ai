@@ -181,6 +181,31 @@ class FedGTDWrapper(nn.Module):
         return SurrogateIDS.severity_for(label)
 
 
+class CyberSecLLMWrapper(nn.Module):
+    """Wraps CyberSecLLM surrogate (Mamba + CrossAttention + MoE)."""
+
+    N_FEATURES = 83
+    N_CLASSES = 34
+    BRANCH_NAMES = SurrogateIDS.BRANCH_NAMES
+    CLASS_NAMES = SurrogateIDS.CLASS_NAMES
+    SEVERITY_MAP = SurrogateIDS.SEVERITY_MAP
+
+    def __init__(self, dropout: float = 0.1):
+        super().__init__()
+        from .cybersec_llm import CyberSecLLMModel
+        self.model = CyberSecLLMModel(
+            dropout=dropout, n_blocks=3, n_experts=8, top_k=2,
+            kb_size=32, n_heads=4, ssm_state_dim=16,
+        )
+
+    def forward(self, x, disabled_branches=None):
+        return self.model(x, disabled_branches)
+
+    @classmethod
+    def severity_for(cls, label: str) -> str:
+        return SurrogateIDS.severity_for(label)
+
+
 class SDETGNNWrapper(nn.Module):
     """Wraps SDETGNNModel for demo inference."""
 
@@ -259,6 +284,15 @@ MODEL_INFO = {
         "weight_file": "sde_tgnn.pt",
         "has_ablation": False,
         "category": "temporal",
+    },
+    "cybersec_llm": {
+        "name": "CyberSecLLM (Mamba–CrossAttn–MoE)",
+        "description": "Cybersecurity foundation model surrogate combining selective state-space (Mamba), cross-attention to MITRE ATT&CK knowledge base, and sparse mixture-of-experts. Trained on all 6 datasets.",
+        "paper": "CyberSecLLM: A Cybersecurity-Specific Large Language Model for Intrusion Detection (IEEE TNNLS)",
+        "class": CyberSecLLMWrapper,
+        "weight_file": "cybersec_llm.pt",
+        "has_ablation": False,
+        "category": "foundation",
     },
 }
 

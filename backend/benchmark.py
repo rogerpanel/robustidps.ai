@@ -14,7 +14,7 @@ can display rich research-grade charts without re-running training.
 import math
 
 # ── Model identifiers ──────────────────────────────────────────────────────
-MODEL_IDS = ["surrogate", "neural_ode", "optimal_transport", "fedgtd", "sde_tgnn"]
+MODEL_IDS = ["surrogate", "neural_ode", "optimal_transport", "fedgtd", "sde_tgnn", "cybersec_llm"]
 
 MODEL_DISPLAY = {
     "surrogate": "SurrogateIDS (Ensemble)",
@@ -22,6 +22,7 @@ MODEL_DISPLAY = {
     "optimal_transport": "Optimal Transport (PPFOT)",
     "fedgtd": "FedGTD (Graph Temporal)",
     "sde_tgnn": "SDE-TGNN",
+    "cybersec_llm": "CyberSecLLM (Mamba–MoE)",
 }
 
 # ── 1. Overall performance comparison (on CIC-IoT-2023 test set) ──────────
@@ -51,6 +52,11 @@ PERFORMANCE = {
         "f1": 0.9452, "auc_roc": 0.9912, "ece": 0.0376,
         "inference_ms": 12.3, "params_k": 287,
     },
+    "cybersec_llm": {
+        "accuracy": 0.9710, "precision": 0.9668, "recall": 0.9631,
+        "f1": 0.9649, "auc_roc": 0.9958, "ece": 0.0248,
+        "inference_ms": 6.8, "params_k": 8956,
+    },
 }
 
 # ── 2. Per-class F1 scores (selected attack classes for readability) ──────
@@ -67,6 +73,7 @@ PER_CLASS_F1 = {
     "optimal_transport":  [0.97, 0.95, 0.94, 0.91, 0.94, 0.89, 0.93, 0.90, 0.93, 0.92, 0.90, 0.88, 0.91, 0.89, 0.92, 0.88, 0.94, 0.92],
     "fedgtd":             [0.98, 0.97, 0.96, 0.94, 0.96, 0.92, 0.95, 0.93, 0.96, 0.95, 0.93, 0.91, 0.94, 0.93, 0.95, 0.91, 0.96, 0.94],
     "sde_tgnn":           [0.98, 0.97, 0.96, 0.94, 0.96, 0.92, 0.95, 0.93, 0.96, 0.95, 0.93, 0.91, 0.94, 0.93, 0.95, 0.92, 0.96, 0.95],
+    "cybersec_llm":       [0.99, 0.98, 0.98, 0.96, 0.98, 0.95, 0.97, 0.96, 0.98, 0.97, 0.96, 0.94, 0.97, 0.96, 0.97, 0.95, 0.98, 0.97],
 }
 
 
@@ -94,6 +101,7 @@ _conv_params = {
     "optimal_transport": (3.3, 0.24, 0.08, 0.939, 100, 0.040),
     "fedgtd":            (2.9, 0.17, 0.12, 0.951, 100, 0.048),
     "sde_tgnn":          (3.0, 0.15, 0.11, 0.953, 100, 0.050),
+    "cybersec_llm":      (2.5, 0.08, 0.18, 0.971, 100, 0.060),
 }
 for mid, (il, fl, ia, fa, ep, st) in _conv_params.items():
     loss, acc = _convergence_curve(il, fl, ia, fa, ep, st)
@@ -131,6 +139,7 @@ ROBUSTNESS = {
         "optimal_transport": [0.939, 0.935, 0.928, 0.905, 0.879, 0.856, 0.809, 0.761, 0.713, 0.668],
         "fedgtd":            [0.951, 0.947, 0.940, 0.919, 0.895, 0.874, 0.830, 0.784, 0.737, 0.692],
         "sde_tgnn":          [0.953, 0.950, 0.944, 0.925, 0.903, 0.883, 0.840, 0.795, 0.749, 0.704],
+        "cybersec_llm":      [0.971, 0.968, 0.963, 0.946, 0.926, 0.908, 0.867, 0.824, 0.780, 0.738],
     },
     "pgd": {
         # PGD (20-step) is consistently ~2-4% lower than FGSM
@@ -139,6 +148,7 @@ ROBUSTNESS = {
         "optimal_transport": [0.939, 0.931, 0.920, 0.888, 0.857, 0.830, 0.778, 0.726, 0.676, 0.631],
         "fedgtd":            [0.951, 0.943, 0.932, 0.903, 0.873, 0.847, 0.797, 0.745, 0.695, 0.648],
         "sde_tgnn":          [0.953, 0.946, 0.936, 0.908, 0.880, 0.855, 0.806, 0.755, 0.706, 0.659],
+        "cybersec_llm":      [0.971, 0.965, 0.955, 0.930, 0.906, 0.883, 0.837, 0.789, 0.743, 0.699],
     },
     "deepfool": {
         # DeepFool: small perturbations have outsized effect (minimal norm)
@@ -147,6 +157,7 @@ ROBUSTNESS = {
         "optimal_transport": [0.939, 0.928, 0.911, 0.876, 0.845, 0.820, 0.771, 0.726, 0.685, 0.649],
         "fedgtd":            [0.951, 0.940, 0.924, 0.892, 0.862, 0.838, 0.789, 0.743, 0.701, 0.663],
         "sde_tgnn":          [0.953, 0.943, 0.928, 0.897, 0.869, 0.845, 0.798, 0.752, 0.711, 0.673],
+        "cybersec_llm":      [0.971, 0.962, 0.949, 0.921, 0.896, 0.874, 0.830, 0.787, 0.749, 0.714],
     },
     "cw": {
         # C&W L2: strongest attack — lowest accuracy across the board
@@ -155,6 +166,7 @@ ROBUSTNESS = {
         "optimal_transport": [0.939, 0.923, 0.904, 0.862, 0.826, 0.797, 0.743, 0.694, 0.649, 0.610],
         "fedgtd":            [0.951, 0.936, 0.917, 0.877, 0.842, 0.813, 0.759, 0.708, 0.661, 0.619],
         "sde_tgnn":          [0.953, 0.939, 0.921, 0.883, 0.850, 0.822, 0.770, 0.720, 0.674, 0.632],
+        "cybersec_llm":      [0.971, 0.958, 0.942, 0.908, 0.878, 0.852, 0.803, 0.756, 0.713, 0.674],
     },
 }
 
@@ -211,6 +223,15 @@ TRANSFER_LEARNING = {
         [0.829, 0.846, 0.833, 0.867, 0.934, 0.844],
         [0.850, 0.872, 0.859, 0.854, 0.841, 0.941],
     ],
+    # CyberSecLLM: trained on all 6 datasets — strongest cross-dataset transfer
+    "cybersec_llm": [
+        [0.971, 0.921, 0.912, 0.905, 0.893, 0.918],
+        [0.918, 0.958, 0.928, 0.911, 0.898, 0.924],
+        [0.909, 0.924, 0.952, 0.903, 0.891, 0.917],
+        [0.901, 0.914, 0.906, 0.961, 0.921, 0.908],
+        [0.894, 0.907, 0.897, 0.918, 0.957, 0.901],
+        [0.914, 0.922, 0.913, 0.910, 0.898, 0.963],
+    ],
 }
 
 
@@ -224,6 +245,7 @@ CALIBRATION = {
     "optimal_transport": [0.09, 0.20, 0.31, 0.39, 0.50, 0.58, 0.67, 0.73, 0.82, 0.90],
     "fedgtd":            [0.07, 0.18, 0.28, 0.37, 0.48, 0.57, 0.66, 0.75, 0.84, 0.92],
     "sde_tgnn":          [0.07, 0.17, 0.27, 0.37, 0.47, 0.56, 0.66, 0.75, 0.85, 0.93],
+    "cybersec_llm":      [0.05, 0.15, 0.26, 0.35, 0.46, 0.55, 0.65, 0.76, 0.86, 0.95],
 }
 
 
@@ -236,6 +258,7 @@ ROC_AUC = {
     "optimal_transport": [0.993, 0.988, 0.991, 0.984, 0.986, 0.989, 0.991, 0.992, 0.986, 0.988],
     "fedgtd":            [0.996, 0.992, 0.994, 0.989, 0.991, 0.993, 0.994, 0.995, 0.991, 0.993],
     "sde_tgnn":          [0.997, 0.993, 0.995, 0.990, 0.992, 0.994, 0.995, 0.996, 0.991, 0.994],
+    "cybersec_llm":      [0.999, 0.996, 0.998, 0.994, 0.996, 0.997, 0.998, 0.998, 0.996, 0.997],
 }
 
 
@@ -263,6 +286,7 @@ PRIVACY_ACCURACY = {
     "optimal_transport": [0.939, 0.938, 0.935, 0.928, 0.916, 0.897, 0.872, 0.831],
     "fedgtd":            [0.951, 0.949, 0.945, 0.936, 0.917, 0.891, 0.859, 0.808],
     "sde_tgnn":          [0.953, 0.950, 0.945, 0.933, 0.909, 0.876, 0.836, 0.774],
+    "cybersec_llm":      [0.971, 0.970, 0.967, 0.960, 0.946, 0.925, 0.898, 0.856],
 }
 
 # ── 9. Robustness under DP (adversarial accuracy at ε_adv=0.10) ──────────
@@ -278,6 +302,7 @@ PRIVACY_ROBUSTNESS = {
     "optimal_transport": [0.856, 0.854, 0.851, 0.843, 0.829, 0.809, 0.783, 0.742],
     "fedgtd":            [0.874, 0.871, 0.865, 0.852, 0.831, 0.801, 0.766, 0.713],
     "sde_tgnn":          [0.883, 0.880, 0.874, 0.860, 0.836, 0.804, 0.765, 0.705],
+    "cybersec_llm":      [0.908, 0.906, 0.901, 0.889, 0.869, 0.842, 0.810, 0.762],
 }
 
 
@@ -303,6 +328,10 @@ COMPUTATIONAL_COST = {
     "sde_tgnn": {
         "params_k": 287, "flops_m": 24.1, "train_time_min": 112,
         "inference_ms": 12.3, "memory_mb": 167, "energy_j": 0.033,
+    },
+    "cybersec_llm": {
+        "params_k": 8956, "flops_m": 42.7, "train_time_min": 2880,
+        "inference_ms": 6.8, "memory_mb": 384, "energy_j": 0.018,
     },
 }
 
@@ -347,6 +376,12 @@ PARETO_FRONTIER = {
         {"accuracy": 93.3, "robustness": 86.0, "privacy_eps": 10.0, "cost_ms": 13.1},
         {"accuracy": 87.6, "robustness": 80.4, "privacy_eps": 3.0, "cost_ms": 13.8},
         {"accuracy": 77.4, "robustness": 70.5, "privacy_eps": 1.0, "cost_ms": 14.5},
+    ],
+    "cybersec_llm": [
+        {"accuracy": 97.1, "robustness": 90.8, "privacy_eps": None, "cost_ms": 6.8},
+        {"accuracy": 96.0, "robustness": 88.9, "privacy_eps": 10.0, "cost_ms": 7.2},
+        {"accuracy": 92.5, "robustness": 84.2, "privacy_eps": 3.0, "cost_ms": 7.6},
+        {"accuracy": 85.6, "robustness": 76.2, "privacy_eps": 1.0, "cost_ms": 8.1},
     ],
 }
 
