@@ -13,55 +13,123 @@ Endpoints:
   GET    /api/model_info          Model metadata and branch names
   GET    /api/health              Health check
   WS     /ws/stream               WebSocket: stream predictions row-by-row
+  GET    /metrics                 Prometheus metrics
+  POST   /api/auth/register       Register new account
+  POST   /api/auth/login          Login, returns JWT
+  GET    /api/auth/me             Current user info
+  GET    /api/audit/logs          Audit trail (admin)
+  POST   /api/firewall/generate   Generate firewall rules
 """
 
 import asyncio
+import io
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
 
-import io
-
 import torch
 import numpy as np
-from fastapi import FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect
+from fastapi import (
+    FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect,
+    Depends, HTTPException, Request,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+from config import (
+    CORS_ORIGINS, DEVICE, MC_PASSES, MAX_ROWS,
+    RATE_LIMIT_DEFAULT, RATE_LIMIT_HEAVY, MAX_UPLOAD_SIZE_MB,
+    ALLOWED_EXTENSIONS,
+)
 from models.surrogate import SurrogateIDS
 from models.model_registry import list_models, load_model as registry_load, MODEL_INFO
 from features import extract_features
 from uncertainty import predict_with_uncertainty
 from ablation import run_ablation
 from benchmark import get_analytics_payload
+from database import init_db, get_db, SessionLocal, Job, AuditLog
+from auth import (
+    router as auth_router, get_current_user, require_auth, require_role,
+    ensure_default_admin,
+)
+from audit import AuditMiddleware, log_audit
+from firewall import router as firewall_router
+
+# ── Logging ───────────────────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("robustidps")
+
+# ── Rate Limiter ──────────────────────────────────────────────────────────
+
+limiter = Limiter(key_func=get_remote_address)
+
+# ── Application ───────────────────────────────────────────────────────────
 
 WEIGHTS_DIR = Path(__file__).parent / "weights"
-DEVICE = os.getenv("DEVICE", "cpu")
-MC_PASSES = int(os.getenv("MC_PASSES", "20"))
 
-app = FastAPI(title="RobustIDPS.ai", version="1.0.0")
+app = FastAPI(
+    title="RobustIDPS.ai",
+    version="2.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ── CORS (hardened) ───────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-# ---------------------------------------------------------------------------
-# Model loading
-# ---------------------------------------------------------------------------
+# ── Audit Middleware ──────────────────────────────────────────────────────
+
+app.add_middleware(AuditMiddleware)
+
+# ── Prometheus Metrics ────────────────────────────────────────────────────
+
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator(
+        should_group_status_codes=True,
+        should_ignore_untemplated=True,
+        excluded_handlers=["/metrics", "/api/health"],
+    ).instrument(app).expose(app, endpoint="/metrics")
+    logger.info("Prometheus metrics enabled at /metrics")
+except ImportError:
+    logger.warning("prometheus-fastapi-instrumentator not installed — metrics disabled")
+
+# ── Include routers ───────────────────────────────────────────────────────
+
+app.include_router(auth_router)
+app.include_router(firewall_router)
+
+# ── Model loading ─────────────────────────────────────────────────────────
+
 model: SurrogateIDS | None = None
-loaded_models: dict = {}  # cache: model_id -> nn.Module
+loaded_models: dict = {}
 active_model_id: str = "surrogate"
 job_store: dict = {}
 
 
-def load_model() -> SurrogateIDS:
-    # Use low dropout for inference — model was trained with dropout=0.05.
-    # MC Dropout passes will still enable dropout via model.train().
+def _load_model() -> SurrogateIDS:
     m = SurrogateIDS(dropout=0.05)
     weight_path = WEIGHTS_DIR / "surrogate.pt"
     if weight_path.exists():
@@ -73,7 +141,6 @@ def load_model() -> SurrogateIDS:
 
 
 def get_model(model_id: str | None = None):
-    """Get a model by ID, using cache. Falls back to active model."""
     global active_model_id
     mid = model_id or active_model_id
     if mid == "surrogate":
@@ -82,20 +149,51 @@ def get_model(model_id: str | None = None):
         try:
             loaded_models[mid] = registry_load(mid, device=DEVICE, dropout=0.05)
         except Exception:
-            return model  # fallback to surrogate
+            return model
     return loaded_models[mid]
 
+
+# ── Startup ───────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
 async def startup():
     global model
-    model = load_model()
+    # Initialise database
+    init_db()
+    db = SessionLocal()
+    try:
+        ensure_default_admin(db)
+    finally:
+        db.close()
+    logger.info("Database initialised")
+
+    # Load model
+    model = _load_model()
     loaded_models["surrogate"] = model
+    logger.info("Model loaded: SurrogateIDS (%d classes, %d branches)",
+                SurrogateIDS.N_CLASSES, SurrogateIDS.N_BRANCHES)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# ── Input validation ─────────────────────────────────────────────────────
+
+def _validate_upload(file: UploadFile) -> None:
+    """Validate uploaded file: extension and size."""
+    filename = (file.filename or "").lower()
+    ext = Path(filename).suffix
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type '{ext}'. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+        )
+    # Check content-length header if available
+    if file.size and file.size > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB",
+        )
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────
 
 def _build_predictions(features, metadata, labels_encoded, label_names,
                        result_dict):
@@ -123,7 +221,6 @@ def _build_predictions(features, metadata, labels_encoded, label_names,
             "total_uncertainty": round(float(epistemic[i] + aleatoric[i]), 4),
         })
 
-    # Aggregate
     n_threats = sum(1 for r in rows if r["severity"] != "benign")
     n_benign = len(rows) - n_threats
 
@@ -131,7 +228,6 @@ def _build_predictions(features, metadata, labels_encoded, label_names,
     for r in rows:
         attack_dist[r["label_predicted"]] = attack_dist.get(r["label_predicted"], 0) + 1
 
-    # Per-class metrics (if ground truth present)
     per_class = {}
     confusion = None
     if label_names:
@@ -162,36 +258,11 @@ def _build_predictions(features, metadata, labels_encoded, label_names,
     }
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
+# ── Public endpoints ──────────────────────────────────────────────────────
 
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "model_loaded": model is not None}
-
-
-@app.get("/api/models")
-async def get_available_models():
-    """List all available models with metadata."""
-    return {
-        "models": list_models(),
-        "active_model": active_model_id,
-    }
-
-
-@app.post("/api/models/{model_id}/activate")
-async def activate_model(model_id: str):
-    """Switch the active model."""
-    global active_model_id
-    if model_id not in MODEL_INFO:
-        return JSONResponse(
-            {"error": f"Unknown model: {model_id}"},
-            status_code=400,
-        )
-    active_model_id = model_id
-    _ = get_model(model_id)  # pre-load
-    return {"active_model": active_model_id}
 
 
 @app.get("/api/model_info")
@@ -207,22 +278,78 @@ async def model_info():
     }
 
 
+@app.get("/api/models")
+async def get_available_models():
+    return {"models": list_models(), "active_model": active_model_id}
+
+
+@app.get("/api/analytics")
+async def analytics():
+    return get_analytics_payload()
+
+
+# ── Authenticated endpoints ───────────────────────────────────────────────
+
+@app.post("/api/models/{model_id}/activate")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def activate_model(
+    request: Request,
+    model_id: str,
+    user=Depends(require_auth),
+):
+    global active_model_id
+    if model_id not in MODEL_INFO:
+        return JSONResponse({"error": f"Unknown model: {model_id}"}, status_code=400)
+    active_model_id = model_id
+    _ = get_model(model_id)
+    logger.info("Model switched to %s by %s", model_id, user.email)
+    return {"active_model": active_model_id}
+
+
 @app.post("/api/upload")
-async def upload(file: UploadFile = File(...)):
-    job_id = str(uuid.uuid4())[:8]
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def upload(
+    request: Request,
+    file: UploadFile = File(...),
+    user=Depends(require_auth),
+    db=Depends(get_db),
+):
+    _validate_upload(file)
     data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
     features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
+    job_id = str(uuid.uuid4())[:8]
     job_store[job_id] = {
         "features": features,
         "metadata": metadata,
         "labels_encoded": labels_encoded,
         "label_names": label_names,
     }
+
+    # Persist job metadata to DB
+    db_job = Job(
+        id=job_id,
+        user_id=user.id,
+        filename=file.filename,
+        format_detected=fmt,
+        n_flows=len(features),
+        model_used=active_model_id,
+    )
+    db.add(db_job)
+    db.commit()
+
     return {"job_id": job_id, "n_flows": len(features)}
 
 
 @app.get("/api/results/{job_id}")
-async def get_results(job_id: str):
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def get_results(
+    request: Request,
+    job_id: str,
+    user=Depends(require_auth),
+):
     if job_id not in job_store:
         return JSONResponse({"error": "job not found"}, status_code=404)
     job = job_store[job_id]
@@ -240,8 +367,17 @@ async def get_results(job_id: str):
 
 
 @app.post("/api/predict")
-async def predict(file: UploadFile = File(...)):
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def predict(
+    request: Request,
+    file: UploadFile = File(...),
+    user=Depends(require_auth),
+):
+    _validate_upload(file)
     data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
     features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
     result = predict_with_uncertainty(
         model, features.to(DEVICE),
@@ -253,22 +389,26 @@ async def predict(file: UploadFile = File(...)):
     return payload
 
 
-MAX_ROWS = 10_000  # Cap rows to keep MC Dropout feasible on CPU
-
-
 @app.post("/api/predict_uncertain")
+@limiter.limit(RATE_LIMIT_HEAVY)
 async def predict_uncertain(
+    request: Request,
     file: UploadFile = File(...),
     mc_passes: int = Form(default=20),
     model_name: str = Form(default=""),
+    user=Depends(get_current_user),
+    db=Depends(get_db),
 ):
+    _validate_upload(file)
     data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
     features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
 
     total_rows = len(features)
     sampled = False
     if total_rows > MAX_ROWS:
-        # Random sample to keep inference fast
         idx = torch.randperm(total_rows)[:MAX_ROWS].sort().values
         features = features[idx]
         metadata = metadata.iloc[idx.numpy()].reset_index(drop=True)
@@ -285,7 +425,8 @@ async def predict_uncertain(
         n_mc=mc_passes,
     )
     payload = _build_predictions(features, metadata, labels_encoded, label_names, result)
-    payload["job_id"] = str(uuid.uuid4())[:8]
+    job_id = str(uuid.uuid4())[:8]
+    payload["job_id"] = job_id
     payload["model_used"] = model_name if model_name else active_model_id
     fmt_labels = {
         "ciciot2023": "CIC-IoT-2023",
@@ -300,22 +441,48 @@ async def predict_uncertain(
         "format": fmt_labels.get(fmt, fmt),
         "columns": list(metadata.columns),
     }
+
+    # Store for streaming / export / firewall generation
+    job_store[job_id] = {
+        "features": features,
+        "metadata": metadata,
+        "labels_encoded": labels_encoded,
+        "label_names": label_names,
+        "_model_ref": selected,
+    }
+
+    # Persist job to DB
+    db_job = Job(
+        id=job_id,
+        user_id=user.id if user else None,
+        filename=file.filename,
+        format_detected=fmt,
+        n_flows=total_rows,
+        n_threats=payload["n_threats"],
+        model_used=payload["model_used"],
+    )
+    db.add(db_job)
+    db.commit()
+
     return payload
 
 
 @app.post("/api/ablation")
+@limiter.limit(RATE_LIMIT_HEAVY)
 async def ablation_endpoint(
+    request: Request,
     file: UploadFile = File(...),
     disabled_branches: str = Form(default="[]"),
     model_name: str = Form(default=""),
+    user=Depends(require_auth),
 ):
+    _validate_upload(file)
     data = await file.read()
     features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
 
     disabled = set(json.loads(disabled_branches))
     selected = get_model(model_name if model_name else None)
 
-    # Full ablation study (only supported for surrogate)
     if hasattr(selected, 'N_BRANCHES') and selected.N_BRANCHES == 7:
         ablation_result = run_ablation(
             selected, features.to(DEVICE),
@@ -325,7 +492,6 @@ async def ablation_endpoint(
         pairwise = ablation_result["pairwise"]
         incremental = ablation_result["incremental"]
     else:
-        # Non-surrogate model — run single full-model prediction
         with torch.no_grad():
             selected.eval()
             preds = selected(features.to(DEVICE)).argmax(-1)
@@ -342,7 +508,6 @@ async def ablation_endpoint(
         pairwise = {}
         incremental = []
 
-    # Also run with custom disabled set (only for surrogate)
     if disabled and hasattr(selected, 'N_BRANCHES'):
         with torch.no_grad():
             selected.eval()
@@ -360,7 +525,6 @@ async def ablation_endpoint(
                 "disabled": list(disabled),
             }
 
-    # Serialise (remove tensors)
     clean = {}
     for k, v in single.items():
         clean[k] = {
@@ -381,20 +545,17 @@ async def ablation_endpoint(
     }
 
 
-@app.get("/api/analytics")
-async def analytics():
-    """Return pre-computed benchmark data for the Analytics page."""
-    return get_analytics_payload()
-
-
 @app.get("/api/export/{job_id}")
-async def export_results(job_id: str):
-    """Export prediction results as downloadable CSV."""
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def export_results(
+    request: Request,
+    job_id: str,
+    user=Depends(require_auth),
+):
     if job_id not in job_store:
         return JSONResponse({"error": "job not found"}, status_code=404)
     job = job_store[job_id]
 
-    # Re-run lightweight prediction (no MC) for export
     selected = get_model()
     selected.eval()
     with torch.no_grad():
@@ -436,15 +597,56 @@ async def export_results(job_id: str):
     )
 
 
+# ── Audit log endpoint (admin) ────────────────────────────────────────────
+
+@app.get("/api/audit/logs")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def get_audit_logs(
+    request: Request,
+    limit: int = 100,
+    offset: int = 0,
+    admin=Depends(require_role("admin")),
+    db=Depends(get_db),
+):
+    """Retrieve audit logs (admin only)."""
+    from sqlalchemy import select, func
+    total = db.execute(select(func.count(AuditLog.id))).scalar()
+    logs = (
+        db.query(AuditLog)
+        .order_by(AuditLog.timestamp.desc())
+        .offset(offset)
+        .limit(min(limit, 500))
+        .all()
+    )
+    return {
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "logs": [
+            {
+                "id": l.id,
+                "user_id": l.user_id,
+                "action": l.action,
+                "resource": l.resource,
+                "details": l.details,
+                "ip_address": l.ip_address,
+                "timestamp": l.timestamp.isoformat() if l.timestamp else None,
+            }
+            for l in logs
+        ],
+    }
+
+
+# ── WebSocket ─────────────────────────────────────────────────────────────
+
 @app.websocket("/ws/stream")
 async def stream(ws: WebSocket):
     await ws.accept()
     try:
-        # Wait for file data (client sends JSON with base64 or job_id)
         init = await ws.receive_text()
         msg = json.loads(init)
         job_id = msg.get("job_id")
-        rate = float(msg.get("rate", 100))  # flows/sec
+        rate = float(msg.get("rate", 100))
 
         if job_id not in job_store:
             await ws.send_json({"error": "job not found"})

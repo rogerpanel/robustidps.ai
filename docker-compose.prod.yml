@@ -1,6 +1,23 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-robustidps}
+      POSTGRES_USER: ${POSTGRES_USER:-robustidps}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-robustidps}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app
+
   backend:
     build:
       context: ./backend
@@ -9,9 +26,13 @@ services:
     volumes:
       - ./backend/weights:/app/weights
       - ./sample_data:/app/sample_data
+    env_file:
+      - .env
     environment:
-      - DEVICE=cpu
-      - MC_PASSES=50
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-robustidps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-robustidps}
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
@@ -40,3 +61,6 @@ services:
 networks:
   app:
     driver: bridge
+
+volumes:
+  pgdata:

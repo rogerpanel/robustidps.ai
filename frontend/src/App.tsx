@@ -15,6 +15,8 @@ import {
   Database,
   Menu,
   X,
+  LogOut,
+  User,
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/Upload'
@@ -24,8 +26,10 @@ import AblationStudio from './pages/AblationStudio'
 import LiveMonitor from './pages/LiveMonitor'
 import Models from './pages/Models'
 import About from './pages/About'
+import Login from './pages/Login'
 import { fetchHealth } from './utils/api'
 import { useAnalysis } from './hooks/useAnalysis'
+import { isAuthenticated, getUser, clearAuth, type AuthUser } from './utils/auth'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -41,8 +45,21 @@ const NAV = [
 export default function App() {
   const [online, setOnline] = useState<boolean | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [authed, setAuthed] = useState(isAuthenticated())
+  const [user, setUser] = useState<AuthUser | null>(getUser())
   const { loading: analysisRunning } = useAnalysis()
   const location = useLocation()
+
+  const handleLogin = () => {
+    setAuthed(true)
+    setUser(getUser())
+  }
+
+  const handleLogout = () => {
+    clearAuth()
+    setAuthed(false)
+    setUser(null)
+  }
 
   // Close mobile sidebar on navigation
   useEffect(() => {
@@ -60,6 +77,11 @@ export default function App() {
     }, 15000)
     return () => clearInterval(id)
   }, [])
+
+  // Show login page if not authenticated
+  if (!authed) {
+    return <Login onLogin={handleLogin} />
+  }
 
   const sidebarContent = (
     <>
@@ -89,6 +111,24 @@ export default function App() {
       </nav>
 
       <div className="p-4 border-t border-bg-card space-y-2">
+        {/* User info */}
+        {user && (
+          <div className="flex items-center gap-2 text-xs text-text-secondary mb-2">
+            <User className="w-3.5 h-3.5" />
+            <span className="truncate flex-1">{user.email}</span>
+            <span className="px-1.5 py-0.5 bg-accent-blue/15 text-accent-blue rounded text-[10px] font-medium uppercase">
+              {user.role}
+            </span>
+          </div>
+        )}
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent-red transition-colors w-full"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          Sign Out
+        </button>
+
         {analysisRunning && (
           <div className="flex items-center gap-2 text-xs text-accent-blue">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
