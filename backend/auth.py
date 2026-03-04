@@ -16,7 +16,7 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from config import SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -72,7 +72,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None) -> str:
@@ -151,8 +154,8 @@ def register(body: UserCreate, db: Session = Depends(get_db)):
     if len(body.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
-    # First user becomes admin
-    is_first = db.execute(select(User)).scalar_one_or_none() is None
+    user_count = db.execute(select(func.count(User.id))).scalar()
+    is_first = user_count == 0
 
     user = User(
         email=body.email,
@@ -286,7 +289,8 @@ def toggle_active(
 def ensure_default_admin(db: Session):
     """Create the default admin account if no users exist."""
     from config import ADMIN_EMAIL, ADMIN_PASSWORD
-    if db.execute(select(User)).scalar_one_or_none() is not None:
+    user_count = db.execute(select(func.count(User.id))).scalar()
+    if user_count > 0:
         return  # users exist already
     if not ADMIN_PASSWORD:
         logger.warning("No ADMIN_PASSWORD set — skipping default admin creation")
