@@ -16,6 +16,9 @@ dist/
 *.swp
 *.swo
 
+# SSL certificates (generated per-server)
+deploy/ssl/
+
 # OS
 .DS_Store
 Thumbs.db
