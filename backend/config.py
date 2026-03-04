@@ -39,4 +39,4 @@ MAX_ROWS = int(os.getenv("MAX_ROWS", "10000"))
 
 # ── Default Admin (created on first startup if DB is empty) ───────────────
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@robustidps.ai")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "robustidps2024")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "robustidps.ai2026!@#")

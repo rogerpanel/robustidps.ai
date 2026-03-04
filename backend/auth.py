@@ -208,6 +208,63 @@ def update_role(
     return {"ok": True, "user": _user_response(target)}
 
 
+@router.patch("/users/{user_id}/password")
+def reset_password(
+    user_id: int,
+    new_password: str,
+    admin: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Reset a user's password (admin only)."""
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    target.password_hash = hash_password(new_password)
+    db.commit()
+    logger.info("Admin %s reset password for user %s", admin.email, target.email)
+    return {"ok": True, "message": f"Password reset for {target.email}"}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    admin: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Delete a user account (admin only). Cannot delete yourself."""
+    if admin.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    email = target.email
+    db.delete(target)
+    db.commit()
+    logger.info("Admin %s deleted user %s", admin.email, email)
+    return {"ok": True, "message": f"User {email} deleted"}
+
+
+@router.patch("/users/{user_id}/deactivate")
+def toggle_active(
+    user_id: int,
+    active: bool,
+    admin: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Activate or deactivate a user (admin only)."""
+    if admin.id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    target.is_active = active
+    db.commit()
+    logger.info("Admin %s set user %s active=%s", admin.email, target.email, active)
+    return {"ok": True, "user": _user_response(target)}
+
+
 # ── Startup: create default admin ─────────────────────────────────────────
 
 def ensure_default_admin(db: Session):
