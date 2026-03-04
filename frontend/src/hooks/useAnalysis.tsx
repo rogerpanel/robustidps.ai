@@ -38,7 +38,11 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       .then((data) => {
         // Ignore if a newer request was started
         if (thisRequest !== requestId.current) return
-        localStorage.setItem('robustidps_results', JSON.stringify(data))
+        // Cache summary only (exclude large predictions array) to avoid localStorage quota
+        try {
+          const { predictions, confusion_matrix, ...summary } = data as Record<string, unknown>
+          localStorage.setItem('robustidps_results', JSON.stringify(summary))
+        } catch { /* quota exceeded — keep results in memory only */ }
         setState({ loading: false, results: data, error: null, fileName: file.name })
       })
       .catch((err) => {

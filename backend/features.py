@@ -449,4 +449,4 @@ def extract_features(file_bytes: bytes, filename: str = "upload.csv"):
         )
         metadata["label"] = label_names
 
-    return features, metadata, labels_encoded, label_names
+    return features, metadata, labels_encoded, label_names, fmt

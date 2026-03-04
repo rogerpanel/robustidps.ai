@@ -72,7 +72,7 @@ export default function FileUpload({ onFileSelect, loading, acceptPcap = true }:
           </span>
           {acceptPcap && (
             <span className="text-xs text-text-secondary/60">
-              Supports: .csv (CIC-IoT-2023, CSE-CIC-IDS2018) &middot; .pcap / .pcapng
+              Supports: .csv (CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15) &middot; .pcap / .pcapng
             </span>
           )}
         </>

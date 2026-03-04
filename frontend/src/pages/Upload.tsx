@@ -6,18 +6,70 @@ import ConfusionMatrix from '../components/ConfusionMatrix'
 import ModelSelector from '../components/ModelSelector'
 import { useAnalysis } from '../hooks/useAnalysis'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Database, AlertTriangle } from 'lucide-react'
+
+interface DatasetInfo {
+  total_rows: number
+  analysed_rows: number
+  sampled: boolean
+  format: string
+  columns: string[]
+}
+
+function DatasetSummary({ info, fileName }: { info: DatasetInfo; fileName: string | null }) {
+  return (
+    <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+      <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
+        <Database className="w-4 h-4" /> Dataset Summary
+      </h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div>
+          <div className="text-xs text-text-secondary">File</div>
+          <div className="text-sm font-mono text-text-primary truncate">
+            {fileName || 'Unknown'}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-text-secondary">Format Detected</div>
+          <div className="text-sm font-medium text-accent-blue">{info.format}</div>
+        </div>
+        <div>
+          <div className="text-xs text-text-secondary">Total Rows</div>
+          <div className="text-sm font-mono text-text-primary">
+            {info.total_rows.toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-text-secondary">Rows Analysed</div>
+          <div className="text-sm font-mono text-text-primary">
+            {info.analysed_rows.toLocaleString()}
+            {info.sampled && (
+              <span className="ml-1 text-xs text-accent-yellow">(sampled)</span>
+            )}
+          </div>
+        </div>
+      </div>
+      {info.sampled && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-accent-yellow">
+          <AlertTriangle className="w-3.5 h-3.5" />
+          Large dataset: {info.analysed_rows.toLocaleString()} rows randomly sampled from {info.total_rows.toLocaleString()} for analysis
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function UploadPage() {
   const [mcPasses, setMcPasses] = useState(50)
   const [selectedModel, setSelectedModel] = useState('surrogate')
-  const { loading, results, error, runAnalysis } = useAnalysis()
+  const { loading, results, error, fileName, runAnalysis } = useAnalysis()
 
   const handleUpload = (file: File) => {
     runAnalysis(file, mcPasses, selectedModel)
   }
 
   const predictions = (results?.predictions ?? []) as Array<Record<string, unknown>>
+  const datasetInfo = results?.dataset_info as DatasetInfo | undefined
   const perClass = (results?.per_class_metrics ?? {}) as Record<
     string,
     { precision: number; recall: number; f1: number }
@@ -76,6 +128,8 @@ export default function UploadPage() {
 
       {results && (
         <>
+          {datasetInfo && <DatasetSummary info={datasetInfo} fileName={fileName} />}
+
           <ThreatTable predictions={predictions as never} />
 
           <div className="grid grid-cols-2 gap-4">

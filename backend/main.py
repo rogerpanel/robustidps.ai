@@ -211,7 +211,7 @@ async def model_info():
 async def upload(file: UploadFile = File(...)):
     job_id = str(uuid.uuid4())[:8]
     data = await file.read()
-    features, metadata, labels_encoded, label_names = extract_features(data, file.filename or "upload.csv")
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
     job_store[job_id] = {
         "features": features,
         "metadata": metadata,
@@ -242,7 +242,7 @@ async def get_results(job_id: str):
 @app.post("/api/predict")
 async def predict(file: UploadFile = File(...)):
     data = await file.read()
-    features, metadata, labels_encoded, label_names = extract_features(data, file.filename or "upload.csv")
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
     result = predict_with_uncertainty(
         model, features.to(DEVICE),
         labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
@@ -253,6 +253,9 @@ async def predict(file: UploadFile = File(...)):
     return payload
 
 
+MAX_ROWS = 10_000  # Cap rows to keep MC Dropout feasible on CPU
+
+
 @app.post("/api/predict_uncertain")
 async def predict_uncertain(
     file: UploadFile = File(...),
@@ -260,7 +263,21 @@ async def predict_uncertain(
     model_name: str = Form(default=""),
 ):
     data = await file.read()
-    features, metadata, labels_encoded, label_names = extract_features(data, file.filename or "upload.csv")
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
+
+    total_rows = len(features)
+    sampled = False
+    if total_rows > MAX_ROWS:
+        # Random sample to keep inference fast
+        idx = torch.randperm(total_rows)[:MAX_ROWS].sort().values
+        features = features[idx]
+        metadata = metadata.iloc[idx.numpy()].reset_index(drop=True)
+        if labels_encoded is not None:
+            labels_encoded = labels_encoded[idx]
+        if label_names is not None:
+            label_names = [label_names[i] for i in idx.tolist()]
+        sampled = True
+
     selected = get_model(model_name if model_name else None)
     result = predict_with_uncertainty(
         selected, features.to(DEVICE),
@@ -270,6 +287,19 @@ async def predict_uncertain(
     payload = _build_predictions(features, metadata, labels_encoded, label_names, result)
     payload["job_id"] = str(uuid.uuid4())[:8]
     payload["model_used"] = model_name if model_name else active_model_id
+    fmt_labels = {
+        "ciciot2023": "CIC-IoT-2023",
+        "cicids2018": "CSE-CIC-IDS2018",
+        "unsw": "UNSW-NB15",
+        "generic": "Generic CSV",
+    }
+    payload["dataset_info"] = {
+        "total_rows": total_rows,
+        "analysed_rows": len(features),
+        "sampled": sampled,
+        "format": fmt_labels.get(fmt, fmt),
+        "columns": list(metadata.columns),
+    }
     return payload
 
 
@@ -280,7 +310,7 @@ async def ablation_endpoint(
     model_name: str = Form(default=""),
 ):
     data = await file.read()
-    features, metadata, labels_encoded, label_names = extract_features(data, file.filename or "upload.csv")
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
 
     disabled = set(json.loads(disabled_branches))
     selected = get_model(model_name if model_name else None)
