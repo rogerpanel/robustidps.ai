@@ -159,13 +159,16 @@ def get_model(model_id: str | None = None):
 async def startup():
     global model
     # Initialise database
-    init_db()
-    db = SessionLocal()
     try:
-        ensure_default_admin(db)
-    finally:
-        db.close()
-    logger.info("Database initialised")
+        init_db()
+        db = SessionLocal()
+        try:
+            ensure_default_admin(db)
+        finally:
+            db.close()
+        logger.info("Database initialised")
+    except Exception:
+        logger.exception("Database initialisation failed — continuing without DB")
 
     # Load model
     model = _load_model()

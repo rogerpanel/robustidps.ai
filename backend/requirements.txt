@@ -17,6 +17,7 @@ psycopg2-binary>=2.9.0
 # ── Enterprise: Authentication ────────────────────────────────────────────
 PyJWT>=2.8.0
 passlib[bcrypt]>=1.7.0
+bcrypt==4.0.1
 
 # ── Enterprise: Rate Limiting ─────────────────────────────────────────────
 slowapi>=0.1.9
