@@ -402,7 +402,7 @@ export default function Datasets() {
       </div>
 
       {/* Collection DOI links */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {(Object.entries(COLLECTION_INFO) as [string, typeof COLLECTION_INFO.network][]).map(([key, col]) => (
           <a
             key={key}
@@ -520,7 +520,7 @@ export default function Datasets() {
                 {isOpen && (
                   <div className="border-t border-bg-card px-5 pb-5 space-y-5">
                     {/* Row 1: Attack classes + Feature groups */}
-                    <div className="grid grid-cols-2 gap-4 pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                       {/* Attack Classes */}
                       <div>
                         <div className="flex items-center gap-2 mb-3">
@@ -604,7 +604,7 @@ export default function Datasets() {
                     </div>
 
                     {/* Row 3: Metadata grid */}
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="bg-bg-card/30 rounded-lg p-3">
                         <div className="flex items-center gap-1.5 mb-1">
                           <Tag className="w-3 h-3 text-text-secondary" />

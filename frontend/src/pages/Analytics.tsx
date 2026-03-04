@@ -81,33 +81,35 @@ export default function Analytics() {
         tip="These are pre-computed benchmark metrics from the dissertation research. No file upload needed — this page always works."
       />
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-display font-bold">Analytics & Evaluation</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <h1 className="text-xl md:text-2xl font-display font-bold">Analytics & Evaluation</h1>
         <button
           onClick={downloadJSON}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors"
+          className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors self-start sm:self-auto"
         >
           <Download className="w-3.5 h-3.5" />
           Export All Metrics (JSON)
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-bg-secondary rounded-lg p-1 border border-bg-card">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-colors ${
-              tab === t.key
-                ? 'bg-accent-blue/15 text-accent-blue'
-                : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
-            }`}
-          >
-            <t.icon className="w-3.5 h-3.5" />
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs — horizontally scrollable on mobile */}
+      <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
+        <div className="flex gap-1 bg-bg-secondary rounded-lg p-1 border border-bg-card min-w-max">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                tab === t.key
+                  ? 'bg-accent-blue/15 text-accent-blue'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
+              }`}
+            >
+              <t.icon className="w-3.5 h-3.5" />
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === 'performance' && <PerformanceTab data={data} models={models} names={names} />}

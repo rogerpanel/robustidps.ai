@@ -27,6 +27,9 @@ export default {
         display: ['Space Grotesk', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
+      screens: {
+        '3xl': '1920px',
+      },
     },
   },
   plugins: [],

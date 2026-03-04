@@ -106,9 +106,9 @@ export default function AblationStudio() {
       />
 
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-display font-bold flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-display font-bold flex items-center gap-2">
             <FlaskConical className="w-6 h-6 text-accent-blue" />
             Ablation Studio
           </h1>
@@ -129,8 +129,8 @@ export default function AblationStudio() {
       </div>
 
       {/* Model selector + Branch toggles */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="col-span-3 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
+        <div className="xl:col-span-3 bg-bg-secondary rounded-xl p-4 md:p-5 border border-bg-card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-text-secondary">
               Dissertation Methods
@@ -153,7 +153,7 @@ export default function AblationStudio() {
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {BRANCH_NAMES.map((name, i) => (
               <button
                 key={i}

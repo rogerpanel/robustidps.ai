@@ -23,7 +23,7 @@ function DatasetSummary({ info, fileName }: { info: DatasetInfo; fileName: strin
       <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
         <Database className="w-4 h-4" /> Dataset Summary
       </h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <div>
           <div className="text-xs text-text-secondary">File</div>
           <div className="text-sm font-mono text-text-primary truncate">
@@ -84,7 +84,7 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-display font-bold">Upload & Analyse</h1>
+      <h1 className="text-xl md:text-2xl font-display font-bold">Upload & Analyse</h1>
 
       <PageGuide
         title="How to use Upload & Analyse"
@@ -97,8 +97,8 @@ export default function UploadPage() {
         tip="Supported benchmarks: CIC-IoT-2023 (46 features), CSE-CIC-IDS2018 (79 features), UNSW-NB15 (49 features). Any CSV with numeric columns will also work as generic format."
       />
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="lg:col-span-2">
           <FileUpload onFileSelect={handleUpload} loading={loading} />
         </div>
 
@@ -144,7 +144,7 @@ export default function UploadPage() {
 
           <ThreatTable predictions={predictions as never} />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <UncertaintyChart predictions={predictions as never} />
             <ConfusionMatrix
               matrix={results.confusion_matrix as number[][] | null}

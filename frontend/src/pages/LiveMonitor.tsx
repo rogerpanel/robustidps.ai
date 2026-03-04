@@ -81,7 +81,7 @@ export default function LiveMonitor() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-display font-bold">Live Monitor</h1>
+      <h1 className="text-xl md:text-2xl font-display font-bold">Live Monitor</h1>
 
       <PageGuide
         title="How to use Live Monitor"
@@ -103,7 +103,7 @@ export default function LiveMonitor() {
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
             <div className="flex items-center gap-3">
               {!running ? (
                 <button
@@ -147,7 +147,7 @@ export default function LiveMonitor() {
               />
             </div>
 
-            <div className="flex gap-6 ml-auto text-sm">
+            <div className="flex gap-4 sm:gap-6 sm:ml-auto text-sm">
               <span className="text-accent-red font-mono">
                 Threats: {threatCount}
               </span>
@@ -167,7 +167,7 @@ export default function LiveMonitor() {
           )}
 
           <div className="bg-bg-secondary rounded-xl border border-bg-card overflow-hidden">
-            <div className="max-h-[600px] overflow-y-auto">
+            <div className="max-h-[400px] md:max-h-[600px] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-bg-secondary z-10">
                   <tr className="text-text-secondary text-xs">

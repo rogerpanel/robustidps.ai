@@ -110,12 +110,12 @@ export default function Dashboard() {
         tip="Tip: The dashboard shows sample data when no file has been analysed. Upload a real dataset to see live results."
       />
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-display font-bold">SOC Dashboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <h1 className="text-xl md:text-2xl font-display font-bold">SOC Dashboard</h1>
         {predictions.length > 0 && (
           <button
             onClick={downloadCSV}
-            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors self-start sm:self-auto"
           >
             <Download className="w-3.5 h-3.5" />
             Export Detections (CSV)
@@ -124,7 +124,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 1: Stat cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <StatCard label="Total Flows" value={data.n_flows.toLocaleString()} icon={Activity} color="text-accent-blue" />
         <StatCard label="Threats Detected" value={data.n_threats.toLocaleString()} icon={ShieldAlert} color="text-accent-red" sub={`${((data.n_threats / Math.max(data.n_flows, 1)) * 100).toFixed(1)}% of total`} />
         <StatCard label="Benign Traffic" value={`${benignPct}%`} icon={ShieldCheck} color="text-accent-green" />
@@ -132,7 +132,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 2: Severity breakdown panels */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 md:gap-3">
         {SEVERITY_LEVELS.map((sev) => {
           const cfg = SEV_CFG[sev]
           const count = sevCounts[sev] || 0
@@ -154,7 +154,7 @@ export default function Dashboard() {
       </div>
 
       {/* Row 3: Charts + Top Sources */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <AttackDistribution data={data.attack_distribution} />
         <ConfidenceHistogram confidences={confidences} />
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
@@ -222,12 +222,12 @@ function SOCThreatTable({ predictions }: { predictions: Prediction[] }) {
   }
 
   return (
-    <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-bg-secondary rounded-xl p-3 md:p-5 border border-bg-card">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
         <h3 className="text-sm font-medium text-text-secondary">
           Threat Detections ({filtered.length.toLocaleString()} flows)
         </h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {/* Severity filter chips */}
           {SEVERITY_LEVELS.map((sev) => {
             const cfg = SEV_CFG[sev]
@@ -304,8 +304,8 @@ function SOCThreatTable({ predictions }: { predictions: Prediction[] }) {
                   </tr>
                   {isExpanded && (
                     <tr className="border-t border-bg-card/30">
-                      <td colSpan={8} className="px-6 py-3 bg-bg-card/20">
-                        <div className="grid grid-cols-4 gap-4 text-xs">
+                      <td colSpan={8} className="px-4 md:px-6 py-3 bg-bg-card/20">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 text-xs">
                           <div>
                             <span className="text-text-secondary block">True Label</span>
                             <span className="font-medium">{p.label_true || 'N/A'}</span>
