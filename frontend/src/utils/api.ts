@@ -43,6 +43,17 @@ export async function uploadAndPredict(file: File, mcPasses = 50, modelName = ''
     method: 'POST',
     body: form,
   });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Server error (${res.status})`;
+    try {
+      const json = JSON.parse(text);
+      msg = json.detail || json.error || msg;
+    } catch {
+      if (text.length < 200) msg = text;
+    }
+    throw new Error(msg);
+  }
   return res.json();
 }
 

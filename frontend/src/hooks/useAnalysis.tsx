@@ -41,12 +41,15 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('robustidps_results', JSON.stringify(data))
         setState({ loading: false, results: data, error: null, fileName: file.name })
       })
-      .catch(() => {
+      .catch((err) => {
         if (thisRequest !== requestId.current) return
+        const msg = err instanceof Error && err.message
+          ? err.message
+          : 'Failed to analyse file. Is the backend running?'
         setState((prev) => ({
           ...prev,
           loading: false,
-          error: 'Failed to analyse file. Is the backend running?',
+          error: msg,
         }))
       })
   }, [])

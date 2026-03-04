@@ -1,5 +1,5 @@
 """
-Feature extraction for CIC-IoT-2023, CSE-CIC-IDS2018, and PCAP uploads.
+Feature extraction for CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15, and PCAP uploads.
 """
 
 import io
@@ -75,8 +75,22 @@ CICIDS2018_FEATURES_SHORT = [
     "Bwd IAT Tot", "Bwd IAT Mean", "Bwd IAT Std", "Bwd IAT Max", "Bwd IAT Min",
 ]
 
+# ── UNSW-NB15 feature names ───────────────────────────────────────────────────
+UNSW_NB15_FEATURES = [
+    "dur", "sbytes", "dbytes", "sttl", "dttl", "sloss", "dloss",
+    "sload", "dload", "spkts", "dpkts", "swin", "dwin",
+    "stcpb", "dtcpb", "smeansz", "dmeansz",
+    "trans_depth", "res_bdy_len", "sjit", "djit",
+    "sintpkt", "dintpkt", "tcprtt", "synack", "ackdat",
+    "is_sm_ips_ports", "ct_state_ttl", "ct_flw_http_mthd",
+    "is_ftp_login", "ct_ftp_cmd",
+    "ct_srv_src", "ct_srv_dst", "ct_dst_ltm", "ct_src_ltm",
+    "ct_src_dport_ltm", "ct_dst_sport_ltm", "ct_dst_src_ltm",
+]
+
 METADATA_COLS = ["src_ip", "dst_ip", "timestamp", "label", "Label",
-                 "Src IP", "Src Port", "Dst IP", "Dst Port", "Protocol"]
+                 "Src IP", "Src Port", "Dst IP", "Dst Port", "Protocol",
+                 "srcip", "dstip", "sport", "dsport", "attack_cat"]
 
 # Known label aliases → canonical label in CLASS_NAMES
 # Handles CSE-CIC-2018 label names, case differences, and common variants
@@ -115,6 +129,19 @@ LABEL_ALIASES = {
     "Web Attack - Brute Force": "BruteForce-HTTP",
     "Web Attack - XSS": "WebAttack-XSS",
     "Web Attack - Sql Injection": "WebAttack-SQLi",
+    # UNSW-NB15 attack_cat values
+    "Normal": "Benign",
+    "normal": "Benign",
+    "Fuzzers": "BruteForce-Dictionary",
+    "Analysis": "Recon-PortScan",
+    "Backdoor": "Malware-Backdoor",
+    "Backdoors": "Malware-Backdoor",
+    "DoS": "DoS-Hulk",
+    "Exploits": "WebAttack-CommandInjection",
+    "Generic": "DDoS-TCP_Flood",
+    "Reconnaissance": "Recon-PortScan",
+    "Shellcode": "Malware-Backdoor",
+    "Worms": "Malware-Trojan",
 }
 
 N_FEATURES = 83
@@ -134,11 +161,17 @@ def detect_format(df: pd.DataFrame) -> str:
     cicids_full = sum(1 for f in CICIDS2018_FEATURES_FULL if _normalize_col(f) in cols_lower)
     cicids_short = sum(1 for f in CICIDS2018_FEATURES_SHORT if _normalize_col(f) in cols_lower)
     cicids_overlap = max(cicids_full, cicids_short)
+    unsw_overlap = sum(1 for f in UNSW_NB15_FEATURES if _normalize_col(f) in cols_lower)
 
-    if cic_iot_overlap > cicids_overlap and cic_iot_overlap > 5:
-        return "ciciot2023"
-    if cicids_overlap > 5:
-        return "cicids2018"
+    # Pick the format with the highest column overlap
+    best = max(
+        ("ciciot2023", cic_iot_overlap),
+        ("cicids2018", cicids_overlap),
+        ("unsw", unsw_overlap),
+        key=lambda x: x[1],
+    )
+    if best[1] > 5:
+        return best[0]
     return "generic"
 
 
@@ -168,6 +201,23 @@ def _select_features_cicids2018(df: pd.DataFrame) -> pd.DataFrame:
 
     result = pd.concat(selected, axis=1)
     result.columns = CICIDS2018_FEATURES_FULL[:len(result.columns)]
+    return result
+
+
+def _select_features_unsw(df: pd.DataFrame) -> pd.DataFrame:
+    """Extract features in canonical UNSW-NB15 order."""
+    selected = []
+    for feat_name in UNSW_NB15_FEATURES:
+        col = _find_column(df, feat_name)
+        if col is not None:
+            series = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
+            series.name = feat_name
+            selected.append(series)
+        else:
+            selected.append(pd.Series(0.0, index=df.index, name=feat_name))
+
+    result = pd.concat(selected, axis=1)
+    result.columns = UNSW_NB15_FEATURES[:len(result.columns)]
     return result
 
 
@@ -349,6 +399,8 @@ def extract_features(file_bytes: bytes, filename: str = "upload.csv"):
     # Select features based on detected format
     if fmt == "cicids2018":
         numeric = _select_features_cicids2018(df)
+    elif fmt == "unsw":
+        numeric = _select_features_unsw(df)
     else:
         numeric = _select_numeric(df)
 
@@ -372,10 +424,15 @@ def extract_features(file_bytes: bytes, filename: str = "upload.csv"):
     features = torch.tensor(scaled, dtype=torch.float32)
 
     # Encode labels if present
+    # Prefer attack_cat (UNSW-NB15 categorical labels) over binary label column
     label_col = None
-    for col in ("label", "Label"):
-        if _find_column(df, col) is not None:
-            label_col = _find_column(df, col)
+    for col in ("attack_cat", "label", "Label"):
+        found = _find_column(df, col)
+        if found is not None:
+            # Skip UNSW binary label column (0/1) — prefer attack_cat for category names
+            if col in ("label", "Label") and fmt == "unsw" and _find_column(df, "attack_cat"):
+                continue
+            label_col = found
             break
 
     labels_encoded = None
