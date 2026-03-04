@@ -378,10 +378,10 @@ export default function Datasets() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-display font-bold">Benchmark Datasets</h1>
-          <p className="text-sm text-text-secondary mt-1">
+          <h1 className="text-xl md:text-2xl font-display font-bold">Benchmark Datasets</h1>
+          <p className="text-xs md:text-sm text-text-secondary mt-1">
             6 datasets &middot; {(totalRecords / 1_000_000).toFixed(1)}M total records &middot; {totalAttacks} unique attack classes
           </p>
         </div>
@@ -484,32 +484,34 @@ export default function Datasets() {
                 {/* Card header — always visible */}
                 <button
                   onClick={() => toggle(d.id)}
-                  className="w-full flex items-center gap-4 p-5 text-left hover:bg-bg-card/20 transition-colors"
+                  className="w-full flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 md:p-5 text-left hover:bg-bg-card/20 transition-colors"
                 >
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${d.domainColor}15` }}>
-                    <Icon className="w-6 h-6" style={{ color: d.domainColor }} />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold" style={{ color: d.domainColor }}>{d.name}</h3>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-bg-card text-text-secondary">{d.domain}</span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-bg-card text-text-secondary">{d.year}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${d.domainColor}15` }}>
+                      <Icon className="w-5 h-5 md:w-6 md:h-6" style={{ color: d.domainColor }} />
                     </div>
-                    <p className="text-xs text-text-secondary line-clamp-1">{d.description}</p>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="font-semibold text-sm md:text-base" style={{ color: d.domainColor }}>{d.name}</h3>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-bg-card text-text-secondary">{d.domain}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-bg-card text-text-secondary">{d.year}</span>
+                      </div>
+                      <p className="text-xs text-text-secondary line-clamp-2 sm:line-clamp-1">{d.description}</p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-6 shrink-0">
+                  <div className="flex items-center gap-4 sm:gap-6 shrink-0 pl-13 sm:pl-0">
                     <div className="text-center">
-                      <div className="text-lg font-bold font-mono">{d.records}</div>
+                      <div className="text-base md:text-lg font-bold font-mono">{d.records}</div>
                       <div className="text-xs text-text-secondary">Records</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold font-mono">{d.attackTypes}</div>
+                      <div className="text-base md:text-lg font-bold font-mono">{d.attackTypes}</div>
                       <div className="text-xs text-text-secondary">Attacks</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-lg font-bold font-mono">{d.features}</div>
+                      <div className="text-base md:text-lg font-bold font-mono">{d.features}</div>
                       <div className="text-xs text-text-secondary">Features</div>
                     </div>
                     {isOpen ? <ChevronUp className="w-5 h-5 text-text-secondary" /> : <ChevronDown className="w-5 h-5 text-text-secondary" />}
@@ -518,7 +520,7 @@ export default function Datasets() {
 
                 {/* Expanded details */}
                 {isOpen && (
-                  <div className="border-t border-bg-card px-5 pb-5 space-y-5">
+                  <div className="border-t border-bg-card px-3 md:px-5 pb-4 md:pb-5 space-y-5">
                     {/* Row 1: Attack classes + Feature groups */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                       {/* Attack Classes */}
@@ -580,24 +582,19 @@ export default function Datasets() {
                         <BarChart3 className="w-4 h-4 text-text-secondary" />
                         <h4 className="text-sm font-medium">Preprocessing Pipeline</h4>
                       </div>
-                      <div className="flex items-start gap-0">
-                        {d.preprocessing.map((ps, i) => (
-                          <div key={ps.step} className="flex items-start flex-1 min-w-0">
-                            <div className="flex flex-col items-center">
-                              <div
-                                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                                style={{ background: `${d.domainColor}20`, color: d.domainColor }}
-                              >
-                                {ps.step}
-                              </div>
-                              <div className="mt-2 text-center px-1">
-                                <div className="text-xs font-medium">{ps.name}</div>
-                                <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">{ps.description}</p>
-                              </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                        {d.preprocessing.map((ps) => (
+                          <div key={ps.step} className="flex flex-col items-center text-center">
+                            <div
+                              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                              style={{ background: `${d.domainColor}20`, color: d.domainColor }}
+                            >
+                              {ps.step}
                             </div>
-                            {i < d.preprocessing.length - 1 && (
-                              <div className="w-full h-px bg-bg-card mt-3.5 mx-1 shrink" />
-                            )}
+                            <div className="mt-2 px-1">
+                              <div className="text-xs font-medium">{ps.name}</div>
+                              <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">{ps.description}</p>
+                            </div>
                           </div>
                         ))}
                       </div>

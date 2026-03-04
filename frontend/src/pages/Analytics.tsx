@@ -157,7 +157,7 @@ function PerformanceTab({ data, models, names }: { data: any; models: string[]; 
   return (
     <div className="space-y-6">
       {/* Bar chart comparison */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">Model Comparison (% Score)</h3>
           <ResponsiveContainer width="100%" height={300}>
@@ -291,7 +291,7 @@ function ConvergenceTab({ data, models, names }: { data: any; models: string[]; 
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">Training Loss (Cross-Entropy)</h3>
           <ResponsiveContainer width="100%" height={350}>
@@ -434,8 +434,8 @@ function RobustnessTab({ data, models, names }: { data: any; models: string[]; n
       </div>
 
       {/* Row 1: Per-attack curve + ranking */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">
             Accuracy Under {attackNames[selectedAttack]}
           </h3>
@@ -475,9 +475,9 @@ function RobustnessTab({ data, models, names }: { data: any; models: string[]; n
       </div>
 
       {/* Row 2: Per-model multi-attack overlay */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
-          <div className="flex items-center justify-between mb-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <h3 className="text-sm font-medium text-text-secondary">
               All 4 Attacks on {names[selectedModel].split('(')[0].trim()}
             </h3>
@@ -674,7 +674,7 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
       </div>
 
       {/* Row 1: Privacy-Accuracy + Privacy-Robustness */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">Privacy–Accuracy Trade-off (DP-SGD)</h3>
           <ResponsiveContainer width="100%" height={320}>
@@ -717,7 +717,7 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
       </div>
 
       {/* Row 2: Privacy utility loss ranking + Pareto frontier */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">Privacy Resilience Ranking</h3>
           <p className="text-xs text-text-secondary mb-3">Accuracy drop from ε=∞ to ε=1 (lower = more resilient)</p>
@@ -743,7 +743,7 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
         </div>
 
         {/* Pareto frontier table */}
-        <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <div className="lg:col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">
             Pareto Frontier — Joint Robustness-Accuracy-Privacy Operating Points
           </h3>
@@ -856,7 +856,7 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
         <h3 className="text-sm font-bold text-accent-purple mb-3">
           Dissertation Validation: Both Master Problems Covered
         </h3>
-        <div className="grid grid-cols-2 gap-6 text-xs text-text-secondary">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs text-text-secondary">
           <div>
             <div className="font-semibold text-text-primary mb-1">Master Problem 1: Adversarial Resilience</div>
             <ul className="space-y-1 list-disc list-inside">
@@ -912,7 +912,7 @@ function TransferTab({ data, models, names }: { data: any; models: string[]; nam
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Heatmap */}
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">
@@ -1023,8 +1023,8 @@ function CalibrationTab({ data, models, names }: { data: any; models: string[]; 
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <h3 className="text-sm font-medium text-text-secondary mb-4">Reliability Diagram (Calibration Plot)</h3>
           <ResponsiveContainer width="100%" height={400}>
             <LineChart data={lineData}>
