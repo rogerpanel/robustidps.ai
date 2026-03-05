@@ -1,7 +1,30 @@
+import { authHeaders, clearAuth } from './auth'
+
 const API = import.meta.env.VITE_API_URL || '';
+
+/**
+ * Authenticated fetch wrapper.
+ * Adds JWT Authorization header and handles 401 responses.
+ */
+async function authFetch(url: string, opts: RequestInit = {}): Promise<Response> {
+  const headers = { ...authHeaders(), ...(opts.headers as Record<string, string> || {}) }
+  const res = await fetch(url, { ...opts, headers })
+  if (res.status === 401) {
+    clearAuth()
+    window.location.reload()
+  }
+  return res
+}
+
+// ── Public endpoints (no auth required) ──────────────────────────────────
 
 export async function fetchHealth() {
   const res = await fetch(`${API}/api/health`);
+  return res.json();
+}
+
+export async function fetchAnalytics() {
+  const res = await fetch(`${API}/api/analytics`);
   return res.json();
 }
 
@@ -10,34 +33,61 @@ export async function fetchModelInfo() {
   return res.json();
 }
 
-export async function uploadFile(file: File) {
-  const form = new FormData();
-  form.append('file', file);
-  const res = await fetch(`${API}/api/upload`, { method: 'POST', body: form });
+export async function fetchModels() {
+  const res = await fetch(`${API}/api/models`);
   return res.json();
 }
 
-export async function getResults(jobId: string) {
-  const res = await fetch(`${API}/api/results/${jobId}`);
-  return res.json();
-}
+// ── Authenticated endpoints ──────────────────────────────────────────────
 
-export async function uploadAndPredict(file: File, mcPasses = 50) {
-  const form = new FormData();
-  form.append('file', file);
-  form.append('mc_passes', String(mcPasses));
-  const res = await fetch(`${API}/api/predict_uncertain`, {
+export async function activateModel(modelId: string) {
+  const res = await authFetch(`${API}/api/models/${modelId}/activate`, {
     method: 'POST',
-    body: form,
   });
   return res.json();
 }
 
-export async function runAblation(file: File, disabledBranches: number[]) {
+export async function uploadFile(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await authFetch(`${API}/api/upload`, { method: 'POST', body: form });
+  return res.json();
+}
+
+export async function getResults(jobId: string) {
+  const res = await authFetch(`${API}/api/results/${jobId}`);
+  return res.json();
+}
+
+export async function uploadAndPredict(file: File, mcPasses = 20, modelName = '') {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('mc_passes', String(mcPasses));
+  if (modelName) form.append('model_name', modelName);
+  const res = await authFetch(`${API}/api/predict_uncertain`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Server error (${res.status})`;
+    try {
+      const json = JSON.parse(text);
+      msg = json.detail || json.error || msg;
+    } catch {
+      if (text.length < 200) msg = text;
+    }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+export async function runAblation(file: File, disabledBranches: number[], modelName = '') {
   const form = new FormData();
   form.append('file', file);
   form.append('disabled_branches', JSON.stringify(disabledBranches));
-  const res = await fetch(`${API}/api/ablation`, {
+  if (modelName) form.append('model_name', modelName);
+  const res = await authFetch(`${API}/api/ablation`, {
     method: 'POST',
     body: form,
   });
@@ -64,6 +114,51 @@ export function connectStream(
     }
   };
   return ws;
+}
+
+export async function exportResults(jobId: string) {
+  const res = await authFetch(`${API}/api/export/${jobId}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `robustidps_results_${jobId}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Firewall rule generation ─────────────────────────────────────────────
+
+export async function generateFirewallRules(
+  jobId: string,
+  ruleType: string = 'iptables',
+  minConfidence: number = 0.7,
+  minSeverity: string = 'high',
+  action: string = 'DROP',
+) {
+  const res = await authFetch(`${API}/api/firewall/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      job_id: jobId,
+      rule_type: ruleType,
+      min_confidence: minConfidence,
+      min_severity: minSeverity,
+      action,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Error ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── Audit logs (admin) ───────────────────────────────────────────────────
+
+export async function fetchAuditLogs(limit = 100, offset = 0) {
+  const res = await authFetch(`${API}/api/audit/logs?limit=${limit}&offset=${offset}`);
+  return res.json();
 }
 
 // Sample/fallback data for offline mode
