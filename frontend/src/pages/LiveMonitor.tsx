@@ -327,7 +327,7 @@ export default function LiveMonitor() {
             </div>
             <div className="flex items-start gap-2 p-3 bg-accent-amber/10 border border-accent-amber/20 rounded-lg">
               <AlertTriangle className="w-4 h-4 text-accent-amber shrink-0 mt-0.5" />
-              <p className="text-[11px] text-text-secondary leading-relaxed"><strong className="text-text-primary">Enterprise &amp; Commercial Use:</strong> For production deployments, GPU-accelerated inference, custom model training on your organisation's traffic, SLA-backed support, and on-premises installation assistance \u2014 contact <strong className="text-accent-blue">rogernickanaedevha@gmail.com</strong> for licensing and professional services options.</p>
+              <p className="text-[11px] text-text-secondary leading-relaxed"><strong className="text-text-primary">Enterprise &amp; Commercial Use:</strong> For production deployments, GPU-accelerated inference, custom model training on your organisation's traffic, SLA-backed support, and on-premises installation assistance \u2014 contact <strong className="text-accent-blue">roger@robustidps.ai</strong> for licensing and professional services options.</p>
             </div>
           </div>
         )}
