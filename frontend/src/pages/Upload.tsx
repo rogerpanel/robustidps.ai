@@ -7,7 +7,7 @@ import ModelSelector from '../components/ModelSelector'
 import { useAnalysis } from '../hooks/useAnalysis'
 import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2, Database, AlertTriangle } from 'lucide-react'
+import { Loader2, Database, AlertTriangle, Trash2, X } from 'lucide-react'
 
 interface DatasetInfo {
   total_rows: number
@@ -63,10 +63,19 @@ function DatasetSummary({ info, fileName }: { info: DatasetInfo; fileName: strin
 export default function UploadPage() {
   const [mcPasses, setMcPasses] = useState(20)
   const [selectedModel, setSelectedModel] = useState('surrogate')
-  const { loading, results, error, fileName, runAnalysis } = useAnalysis()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const { loading, results, error, fileName, jobId, runAnalysis, deleteJob } = useAnalysis()
 
   const handleUpload = (file: File) => {
     runAnalysis(file, mcPasses, selectedModel)
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    await deleteJob()
+    setDeleting(false)
+    setShowDeleteConfirm(false)
   }
 
   const predictions = (results?.predictions ?? []) as Array<Record<string, unknown>>
@@ -140,7 +149,47 @@ export default function UploadPage() {
 
       {results && (
         <>
-          {datasetInfo && <DatasetSummary info={datasetInfo} fileName={fileName} />}
+          {/* Dataset header with delete button */}
+          <div className="flex items-center justify-between">
+            {datasetInfo && (
+              <div className="flex-1">
+                <DatasetSummary info={datasetInfo} fileName={fileName} />
+              </div>
+            )}
+          </div>
+
+          {/* Delete dataset bar */}
+          <div className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary rounded-lg border border-bg-card">
+            <div className="text-xs text-text-secondary">
+              <span className="font-medium text-text-primary">{fileName}</span>
+              {jobId && <span className="ml-2 opacity-50">Job: {jobId}</span>}
+            </div>
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Remove Dataset
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-accent-red">Delete this analysis?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-3 py-1.5 text-xs font-medium bg-accent-red text-white rounded-lg hover:bg-accent-red/90 disabled:opacity-50 transition-colors"
+                >
+                  {deleting ? 'Deleting...' : 'Confirm Delete'}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="p-1.5 text-text-secondary hover:text-text-primary rounded transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
 
           <ThreatTable predictions={predictions as never} />
 

@@ -61,7 +61,6 @@ from auth import (
 from audit import AuditMiddleware, log_audit
 from firewall import router as firewall_router
 from copilot import router as copilot_router
-from copilot import router as copilot_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -122,7 +121,6 @@ except ImportError:
 
 app.include_router(auth_router)
 app.include_router(firewall_router)
-app.include_router(copilot_router)
 app.include_router(copilot_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
@@ -550,6 +548,37 @@ async def ablation_endpoint(
         "branch_names": SurrogateIDS.BRANCH_NAMES,
         "model_used": model_name if model_name else active_model_id,
     }
+
+
+@app.delete("/api/jobs/{job_id}")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def delete_job(
+    request: Request,
+    job_id: str,
+    user=Depends(require_auth),
+    db=Depends(get_db),
+):
+    """Delete a job: removes from memory, DB (cascades firewall rules), and frees resources."""
+    # Remove from in-memory store
+    job_store.pop(job_id, None)
+
+    # Remove from DB (firewall rules cascade via relationship)
+    from database import FirewallRule
+    db_job = db.get(Job, job_id)
+    if not db_job:
+        return JSONResponse({"error": "Job not found"}, status_code=404)
+
+    # Only allow owner or admin to delete
+    if db_job.user_id and db_job.user_id != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorised to delete this job")
+
+    # Delete related firewall rules first
+    db.query(FirewallRule).filter(FirewallRule.job_id == job_id).delete()
+    db.delete(db_job)
+    db.commit()
+
+    logger.info("Job %s deleted by %s", job_id, user.email)
+    return {"deleted": job_id}
 
 
 @app.get("/api/export/{job_id}")
