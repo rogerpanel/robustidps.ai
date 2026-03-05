@@ -2,7 +2,10 @@
 SOC Copilot — Agentic AI assistant for security analysts.
 
 Hybrid approach:
-  - Claude API (when ANTHROPIC_API_KEY is set): Full reasoning, tool-use, report generation
+  - Claude API (Anthropic): Full reasoning with tool-use
+  - OpenAI (GPT-4o, etc.): Function calling with tool-use
+  - Google Gemini: Tool-use with function calling
+  - DeepSeek: Chat completion
   - Local fallback: Structured responses from scan data without external API
 """
 
@@ -16,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func, desc
 from sqlalchemy.orm import Session
 
-from config import ANTHROPIC_API_KEY
+from config import ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY, DEEPSEEK_API_KEY
 from database import get_db, Job, FirewallRule, AuditLog
 from auth import require_auth, User
 
@@ -25,6 +28,10 @@ logger = logging.getLogger("robustidps.copilot")
 router = APIRouter(prefix="/api/copilot", tags=["SOC Copilot"])
 
 
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -32,11 +39,48 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     api_key: str = ""
+    provider: str = "auto"          # auto | anthropic | openai | google | deepseek
+    model: str = ""                 # optional model override e.g. "gpt-4o", "gemini-2.0-flash"
+    active_ids_models: list[str] = []  # IDS models to include in context
 
 class ChatResponse(BaseModel):
     content: str
     provider: str
 
+
+# ---------------------------------------------------------------------------
+# Provider configuration
+# ---------------------------------------------------------------------------
+
+PROVIDER_DEFAULTS = {
+    "anthropic": "claude-sonnet-4-20250514",
+    "openai": "gpt-4o",
+    "google": "gemini-2.0-flash",
+    "deepseek": "deepseek-chat",
+}
+
+PROVIDER_KEY_PREFIXES = {
+    "sk-ant-": "anthropic",
+    "sk-": "openai",       # OpenAI keys start with sk- (but not sk-ant-)
+    "AIza": "google",
+    "dsk-": "deepseek",    # DeepSeek keys
+}
+
+
+def detect_provider(api_key: str) -> str:
+    """Detect the LLM provider from the API key prefix."""
+    if not api_key:
+        return "local"
+    # Check specific prefixes (order matters: sk-ant- before sk-)
+    for prefix, provider in PROVIDER_KEY_PREFIXES.items():
+        if api_key.startswith(prefix):
+            return provider
+    return "openai"  # default fallback for unrecognised keys
+
+
+# ---------------------------------------------------------------------------
+# Tools (shared across providers)
+# ---------------------------------------------------------------------------
 
 TOOLS = [
     {
@@ -137,14 +181,20 @@ def _exec_tool(name: str, args: dict, db: Session) -> str:
             total_users = db.execute(select(func.count(User.id))).scalar() or 0
             total_jobs = db.execute(select(func.count(Job.id))).scalar() or 0
             from config import DEVICE
-            return json.dumps({"device": DEVICE, "total_users": total_users, "total_jobs": total_jobs, "models_available": 8, "platform": "RobustIDPS.ai"})
+            from models.model_registry import MODEL_INFO
+            return json.dumps({"device": DEVICE, "total_users": total_users, "total_jobs": total_jobs, "models_available": len(MODEL_INFO), "platform": "RobustIDPS.ai"})
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
         return json.dumps({"error": str(e)})
 
 
-SYSTEM_PROMPT = """You are the RobustIDPS.ai SOC Copilot — an AI security analyst assistant embedded in an adversarially-robust intrusion detection and prevention system.
+# ---------------------------------------------------------------------------
+# System prompt (shared)
+# ---------------------------------------------------------------------------
+
+def _build_system_prompt(active_ids_models: list[str] = None) -> str:
+    base = """You are the RobustIDPS.ai SOC Copilot — an AI security analyst assistant embedded in an adversarially-robust intrusion detection and prevention system.
 
 You help security analysts by:
 1. Analysing scan results and explaining detected threats in plain language
@@ -154,97 +204,51 @@ You help security analysts by:
 5. Answering questions about network security, attack types, and defence strategies
 6. Helping configure and tune the IDPS (firewall rules, thresholds, model selection)
 
-The platform uses an 8-model ensemble:
-- SurrogateIDS (7-branch adversarially-trained ensemble)
-- CyberSecLLM (Mamba-CrossAttention-MoE architecture)
-- MambaShield (selective state-space model)
-- Stochastic Transformer (PAC-Bayesian with MC-Dropout)
-- Hierarchical Gaussian Processes
-- Temporal Graph Neural Networks (CT-TGNN, TripleE-TGNN)
-- Federated LLM (FedLLM-API)
-- Post-Quantum IDPS (PQ-IDPS)
+The platform has the following IDS/ML models available:
+
+**Surrogate Ensemble (7-branch MLP):**
+- Branch 0: CT-TGNN (Neural ODE) — Temporal Adaptive Neural ODE with point processes
+- Branch 1: TripleE-TGNN — Multi-scale temporal graph neural network
+- Branch 2: FedLLM-API — Zero-shot federated LLM intrusion detection
+- Branch 3: PQ-IDPS — Post-quantum cryptography-enhanced IDS
+- Branch 4: MambaShield — Selective state-space model for streaming inference
+- Branch 5: Stochastic Transformer — PAC-Bayesian with MC-Dropout uncertainty
+- Branch 6: Game-Theoretic Defence — Nash equilibrium robustness certificate
+
+**Independent Research Models:**
+- Neural ODE (TA-BN-ODE + Point Process) — Continuous-time temporal detection
+- Optimal Transport (PPFOT-IDS) — Multi-cloud federated domain adaptation
+- FedGTD — Federated graph temporal dynamics with Byzantine robustness
+- SDE-TGNN — Stochastic differential equation temporal graph network
+- CyberSecLLM (Mamba–CrossAttn–MoE) — Cybersecurity foundation model"""
+
+    if active_ids_models:
+        base += f"\n\n**Currently active models for analysis:** {', '.join(active_ids_models)}"
+
+    base += """
 
 Attack types detected include: DDoS variants, Brute Force, SQL Injection, XSS, Bot traffic, infiltration, web attacks, SSH/FTP brute force, port scans, and more.
 
 Always use the available tools to look up actual data before answering questions about jobs, threats, or system status. Be specific and data-driven. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""
 
-
-def _local_response(messages: list[ChatMessage], db: Session) -> str:
-    last_msg = messages[-1].content.lower() if messages else ""
-
-    if any(w in last_msg for w in ["threat", "summary", "overview", "status"]):
-        data = json.loads(_exec_tool("get_threat_summary", {}, db))
-        status = json.loads(_exec_tool("get_system_status", {}, db))
-        return (
-            f"**System Status**\n"
-            f"- Device: {status['device'].upper()}\n"
-            f"- Users: {status['total_users']}\n"
-            f"- Models available: {status['models_available']}\n\n"
-            f"**Threat Summary**\n"
-            f"- Total jobs analysed: {data['total_jobs']}\n"
-            f"- Total flows processed: {data['total_flows_analysed']:,}\n"
-            f"- Threats detected: {data['total_threats_detected']:,}\n"
-            f"- Threat rate: {data['threat_rate']}%\n\n"
-            f"*For deeper investigation and AI-powered analysis, add your Anthropic API key in the chat settings.*"
-        )
-
-    if any(w in last_msg for w in ["job", "recent", "scan", "analyse"]):
-        data = json.loads(_exec_tool("get_recent_jobs", {"limit": 5}, db))
-        if not data:
-            return "No analysis jobs found yet. Upload a dataset to get started."
-        lines = ["**Recent Analysis Jobs**\n"]
-        for j in data:
-            lines.append(f"- **{j['job_id']}**: {j['filename']} \u2014 {j['n_flows']} flows, {j['n_threats']} threats ({j['model_used']})")
-        lines.append("\n*For detailed threat investigation, provide your Anthropic API key.*")
-        return "\n".join(lines)
-
-    if any(w in last_msg for w in ["audit", "log", "activity"]):
-        data = json.loads(_exec_tool("get_audit_logs", {"limit": 10}, db))
-        if not data:
-            return "No audit log entries found."
-        lines = ["**Recent Activity**\n"]
-        for l in data:
-            lines.append(f"- [{l['action']}] {l['resource']} from {l['ip_address']} \u2014 {l['details']}")
-        return "\n".join(lines)
-
-    if any(w in last_msg for w in ["help", "what can", "how to", "capabilities"]):
-        return (
-            "**SOC Copilot Capabilities**\n\n"
-            "I can help you with:\n"
-            "- **Threat analysis**: Ask about detected threats, attack types, and severity\n"
-            "- **Job investigation**: Get details on any analysis job by ID\n"
-            "- **Incident reports**: Generate reports from scan results\n"
-            "- **System status**: Check model status, user activity, threat overview\n"
-            "- **Remediation**: Get recommended actions for detected attacks\n"
-            "- **Firewall rules**: Review auto-generated rules for any job\n"
-            "- **Audit logs**: View recent system activity\n\n"
-            "**Local mode** (current): I provide structured data lookups.\n"
-            "**Claude API mode**: Add your Anthropic API key for full AI-powered investigation, "
-            "natural language analysis, detailed explanations, and report generation."
-        )
-
-    return (
-        "I'm the RobustIDPS.ai SOC Copilot. I can help you investigate threats, "
-        "review scan results, generate reports, and explain detections.\n\n"
-        "Try asking:\n"
-        "- \"Show me the threat summary\"\n"
-        "- \"What are the recent scan jobs?\"\n"
-        "- \"Show audit logs\"\n"
-        "- \"What can you do?\"\n\n"
-        "*Currently running in local mode. Add an Anthropic API key for full AI-powered analysis.*"
-    )
+    return base
 
 
-async def _claude_stream(messages: list[ChatMessage], api_key: str, db: Session) -> AsyncIterator[str]:
+# ---------------------------------------------------------------------------
+# Provider: Anthropic Claude
+# ---------------------------------------------------------------------------
+
+async def _claude_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
     api_messages = [{"role": m.role, "content": m.content} for m in messages]
+    system_prompt = _build_system_prompt(active_ids_models)
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=model or PROVIDER_DEFAULTS["anthropic"],
         max_tokens=4096,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         tools=TOOLS,
         messages=api_messages,
     )
@@ -264,9 +268,9 @@ async def _claude_stream(messages: list[ChatMessage], api_key: str, db: Session)
         api_messages.append({"role": "user", "content": tool_results})
 
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=model or PROVIDER_DEFAULTS["anthropic"],
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             tools=TOOLS,
             messages=api_messages,
         )
@@ -276,25 +280,293 @@ async def _claude_stream(messages: list[ChatMessage], api_key: str, db: Session)
             yield block.text
 
 
+# ---------------------------------------------------------------------------
+# Provider: OpenAI
+# ---------------------------------------------------------------------------
+
+def _tools_to_openai_functions() -> list:
+    """Convert our tool definitions to OpenAI function-calling format."""
+    funcs = []
+    for tool in TOOLS:
+        funcs.append({
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["input_schema"],
+            },
+        })
+    return funcs
+
+
+async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
+    import openai
+
+    client = openai.OpenAI(api_key=api_key)
+    system_prompt = _build_system_prompt(active_ids_models)
+    api_messages = [{"role": "system", "content": system_prompt}]
+    api_messages += [{"role": m.role, "content": m.content} for m in messages]
+    tools = _tools_to_openai_functions()
+
+    response = client.chat.completions.create(
+        model=model or PROVIDER_DEFAULTS["openai"],
+        messages=api_messages,
+        tools=tools,
+        max_tokens=4096,
+    )
+
+    for _ in range(5):
+        choice = response.choices[0]
+        if choice.finish_reason != "tool_calls" or not choice.message.tool_calls:
+            break
+
+        api_messages.append(choice.message)
+        for tc in choice.message.tool_calls:
+            args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+            result = _exec_tool(tc.function.name, args, db)
+            api_messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result,
+            })
+
+        response = client.chat.completions.create(
+            model=model or PROVIDER_DEFAULTS["openai"],
+            messages=api_messages,
+            tools=tools,
+            max_tokens=4096,
+        )
+
+    content = response.choices[0].message.content or ""
+    yield content
+
+
+# ---------------------------------------------------------------------------
+# Provider: Google Gemini
+# ---------------------------------------------------------------------------
+
+async def _google_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
+    import openai  # Google Gemini supports OpenAI-compatible API
+
+    client = openai.OpenAI(
+        api_key=api_key,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+    )
+    system_prompt = _build_system_prompt(active_ids_models)
+    api_messages = [{"role": "system", "content": system_prompt}]
+    api_messages += [{"role": m.role, "content": m.content} for m in messages]
+
+    response = client.chat.completions.create(
+        model=model or PROVIDER_DEFAULTS["google"],
+        messages=api_messages,
+        max_tokens=4096,
+    )
+
+    content = response.choices[0].message.content or ""
+    yield content
+
+
+# ---------------------------------------------------------------------------
+# Provider: DeepSeek
+# ---------------------------------------------------------------------------
+
+async def _deepseek_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
+    import openai
+
+    client = openai.OpenAI(
+        api_key=api_key,
+        base_url="https://api.deepseek.com",
+    )
+    system_prompt = _build_system_prompt(active_ids_models)
+    api_messages = [{"role": "system", "content": system_prompt}]
+    api_messages += [{"role": m.role, "content": m.content} for m in messages]
+
+    response = client.chat.completions.create(
+        model=model or PROVIDER_DEFAULTS["deepseek"],
+        messages=api_messages,
+        max_tokens=4096,
+    )
+
+    content = response.choices[0].message.content or ""
+    yield content
+
+
+# ---------------------------------------------------------------------------
+# Local fallback
+# ---------------------------------------------------------------------------
+
+def _local_response(messages: list[ChatMessage], db: Session) -> str:
+    last_msg = messages[-1].content.lower() if messages else ""
+
+    if any(w in last_msg for w in ["threat", "summary", "overview", "status"]):
+        data = json.loads(_exec_tool("get_threat_summary", {}, db))
+        status = json.loads(_exec_tool("get_system_status", {}, db))
+        return (
+            f"**System Status**\n"
+            f"- Device: {status['device'].upper()}\n"
+            f"- Users: {status['total_users']}\n"
+            f"- Models available: {status['models_available']}\n\n"
+            f"**Threat Summary**\n"
+            f"- Total jobs analysed: {data['total_jobs']}\n"
+            f"- Total flows processed: {data['total_flows_analysed']:,}\n"
+            f"- Threats detected: {data['total_threats_detected']:,}\n"
+            f"- Threat rate: {data['threat_rate']}%\n\n"
+            f"*For deeper investigation and AI-powered analysis, add your API key in Settings.*"
+        )
+
+    if any(w in last_msg for w in ["job", "recent", "scan", "analyse"]):
+        data = json.loads(_exec_tool("get_recent_jobs", {"limit": 5}, db))
+        if not data:
+            return "No analysis jobs found yet. Upload a dataset to get started."
+        lines = ["**Recent Analysis Jobs**\n"]
+        for j in data:
+            lines.append(f"- **{j['job_id']}**: {j['filename']} — {j['n_flows']} flows, {j['n_threats']} threats ({j['model_used']})")
+        lines.append("\n*For detailed threat investigation, provide your API key in Settings.*")
+        return "\n".join(lines)
+
+    if any(w in last_msg for w in ["audit", "log", "activity"]):
+        data = json.loads(_exec_tool("get_audit_logs", {"limit": 10}, db))
+        if not data:
+            return "No audit log entries found."
+        lines = ["**Recent Activity**\n"]
+        for l in data:
+            lines.append(f"- [{l['action']}] {l['resource']} from {l['ip_address']} — {l['details']}")
+        return "\n".join(lines)
+
+    if any(w in last_msg for w in ["help", "what can", "how to", "capabilities"]):
+        return (
+            "**SOC Copilot Capabilities**\n\n"
+            "I can help you with:\n"
+            "- **Threat analysis**: Ask about detected threats, attack types, and severity\n"
+            "- **Job investigation**: Get details on any analysis job by ID\n"
+            "- **Incident reports**: Generate reports from scan results\n"
+            "- **System status**: Check model status, user activity, threat overview\n"
+            "- **Remediation**: Get recommended actions for detected attacks\n"
+            "- **Firewall rules**: Review auto-generated rules for any job\n"
+            "- **Audit logs**: View recent system activity\n\n"
+            "**Local mode** (current): I provide structured data lookups.\n"
+            "**AI mode**: Add your API key (Anthropic, OpenAI, Google, or DeepSeek) in Settings "
+            "for full AI-powered investigation, natural language analysis, and report generation."
+        )
+
+    return (
+        "I'm the RobustIDPS.ai SOC Copilot. I can help you investigate threats, "
+        "review scan results, generate reports, and explain detections.\n\n"
+        "Try asking:\n"
+        "- \"Show me the threat summary\"\n"
+        "- \"What are the recent scan jobs?\"\n"
+        "- \"Show audit logs\"\n"
+        "- \"What can you do?\"\n\n"
+        "*Currently running in local mode. Add an API key in Settings for full AI-powered analysis.*"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+PROVIDER_STREAMS = {
+    "anthropic": _claude_stream,
+    "openai": _openai_stream,
+    "google": _google_stream,
+    "deepseek": _deepseek_stream,
+}
+
+
 @router.post("/chat")
 async def chat(req: ChatRequest, user: User = Depends(require_auth), db: Session = Depends(get_db)):
-    api_key = req.api_key or ANTHROPIC_API_KEY
+    # Determine which API key and provider to use
+    api_key = req.api_key
+    provider = req.provider
 
-    if api_key:
-        async def generate():
-            try:
-                async for chunk in _claude_stream(req.messages, api_key, db):
-                    yield f"data: {json.dumps({'content': chunk, 'provider': 'claude'})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'provider': 'claude'})}\n\n"
-            except Exception as e:
-                logger.exception("Claude API error")
-                yield f"data: {json.dumps({'error': str(e), 'provider': 'claude'})}\n\n"
-        return StreamingResponse(generate(), media_type="text/event-stream")
-    else:
+    # If no client key, try server-side keys in priority order
+    if not api_key:
+        for env_key, prov_name in [
+            (ANTHROPIC_API_KEY, "anthropic"),
+            (OPENAI_API_KEY, "openai"),
+            (GOOGLE_API_KEY, "google"),
+            (DEEPSEEK_API_KEY, "deepseek"),
+        ]:
+            if env_key:
+                api_key = env_key
+                if provider == "auto":
+                    provider = prov_name
+                break
+
+    # Auto-detect provider from key prefix if still "auto"
+    if provider == "auto":
+        provider = detect_provider(api_key)
+
+    if not api_key or provider == "local":
         content = _local_response(req.messages, db)
         return ChatResponse(content=content, provider="local")
+
+    stream_fn = PROVIDER_STREAMS.get(provider)
+    if not stream_fn:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+    model = req.model or ""
+
+    async def generate():
+        try:
+            async for chunk in stream_fn(req.messages, api_key, model, db, req.active_ids_models):
+                yield f"data: {json.dumps({'content': chunk, 'provider': provider})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'provider': provider})}\n\n"
+        except Exception as e:
+            logger.exception(f"{provider} API error")
+            yield f"data: {json.dumps({'error': str(e), 'provider': provider})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @router.get("/status")
 def copilot_status(user: User = Depends(require_auth)):
-    return {"claude_configured": bool(ANTHROPIC_API_KEY), "local_available": True}
+    configured = {}
+    if ANTHROPIC_API_KEY:
+        configured["anthropic"] = True
+    if OPENAI_API_KEY:
+        configured["openai"] = True
+    if GOOGLE_API_KEY:
+        configured["google"] = True
+    if DEEPSEEK_API_KEY:
+        configured["deepseek"] = True
+    return {
+        # backward-compatible field
+        "claude_configured": bool(ANTHROPIC_API_KEY),
+        "providers_configured": configured,
+        "local_available": True,
+    }
+
+
+@router.get("/models")
+def copilot_models(user: User = Depends(require_auth)):
+    """Return list of IDS models available for the copilot context."""
+    from models.model_registry import MODEL_INFO, WEIGHTS_DIR
+    from models.surrogate import SurrogateIDS
+
+    models = []
+
+    # Surrogate branches
+    for i, name in enumerate(SurrogateIDS.BRANCH_NAMES):
+        models.append({
+            "id": f"surrogate_branch_{i}",
+            "name": name,
+            "category": "surrogate",
+            "branch_index": i,
+            "description": f"Branch {i} of the 7-branch SurrogateIDS ensemble",
+        })
+
+    # Independent models
+    for key, info in MODEL_INFO.items():
+        if key == "surrogate":
+            continue
+        weight_path = WEIGHTS_DIR / info["weight_file"]
+        models.append({
+            "id": key,
+            "name": info["name"],
+            "category": info["category"],
+            "description": info["description"],
+            "weights_available": weight_path.exists(),
+        })
+
+    return {"models": models}

@@ -42,9 +42,7 @@ ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@robustidps.ai")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "robustidps.ai2026!@#")
 
 # ── AI Copilot ───────────────────────────────────────────────────────────
-
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-
-
-# ── AI Copilot ───────────────────────────────────────────────────────────
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")

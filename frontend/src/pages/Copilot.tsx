@@ -1,14 +1,76 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight } from 'lucide-react'
 import { authHeaders } from '../utils/auth'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
   provider?: string
+  timestamp?: number
+}
+
+interface IDSModel {
+  id: string
+  name: string
+  category: string
+  description: string
+  branch_index?: number
+  weights_available?: boolean
+}
+
+interface ProviderConfig {
+  id: string
+  name: string
+  keyPrefix: string
+  placeholder: string
+  color: string
+  models: string[]
 }
 
 const API = import.meta.env.VITE_API_URL || ''
+
+const STORAGE_KEYS = {
+  messages: 'robustidps_copilot_messages',
+  apiKey: 'robustidps_copilot_api_key',
+  provider: 'robustidps_copilot_provider',
+  model: 'robustidps_copilot_model',
+  activeIdsModels: 'robustidps_copilot_ids_models',
+}
+
+const PROVIDERS: ProviderConfig[] = [
+  {
+    id: 'anthropic',
+    name: 'Anthropic (Claude)',
+    keyPrefix: 'sk-ant-',
+    placeholder: 'sk-ant-...',
+    color: 'accent-amber',
+    models: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-20250514'],
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    keyPrefix: 'sk-',
+    placeholder: 'sk-...',
+    color: 'accent-green',
+    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o3-mini'],
+  },
+  {
+    id: 'google',
+    name: 'Google (Gemini)',
+    keyPrefix: 'AIza',
+    placeholder: 'AIza...',
+    color: 'accent-blue',
+    models: ['gemini-2.0-flash', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    keyPrefix: 'dsk-',
+    placeholder: 'dsk-...',
+    color: 'accent-purple',
+    models: ['deepseek-chat', 'deepseek-reasoner'],
+  },
+]
 
 const SUGGESTIONS = [
   'Show me the threat summary',
@@ -17,38 +79,142 @@ const SUGGESTIONS = [
   'What can you do?',
 ]
 
+// Safely parse JSON from localStorage
+function safeJsonParse<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return fallback
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
 export default function Copilot() {
-  const [messages, setMessages] = useState<Message[]>([])
+  // Persist messages across navigation
+  const [messages, setMessages] = useState<Message[]>(() => safeJsonParse(STORAGE_KEYS.messages, []))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('robustidps_anthropic_key') || '')
+
+  // Settings
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem(STORAGE_KEYS.apiKey) || '')
+  const [provider, setProvider] = useState(() => localStorage.getItem(STORAGE_KEYS.provider) || 'auto')
+  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem(STORAGE_KEYS.model) || '')
   const [showSettings, setShowSettings] = useState(false)
-  const [serverHasKey, setServerHasKey] = useState(false)
+  const [showModelPanel, setShowModelPanel] = useState(false)
+
+  // Server-side provider status
+  const [serverProviders, setServerProviders] = useState<Record<string, boolean>>({})
+
+  // IDS model selector
+  const [idsModels, setIdsModels] = useState<IDSModel[]>([])
+  const [activeIdsModels, setActiveIdsModels] = useState<string[]>(() => safeJsonParse(STORAGE_KEYS.activeIdsModels, []))
+
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    try {
+      if (messages.length > 0) {
+        // Keep last 100 messages to avoid localStorage bloat
+        const toStore = messages.slice(-100)
+        localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(toStore))
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.messages)
+      }
+    } catch {
+      // localStorage full — clear old messages
+      localStorage.removeItem(STORAGE_KEYS.messages)
+    }
+  }, [messages])
+
+  // Persist settings
+  useEffect(() => {
+    if (apiKey) localStorage.setItem(STORAGE_KEYS.apiKey, apiKey)
+    else localStorage.removeItem(STORAGE_KEYS.apiKey)
+  }, [apiKey])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.provider, provider)
+  }, [provider])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.model, selectedModel)
+  }, [selectedModel])
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.activeIdsModels, JSON.stringify(activeIdsModels))
+  }, [activeIdsModels])
+
+  // Fetch server status + IDS models on mount
   useEffect(() => {
     fetch(`${API}/api/copilot/status`, { headers: authHeaders() })
       .then((r) => r.json())
-      .then((d) => setServerHasKey(d.claude_configured))
+      .then((d) => setServerProviders(d.providers_configured || {}))
+      .catch(() => {})
+
+    fetch(`${API}/api/copilot/models`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((d) => {
+        setIdsModels(d.models || [])
+        // If no active models are set, activate all by default
+        if (!localStorage.getItem(STORAGE_KEYS.activeIdsModels)) {
+          setActiveIdsModels((d.models || []).map((m: IDSModel) => m.id))
+        }
+      })
       .catch(() => {})
   }, [])
 
+  // Auto-scroll
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
-  const saveKey = (key: string) => {
-    setApiKey(key)
-    if (key) localStorage.setItem('robustidps_anthropic_key', key)
-    else localStorage.removeItem('robustidps_anthropic_key')
+  const clearKey = () => {
+    setApiKey('')
+    localStorage.removeItem(STORAGE_KEYS.apiKey)
   }
 
-  const sendMessage = async (text?: string) => {
+  const clearHistory = () => {
+    setMessages([])
+    localStorage.removeItem(STORAGE_KEYS.messages)
+  }
+
+  const toggleIdsModel = (modelId: string) => {
+    setActiveIdsModels((prev) =>
+      prev.includes(modelId) ? prev.filter((id) => id !== modelId) : [...prev, modelId]
+    )
+  }
+
+  const selectAllModels = () => setActiveIdsModels(idsModels.map((m) => m.id))
+  const deselectAllModels = () => setActiveIdsModels([])
+
+  // Determine active provider for display
+  const getActiveProvider = (): string => {
+    if (provider !== 'auto') return provider
+    if (apiKey) {
+      if (apiKey.startsWith('sk-ant-')) return 'anthropic'
+      if (apiKey.startsWith('AIza')) return 'google'
+      if (apiKey.startsWith('dsk-')) return 'deepseek'
+      if (apiKey.startsWith('sk-')) return 'openai'
+    }
+    // Check server-side
+    for (const p of ['anthropic', 'openai', 'google', 'deepseek']) {
+      if (serverProviders[p]) return p
+    }
+    return 'local'
+  }
+
+  const activeProv = getActiveProvider()
+  const activeProviderInfo = PROVIDERS.find((p) => p.id === activeProv)
+  const usingAI = activeProv !== 'local'
+
+  const sendMessage = useCallback(async (text?: string) => {
     const msg = text || input.trim()
     if (!msg || loading) return
     setInput('')
 
-    const userMsg: Message = { role: 'user', content: msg }
+    const userMsg: Message = { role: 'user', content: msg, timestamp: Date.now() }
     const newMessages = [...messages, userMsg]
     setMessages(newMessages)
     setLoading(true)
@@ -57,6 +223,9 @@ export default function Copilot() {
       const payload = {
         messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
         api_key: apiKey,
+        provider,
+        model: selectedModel,
+        active_ids_models: activeIdsModels,
       }
 
       const res = await fetch(`${API}/api/copilot/chat`, {
@@ -76,8 +245,9 @@ export default function Copilot() {
         const reader = res.body?.getReader()
         const decoder = new TextDecoder()
         let fullContent = ''
+        let detectedProvider = activeProv
 
-        setMessages((prev) => [...prev, { role: 'assistant', content: '', provider: 'claude' }])
+        setMessages((prev) => [...prev, { role: 'assistant', content: '', provider: detectedProvider, timestamp: Date.now() }])
 
         if (reader) {
           while (true) {
@@ -89,6 +259,7 @@ export default function Copilot() {
               if (line.startsWith('data: ')) {
                 try {
                   const data = JSON.parse(line.slice(6))
+                  if (data.provider) detectedProvider = data.provider
                   if (data.error) {
                     fullContent += `\n\n**Error:** ${data.error}`
                   } else if (data.content) {
@@ -96,7 +267,7 @@ export default function Copilot() {
                   }
                   setMessages((prev) => {
                     const updated = [...prev]
-                    updated[updated.length - 1] = { role: 'assistant', content: fullContent, provider: 'claude' }
+                    updated[updated.length - 1] = { role: 'assistant', content: fullContent, provider: detectedProvider, timestamp: Date.now() }
                     return updated
                   })
                 } catch {}
@@ -106,58 +277,228 @@ export default function Copilot() {
         }
       } else {
         const data = await res.json()
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.content, provider: data.provider }])
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.content, provider: data.provider, timestamp: Date.now() }])
       }
     } catch (err) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: `**Error:** ${err instanceof Error ? err.message : 'Request failed'}`, provider: 'error' }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: `**Error:** ${err instanceof Error ? err.message : 'Request failed'}`, provider: 'error', timestamp: Date.now() }])
     } finally {
       setLoading(false)
     }
+  }, [input, loading, messages, apiKey, provider, selectedModel, activeIdsModels, activeProv])
+
+  const providerLabel = (prov: string) => {
+    const p = PROVIDERS.find((x) => x.id === prov)
+    return p ? p.name : prov === 'local' ? 'Local Mode' : prov
   }
 
-  const usingClaude = !!(apiKey || serverHasKey)
+  const surrogateModels = idsModels.filter((m) => m.category === 'surrogate')
+  const independentModels = idsModels.filter((m) => m.category !== 'surrogate')
 
   return (
     <div className="flex flex-col h-[calc(100vh-6rem)] md:h-[calc(100vh-4rem)]">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <h1 className="text-xl md:text-2xl font-display font-bold">SOC Copilot</h1>
-          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${usingClaude ? 'bg-accent-blue/15 text-accent-blue' : 'bg-bg-card text-text-secondary'}`}>
-            {usingClaude ? 'Claude AI' : 'Local Mode'}
+          <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+            usingAI ? 'bg-accent-blue/15 text-accent-blue' : 'bg-bg-card text-text-secondary'
+          }`}>
+            {usingAI ? (activeProviderInfo?.name || activeProv) : 'Local Mode'}
           </span>
         </div>
-        <button onClick={() => setShowSettings(!showSettings)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-text-secondary hover:text-text-primary hover:bg-bg-card/50 transition-colors">
-          <Settings className="w-3.5 h-3.5" /> API Key
-        </button>
+        <div className="flex items-center gap-1">
+          {messages.length > 0 && (
+            <button
+              onClick={clearHistory}
+              title="Clear chat history"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-text-secondary hover:text-accent-red hover:bg-accent-red/10 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+          <button
+            onClick={() => { setShowModelPanel(!showModelPanel); setShowSettings(false) }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+              showModelPanel ? 'text-accent-blue bg-accent-blue/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" /> Models ({activeIdsModels.length})
+          </button>
+          <button
+            onClick={() => { setShowSettings(!showSettings); setShowModelPanel(false) }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+              showSettings ? 'text-accent-blue bg-accent-blue/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
+            }`}
+          >
+            <Settings className="w-3.5 h-3.5" /> Settings
+          </button>
+        </div>
       </div>
 
-      {/* API Key Settings */}
+      {/* Settings Panel */}
       {showSettings && (
-        <div className="mb-4 p-4 bg-bg-secondary rounded-xl border border-bg-card">
-          <div className="flex items-center justify-between mb-2">
+        <div className="mb-4 p-4 bg-bg-secondary rounded-xl border border-bg-card space-y-4 max-h-[320px] overflow-y-auto">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Key className="w-4 h-4 text-accent-amber" />
-              <span className="text-sm font-medium text-text-primary">Anthropic API Key</span>
+              <span className="text-sm font-medium text-text-primary">LLM Provider Settings</span>
             </div>
             <button onClick={() => setShowSettings(false)} className="text-text-secondary hover:text-text-primary"><X className="w-4 h-4" /></button>
           </div>
-          <p className="text-xs text-text-secondary mb-3">
-            Add your Anthropic API key for full Claude-powered analysis with tool-use. Without a key, the copilot runs in local mode with structured data lookups.
-            {serverHasKey && <span className="text-accent-green"> Server-side key is configured.</span>}
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => saveKey(e.target.value)}
-              placeholder="sk-ant-..."
-              className="flex-1 px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-            />
-            {apiKey && (
-              <button onClick={() => saveKey('')} className="px-3 py-2 text-xs text-accent-red hover:bg-accent-red/10 rounded-lg">Clear</button>
+
+          <p className="text-xs text-text-secondary">
+            Add your API key from any supported provider. The copilot auto-detects the provider from the key prefix, or you can choose manually.
+            {Object.keys(serverProviders).length > 0 && (
+              <span className="text-accent-green"> Server-side configured: {Object.keys(serverProviders).join(', ')}.</span>
             )}
+          </p>
+
+          {/* Provider selector */}
+          <div className="space-y-2">
+            <label className="text-xs text-text-secondary font-medium">Provider</label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setProvider('auto')}
+                className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                  provider === 'auto' ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-bg-card text-text-secondary hover:border-text-secondary'
+                }`}
+              >
+                Auto-detect
+              </button>
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setProvider(p.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                    provider === p.id ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-bg-card text-text-secondary hover:border-text-secondary'
+                  }`}
+                >
+                  {p.name}
+                  {serverProviders[p.id] && <span className="ml-1 text-accent-green">*</span>}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* API key input */}
+          <div className="space-y-2">
+            <label className="text-xs text-text-secondary font-medium">API Key</label>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={activeProviderInfo?.placeholder || 'Enter your API key...'}
+                className="flex-1 px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+              />
+              {apiKey && (
+                <button onClick={clearKey} className="px-3 py-2 text-xs text-accent-red hover:bg-accent-red/10 rounded-lg transition-colors">Clear</button>
+              )}
+            </div>
+            <p className="text-[10px] text-text-secondary opacity-60">
+              Your key is stored locally in your browser and never sent to our servers — it goes directly to the provider's API.
+            </p>
+          </div>
+
+          {/* Model selector */}
+          {(provider !== 'auto' || apiKey) && (
+            <div className="space-y-2">
+              <label className="text-xs text-text-secondary font-medium">LLM Model (optional)</label>
+              <div className="relative">
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50 appearance-none cursor-pointer"
+                >
+                  <option value="">Default</option>
+                  {(activeProviderInfo?.models || []).map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary pointer-events-none" />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* IDS Model Panel */}
+      {showModelPanel && (
+        <div className="mb-4 p-4 bg-bg-secondary rounded-xl border border-bg-card max-h-[360px] overflow-y-auto">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-accent-blue" />
+              <span className="text-sm font-medium text-text-primary">Active IDS Models</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={selectAllModels} className="px-2 py-1 text-[10px] text-accent-blue hover:bg-accent-blue/10 rounded transition-colors">All</button>
+              <button onClick={deselectAllModels} className="px-2 py-1 text-[10px] text-text-secondary hover:bg-bg-card rounded transition-colors">None</button>
+              <button onClick={() => setShowModelPanel(false)} className="text-text-secondary hover:text-text-primary"><X className="w-4 h-4" /></button>
+            </div>
+          </div>
+
+          <p className="text-xs text-text-secondary mb-3">
+            Select which IDS models the copilot should consider when analysing threats. Active models are included in the AI context.
+          </p>
+
+          {/* Surrogate branches */}
+          {surrogateModels.length > 0 && (
+            <div className="mb-3">
+              <h3 className="text-[10px] uppercase tracking-wider text-text-secondary font-medium mb-2">Surrogate Ensemble (7 Branches)</h3>
+              <div className="space-y-1">
+                {surrogateModels.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => toggleIdsModel(m.id)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors ${
+                      activeIdsModels.includes(m.id)
+                        ? 'bg-accent-blue/10 border border-accent-blue/30 text-text-primary'
+                        : 'bg-bg-primary border border-bg-card text-text-secondary hover:border-text-secondary'
+                    }`}
+                  >
+                    {activeIdsModels.includes(m.id)
+                      ? <ToggleRight className="w-4 h-4 text-accent-blue shrink-0" />
+                      : <ToggleLeft className="w-4 h-4 text-text-secondary shrink-0" />
+                    }
+                    <span className="font-medium">{m.name}</span>
+                    <span className="ml-auto text-[10px] opacity-50">B{m.branch_index}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Independent models */}
+          {independentModels.length > 0 && (
+            <div>
+              <h3 className="text-[10px] uppercase tracking-wider text-text-secondary font-medium mb-2">Independent Research Models</h3>
+              <div className="space-y-1">
+                {independentModels.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => toggleIdsModel(m.id)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-xs transition-colors ${
+                      activeIdsModels.includes(m.id)
+                        ? 'bg-accent-green/10 border border-accent-green/30 text-text-primary'
+                        : 'bg-bg-primary border border-bg-card text-text-secondary hover:border-text-secondary'
+                    }`}
+                  >
+                    {activeIdsModels.includes(m.id)
+                      ? <ToggleRight className="w-4 h-4 text-accent-green shrink-0" />
+                      : <ToggleLeft className="w-4 h-4 text-text-secondary shrink-0" />
+                    }
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{m.name}</div>
+                      <div className="text-[10px] opacity-50 truncate">{m.description}</div>
+                    </div>
+                    {m.weights_available === false && (
+                      <span className="ml-auto text-[10px] text-accent-amber shrink-0">no weights</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -184,7 +525,10 @@ export default function Copilot() {
           <div key={i} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
             {msg.role === 'assistant' && (
               <div className="shrink-0 w-7 h-7 rounded-full bg-accent-blue/15 flex items-center justify-center">
-                {msg.provider === 'claude' ? <Sparkles className="w-3.5 h-3.5 text-accent-blue" /> : <Bot className="w-3.5 h-3.5 text-accent-blue" />}
+                {msg.provider && msg.provider !== 'local' && msg.provider !== 'error'
+                  ? <Sparkles className="w-3.5 h-3.5 text-accent-blue" />
+                  : <Bot className="w-3.5 h-3.5 text-accent-blue" />
+                }
               </div>
             )}
             <div className={`max-w-[80%] px-4 py-3 rounded-xl text-sm leading-relaxed ${
@@ -199,7 +543,7 @@ export default function Copilot() {
               )}
               {msg.provider && msg.role === 'assistant' && (
                 <div className="mt-2 text-[10px] text-text-secondary opacity-60">
-                  via {msg.provider === 'claude' ? 'Claude AI' : 'local engine'}
+                  via {providerLabel(msg.provider)}
                 </div>
               )}
             </div>
