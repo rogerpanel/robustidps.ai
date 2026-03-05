@@ -79,7 +79,7 @@ export default function Login({ onLogin }: Props) {
             </h1>
           </div>
           <p className="text-text-secondary text-sm">
-            Advanced AI-Powered Intrusion Detection System
+            Advanced AI-Powered Intrusion Detection & Prevention System
           </p>
         </div>
 
