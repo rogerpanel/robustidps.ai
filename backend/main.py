@@ -60,6 +60,8 @@ from auth import (
 )
 from audit import AuditMiddleware, log_audit
 from firewall import router as firewall_router
+from copilot import router as copilot_router
+from copilot import router as copilot_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -120,6 +122,8 @@ except ImportError:
 
 app.include_router(auth_router)
 app.include_router(firewall_router)
+app.include_router(copilot_router)
+app.include_router(copilot_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
