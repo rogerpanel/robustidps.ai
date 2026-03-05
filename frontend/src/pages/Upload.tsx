@@ -3,31 +3,74 @@ import FileUpload from '../components/FileUpload'
 import ThreatTable from '../components/ThreatTable'
 import UncertaintyChart from '../components/UncertaintyChart'
 import ConfusionMatrix from '../components/ConfusionMatrix'
-import { uploadAndPredict } from '../utils/api'
+import ModelSelector from '../components/ModelSelector'
+import { useAnalysis } from '../hooks/useAnalysis'
+import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Database, AlertTriangle } from 'lucide-react'
+
+interface DatasetInfo {
+  total_rows: number
+  analysed_rows: number
+  sampled: boolean
+  format: string
+  columns: string[]
+}
+
+function DatasetSummary({ info, fileName }: { info: DatasetInfo; fileName: string | null }) {
+  return (
+    <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+      <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
+        <Database className="w-4 h-4" /> Dataset Summary
+      </h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div>
+          <div className="text-xs text-text-secondary">File</div>
+          <div className="text-sm font-mono text-text-primary truncate">
+            {fileName || 'Unknown'}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-text-secondary">Format Detected</div>
+          <div className="text-sm font-medium text-accent-blue">{info.format}</div>
+        </div>
+        <div>
+          <div className="text-xs text-text-secondary">Total Rows</div>
+          <div className="text-sm font-mono text-text-primary">
+            {info.total_rows.toLocaleString()}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-text-secondary">Rows Analysed</div>
+          <div className="text-sm font-mono text-text-primary">
+            {info.analysed_rows.toLocaleString()}
+            {info.sampled && (
+              <span className="ml-1 text-xs text-accent-yellow">(sampled)</span>
+            )}
+          </div>
+        </div>
+      </div>
+      {info.sampled && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-accent-yellow">
+          <AlertTriangle className="w-3.5 h-3.5" />
+          Large dataset: {info.analysed_rows.toLocaleString()} rows randomly sampled from {info.total_rows.toLocaleString()} for analysis
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function UploadPage() {
-  const [mcPasses, setMcPasses] = useState(50)
-  const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Record<string, unknown> | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [mcPasses, setMcPasses] = useState(20)
+  const [selectedModel, setSelectedModel] = useState('surrogate')
+  const { loading, results, error, fileName, runAnalysis } = useAnalysis()
 
-  const handleUpload = async (file: File) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await uploadAndPredict(file, mcPasses)
-      setResults(data)
-      localStorage.setItem('robustidps_results', JSON.stringify(data))
-    } catch (err) {
-      setError('Failed to analyse file. Is the backend running?')
-    } finally {
-      setLoading(false)
-    }
+  const handleUpload = (file: File) => {
+    runAnalysis(file, mcPasses, selectedModel)
   }
 
   const predictions = (results?.predictions ?? []) as Array<Record<string, unknown>>
+  const datasetInfo = results?.dataset_info as DatasetInfo | undefined
   const perClass = (results?.per_class_metrics ?? {}) as Record<
     string,
     { precision: number; recall: number; f1: number }
@@ -41,15 +84,27 @@ export default function UploadPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-display font-bold">Upload & Analyse</h1>
+      <h1 className="text-xl md:text-2xl font-display font-bold">Upload & Analyse</h1>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+      <PageGuide
+        title="How to use Upload & Analyse"
+        steps={[
+          { title: 'Choose a dataset', desc: 'Drag & drop a CSV (CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15) or PCAP file. The format is auto-detected.' },
+          { title: 'Adjust settings', desc: 'Select a model and set MC Dropout passes (fewer = faster, more = more precise uncertainty). Default: 20 passes.' },
+          { title: 'Wait for analysis', desc: 'The backend runs multiple forward passes for uncertainty quantification. Large datasets (>10K rows) are automatically sampled.' },
+          { title: 'Review results', desc: 'See the Dataset Summary, Threat Table, Uncertainty Chart, Confusion Matrix (if ground-truth labels exist), and Per-Class Metrics.' },
+        ]}
+        tip="Supported benchmarks: CIC-IoT-2023 (46 features), CSE-CIC-IDS2018 (79 features), UNSW-NB15 (49 features). Any CSV with numeric columns will also work as generic format."
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+        <div className="lg:col-span-2">
           <FileUpload onFileSelect={handleUpload} loading={loading} />
         </div>
 
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
           <h3 className="text-sm font-medium text-text-secondary">Settings</h3>
+          <ModelSelector value={selectedModel} onChange={setSelectedModel} compact />
           <div>
             <label className="text-xs text-text-secondary block mb-1">
               MC Dropout Passes: {mcPasses}
@@ -85,9 +140,11 @@ export default function UploadPage() {
 
       {results && (
         <>
+          {datasetInfo && <DatasetSummary info={datasetInfo} fileName={fileName} />}
+
           <ThreatTable predictions={predictions as never} />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <UncertaintyChart predictions={predictions as never} />
             <ConfusionMatrix
               matrix={results.confusion_matrix as number[][] | null}
