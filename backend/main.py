@@ -688,3 +688,152 @@ async def stream(ws: WebSocket):
         await ws.send_json({"done": True})
     except WebSocketDisconnect:
         pass
+
+
+
+# ── Live Network Capture ──────────────────────────────────────────────────
+
+@app.websocket("/ws/live_capture")
+async def live_capture(ws: WebSocket):
+    """
+    Continuous live network capture mode.
+    Client sends: { "interface": "eth0", "interval": 30, "model_name": "" }
+    Server captures on the interface for interval seconds via NFStream,
+    classifies each flow, sends results, then repeats until disconnect.
+    """
+    await ws.accept()
+    try:
+        init = await ws.receive_text()
+        msg = json.loads(init)
+        iface = msg.get("interface", "eth0")
+        interval = min(max(int(msg.get("interval", 30)), 5), 300)
+        model_name = msg.get("model_name", "")
+
+        active_model = model
+        if model_name:
+            try:
+                active_model = registry_load(model_name, DEVICE)
+            except Exception:
+                active_model = model
+
+        active_model.eval()
+        cycle = 0
+
+        await ws.send_json({
+            "status": "started",
+            "interface": iface,
+            "interval": interval,
+            "message": f"Capturing on {iface} every {interval}s",
+        })
+
+        while True:
+            cycle += 1
+            await ws.send_json({
+                "status": "capturing",
+                "cycle": cycle,
+                "message": f"Cycle {cycle}: capturing {interval}s on {iface}...",
+            })
+
+            try:
+                import time as _time
+                from nfstream import NFStreamer
+                streamer = NFStreamer(
+                    source=iface,
+                    statistical_analysis=True,
+                    active_timeout=interval,
+                    idle_timeout=interval,
+                )
+                flows = []
+                start_t = _time.time()
+                for flow in streamer:
+                    flows.append(flow)
+                    if _time.time() - start_t >= interval:
+                        break
+                del streamer
+
+                if not flows:
+                    await ws.send_json({
+                        "status": "cycle_done", "cycle": cycle,
+                        "flows_captured": 0,
+                        "message": f"Cycle {cycle}: no flows captured",
+                    })
+                    await asyncio.sleep(2)
+                    continue
+
+                import pandas as pd
+                records = []
+                for f in flows:
+                    records.append({
+                        "src_ip": f.src_ip, "dst_ip": f.dst_ip,
+                        "src_port": f.src_port, "dst_port": f.dst_port,
+                        "protocol": f.protocol,
+                        "bidirectional_packets": f.bidirectional_packets,
+                        "bidirectional_bytes": f.bidirectional_bytes,
+                        "bidirectional_duration_ms": f.bidirectional_duration_ms,
+                        "src2dst_packets": f.src2dst_packets,
+                        "src2dst_bytes": f.src2dst_bytes,
+                        "dst2src_packets": f.dst2src_packets,
+                        "dst2src_bytes": f.dst2src_bytes,
+                    })
+                df = pd.DataFrame(records)
+                metadata = df[["src_ip", "dst_ip"]].copy()
+
+                from features import build_feature_tensor
+                features_t = build_feature_tensor(df).to(DEVICE)
+
+                await ws.send_json({
+                    "status": "analysing", "cycle": cycle,
+                    "flows_captured": len(features_t),
+                    "message": f"Cycle {cycle}: analysing {len(features_t)} flows...",
+                })
+
+                threats_in_cycle = 0
+                with torch.no_grad():
+                    for i in range(len(features_t)):
+                        row = features_t[i:i+1]
+                        logits = active_model(row)
+                        probs = torch.softmax(logits, dim=-1)
+                        cls_idx = probs.argmax(-1).item()
+                        conf = probs.max(-1).values.item()
+                        label = SurrogateIDS.CLASS_NAMES[cls_idx] if cls_idx < len(SurrogateIDS.CLASS_NAMES) else f"class_{cls_idx}"
+                        sev = SurrogateIDS.severity_for(label)
+                        if sev != "benign":
+                            threats_in_cycle += 1
+
+                        await ws.send_json({
+                            "type": "flow", "cycle": cycle, "flow_id": i,
+                            "src_ip": str(metadata.iloc[i]["src_ip"]),
+                            "dst_ip": str(metadata.iloc[i]["dst_ip"]),
+                            "label_predicted": label,
+                            "confidence": round(conf, 4),
+                            "severity": sev,
+                        })
+
+                await ws.send_json({
+                    "status": "cycle_done", "cycle": cycle,
+                    "flows_captured": len(features_t),
+                    "threats_found": threats_in_cycle,
+                    "message": f"Cycle {cycle} done: {len(features_t)} flows, {threats_in_cycle} threats",
+                })
+
+            except ImportError:
+                await ws.send_json({
+                    "status": "error",
+                    "message": "NFStream not available. Live capture requires nfstream and libpcap.",
+                })
+                break
+            except PermissionError:
+                await ws.send_json({
+                    "status": "error",
+                    "message": f"Permission denied on {iface}. Container needs NET_ADMIN + NET_RAW capabilities.",
+                })
+                break
+            except Exception as e:
+                await ws.send_json({
+                    "status": "error", "cycle": cycle,
+                    "message": f"Capture error: {str(e)}",
+                })
+                await asyncio.sleep(5)
+
+    except WebSocketDisconnect:
+        pass

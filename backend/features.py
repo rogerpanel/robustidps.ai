@@ -450,3 +450,24 @@ def extract_features(file_bytes: bytes, filename: str = "upload.csv"):
         metadata["label"] = label_names
 
     return features, metadata, labels_encoded, label_names, fmt
+
+
+
+# ── Live capture helper ───────────────────────────────────────────────────
+
+def build_feature_tensor(df):
+    """
+    Convert a raw NFStream DataFrame into a padded 83-feature tensor.
+    Used by the live capture endpoint where there are no label columns.
+    """
+    import numpy as np
+    import torch
+    numeric = df.select_dtypes(include=["number"])
+    numeric = numeric.fillna(0).replace([np.inf, -np.inf], 0)
+    arr = numeric.values.astype(np.float32)
+    n_samples, n_cols = arr.shape
+    if n_cols < 83:
+        arr = np.pad(arr, ((0, 0), (0, 83 - n_cols)), constant_values=0)
+    elif n_cols > 83:
+        arr = arr[:, :83]
+    return torch.tensor(arr, dtype=torch.float32)
