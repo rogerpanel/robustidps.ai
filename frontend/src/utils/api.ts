@@ -130,25 +130,35 @@ export async function runAblation(file: File, disabledBranches: number[], modelN
   return res.json();
 }
 
+function wsBaseUrl(): string {
+  if (API) return API.replace(/^http/, 'ws');
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}`;
+}
+
 export function connectStream(
   jobId: string,
   rate: number,
   onMessage: (data: Record<string, unknown>) => void,
   onDone?: () => void,
+  onError?: (err: Event) => void,
 ) {
-  const wsUrl = `${API.replace(/^http/, 'ws')}/ws/stream`;
+  const wsUrl = `${wsBaseUrl()}/ws/stream`;
   const ws = new WebSocket(wsUrl);
   ws.onopen = () => {
     ws.send(JSON.stringify({ job_id: jobId, rate }));
   };
   ws.onmessage = (e) => {
     const data = JSON.parse(e.data);
-    if (data.done) {
+    if (data.error) {
+      onError?.(new Event(data.error));
+    } else if (data.done) {
       onDone?.();
     } else {
       onMessage(data);
     }
   };
+  ws.onerror = (e) => { onError?.(e); };
   return ws;
 }
 

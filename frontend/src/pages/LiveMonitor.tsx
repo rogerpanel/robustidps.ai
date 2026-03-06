@@ -35,34 +35,165 @@ const COMPARISON_ROWS = [
   { feature: 'Explainability', robustidps: 'Per-flow attention maps, feature importance, uncertainty decomposition, ablation analysis', suricata: 'Rule SID reference only; no explanation of why traffic matched', snort: 'Rule SID/GID reference; no behavioural explanation' },
 ]
 
+/* ── Module-level store — survives navigation ─────────────────────────── */
+
+const _store: {
+  jobId: string | null
+  fileName: string
+  rate: number
+  events: FlowEvent[]
+  running: boolean
+  done: boolean
+  threatCount: number
+  benignCount: number
+  captureMode: 'file' | 'live'
+  iface: string
+  captureInterval: number
+  captureStatus: string
+  currentCycle: number
+  wsError: string
+  showComparison: boolean
+  showSetup: boolean
+} = {
+  jobId: null,
+  fileName: '',
+  rate: 100,
+  events: [],
+  running: false,
+  done: false,
+  threatCount: 0,
+  benignCount: 0,
+  captureMode: 'file',
+  iface: 'eth0',
+  captureInterval: 30,
+  captureStatus: '',
+  currentCycle: 0,
+  wsError: '',
+  showComparison: false,
+  showSetup: false,
+}
+
+// Keep the WebSocket ref at module level so it survives remount
+let _wsRef: WebSocket | null = null
+
+function wsBaseUrl(): string {
+  const API = import.meta.env.VITE_API_URL || ''
+  if (API) return API.replace(/^http/, 'ws')
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${proto}//${location.host}`
+}
+
 export default function LiveMonitor() {
-  const [jobId, setJobId] = useState<string | null>(null)
-  const [rate, setRate] = useState(100)
-  const [events, setEvents] = useState<FlowEvent[]>([])
-  const [running, setRunning] = useState(false)
-  const [done, setDone] = useState(false)
-  const [threatCount, setThreatCount] = useState(0)
-  const [benignCount, setBenignCount] = useState(0)
-  const [showComparison, setShowComparison] = useState(false)
-  const [showSetup, setShowSetup] = useState(false)
-  const wsRef = useRef<WebSocket | null>(null)
-  const [captureMode, setCaptureMode] = useState<'file' | 'live'>('file')
-  const [iface, setIface] = useState('eth0')
-  const [captureInterval, setCaptureInterval] = useState(30)
-  const [captureStatus, setCaptureStatus] = useState('')
-  const [currentCycle, setCurrentCycle] = useState(0)
+  const [jobId, _setJobId] = useState<string | null>(_store.jobId)
+  const [fileName, _setFileName] = useState(_store.fileName)
+  const [rate, _setRate] = useState(_store.rate)
+  const [events, _setEvents] = useState<FlowEvent[]>(_store.events)
+  const [running, _setRunning] = useState(_store.running)
+  const [done, _setDone] = useState(_store.done)
+  const [threatCount, _setThreatCount] = useState(_store.threatCount)
+  const [benignCount, _setBenignCount] = useState(_store.benignCount)
+  const [captureMode, _setCaptureMode] = useState<'file' | 'live'>(_store.captureMode)
+  const [iface, _setIface] = useState(_store.iface)
+  const [captureInterval, _setCaptureInterval] = useState(_store.captureInterval)
+  const [captureStatus, _setCaptureStatus] = useState(_store.captureStatus)
+  const [currentCycle, _setCurrentCycle] = useState(_store.currentCycle)
+  const [wsError, _setWsError] = useState(_store.wsError)
+  const [showComparison, _setShowComparison] = useState(_store.showComparison)
+  const [showSetup, _setShowSetup] = useState(_store.showSetup)
+
+  // Wrapped setters that sync to module store
+  const setJobId = (v: string | null) => { _store.jobId = v; _setJobId(v) }
+  const setFileName = (v: string) => { _store.fileName = v; _setFileName(v) }
+  const setRate = (v: number) => { _store.rate = v; _setRate(v) }
+  const setEvents = (v: FlowEvent[] | ((prev: FlowEvent[]) => FlowEvent[])) => {
+    if (typeof v === 'function') {
+      _setEvents(prev => { const next = v(prev); _store.events = next; return next })
+    } else { _store.events = v; _setEvents(v) }
+  }
+  const setRunning = (v: boolean) => { _store.running = v; _setRunning(v) }
+  const setDone = (v: boolean) => { _store.done = v; _setDone(v) }
+  const setThreatCount = (v: number | ((c: number) => number)) => {
+    if (typeof v === 'function') {
+      _setThreatCount(prev => { const next = v(prev); _store.threatCount = next; return next })
+    } else { _store.threatCount = v; _setThreatCount(v) }
+  }
+  const setBenignCount = (v: number | ((c: number) => number)) => {
+    if (typeof v === 'function') {
+      _setBenignCount(prev => { const next = v(prev); _store.benignCount = next; return next })
+    } else { _store.benignCount = v; _setBenignCount(v) }
+  }
+  const setCaptureMode = (v: 'file' | 'live') => { _store.captureMode = v; _setCaptureMode(v) }
+  const setIface = (v: string) => { _store.iface = v; _setIface(v) }
+  const setCaptureInterval = (v: number) => { _store.captureInterval = v; _setCaptureInterval(v) }
+  const setCaptureStatus = (v: string) => { _store.captureStatus = v; _setCaptureStatus(v) }
+  const setCurrentCycle = (v: number) => { _store.currentCycle = v; _setCurrentCycle(v) }
+  const setWsError = (v: string) => { _store.wsError = v; _setWsError(v) }
+  const setShowComparison = (v: boolean) => { _store.showComparison = v; _setShowComparison(v) }
+  const setShowSetup = (v: boolean) => { _store.showSetup = v; _setShowSetup(v) }
+
+  // Ref to track if we already attached WS listeners on remount
+  const wsAttached = useRef(false)
+
+  // Re-attach WS listeners on remount if streaming is still running
+  useEffect(() => {
+    if (_wsRef && _store.running && !wsAttached.current) {
+      wsAttached.current = true
+      // WebSocket is still open from before navigation — re-attach handlers
+      _wsRef.onmessage = (e) => {
+        const data = JSON.parse(e.data)
+        if (_store.captureMode === 'live') {
+          if (data.status === 'error') { setCaptureStatus(`Error: ${data.message}`); setRunning(false); return }
+          if (data.status) { setCaptureStatus(data.message || data.status); if (data.cycle) setCurrentCycle(data.cycle) }
+          if (data.type === 'flow') {
+            const ev: FlowEvent = { flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip, label_predicted: data.label_predicted, confidence: data.confidence, severity: data.severity, cycle: data.cycle }
+            setEvents((prev) => [ev, ...prev].slice(0, 500))
+            if (ev.severity === 'benign') setBenignCount((c) => c + 1)
+            else setThreatCount((c) => c + 1)
+          }
+        } else {
+          if (data.error) { setWsError(data.error); setRunning(false); return }
+          if (data.done) { setRunning(false); setDone(true); return }
+          const ev = data as FlowEvent
+          setEvents((prev) => [ev, ...prev].slice(0, 500))
+          if (ev.severity === 'benign') setBenignCount((c) => c + 1)
+          else setThreatCount((c) => c + 1)
+        }
+      }
+      _wsRef.onclose = () => {
+        setRunning(false)
+        if (_store.captureMode === 'live') setCaptureStatus('Disconnected')
+      }
+    }
+    return () => { wsAttached.current = false }
+  }, [])
+
+  // Restore file input display on remount
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  useEffect(() => {
+    if (_store.fileName && fileInputRef.current) {
+      try {
+        const dt = new DataTransfer()
+        dt.items.add(new File([''], _store.fileName))
+        fileInputRef.current.files = dt.files
+      } catch { /* DataTransfer not supported */ }
+    }
+  }, [])
 
   const handleUpload = async (file: File) => {
     try {
+      setWsError('')
+      setFileName(file.name)
       const res = await uploadFile(file)
       setJobId(res.job_id)
       setEvents([]); setThreatCount(0); setBenignCount(0); setDone(false)
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      setWsError(e.message || 'Upload failed')
+    }
   }
 
   const startStream = useCallback(() => {
     if (!jobId) return
-    setRunning(true); setDone(false)
+    setRunning(true); setDone(false); setWsError('')
     const ws = connectStream(jobId, rate,
       (data) => {
         const ev = data as unknown as FlowEvent
@@ -71,15 +202,15 @@ export default function LiveMonitor() {
         else setThreatCount((c) => c + 1)
       },
       () => { setRunning(false); setDone(true) },
+      (err) => { setWsError(`WebSocket error: ${err instanceof Event ? 'connection failed' : err}`); setRunning(false) },
     )
-    wsRef.current = ws
+    _wsRef = ws
   }, [jobId, rate])
 
   const startLiveCapture = useCallback(() => {
     setRunning(true); setDone(false); setEvents([]); setThreatCount(0); setBenignCount(0)
-    setCurrentCycle(0); setCaptureStatus('Connecting...')
-    const API = import.meta.env.VITE_API_URL || ''
-    const wsUrl = `${API.replace(/^http/, 'ws')}/ws/live_capture`
+    setCurrentCycle(0); setCaptureStatus('Connecting...'); setWsError('')
+    const wsUrl = `${wsBaseUrl()}/ws/live_capture`
     const ws = new WebSocket(wsUrl)
     ws.onopen = () => { ws.send(JSON.stringify({ interface: iface, interval: captureInterval })) }
     ws.onmessage = (e) => {
@@ -93,12 +224,21 @@ export default function LiveMonitor() {
         else setThreatCount((c) => c + 1)
       }
     }
+    ws.onerror = () => { setWsError('WebSocket connection failed'); setRunning(false) }
     ws.onclose = () => { setRunning(false); setCaptureStatus('Disconnected') }
-    wsRef.current = ws
+    _wsRef = ws
   }, [iface, captureInterval])
 
-  const stopStream = useCallback(() => { wsRef.current?.close(); setRunning(false) }, [])
-  useEffect(() => { return () => { wsRef.current?.close() } }, [])
+  const stopStream = useCallback(() => { _wsRef?.close(); _wsRef = null; setRunning(false) }, [])
+
+  const resetAll = useCallback(() => {
+    stopStream()
+    setJobId(null); setFileName(''); setEvents([]); setThreatCount(0); setBenignCount(0)
+    setDone(false); setCaptureStatus(''); setCurrentCycle(0); setWsError('')
+  }, [stopStream])
+
+  // Do NOT close the WS on unmount — let it keep running while navigated away
+  // Only close on explicit stop/reset
 
   const INSTALL_STEPS = [
     { step: '1. Clone and configure', code: 'git clone https://github.com/rogerpanel/robustidps.ai.git\ncd robustidps.ai\ncp .env.example .env\n# Edit .env: set ADMIN_EMAIL, ADMIN_PASSWORD, SECRET_KEY' },
@@ -131,6 +271,12 @@ export default function LiveMonitor() {
         tip="Tip: For PCAP files, flows are automatically extracted using NFStream. Live Capture requires the Docker container to have NET_ADMIN capability and access to the host network."
       />
 
+      {wsError && (
+        <div className="px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" /> {wsError}
+        </div>
+      )}
+
       {!jobId && !running && (
         <div className="flex gap-3">
           <button onClick={() => setCaptureMode('file')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${captureMode === 'file' ? 'bg-accent-blue text-white' : 'border border-bg-card text-text-secondary hover:text-text-primary'}`}>
@@ -155,7 +301,7 @@ export default function LiveMonitor() {
             <Network className="w-5 h-5 text-accent-green" />
             <h3 className="text-sm font-semibold text-text-primary">Continuous Network Capture</h3>
           </div>
-          <p className="text-xs text-text-secondary">Captures live traffic on a network interface, analyses flows with the ML ensemble, then repeats \u2014 providing continuous real-time intrusion detection and prevention.</p>
+          <p className="text-xs text-text-secondary">Captures live traffic on a network interface, analyses flows with the ML ensemble, then repeats — providing continuous real-time intrusion detection and prevention.</p>
           <div>
             <label className="block text-xs text-text-secondary mb-1">Network Interface</label>
             <input type="text" value={iface} onChange={(e) => setIface(e.target.value)} className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-green/50" placeholder="eth0" />
@@ -179,7 +325,7 @@ export default function LiveMonitor() {
             ) : running ? (
               <button onClick={stopStream} className="flex items-center gap-2 px-4 py-2 bg-accent-red text-white rounded-lg text-sm font-medium hover:bg-accent-red/80"><Pause className="w-4 h-4" /> Stop</button>
             ) : null}
-            <button onClick={() => { stopStream(); setJobId(null); setEvents([]); setThreatCount(0); setBenignCount(0); setCaptureStatus(''); setCurrentCycle(0) }} className="flex items-center gap-2 px-4 py-2 border border-bg-card rounded-lg text-sm text-text-secondary hover:text-text-primary"><Upload className="w-4 h-4" /> Reset</button>
+            <button onClick={resetAll} className="flex items-center gap-2 px-4 py-2 border border-bg-card rounded-lg text-sm text-text-secondary hover:text-text-primary"><Upload className="w-4 h-4" /> Reset</button>
           </div>
           {captureMode === 'file' && (
             <div className="flex items-center gap-2">
@@ -187,10 +333,13 @@ export default function LiveMonitor() {
               <input type="range" min={10} max={1000} step={10} value={rate} onChange={(e) => setRate(+e.target.value)} className="w-32 accent-accent-blue" disabled={running} />
             </div>
           )}
+          {captureMode === 'file' && fileName && (
+            <span className="text-xs text-text-secondary truncate max-w-[200px]" title={fileName}>{fileName}</span>
+          )}
           {captureMode === 'live' && captureStatus && (
             <div className="flex items-center gap-2 text-xs">
               {running && <Radio className="w-3 h-3 text-accent-green animate-pulse" />}
-              <span className="text-text-secondary">Cycle {currentCycle} \u2014 {captureStatus}</span>
+              <span className="text-text-secondary">Cycle {currentCycle} — {captureStatus}</span>
             </div>
           )}
           <div className="flex gap-4 sm:gap-6 sm:ml-auto text-sm">
@@ -201,7 +350,7 @@ export default function LiveMonitor() {
         </div>
 
         {done && captureMode === 'file' && (
-          <div className="px-4 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">Stream complete \u2014 all flows processed.</div>
+          <div className="px-4 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">Stream complete — all flows processed.</div>
         )}
 
         <div className="bg-bg-secondary rounded-xl border border-bg-card overflow-hidden">
@@ -220,7 +369,7 @@ export default function LiveMonitor() {
               </thead>
               <tbody>
                 {events.map((ev, i) => (
-                  <tr key={`${ev.flow_id}-${ev.cycle || 0}-${i}`} className={`border-t border-bg-card/50 ${i === 0 ? 'animate-pulse' : ''}`}>
+                  <tr key={`${ev.flow_id}-${ev.cycle || 0}-${i}`} className={`border-t border-bg-card/50 ${i === 0 && running ? 'animate-pulse' : ''}`}>
                     <td className="px-3 py-1.5 font-mono text-text-secondary text-xs">{ev.flow_id}</td>
                     {captureMode === 'live' && <td className="px-3 py-1.5 font-mono text-text-secondary text-xs">{ev.cycle}</td>}
                     <td className="px-3 py-1.5 font-mono text-xs">{ev.src_ip}</td>
@@ -246,7 +395,7 @@ export default function LiveMonitor() {
             <ShieldAlert className="w-5 h-5 text-accent-blue" />
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Why RobustIDPS.ai vs Suricata &amp; Snort?</h3>
-              <p className="text-xs text-text-secondary">Hybrid ML ensemble vs signature-based detection \u2014 capability comparison</p>
+              <p className="text-xs text-text-secondary">Hybrid ML ensemble vs signature-based detection — capability comparison</p>
             </div>
           </div>
           {showComparison ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
@@ -322,12 +471,12 @@ export default function LiveMonitor() {
             <div>
               <h4 className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-3"><Eye className="w-4 h-4 text-accent-blue" /> Testing &amp; Validation</h4>
               <ol className="space-y-2 text-[11px] text-text-secondary">
-                {TEST_STEPS.map((item, i) => (<li key={i} className="flex gap-2"><span className="shrink-0 w-5 h-5 rounded-full bg-accent-blue/15 text-accent-blue flex items-center justify-center text-[10px] font-bold">{i + 1}</span><span><strong className="text-text-primary">{item.title}</strong> \u2014 {item.desc}</span></li>))}
+                {TEST_STEPS.map((item, i) => (<li key={i} className="flex gap-2"><span className="shrink-0 w-5 h-5 rounded-full bg-accent-blue/15 text-accent-blue flex items-center justify-center text-[10px] font-bold">{i + 1}</span><span><strong className="text-text-primary">{item.title}</strong> — {item.desc}</span></li>))}
               </ol>
             </div>
             <div className="flex items-start gap-2 p-3 bg-accent-amber/10 border border-accent-amber/20 rounded-lg">
               <AlertTriangle className="w-4 h-4 text-accent-amber shrink-0 mt-0.5" />
-              <p className="text-[11px] text-text-secondary leading-relaxed"><strong className="text-text-primary">Enterprise &amp; Commercial Use:</strong> For production deployments, GPU-accelerated inference, custom model training on your organisation's traffic, SLA-backed support, and on-premises installation assistance \u2014 contact <strong className="text-accent-blue">roger@robustidps.ai</strong> for licensing and professional services options.</p>
+              <p className="text-[11px] text-text-secondary leading-relaxed"><strong className="text-text-primary">Enterprise &amp; Commercial Use:</strong> For production deployments, GPU-accelerated inference, custom model training on your organisation's traffic, SLA-backed support, and on-premises installation assistance — contact <strong className="text-accent-blue">roger@robustidps.ai</strong> for licensing and professional services options.</p>
             </div>
           </div>
         )}
