@@ -10,10 +10,12 @@ interface AnalysisState {
   error: string | null
   fileName: string | null
   jobId: string | null
+  source: 'upload' | 'live-monitor' | null
 }
 
 interface AnalysisContextType extends AnalysisState {
   runAnalysis: (file: File, mcPasses: number, modelName: string) => void
+  setLiveResults: (results: Record<string, unknown>, fileName: string) => void
   clearResults: () => void
   deleteJob: () => Promise<void>
 }
@@ -26,12 +28,14 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     const cached = localStorage.getItem('robustidps_results')
     const cachedJobId = localStorage.getItem('robustidps_job_id')
     const cachedFileName = localStorage.getItem('robustidps_file_name')
+    const cachedSource = localStorage.getItem('robustidps_source') as AnalysisState['source']
     return {
       loading: false,
       results: cached ? JSON.parse(cached) : null,
       error: null,
       fileName: cachedFileName || null,
       jobId: cachedJobId || null,
+      source: cachedSource || null,
     }
   })
 
@@ -40,7 +44,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
   const runAnalysis = useCallback((file: File, mcPasses: number, modelName: string) => {
     const thisRequest = ++requestId.current
-    setState((prev) => ({ ...prev, loading: true, error: null, fileName: file.name }))
+    setState((prev) => ({ ...prev, loading: true, error: null, fileName: file.name, source: 'upload' }))
 
     uploadAndPredict(file, mcPasses, modelName)
       .then((data) => {
@@ -53,8 +57,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           localStorage.setItem('robustidps_results', JSON.stringify(summary))
           if (jobId) localStorage.setItem('robustidps_job_id', jobId)
           localStorage.setItem('robustidps_file_name', file.name)
+          localStorage.setItem('robustidps_source', 'upload')
         } catch { /* quota exceeded — keep results in memory only */ }
-        setState({ loading: false, results: data, error: null, fileName: file.name, jobId })
+        setState({ loading: false, results: data, error: null, fileName: file.name, jobId, source: 'upload' })
       })
       .catch((err) => {
         if (thisRequest !== requestId.current) return
@@ -69,11 +74,30 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
+  const setLiveResults = useCallback((results: Record<string, unknown>, fileName: string) => {
+    try {
+      const { predictions, confusion_matrix, ...summary } = results
+      localStorage.setItem('robustidps_results', JSON.stringify(summary))
+      localStorage.setItem('robustidps_file_name', fileName)
+      localStorage.setItem('robustidps_source', 'live-monitor')
+      localStorage.removeItem('robustidps_job_id')
+    } catch { /* quota exceeded */ }
+    setState({
+      loading: false,
+      results,
+      error: null,
+      fileName,
+      jobId: null,
+      source: 'live-monitor',
+    })
+  }, [])
+
   const clearResults = useCallback(() => {
     localStorage.removeItem('robustidps_results')
     localStorage.removeItem('robustidps_job_id')
     localStorage.removeItem('robustidps_file_name')
-    setState({ loading: false, results: null, error: null, fileName: null, jobId: null })
+    localStorage.removeItem('robustidps_source')
+    setState({ loading: false, results: null, error: null, fileName: null, jobId: null, source: null })
   }, [])
 
   const deleteJob = useCallback(async () => {
@@ -92,7 +116,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   }, [state.jobId, clearResults])
 
   return (
-    <AnalysisContext.Provider value={{ ...state, runAnalysis, clearResults, deleteJob }}>
+    <AnalysisContext.Provider value={{ ...state, runAnalysis, setLiveResults, clearResults, deleteJob }}>
       {children}
     </AnalysisContext.Provider>
   )

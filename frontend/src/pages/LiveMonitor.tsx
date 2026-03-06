@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import FileUpload from '../components/FileUpload'
 import PageGuide from '../components/PageGuide'
 import { uploadFile, connectStream } from '../utils/api'
+import { useAnalysis } from '../hooks/useAnalysis'
 
 interface FlowEvent {
   flow_id: number
@@ -20,6 +22,28 @@ const SEV_COLOR: Record<string, string> = {
   medium: 'text-accent-amber',
   high: 'text-accent-orange',
   critical: 'text-accent-red',
+}
+
+const PIE_COLORS = [
+  '#3B82F6', '#EF4444', '#F59E0B', '#22C55E', '#A855F7',
+  '#F97316', '#06B6D4', '#EC4899', '#8B5CF6', '#14B8A6',
+  '#6366F1', '#D946EF', '#0EA5E9',
+]
+
+const SEV_BAR_COLORS: Record<string, string> = {
+  critical: '#EF4444',
+  high: '#F97316',
+  medium: '#F59E0B',
+  low: '#22C55E',
+  benign: '#3B82F6',
+}
+
+const TOOLTIP_STYLE = {
+  background: '#1E293B',
+  border: '1px solid #334155',
+  borderRadius: '8px',
+  color: '#F8FAFC',
+  fontSize: '12px',
 }
 
 const COMPARISON_ROWS = [
@@ -100,6 +124,10 @@ export default function LiveMonitor() {
   const [wsError, _setWsError] = useState(_store.wsError)
   const [showComparison, _setShowComparison] = useState(_store.showComparison)
   const [showSetup, _setShowSetup] = useState(_store.showSetup)
+  const [showAnalytics, _setShowAnalytics] = useState(false)
+  const [sentToUpload, setSentToUpload] = useState(false)
+
+  const { setLiveResults } = useAnalysis()
 
   // Wrapped setters that sync to module store
   const setJobId = (v: string | null) => { _store.jobId = v; _setJobId(v) }
@@ -130,6 +158,108 @@ export default function LiveMonitor() {
   const setWsError = (v: string) => { _store.wsError = v; _setWsError(v) }
   const setShowComparison = (v: boolean) => { _store.showComparison = v; _setShowComparison(v) }
   const setShowSetup = (v: boolean) => { _store.showSetup = v; _setShowSetup(v) }
+  const setShowAnalytics = (v: boolean) => { _setShowAnalytics(v) }
+
+  // Computed analytics from events
+  const analytics = useMemo(() => {
+    if (events.length === 0) return null
+
+    // Attack distribution
+    const attackDist: Record<string, number> = {}
+    const sevDist: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, benign: 0 }
+    const srcIpCounts: Record<string, number> = {}
+    const dstIpCounts: Record<string, number> = {}
+    const confidences: number[] = []
+    const threatSrcIps: Record<string, number> = {}
+
+    for (const ev of events) {
+      attackDist[ev.label_predicted] = (attackDist[ev.label_predicted] || 0) + 1
+      if (ev.severity in sevDist) sevDist[ev.severity]++
+      if (ev.src_ip) srcIpCounts[ev.src_ip] = (srcIpCounts[ev.src_ip] || 0) + 1
+      if (ev.dst_ip) dstIpCounts[ev.dst_ip] = (dstIpCounts[ev.dst_ip] || 0) + 1
+      confidences.push(ev.confidence)
+      if (ev.severity !== 'benign' && ev.src_ip) {
+        threatSrcIps[ev.src_ip] = (threatSrcIps[ev.src_ip] || 0) + 1
+      }
+    }
+
+    // Top IPs
+    const topSrcIps = Object.entries(threatSrcIps)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([ip, count]) => ({ ip, count }))
+
+    const topDstIps = Object.entries(dstIpCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([ip, count]) => ({ ip, count }))
+
+    // Confidence histogram (10 bins)
+    const confBins = Array.from({ length: 10 }, (_, i) => ({
+      range: `${i * 10}-${(i + 1) * 10}%`,
+      count: 0,
+    }))
+    for (const c of confidences) {
+      confBins[Math.min(Math.floor(c * 10), 9)].count++
+    }
+
+    // Avg confidence
+    const avgConf = confidences.length > 0
+      ? confidences.reduce((a, b) => a + b, 0) / confidences.length
+      : 0
+
+    // Attack pie data
+    const attackPie = Object.entries(attackDist)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+
+    // Severity bar data
+    const sevBar = Object.entries(sevDist)
+      .filter(([, v]) => v > 0)
+      .map(([name, value]) => ({ name, value, fill: SEV_BAR_COLORS[name] || '#94A3B8' }))
+
+    return { attackDist, attackPie, sevBar, confBins, avgConf, topSrcIps, topDstIps, confidences }
+  }, [events])
+
+  // Build results for shared analysis context
+  const sendToUploadAnalyse = useCallback(() => {
+    if (!analytics || events.length === 0) return
+    const attackDist = analytics.attackDist
+    const perClassMetrics: Record<string, { precision: number; recall: number; f1: number }> = {}
+    for (const label of Object.keys(attackDist)) {
+      const count = attackDist[label]
+      const total = events.length
+      perClassMetrics[label] = {
+        precision: count / total,
+        recall: 1.0,
+        f1: 2 * (count / total) / (1 + count / total),
+      }
+    }
+    const results: Record<string, unknown> = {
+      n_flows: events.length,
+      n_threats: threatCount,
+      n_benign: benignCount,
+      attack_distribution: attackDist,
+      per_class_metrics: perClassMetrics,
+      predictions: events.map(ev => ({
+        flow_id: ev.flow_id,
+        src_ip: ev.src_ip,
+        dst_ip: ev.dst_ip,
+        label_predicted: ev.label_predicted,
+        confidence: ev.confidence,
+        severity: ev.severity,
+      })),
+      dataset_info: {
+        total_rows: events.length,
+        analysed_rows: events.length,
+        sampled: false,
+        format: captureMode === 'live' ? 'Live Capture' : 'File Replay',
+        columns: [],
+      },
+    }
+    setLiveResults(results, fileName || (captureMode === 'live' ? `Live Capture (${currentCycle} cycles)` : 'Live Monitor'))
+    setSentToUpload(true)
+  }, [analytics, events, threatCount, benignCount, captureMode, fileName, currentCycle, setLiveResults])
 
   // Ref to track if we already attached WS listeners on remount
   const wsAttached = useRef(false)
@@ -235,6 +365,7 @@ export default function LiveMonitor() {
     stopStream()
     setJobId(null); setFileName(''); setEvents([]); setThreatCount(0); setBenignCount(0)
     setDone(false); setCaptureStatus(''); setCurrentCycle(0); setWsError('')
+    setShowAnalytics(false); setSentToUpload(false)
   }, [stopStream])
 
   // Do NOT close the WS on unmount — let it keep running while navigated away
@@ -386,6 +517,179 @@ export default function LiveMonitor() {
             </table>
           </div>
         </div>
+
+        {/* Analytics Panel — shows when events exist and not currently running (or done) */}
+        {events.length > 0 && analytics && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setShowAnalytics(!showAnalytics)}
+                className="flex items-center gap-2 text-sm font-semibold text-text-primary hover:text-accent-blue transition-colors"
+              >
+                <BarChart3 className="w-4 h-4 text-accent-blue" />
+                Detection Analytics ({events.length} flows)
+                {showAnalytics ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              <div className="flex items-center gap-2">
+                {!sentToUpload ? (
+                  <button
+                    onClick={sendToUploadAnalyse}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue/15 text-accent-blue rounded-lg text-xs font-medium hover:bg-accent-blue/25 transition-colors"
+                  >
+                    <Send className="w-3 h-3" /> Send to Upload &amp; Analyse
+                  </button>
+                ) : (
+                  <span className="text-xs text-accent-green flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> Sent — view on Upload &amp; Analyse page
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {showAnalytics && (
+              <div className="space-y-4">
+                {/* Summary stats row */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="bg-bg-secondary rounded-xl p-3 border border-bg-card">
+                    <div className="text-[10px] text-text-secondary uppercase">Total Flows</div>
+                    <div className="text-lg font-bold text-text-primary font-mono">{events.length.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-bg-secondary rounded-xl p-3 border border-bg-card">
+                    <div className="text-[10px] text-text-secondary uppercase">Threats</div>
+                    <div className="text-lg font-bold text-accent-red font-mono">{threatCount.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-bg-secondary rounded-xl p-3 border border-bg-card">
+                    <div className="text-[10px] text-text-secondary uppercase">Benign</div>
+                    <div className="text-lg font-bold text-accent-blue font-mono">{benignCount.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-bg-secondary rounded-xl p-3 border border-bg-card">
+                    <div className="text-[10px] text-text-secondary uppercase">Threat Rate</div>
+                    <div className="text-lg font-bold text-accent-orange font-mono">
+                      {events.length > 0 ? ((threatCount / events.length) * 100).toFixed(1) : '0'}%
+                    </div>
+                  </div>
+                  <div className="bg-bg-secondary rounded-xl p-3 border border-bg-card">
+                    <div className="text-[10px] text-text-secondary uppercase">Avg Confidence</div>
+                    <div className="text-lg font-bold text-accent-green font-mono">{(analytics.avgConf * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+
+                {/* Charts row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Attack Distribution Pie */}
+                  <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+                    <h3 className="text-sm font-medium text-text-secondary mb-4 flex items-center gap-2">
+                      <PieChartIcon className="w-4 h-4" /> Attack Distribution
+                    </h3>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <PieChart>
+                        <Pie
+                          data={analytics.attackPie}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={100}
+                          paddingAngle={2}
+                          stroke="none"
+                        >
+                          {analytics.attackPie.map((_, i) => (
+                            <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={TOOLTIP_STYLE} />
+                        <Legend wrapperStyle={{ fontSize: '11px', color: '#94A3B8' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Confidence Distribution */}
+                  <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+                    <h3 className="text-sm font-medium text-text-secondary mb-4 flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4" /> Confidence Distribution
+                    </h3>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={analytics.confBins}>
+                        <XAxis dataKey="range" tick={{ fill: '#94A3B8', fontSize: 10 }} axisLine={{ stroke: '#334155' }} />
+                        <YAxis tick={{ fill: '#94A3B8', fontSize: 10 }} axisLine={{ stroke: '#334155' }} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} />
+                        <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Severity breakdown + Top threat sources */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Severity Breakdown */}
+                  <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+                    <h3 className="text-sm font-medium text-text-secondary mb-4 flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4" /> Severity Breakdown
+                    </h3>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={analytics.sevBar} layout="vertical" margin={{ left: 60 }}>
+                        <XAxis type="number" tick={{ fill: '#94A3B8', fontSize: 10 }} axisLine={{ stroke: '#334155' }} />
+                        <YAxis type="category" dataKey="name" tick={{ fill: '#94A3B8', fontSize: 10 }} axisLine={{ stroke: '#334155' }} width={55} />
+                        <Tooltip contentStyle={TOOLTIP_STYLE} />
+                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                          {analytics.sevBar.map((entry, i) => (
+                            <Cell key={i} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Top Threat Source IPs */}
+                  <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+                    <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-accent-red" /> Top Threat Source IPs
+                    </h3>
+                    {analytics.topSrcIps.length > 0 ? (
+                      <div className="space-y-1.5 max-h-[200px] overflow-auto">
+                        {analytics.topSrcIps.map((item, i) => (
+                          <div key={item.ip} className="flex items-center justify-between px-2.5 py-1.5 rounded bg-bg-card/50">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-text-secondary font-mono w-4">{i + 1}.</span>
+                              <span className="text-xs font-mono text-text-primary">{item.ip}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1.5 bg-bg-card rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-accent-red rounded-full"
+                                  style={{ width: `${Math.min(100, (item.count / (analytics.topSrcIps[0]?.count || 1)) * 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-xs font-mono text-accent-red w-8 text-right">{item.count}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-text-secondary">No threats detected</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Top Targeted Destinations */}
+                <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+                  <h3 className="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
+                    <Network className="w-4 h-4 text-accent-blue" /> Top Destination IPs (Most Targeted)
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    {analytics.topDstIps.map((item, i) => (
+                      <div key={item.ip} className="flex items-center justify-between px-2.5 py-1.5 rounded bg-bg-card/50">
+                        <span className="text-xs font-mono text-text-primary truncate">{item.ip}</span>
+                        <span className="text-xs font-mono text-accent-blue ml-2">{item.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </>)}
 
       {/* Comparison Section */}

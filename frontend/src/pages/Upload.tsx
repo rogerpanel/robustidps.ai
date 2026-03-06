@@ -7,7 +7,7 @@ import ModelSelector from '../components/ModelSelector'
 import { useAnalysis } from '../hooks/useAnalysis'
 import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2, Database, AlertTriangle, Trash2, X } from 'lucide-react'
+import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon } from 'lucide-react'
 
 interface DatasetInfo {
   total_rows: number
@@ -65,7 +65,7 @@ export default function UploadPage() {
   const [selectedModel, setSelectedModel] = useState('surrogate')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const { loading, results, error, fileName, jobId, runAnalysis, deleteJob } = useAnalysis()
+  const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
 
   const handleUpload = (file: File) => {
     runAnalysis(file, mcPasses, selectedModel)
@@ -160,7 +160,16 @@ export default function UploadPage() {
 
           {/* Delete dataset bar */}
           <div className="flex items-center justify-between px-4 py-2.5 bg-bg-secondary rounded-lg border border-bg-card">
-            <div className="text-xs text-text-secondary">
+            <div className="text-xs text-text-secondary flex items-center gap-2">
+              {source === 'live-monitor' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-accent-green/15 text-accent-green text-[10px] font-semibold uppercase">
+                  <Radio className="w-3 h-3" /> Live Monitor
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-accent-blue/15 text-accent-blue text-[10px] font-semibold uppercase">
+                  <UploadIcon className="w-3 h-3" /> Upload &amp; Analyse
+                </span>
+              )}
               <span className="font-medium text-text-primary">{fileName}</span>
               {jobId && <span className="ml-2 opacity-50">Job: {jobId}</span>}
             </div>
