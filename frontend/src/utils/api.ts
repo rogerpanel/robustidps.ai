@@ -190,6 +190,58 @@ export async function generateFirewallRules(
   return res.json();
 }
 
+// ── Admin: Users ─────────────────────────────────────────────────────────
+
+export async function fetchUsers() {
+  const res = await authFetch(`${API}/api/auth/users`);
+  if (!res.ok) throw new Error(`Failed to fetch users (${res.status})`);
+  return res.json();
+}
+
+export async function updateUserRole(userId: number, role: string) {
+  const res = await authFetch(`${API}/api/auth/users/${userId}/role?role=${encodeURIComponent(role)}`, {
+    method: 'PATCH',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function resetUserPassword(userId: number, newPassword: string) {
+  const res = await authFetch(`${API}/api/auth/users/${userId}/password?new_password=${encodeURIComponent(newPassword)}`, {
+    method: 'PATCH',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function deleteUser(userId: number) {
+  const res = await authFetch(`${API}/api/auth/users/${userId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function toggleUserActive(userId: number, active: boolean) {
+  const res = await authFetch(`${API}/api/auth/users/${userId}/deactivate?active=${active}`, {
+    method: 'PATCH',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Failed (${res.status})`);
+  }
+  return res.json();
+}
+
 // ── Audit logs (admin) ───────────────────────────────────────────────────
 
 export async function fetchAuditLogs(limit = 100, offset = 0) {

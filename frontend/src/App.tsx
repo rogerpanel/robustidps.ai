@@ -30,6 +30,7 @@ import Models from './pages/Models'
 import About from './pages/About'
 import Copilot from './pages/Copilot'
 import ContinualLearning from './pages/ContinualLearning'
+import AdminDashboard from './pages/AdminDashboard'
 import Login from './pages/Login'
 import { fetchHealth } from './utils/api'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -45,6 +46,7 @@ const NAV = [
   { to: '/live', label: 'Live Monitor', icon: Radio },
   { to: '/continual', label: 'Continual Learning', icon: RefreshCw },
   { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
+  { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
   { to: '/about', label: 'About', icon: Info },
 ]
 
@@ -97,7 +99,7 @@ export default function App() {
       </div>
 
       <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
-        {NAV.map((n) => (
+        {NAV.filter(n => !('adminOnly' in n && n.adminOnly) || user?.role === 'admin').map((n) => (
           <NavLink
             key={n.to}
             to={n.to}
@@ -235,6 +237,7 @@ export default function App() {
             <Route path="/live" element={<LiveMonitor />} />
             <Route path="/continual" element={<ContinualLearning />} />
             <Route path="/copilot" element={<Copilot />} />
+            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/about" element={<About />} />
           </Routes>
         </div>
