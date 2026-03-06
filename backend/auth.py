@@ -287,14 +287,25 @@ def toggle_active(
 # ── Startup: create default admin ─────────────────────────────────────────
 
 def ensure_default_admin(db: Session):
-    """Create the default admin account if no users exist."""
+    """Create or update the default admin account."""
     from config import ADMIN_EMAIL, ADMIN_PASSWORD
-    user_count = db.execute(select(func.count(User.id))).scalar()
-    if user_count > 0:
-        return  # users exist already
     if not ADMIN_PASSWORD:
         logger.warning("No ADMIN_PASSWORD set — skipping default admin creation")
         return
+
+    existing = db.execute(select(User).where(User.email == ADMIN_EMAIL)).scalar_one_or_none()
+    if existing:
+        # Update password if it changed (re-hash and compare)
+        if not verify_password(ADMIN_PASSWORD, existing.password_hash):
+            existing.password_hash = hash_password(ADMIN_PASSWORD)
+            db.commit()
+            logger.info("Admin password updated for %s", ADMIN_EMAIL)
+        return
+
+    user_count = db.execute(select(func.count(User.id))).scalar()
+    if user_count > 0:
+        return  # other users exist but no admin with this email — don't auto-create
+
     admin = User(
         email=ADMIN_EMAIL,
         password_hash=hash_password(ADMIN_PASSWORD),

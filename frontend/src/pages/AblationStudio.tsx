@@ -60,18 +60,31 @@ export default function AblationStudio() {
   } = useAblation()
 
   const fileRef = useRef<File | null>(null)
+  const hiddenInputRef = useRef<HTMLInputElement>(null)
 
   const disabledCount = enabled.filter((v) => !v).length
   const allEnabled = enabled.every(Boolean)
 
   const handleFileSelect = (file: File) => {
     fileRef.current = file
-    // Trigger a lightweight state update so the UI knows a file is ready
     run(file)
   }
 
   const handleRerun = () => {
-    if (fileRef.current) run(fileRef.current)
+    if (fileRef.current) {
+      run(fileRef.current)
+    } else {
+      // File ref lost after navigation — prompt re-select via hidden input
+      hiddenInputRef.current?.click()
+    }
+  }
+
+  const handleHiddenFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      fileRef.current = file
+      run(file)
+    }
   }
 
   const handleClear = () => {
@@ -246,9 +259,17 @@ export default function AblationStudio() {
                 </span>
               )}
             </div>
+            {/* Hidden file input for re-run when file ref is lost */}
+            <input
+              ref={hiddenInputRef}
+              type="file"
+              accept=".csv,.pcap,.pcapng"
+              onChange={handleHiddenFile}
+              className="hidden"
+            />
             <button
               onClick={handleRerun}
-              disabled={loading || !fileRef.current}
+              disabled={loading}
               className="px-6 py-2.5 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/80 disabled:opacity-50 transition-colors"
             >
               {loading ? (

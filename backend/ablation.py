@@ -85,35 +85,59 @@ def run_ablation(model, features: torch.Tensor,
     pairwise = {}
     for i in range(n_branches):
         for j in range(i + 1, n_branches):
-            key = f"{branch_names[i]} + {branch_names[j]}"
             metrics = _eval_model(model, features, labels, full_preds, disabled={i, j})
             metrics["accuracy_drop"] = round(full_acc - metrics["accuracy"], 6)
+            # Use index-based key for frontend heatmap lookup
+            key = f"{i}-{j}"
+            metrics["name_i"] = branch_names[i]
+            metrics["name_j"] = branch_names[j]
+            metrics["branch_i"] = i
+            metrics["branch_j"] = j
+            # Interaction = pair drop - (individual drops summed)
+            drop_i = single[branch_names[i]]["accuracy_drop"]
+            drop_j = single[branch_names[j]]["accuracy_drop"]
+            metrics["interaction"] = round(metrics["accuracy_drop"] - (drop_i + drop_j), 6)
+            metrics["pair_accuracy"] = metrics["accuracy"]
+            metrics["pair_drop"] = metrics["accuracy_drop"]
             pairwise[key] = metrics
 
     # ── 3. Incremental ablation (by descending impact) ───────────────────
     # Sort branches by single-ablation impact (most impactful first)
     branch_impacts.sort(key=lambda x: x[1], reverse=True)
 
+    # Incremental BUILD-UP: start with nothing, add methods one at a time
+    # (most impactful added first)
     incremental = []
-    disabled_set = set()
+    added_set = set()
+    all_disabled = set(range(n_branches))
+
+    # Step 0: no methods active (all disabled)
+    metrics_none = _eval_model(model, features, labels, full_preds, disabled=all_disabled)
+    prev_acc = metrics_none["accuracy"]
     incremental.append({
         "step": 0,
-        "disabled": [],
-        "disabled_names": [],
-        "accuracy": full_acc,
-        "accuracy_drop": 0.0,
+        "label": "No methods",
+        "added": None,
+        "added_idx": -1,
+        "accuracy": prev_acc,
+        "gain": 0.0,
     })
 
     for step, (branch_idx, _) in enumerate(branch_impacts, start=1):
-        disabled_set.add(branch_idx)
-        metrics = _eval_model(model, features, labels, full_preds, disabled=disabled_set)
+        added_set.add(branch_idx)
+        still_disabled = all_disabled - added_set
+        metrics = _eval_model(model, features, labels, full_preds,
+                              disabled=still_disabled if still_disabled else None)
+        acc = metrics["accuracy"]
         incremental.append({
             "step": step,
-            "disabled": sorted(disabled_set),
-            "disabled_names": [branch_names[b] for b in sorted(disabled_set)],
-            "accuracy": metrics["accuracy"],
-            "accuracy_drop": round(full_acc - metrics["accuracy"], 6),
+            "label": f"+{branch_names[branch_idx]}",
+            "added": branch_names[branch_idx],
+            "added_idx": branch_idx,
+            "accuracy": acc,
+            "gain": round(acc - prev_acc, 6),
         })
+        prev_acc = acc
 
     return {
         "single": single,
