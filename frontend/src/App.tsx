@@ -18,6 +18,7 @@ import {
   LogOut,
   Sparkles,
   User,
+  RefreshCw,
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/Upload'
@@ -28,6 +29,7 @@ import LiveMonitor from './pages/LiveMonitor'
 import Models from './pages/Models'
 import About from './pages/About'
 import Copilot from './pages/Copilot'
+import ContinualLearning from './pages/ContinualLearning'
 import Login from './pages/Login'
 import { fetchHealth } from './utils/api'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -41,6 +43,7 @@ const NAV = [
   { to: '/models', label: 'Models', icon: Brain },
   { to: '/ablation', label: 'Ablation Studio', icon: FlaskConical },
   { to: '/live', label: 'Live Monitor', icon: Radio },
+  { to: '/continual', label: 'Continual Learning', icon: RefreshCw },
   { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
   { to: '/about', label: 'About', icon: Info },
 ]
@@ -230,6 +233,7 @@ export default function App() {
             <Route path="/models" element={<Models />} />
             <Route path="/ablation" element={<AblationStudio />} />
             <Route path="/live" element={<LiveMonitor />} />
+            <Route path="/continual" element={<ContinualLearning />} />
             <Route path="/copilot" element={<Copilot />} />
             <Route path="/about" element={<About />} />
           </Routes>

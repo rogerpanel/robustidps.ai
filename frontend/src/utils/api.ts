@@ -197,6 +197,52 @@ export async function fetchAuditLogs(limit = 100, offset = 0) {
   return res.json();
 }
 
+// ── Continual Learning ──────────────────────────────────────────────────
+
+export async function fetchContinualStatus() {
+  const res = await authFetch(`${API}/api/continual/status`);
+  return res.json();
+}
+
+export async function triggerContinualUpdate(
+  file: File,
+  epochs: number = 5,
+  lr: number = 0.0001,
+  ewcLambda: number = 5000,
+) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('epochs', String(epochs));
+  form.append('lr', String(lr));
+  form.append('ewc_lambda', String(ewcLambda));
+  const res = await authFetch(`${API}/api/continual/update`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Update failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function measureDrift(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await authFetch(`${API}/api/continual/drift`, {
+    method: 'POST',
+    body: form,
+  });
+  return res.json();
+}
+
+export async function rollbackModel() {
+  const res = await authFetch(`${API}/api/continual/rollback`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
 // Sample/fallback data for offline mode
 export const SAMPLE_RESULTS = {
   job_id: 'demo',

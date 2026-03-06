@@ -62,6 +62,7 @@ from auth import (
 from audit import AuditMiddleware, log_audit
 from firewall import router as firewall_router
 from copilot import router as copilot_router
+from continual import ContinualLearningEngine
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -132,9 +133,12 @@ active_model_id: str = "surrogate"
 enabled_models: set = {"surrogate"}  # models available for selection in Upload
 custom_models: dict = {}  # user-uploaded models: {model_id: {"path": ..., "user_id": ..., "name": ...}}
 job_store: dict = {}
+cl_engine: ContinualLearningEngine | None = None  # continual learning engine
 
 CUSTOM_MODELS_DIR = Path(__file__).parent / "custom_models"
 CUSTOM_MODELS_DIR.mkdir(exist_ok=True)
+CHECKPOINTS_DIR = Path(__file__).parent / "checkpoints"
+CHECKPOINTS_DIR.mkdir(exist_ok=True)
 
 
 def _load_model() -> SurrogateIDS:
@@ -193,6 +197,16 @@ async def startup():
     loaded_models["surrogate"] = model
     logger.info("Model loaded: SurrogateIDS (%d classes, %d branches)",
                 SurrogateIDS.N_CLASSES, SurrogateIDS.N_BRANCHES)
+
+    # Initialise continual learning engine
+    global cl_engine
+    cl_engine = ContinualLearningEngine(
+        model, device=DEVICE, checkpoint_dir=CHECKPOINTS_DIR, max_replay=5000,
+    )
+    if cl_engine.load_checkpoint():
+        logger.info("Continual learning state restored (version %d)", cl_engine.state.version)
+    else:
+        logger.info("Continual learning engine initialised (no prior checkpoint)")
 
 
 # ── Input validation ─────────────────────────────────────────────────────
@@ -920,6 +934,120 @@ async def get_audit_logs(
             }
             for l in logs
         ],
+    }
+
+
+# ── Continual Learning ────────────────────────────────────────────────────
+
+@app.get("/api/continual/status")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def continual_status(request: Request, user=Depends(require_auth)):
+    """Return the current continual learning engine status."""
+    if cl_engine is None:
+        return JSONResponse({"error": "Continual learning engine not initialised"}, status_code=503)
+    return cl_engine.get_status()
+
+
+@app.post("/api/continual/update")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def continual_update(
+    request: Request,
+    file: UploadFile = File(...),
+    epochs: int = Form(default=5),
+    lr: float = Form(default=1e-4),
+    ewc_lambda: float = Form(default=5000.0),
+    user=Depends(require_auth),
+):
+    """Incrementally update the model on new traffic data using EWC."""
+    if cl_engine is None:
+        return JSONResponse({"error": "Continual learning engine not initialised"}, status_code=503)
+
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "update.csv")
+
+    if labels_encoded is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Labelled data required for continual learning. Upload a dataset with ground-truth labels.",
+        )
+
+    # Cap dataset for training
+    if len(features) > MAX_ROWS:
+        idx = torch.randperm(len(features))[:MAX_ROWS].sort().values
+        features = features[idx]
+        labels_encoded = labels_encoded[idx]
+
+    record = cl_engine.update(
+        features, labels_encoded,
+        epochs=epochs, lr=lr, ewc_lambda=ewc_lambda,
+        dataset_format=fmt,
+    )
+
+    logger.info("Continual update by %s: %s (acc %.4f → %.4f)",
+                user.email, record.update_id, record.acc_before, record.acc_after)
+
+    return {
+        "update_id": record.update_id,
+        "version": cl_engine.state.version,
+        "acc_before": record.acc_before,
+        "acc_after": record.acc_after,
+        "loss_before": record.loss_before,
+        "loss_after": record.loss_after,
+        "n_samples": record.n_samples,
+        "epochs": record.epochs,
+        "ewc_lambda": record.ewc_lambda,
+        "replay_size": record.replay_size,
+        "message": f"Model updated to version {cl_engine.state.version}. Accuracy: {record.acc_before:.2%} → {record.acc_after:.2%}",
+    }
+
+
+@app.post("/api/continual/drift")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def continual_drift(
+    request: Request,
+    file: UploadFile = File(...),
+    user=Depends(require_auth),
+):
+    """Measure distribution drift on new data without updating the model."""
+    if cl_engine is None:
+        return JSONResponse({"error": "Continual learning engine not initialised"}, status_code=503)
+
+    _validate_upload(file)
+    data = await file.read()
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "drift.csv")
+
+    if labels_encoded is None:
+        raise HTTPException(status_code=400, detail="Labelled data required for drift measurement.")
+
+    if len(features) > MAX_ROWS:
+        idx = torch.randperm(len(features))[:MAX_ROWS].sort().values
+        features = features[idx]
+        labels_encoded = labels_encoded[idx]
+
+    result = cl_engine.measure_drift(features, labels_encoded)
+    result["dataset_format"] = fmt
+    return result
+
+
+@app.post("/api/continual/rollback")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def continual_rollback(request: Request, user=Depends(require_auth)):
+    """Rollback the model to the state before the last update."""
+    if cl_engine is None:
+        return JSONResponse({"error": "Continual learning engine not initialised"}, status_code=503)
+
+    success = cl_engine.rollback()
+    if not success:
+        return JSONResponse({"error": "No previous state available to rollback to"}, status_code=400)
+
+    logger.info("Continual rollback by %s → version %d", user.email, cl_engine.state.version)
+    return {
+        "version": cl_engine.state.version,
+        "message": f"Model rolled back to version {cl_engine.state.version}",
     }
 
 
