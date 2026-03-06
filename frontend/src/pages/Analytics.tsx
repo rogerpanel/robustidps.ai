@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, CartesianGrid,
 } from 'recharts'
-import { Loader2, Download, TrendingUp, Shield, GitBranch, Target, Lock, ScatterChart as ScatterIcon } from 'lucide-react'
+import { Loader2, Download, TrendingUp, Shield, GitBranch, Target, Lock, ScatterChart as ScatterIcon, Image, FileText, Presentation, ChevronDown } from 'lucide-react'
 import { fetchAnalytics } from '../utils/api'
+import { exportAsPNG, exportAsPDF, exportAsSlides } from '../utils/exportUtils'
 import PageGuide from '../components/PageGuide'
 
 const MODEL_COLORS: Record<string, string> = {
@@ -35,6 +36,9 @@ export default function Analytics() {
   const [data, setData] = useState<Record<string, any> | null>(null)
   const [tab, setTab] = useState<Tab>('performance')
   const [loading, setLoading] = useState(true)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchAnalytics()
@@ -42,6 +46,14 @@ export default function Analytics() {
       .catch(() => setData(null))
       .finally(() => setLoading(false))
   }, [])
+
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!exportOpen) return
+    const handleClick = () => setExportOpen(false)
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [exportOpen])
 
   if (loading)
     return (
@@ -70,6 +82,40 @@ export default function Analytics() {
     URL.revokeObjectURL(url)
   }
 
+  const handleExportPNG = async () => {
+    if (!contentRef.current) return
+    setExporting(true)
+    setExportOpen(false)
+    try {
+      await exportAsPNG(contentRef.current, `robustidps_${tab}.png`)
+    } catch { /* ignore */ }
+    setExporting(false)
+  }
+
+  const handleExportPDF = async () => {
+    if (!contentRef.current) return
+    setExporting(true)
+    setExportOpen(false)
+    try {
+      await exportAsPDF(contentRef.current, `robustidps_${tab}.pdf`)
+    } catch { /* ignore */ }
+    setExporting(false)
+  }
+
+  const handleExportSlides = async () => {
+    setExporting(true)
+    setExportOpen(false)
+    try {
+      // Collect all chart sections from the current tab content
+      const container = contentRef.current
+      if (!container) return
+      const sections = Array.from(container.querySelectorAll<HTMLElement>('.bg-bg-secondary, .bg-accent-purple\\/10, .bg-bg-card\\/30'))
+      if (sections.length === 0) sections.push(container)
+      await exportAsSlides(sections, 'robustidps_analytics_slides.pdf', `RobustIDPS.AI — ${TABS.find(t => t.key === tab)?.label ?? 'Analytics'}`)
+    } catch { /* ignore */ }
+    setExporting(false)
+  }
+
   return (
     <div className="space-y-6">
       <PageGuide
@@ -77,20 +123,64 @@ export default function Analytics() {
         steps={[
           { title: 'Browse tabs', desc: 'Use the 7 tabs to compare all 5 dissertation models: Performance, Convergence, Robustness, Privacy, Transfer Learning, Calibration, and ROC/AUC.' },
           { title: 'Compare models', desc: 'Each chart shows all models side by side. Hover for exact values. Models are color-coded consistently across all tabs.' },
-          { title: 'Export data', desc: 'Click "Export All Metrics (JSON)" to download the full benchmark data for external analysis or publication.' },
+          { title: 'Export results', desc: 'Click "Export" to download as PNG image, PDF document, or PDF slides presentation for papers and talks.' },
         ]}
         tip="These are pre-computed benchmark metrics from the dissertation research. No file upload needed — this page always works."
       />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h1 className="text-xl md:text-2xl font-display font-bold">Analytics & Evaluation</h1>
-        <button
-          onClick={downloadJSON}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors self-start sm:self-auto"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Export All Metrics (JSON)
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {exporting && (
+            <span className="flex items-center gap-1.5 text-xs text-accent-blue">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...
+            </span>
+          )}
+          {/* Export dropdown */}
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setExportOpen(!exportOpen) }}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {exportOpen && (
+              <div className="absolute right-0 top-full mt-1 w-56 bg-bg-secondary border border-bg-card rounded-lg shadow-xl z-50 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <button onClick={handleExportPNG} className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-primary hover:bg-bg-card/50 transition-colors">
+                  <Image className="w-4 h-4 text-accent-green" />
+                  <div className="text-left">
+                    <div className="font-medium">Export as PNG</div>
+                    <div className="text-text-secondary text-[10px]">Current tab as image</div>
+                  </div>
+                </button>
+                <button onClick={handleExportPDF} className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-primary hover:bg-bg-card/50 transition-colors">
+                  <FileText className="w-4 h-4 text-accent-red" />
+                  <div className="text-left">
+                    <div className="font-medium">Export as PDF</div>
+                    <div className="text-text-secondary text-[10px]">Current tab as document</div>
+                  </div>
+                </button>
+                <button onClick={handleExportSlides} className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-primary hover:bg-bg-card/50 transition-colors">
+                  <Presentation className="w-4 h-4 text-accent-purple" />
+                  <div className="text-left">
+                    <div className="font-medium">Export as PDF Slides</div>
+                    <div className="text-text-secondary text-[10px]">Each chart section as a slide</div>
+                  </div>
+                </button>
+                <div className="border-t border-bg-card" />
+                <button onClick={() => { downloadJSON(); setExportOpen(false) }} className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-primary hover:bg-bg-card/50 transition-colors">
+                  <Download className="w-4 h-4 text-accent-blue" />
+                  <div className="text-left">
+                    <div className="font-medium">Export Raw JSON</div>
+                    <div className="text-text-secondary text-[10px]">Full metrics data for analysis</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Tabs — horizontally scrollable on mobile */}
@@ -113,6 +203,7 @@ export default function Analytics() {
         </div>
       </div>
 
+      <div ref={contentRef}>
       {tab === 'performance' && <PerformanceTab data={data} models={models} names={names} />}
       {tab === 'convergence' && <ConvergenceTab data={data} models={models} names={names} />}
       {tab === 'robustness' && <RobustnessTab data={data} models={models} names={names} />}
@@ -120,6 +211,7 @@ export default function Analytics() {
       {tab === 'transfer' && <TransferTab data={data} models={models} names={names} />}
       {tab === 'calibration' && <CalibrationTab data={data} models={models} names={names} />}
       {tab === 'roc' && <ROCTab data={data} models={models} names={names} />}
+      </div>
     </div>
   )
 }
@@ -623,6 +715,11 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
   const pareto = data.pareto_frontier
   const dpLabels: string[] = pa.dp_labels
 
+  // Attack selector for privacy-robustness chart
+  const prAttacks: string[] = pr.attacks || ['fgsm']
+  const prAttackNames: Record<string, string> = pr.attack_names || { fgsm: 'FGSM' }
+  const [selectedAttack, setSelectedAttack] = useState(prAttacks[0])
+
   const ttStyle = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
   // ── Privacy-Accuracy curve data ─────────────────────────────────────
@@ -632,10 +729,14 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
     return row
   })
 
-  // ── Privacy-Robustness curve data ───────────────────────────────────
+  // ── Privacy-Robustness curve data (selected attack) ────────────────
+  const prAttackData = pr[selectedAttack] || pr
   const prData = dpLabels.map((label, i) => {
     const row: Record<string, unknown> = { dp: label }
-    models.forEach((mid) => { row[mid] = +(pr[mid][i] * 100).toFixed(2) })
+    models.forEach((mid) => {
+      const src = prAttackData[mid]
+      row[mid] = src ? +(src[i] * 100).toFixed(2) : 0
+    })
     return row
   })
 
@@ -697,12 +798,35 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
         </div>
 
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
-          <h3 className="text-sm font-medium text-text-secondary mb-4">Privacy–Robustness Trade-off (FGSM at ε<sub>adv</sub>=0.10)</h3>
-          <ResponsiveContainer width="100%" height={320}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-text-secondary">
+              Privacy–Robustness Trade-off (ε<sub>adv</sub>=0.10)
+            </h3>
+          </div>
+          {/* Attack selector tabs */}
+          <div className="flex gap-1 mb-4 flex-wrap">
+            {prAttacks.map((atk) => {
+              const shortName = (prAttackNames[atk] || atk).split('(')[0].trim()
+              return (
+                <button
+                  key={atk}
+                  onClick={() => setSelectedAttack(atk)}
+                  className={`px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${
+                    selectedAttack === atk
+                      ? 'bg-accent-blue text-white'
+                      : 'bg-bg-card/50 text-text-secondary hover:text-text-primary hover:bg-bg-card'
+                  }`}
+                >
+                  {shortName}
+                </button>
+              )
+            })}
+          </div>
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={prData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="dp" tick={{ fill: '#94A3B8', fontSize: 9 }} label={{ value: 'Privacy Budget ε_dp', position: 'insideBottom', offset: -5, fill: '#94A3B8', fontSize: 10 }} />
-              <YAxis domain={[60, 95]} tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Adv. Accuracy %', angle: -90, position: 'insideLeft', fill: '#94A3B8', fontSize: 10 }} />
+              <YAxis domain={[55, 95]} tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'Adv. Accuracy %', angle: -90, position: 'insideLeft', fill: '#94A3B8', fontSize: 10 }} />
               <Tooltip contentStyle={ttStyle} formatter={(v: number) => `${v.toFixed(2)}%`} />
               <Legend wrapperStyle={{ fontSize: 9 }} />
               {models.map((mid) => (
@@ -711,8 +835,11 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
             </LineChart>
           </ResponsiveContainer>
           <p className="text-xs text-text-secondary mt-2">
-            Adversarial accuracy under FGSM (ε<sub>adv</sub>=0.10) at each DP level. Privacy noise
-            compounds with adversarial perturbation, creating a double degradation.
+            Adversarial accuracy under <strong>{(prAttackNames[selectedAttack] || selectedAttack).split('(')[0].trim()}</strong> (ε<sub>adv</sub>=0.10) at each DP level.
+            {selectedAttack === 'cw' && ' C&W is the strongest attack — lowest accuracy across all DP levels.'}
+            {selectedAttack === 'fgsm' && ' FGSM is the fastest but weakest attack.'}
+            {selectedAttack === 'pgd' && ' PGD iterates 20 steps, consistently ~2-3% worse than FGSM.'}
+            {selectedAttack === 'deepfool' && ' DeepFool finds minimal perturbations with outsized impact at low ε.'}
           </p>
         </div>
       </div>

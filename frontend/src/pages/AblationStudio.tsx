@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import FileUpload from '../components/FileUpload'
 import AblationChart from '../components/AblationChart'
 import ModelSelector from '../components/ModelSelector'
@@ -11,8 +11,14 @@ import {
   Zap,
   ToggleLeft,
   ToggleRight,
+  Download,
+  Image,
+  FileText,
+  Presentation,
+  ChevronDown,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import { exportAsPNG, exportAsPDF, exportAsSlides } from '../utils/exportUtils'
 
 const BRANCH_NAMES = [
   'CT-TGNN (Neural ODE)',
@@ -61,6 +67,41 @@ export default function AblationStudio() {
 
   const fileRef = useRef<File | null>(null)
   const hiddenInputRef = useRef<HTMLInputElement>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!exportOpen) return
+    const handleClick = () => setExportOpen(false)
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [exportOpen])
+
+  const handleExportPNG = async () => {
+    if (!resultsRef.current) return
+    setExporting(true); setExportOpen(false)
+    try { await exportAsPNG(resultsRef.current, 'robustidps_ablation.png') } catch { /* ignore */ }
+    setExporting(false)
+  }
+  const handleExportPDF = async () => {
+    if (!resultsRef.current) return
+    setExporting(true); setExportOpen(false)
+    try { await exportAsPDF(resultsRef.current, 'robustidps_ablation.pdf') } catch { /* ignore */ }
+    setExporting(false)
+  }
+  const handleExportSlides = async () => {
+    setExporting(true); setExportOpen(false)
+    try {
+      const container = resultsRef.current
+      if (!container) return
+      const sections = Array.from(container.querySelectorAll<HTMLElement>('.bg-bg-secondary'))
+      if (sections.length === 0) sections.push(container)
+      await exportAsSlides(sections, 'robustidps_ablation_slides.pdf', 'RobustIDPS.AI — Ablation Study')
+    } catch { /* ignore */ }
+    setExporting(false)
+  }
 
   const disabledCount = enabled.filter((v) => !v).length
   const allEnabled = enabled.every(Boolean)
@@ -130,15 +171,48 @@ export default function AblationStudio() {
             Results persist across navigation — your toggle states and analysis are saved automatically.
           </p>
         </div>
-        {data && (
-          <button
-            onClick={handleClear}
-            className="flex items-center gap-2 px-4 py-2 border border-bg-card rounded-lg text-sm text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset All
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {exporting && (
+            <span className="flex items-center gap-1.5 text-xs text-accent-blue">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...
+            </span>
+          )}
+          {data && (
+            <>
+              {/* Export dropdown */}
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setExportOpen(!exportOpen) }}
+                  className="flex items-center gap-2 px-3 py-2 text-xs bg-accent-blue/15 text-accent-blue rounded-lg hover:bg-accent-blue/25 transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Export
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {exportOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-52 bg-bg-secondary border border-bg-card rounded-lg shadow-xl z-50 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={handleExportPNG} className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-primary hover:bg-bg-card/50 transition-colors">
+                      <Image className="w-4 h-4 text-accent-green" /> Export as PNG
+                    </button>
+                    <button onClick={handleExportPDF} className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-primary hover:bg-bg-card/50 transition-colors">
+                      <FileText className="w-4 h-4 text-accent-red" /> Export as PDF
+                    </button>
+                    <button onClick={handleExportSlides} className="w-full flex items-center gap-3 px-4 py-2.5 text-xs text-text-primary hover:bg-bg-card/50 transition-colors">
+                      <Presentation className="w-4 h-4 text-accent-purple" /> Export as PDF Slides
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleClear}
+                className="flex items-center gap-2 px-4 py-2 border border-bg-card rounded-lg text-sm text-text-secondary hover:text-text-primary hover:border-text-secondary transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset All
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Model selector + Branch toggles */}
@@ -297,6 +371,7 @@ export default function AblationStudio() {
       )}
 
       {/* Charts and visualisations */}
+      <div ref={resultsRef}>
       {data && (
         <AblationChart
           data={data.ablation}
@@ -375,6 +450,7 @@ export default function AblationStudio() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

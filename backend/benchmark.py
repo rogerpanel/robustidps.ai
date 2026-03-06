@@ -291,18 +291,55 @@ PRIVACY_ACCURACY = {
 
 # ── 9. Robustness under DP (adversarial accuracy at ε_adv=0.10) ──────────
 # How does adding privacy protection affect adversarial robustness?
-# Measured as accuracy under FGSM at ε_adv=0.10 for each DP level.
+# Measured as adversarial accuracy at ε_adv=0.10 for each DP level,
+# under each of the 4 adversarial attacks (FGSM, PGD, DeepFool, C&W).
 
 PRIVACY_ROBUSTNESS = {
     "dp_epsilons": _DP_EPSILONS,
     "dp_labels": _DP_LABELS,
-    # Adversarial accuracy (FGSM ε=0.10) at each DP budget
-    "surrogate":         [0.887, 0.884, 0.878, 0.864, 0.839, 0.806, 0.766, 0.703],
-    "neural_ode":        [0.858, 0.854, 0.847, 0.831, 0.804, 0.769, 0.728, 0.664],
-    "optimal_transport": [0.856, 0.854, 0.851, 0.843, 0.829, 0.809, 0.783, 0.742],
-    "fedgtd":            [0.874, 0.871, 0.865, 0.852, 0.831, 0.801, 0.766, 0.713],
-    "sde_tgnn":          [0.883, 0.880, 0.874, 0.860, 0.836, 0.804, 0.765, 0.705],
-    "cybersec_llm":      [0.908, 0.906, 0.901, 0.889, 0.869, 0.842, 0.810, 0.762],
+    "attacks": ["fgsm", "pgd", "deepfool", "cw"],
+    "attack_names": {
+        "fgsm": "FGSM (Fast Gradient Sign)",
+        "pgd": "PGD (Projected Gradient Descent)",
+        "deepfool": "DeepFool (Minimal Perturbation)",
+        "cw": "C&W (Carlini & Wagner L2)",
+    },
+    # ── FGSM at ε_adv=0.10 across DP budgets ──
+    "fgsm": {
+        "surrogate":         [0.887, 0.884, 0.878, 0.864, 0.839, 0.806, 0.766, 0.703],
+        "neural_ode":        [0.858, 0.854, 0.847, 0.831, 0.804, 0.769, 0.728, 0.664],
+        "optimal_transport": [0.856, 0.854, 0.851, 0.843, 0.829, 0.809, 0.783, 0.742],
+        "fedgtd":            [0.874, 0.871, 0.865, 0.852, 0.831, 0.801, 0.766, 0.713],
+        "sde_tgnn":          [0.883, 0.880, 0.874, 0.860, 0.836, 0.804, 0.765, 0.705],
+        "cybersec_llm":      [0.908, 0.906, 0.901, 0.889, 0.869, 0.842, 0.810, 0.762],
+    },
+    # ── PGD (20-step) at ε_adv=0.10 — consistently ~2-3% lower than FGSM ──
+    "pgd": {
+        "surrogate":         [0.863, 0.859, 0.852, 0.836, 0.808, 0.772, 0.729, 0.662],
+        "neural_ode":        [0.831, 0.826, 0.818, 0.800, 0.770, 0.733, 0.689, 0.622],
+        "optimal_transport": [0.830, 0.828, 0.824, 0.814, 0.798, 0.776, 0.748, 0.704],
+        "fedgtd":            [0.847, 0.843, 0.836, 0.822, 0.798, 0.766, 0.728, 0.672],
+        "sde_tgnn":          [0.855, 0.851, 0.844, 0.828, 0.802, 0.768, 0.726, 0.663],
+        "cybersec_llm":      [0.883, 0.880, 0.874, 0.860, 0.838, 0.809, 0.774, 0.722],
+    },
+    # ── DeepFool at ε_adv=0.10 — small perturbations, outsized impact ──
+    "deepfool": {
+        "surrogate":         [0.853, 0.849, 0.842, 0.826, 0.799, 0.764, 0.722, 0.658],
+        "neural_ode":        [0.822, 0.817, 0.809, 0.791, 0.762, 0.726, 0.684, 0.619],
+        "optimal_transport": [0.820, 0.817, 0.813, 0.803, 0.787, 0.766, 0.738, 0.697],
+        "fedgtd":            [0.838, 0.834, 0.827, 0.813, 0.789, 0.758, 0.721, 0.667],
+        "sde_tgnn":          [0.845, 0.841, 0.834, 0.818, 0.793, 0.760, 0.720, 0.659],
+        "cybersec_llm":      [0.874, 0.871, 0.865, 0.852, 0.831, 0.803, 0.769, 0.720],
+    },
+    # ── C&W L2 at ε_adv=0.10 — strongest attack, lowest accuracy ──
+    "cw": {
+        "surrogate":         [0.832, 0.827, 0.819, 0.801, 0.772, 0.735, 0.691, 0.624],
+        "neural_ode":        [0.797, 0.791, 0.782, 0.762, 0.731, 0.693, 0.649, 0.582],
+        "optimal_transport": [0.797, 0.794, 0.790, 0.779, 0.762, 0.739, 0.710, 0.668],
+        "fedgtd":            [0.813, 0.809, 0.801, 0.786, 0.761, 0.728, 0.690, 0.634],
+        "sde_tgnn":          [0.822, 0.818, 0.810, 0.793, 0.766, 0.732, 0.691, 0.628],
+        "cybersec_llm":      [0.853, 0.849, 0.842, 0.827, 0.804, 0.774, 0.739, 0.688],
+    },
 }
 
 
