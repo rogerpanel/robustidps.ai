@@ -93,7 +93,7 @@ export default function App() {
     <>
       <div className="p-4 flex items-center gap-2">
         <ShieldCheck className="w-7 h-7 text-accent-blue" />
-        <span className="font-display font-bold text-lg">RobustIDPS</span>
+        <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
       </div>
 
       <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
@@ -206,7 +206,7 @@ export default function App() {
             <Menu className="w-5 h-5" />
           </button>
           <ShieldCheck className="w-5 h-5 text-accent-blue" />
-          <span className="font-display font-bold text-sm">RobustIDPS</span>
+          <span className="font-display font-bold text-sm">RobustIDPS<span className="text-accent-blue">.AI</span></span>
           <div className="ml-auto flex items-center gap-2">
             {analysisRunning && <Loader2 className="w-3.5 h-3.5 animate-spin text-accent-blue" />}
             {online === true ? (

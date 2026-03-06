@@ -34,31 +34,66 @@ interface CLStatus {
   history: UpdateRecord[]
 }
 
+// ── Module-level store: survives component unmount on navigation ──────
+const _store: {
+  updateFile: File | null
+  driftFile: File | null
+  epochs: number
+  lr: number
+  ewcLambda: number
+  updateResult: string
+  driftResult: { accuracy: number; loss: number; recommendation: string } | null
+  historyExpanded: boolean
+  status: CLStatus | null
+  statusLoaded: boolean
+} = {
+  updateFile: null,
+  driftFile: null,
+  epochs: 5,
+  lr: 0.0001,
+  ewcLambda: 5000,
+  updateResult: '',
+  driftResult: null,
+  historyExpanded: false,
+  status: null,
+  statusLoaded: false,
+}
+
 export default function ContinualLearning() {
-  const [status, setStatus] = useState<CLStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState<CLStatus | null>(_store.status)
+  const [loading, setLoading] = useState(!_store.statusLoaded)
   const [error, setError] = useState('')
 
-  // Update form
-  const [file, setFile] = useState<File | null>(null)
-  const [epochs, setEpochs] = useState(5)
-  const [lr, setLr] = useState(0.0001)
-  const [ewcLambda, setEwcLambda] = useState(5000)
+  // Update form — initialise from module store
+  const [file, _setFile] = useState<File | null>(_store.updateFile)
+  const [epochs, _setEpochs] = useState(_store.epochs)
+  const [lr, _setLr] = useState(_store.lr)
+  const [ewcLambda, _setEwcLambda] = useState(_store.ewcLambda)
   const [updating, setUpdating] = useState(false)
-  const [updateResult, setUpdateResult] = useState<string>('')
+  const [updateResult, _setUpdateResult] = useState<string>(_store.updateResult)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Drift measurement
-  const [driftFile, setDriftFile] = useState<File | null>(null)
+  // Drift measurement — initialise from module store
+  const [driftFile, _setDriftFile] = useState<File | null>(_store.driftFile)
   const [measuring, setMeasuring] = useState(false)
-  const [driftResult, setDriftResult] = useState<{accuracy: number; loss: number; recommendation: string} | null>(null)
+  const [driftResult, _setDriftResult] = useState<{accuracy: number; loss: number; recommendation: string} | null>(_store.driftResult)
   const driftFileRef = useRef<HTMLInputElement>(null)
 
   // Rollback
   const [rollingBack, setRollingBack] = useState(false)
 
   // Expanded history
-  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const [historyExpanded, _setHistoryExpanded] = useState(_store.historyExpanded)
+
+  // Wrapped setters that sync to module store
+  const setFile = (f: File | null) => { _store.updateFile = f; _setFile(f) }
+  const setEpochs = (v: number) => { _store.epochs = v; _setEpochs(v) }
+  const setLr = (v: number) => { _store.lr = v; _setLr(v) }
+  const setEwcLambda = (v: number) => { _store.ewcLambda = v; _setEwcLambda(v) }
+  const setUpdateResult = (v: string) => { _store.updateResult = v; _setUpdateResult(v) }
+  const setDriftFile = (f: File | null) => { _store.driftFile = f; _setDriftFile(f) }
+  const setDriftResult = (v: {accuracy: number; loss: number; recommendation: string} | null) => { _store.driftResult = v; _setDriftResult(v) }
+  const setHistoryExpanded = (v: boolean) => { _store.historyExpanded = v; _setHistoryExpanded(v) }
 
   const loadStatus = async () => {
     try {
@@ -67,6 +102,8 @@ export default function ContinualLearning() {
         setError(data.error)
       } else {
         setStatus(data)
+        _store.status = data
+        _store.statusLoaded = true
         setError('')
       }
     } catch {
@@ -75,7 +112,21 @@ export default function ContinualLearning() {
     setLoading(false)
   }
 
-  useEffect(() => { loadStatus() }, [])
+  // Re-populate file inputs from module store when component mounts
+  useEffect(() => {
+    loadStatus()
+    // Restore file input display names via DataTransfer
+    if (_store.updateFile && fileRef.current) {
+      const dt = new DataTransfer()
+      dt.items.add(_store.updateFile)
+      fileRef.current.files = dt.files
+    }
+    if (_store.driftFile && driftFileRef.current) {
+      const dt = new DataTransfer()
+      dt.items.add(_store.driftFile)
+      driftFileRef.current.files = dt.files
+    }
+  }, [])
 
   const handleUpdate = async () => {
     if (!file) return
