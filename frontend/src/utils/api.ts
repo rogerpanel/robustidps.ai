@@ -47,6 +47,42 @@ export async function activateModel(modelId: string) {
   return res.json();
 }
 
+export async function enableModel(modelId: string) {
+  const res = await authFetch(`${API}/api/models/${modelId}/enable`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
+export async function disableModel(modelId: string) {
+  const res = await authFetch(`${API}/api/models/${modelId}/disable`, {
+    method: 'POST',
+  });
+  return res.json();
+}
+
+export async function uploadCustomModel(file: File, modelName: string) {
+  const form = new FormData();
+  form.append('file', file);
+  if (modelName) form.append('model_name', modelName);
+  const res = await authFetch(`${API}/api/models/custom/upload`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Upload failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function deleteCustomModel(modelId: string) {
+  const res = await authFetch(`${API}/api/models/custom/${modelId}`, {
+    method: 'DELETE',
+  });
+  return res.json();
+}
+
 export async function uploadFile(file: File) {
   const form = new FormData();
   form.append('file', file);

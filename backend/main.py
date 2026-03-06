@@ -30,6 +30,7 @@ import uuid
 from pathlib import Path
 
 import torch
+import torch.nn as nn
 import numpy as np
 from fastapi import (
     FastAPI, UploadFile, File, Form, WebSocket, WebSocketDisconnect,
@@ -128,7 +129,12 @@ app.include_router(copilot_router)
 model: SurrogateIDS | None = None
 loaded_models: dict = {}
 active_model_id: str = "surrogate"
+enabled_models: set = {"surrogate"}  # models available for selection in Upload
+custom_models: dict = {}  # user-uploaded models: {model_id: {"path": ..., "user_id": ..., "name": ...}}
 job_store: dict = {}
+
+CUSTOM_MODELS_DIR = Path(__file__).parent / "custom_models"
+CUSTOM_MODELS_DIR.mkdir(exist_ok=True)
 
 
 def _load_model() -> SurrogateIDS:
@@ -149,7 +155,17 @@ def get_model(model_id: str | None = None):
         return model
     if mid not in loaded_models:
         try:
-            loaded_models[mid] = registry_load(mid, device=DEVICE, dropout=0.05)
+            # Check custom models first
+            if mid in custom_models:
+                path = Path(custom_models[mid]["path"])
+                state_dict = torch.load(path, map_location=DEVICE, weights_only=True)
+                custom_model = _build_custom_model(state_dict)
+                custom_model.load_state_dict(state_dict)
+                custom_model.to(DEVICE)
+                custom_model.eval()
+                loaded_models[mid] = custom_model
+            else:
+                loaded_models[mid] = registry_load(mid, device=DEVICE, dropout=0.05)
         except Exception:
             return model
     return loaded_models[mid]
@@ -285,7 +301,25 @@ async def model_info():
 
 @app.get("/api/models")
 async def get_available_models():
-    return {"models": list_models(), "active_model": active_model_id}
+    models = list_models()
+    # Add enabled status to each model
+    for m in models:
+        m["enabled"] = m["id"] in enabled_models
+    # Append custom models
+    for cid, cinfo in custom_models.items():
+        models.append({
+            "id": cid,
+            "name": cinfo["name"],
+            "description": f"Custom model uploaded by user",
+            "paper": "User-uploaded model",
+            "has_ablation": False,
+            "category": "custom",
+            "weights_available": True,
+            "enabled": cid in enabled_models,
+            "custom": True,
+            "uploaded_by": cinfo.get("user_email", ""),
+        })
+    return {"models": models, "active_model": active_model_id, "enabled_models": list(enabled_models)}
 
 
 @app.get("/api/analytics")
@@ -303,12 +337,48 @@ async def activate_model(
     user=Depends(require_auth),
 ):
     global active_model_id
-    if model_id not in MODEL_INFO:
+    if model_id not in MODEL_INFO and model_id not in custom_models:
         return JSONResponse({"error": f"Unknown model: {model_id}"}, status_code=400)
     active_model_id = model_id
     _ = get_model(model_id)
     logger.info("Model switched to %s by %s", model_id, user.email)
-    return {"active_model": active_model_id}
+    return {"active_model": active_model_id, "enabled_models": list(enabled_models)}
+
+
+@app.post("/api/models/{model_id}/enable")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def enable_model(
+    request: Request,
+    model_id: str,
+    user=Depends(require_auth),
+):
+    """Enable a model so it appears in the Upload & Analyse model selector."""
+    if model_id not in MODEL_INFO and model_id not in custom_models:
+        return JSONResponse({"error": f"Unknown model: {model_id}"}, status_code=400)
+    enabled_models.add(model_id)
+    # Pre-load the model
+    _ = get_model(model_id)
+    logger.info("Model %s enabled by %s", model_id, user.email)
+    return {"enabled_models": list(enabled_models)}
+
+
+@app.post("/api/models/{model_id}/disable")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def disable_model(
+    request: Request,
+    model_id: str,
+    user=Depends(require_auth),
+):
+    """Disable a model from the Upload & Analyse model selector."""
+    global active_model_id
+    if model_id == "surrogate":
+        return JSONResponse({"error": "Cannot disable the default surrogate model"}, status_code=400)
+    enabled_models.discard(model_id)
+    # If the disabled model was the active default, reset to surrogate
+    if active_model_id == model_id:
+        active_model_id = "surrogate"
+    logger.info("Model %s disabled by %s", model_id, user.email)
+    return {"enabled_models": list(enabled_models)}
 
 
 @app.post("/api/upload")
@@ -579,6 +649,186 @@ async def delete_job(
 
     logger.info("Job %s deleted by %s", job_id, user.email)
     return {"deleted": job_id}
+
+
+# ── Custom Model Upload ──────────────────────────────────────────────────
+
+@app.post("/api/models/custom/upload")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def upload_custom_model(
+    request: Request,
+    file: UploadFile = File(...),
+    model_name: str = Form(default=""),
+    user=Depends(require_auth),
+):
+    """Upload a custom PyTorch model (.pt/.pth) for testing.
+    Model must accept [batch, 83] input and output [batch, 34] logits.
+    """
+    filename = (file.filename or "").lower()
+    if not filename.endswith((".pt", ".pth")):
+        raise HTTPException(status_code=400, detail="Only .pt or .pth PyTorch model files are accepted")
+
+    data = await file.read()
+    if len(data) > 200 * 1024 * 1024:  # 200MB limit
+        raise HTTPException(status_code=413, detail="Model file too large. Maximum: 200MB")
+
+    # Save to temp file first for validation
+    model_id = f"custom_{str(uuid.uuid4())[:8]}"
+    save_path = CUSTOM_MODELS_DIR / f"{model_id}.pt"
+    save_path.write_bytes(data)
+
+    # Validate: try loading and running a forward pass
+    try:
+        state_dict = torch.load(save_path, map_location="cpu", weights_only=True)
+
+        # Try to infer architecture from state dict
+        custom_model = _build_custom_model(state_dict)
+        custom_model.load_state_dict(state_dict)
+        custom_model.eval()
+
+        # Test forward pass with dummy input
+        with torch.no_grad():
+            test_input = torch.randn(2, SurrogateIDS.N_FEATURES)
+            output = custom_model(test_input)
+            if output.shape[-1] != SurrogateIDS.N_CLASSES:
+                raise ValueError(
+                    f"Model output has {output.shape[-1]} classes, expected {SurrogateIDS.N_CLASSES}"
+                )
+
+        custom_model.to(DEVICE)
+        loaded_models[model_id] = custom_model
+        enabled_models.add(model_id)
+
+    except Exception as e:
+        save_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid model: {str(e)}. Model must be a PyTorch state_dict with input_dim=83, output_dim=34.",
+        )
+
+    name = model_name or file.filename or model_id
+    custom_models[model_id] = {
+        "name": name,
+        "path": str(save_path),
+        "user_id": user.id,
+        "user_email": user.email,
+        "filename": file.filename,
+    }
+
+    logger.info("Custom model '%s' uploaded by %s as %s", name, user.email, model_id)
+    return {
+        "model_id": model_id,
+        "name": name,
+        "message": f"Model '{name}' uploaded and validated successfully. Available in Upload & Analyse.",
+    }
+
+
+@app.delete("/api/models/custom/{model_id}")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def delete_custom_model(
+    request: Request,
+    model_id: str,
+    user=Depends(require_auth),
+):
+    """Delete a custom uploaded model and free resources."""
+    if model_id not in custom_models:
+        return JSONResponse({"error": "Custom model not found"}, status_code=404)
+
+    info = custom_models[model_id]
+    # Only owner or admin can delete
+    if info["user_id"] != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorised to delete this model")
+
+    # Clean up
+    global active_model_id
+    loaded_models.pop(model_id, None)
+    enabled_models.discard(model_id)
+    if active_model_id == model_id:
+        active_model_id = "surrogate"
+
+    # Delete file
+    path = Path(info["path"])
+    path.unlink(missing_ok=True)
+
+    del custom_models[model_id]
+    logger.info("Custom model %s deleted by %s", model_id, user.email)
+    return {"deleted": model_id}
+
+
+def _build_custom_model(state_dict: dict) -> nn.Module:
+    """Infer a simple sequential model architecture from a state dict."""
+    # Analyse the state dict to reconstruct layers
+    layers = []
+    layer_keys = sorted(state_dict.keys())
+
+    # Group by layer index
+    weight_shapes = {}
+    for key in layer_keys:
+        parts = key.split(".")
+        # Handle both "0.weight", "layers.0.weight", etc.
+        for i, p in enumerate(parts):
+            if p == "weight" and i > 0:
+                layer_name = ".".join(parts[:i])
+                weight_shapes[layer_name] = ("weight", state_dict[key].shape)
+            elif p == "bias" and i > 0:
+                layer_name = ".".join(parts[:i])
+                if layer_name not in weight_shapes:
+                    weight_shapes[layer_name] = ("bias", state_dict[key].shape)
+
+    # Build sequential model from detected linear layers
+    layer_list = []
+    for key in sorted(weight_shapes.keys()):
+        kind, shape = weight_shapes[key]
+        if kind == "weight" and len(shape) == 2:
+            out_dim, in_dim = shape
+            layer_list.append(nn.Linear(in_dim, out_dim))
+            # Add ReLU between hidden layers (not after last)
+            layer_list.append(nn.ReLU())
+
+    # Remove last ReLU (output layer shouldn't have activation)
+    if layer_list and isinstance(layer_list[-1], nn.ReLU):
+        layer_list.pop()
+
+    if not layer_list:
+        raise ValueError("Could not reconstruct model architecture from state dict")
+
+    model = nn.Sequential(*layer_list)
+
+    # Remap state dict keys to sequential indices
+    new_state = {}
+    linear_idx = 0
+    seq_idx = 0
+    for layer in model:
+        if isinstance(layer, nn.Linear):
+            # Find original keys for this linear layer
+            orig_keys = [k for k in layer_keys if "weight" in k or "bias" in k]
+            weight_key = None
+            bias_key = None
+            for k in layer_keys:
+                if k.endswith(".weight") and state_dict[k].shape == layer.weight.shape:
+                    if k not in [v for v in new_state.values()]:
+                        weight_key = k
+                        break
+            for k in layer_keys:
+                if k.endswith(".bias") and state_dict[k].shape == layer.bias.shape:
+                    if k not in [v for v in new_state.values()]:
+                        bias_key = k
+                        break
+            if weight_key:
+                new_state[f"{seq_idx}.weight"] = state_dict[weight_key]
+                layer_keys.remove(weight_key)
+            if bias_key:
+                new_state[f"{seq_idx}.bias"] = state_dict[bias_key]
+                layer_keys.remove(bias_key)
+            linear_idx += 1
+        seq_idx += 1
+
+    # If remapping worked, update the state dict
+    if new_state:
+        state_dict.clear()
+        state_dict.update(new_state)
+
+    return model
 
 
 @app.get("/api/export/{job_id}")

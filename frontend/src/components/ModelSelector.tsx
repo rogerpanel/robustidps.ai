@@ -10,6 +10,8 @@ interface ModelInfo {
   has_ablation: boolean
   category: string
   weights_available: boolean
+  enabled?: boolean
+  custom?: boolean
 }
 
 interface Props {
@@ -22,6 +24,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   ensemble: 'bg-accent-blue/15 text-accent-blue',
   temporal: 'bg-accent-purple/15 text-accent-purple',
   federated: 'bg-accent-green/15 text-accent-green',
+  foundation: 'bg-accent-amber/15 text-accent-amber',
+  custom: 'bg-accent-red/15 text-accent-red',
 }
 
 export default function ModelSelector({ value, onChange, compact }: Props) {
@@ -29,7 +33,13 @@ export default function ModelSelector({ value, onChange, compact }: Props) {
 
   useEffect(() => {
     fetchModels()
-      .then((data) => setModels(data.models ?? []))
+      .then((data) => {
+        // Only show enabled models (with weights)
+        const enabled = (data.models ?? []).filter(
+          (m: ModelInfo) => m.enabled !== false && m.weights_available
+        )
+        setModels(enabled)
+      })
       .catch(() => {})
   }, [])
 
@@ -48,8 +58,8 @@ export default function ModelSelector({ value, onChange, compact }: Props) {
           className="w-full bg-bg-card border border-bg-card rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-blue"
         >
           {models.map((m) => (
-            <option key={m.id} value={m.id} disabled={!m.weights_available}>
-              {m.name}{!m.weights_available ? ' (no weights)' : ''}
+            <option key={m.id} value={m.id}>
+              {m.name}{m.custom ? ' (Custom)' : ''}
             </option>
           ))}
         </select>
@@ -67,13 +77,12 @@ export default function ModelSelector({ value, onChange, compact }: Props) {
         {models.map((m) => (
           <button
             key={m.id}
-            onClick={() => m.weights_available && onChange(m.id)}
-            disabled={!m.weights_available}
-            className={`text-left px-4 py-3 rounded-lg border transition-all ${
+            onClick={() => onChange(m.id)}
+            className={`text-left px-4 py-3 rounded-lg border transition-all cursor-pointer ${
               value === m.id
                 ? 'border-accent-blue bg-accent-blue/10'
                 : 'border-bg-card bg-bg-secondary hover:border-bg-card/80'
-            } ${!m.weights_available ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -83,7 +92,7 @@ export default function ModelSelector({ value, onChange, compact }: Props) {
                     CATEGORY_COLORS[m.category] || 'bg-bg-card text-text-secondary'
                   }`}
                 >
-                  {m.category}
+                  {m.custom ? 'Custom' : m.category}
                 </span>
               </div>
               {value === m.id && (
