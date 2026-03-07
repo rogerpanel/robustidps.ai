@@ -4,10 +4,11 @@ import ThreatTable from '../components/ThreatTable'
 import UncertaintyChart from '../components/UncertaintyChart'
 import ConfusionMatrix from '../components/ConfusionMatrix'
 import ModelSelector from '../components/ModelSelector'
+import ModelAnalyticsPanel from '../components/ModelAnalyticsPanel'
 import { useAnalysis } from '../hooks/useAnalysis'
 import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon } from 'lucide-react'
+import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
 
 interface DatasetInfo {
   total_rows: number
@@ -65,6 +66,7 @@ export default function UploadPage() {
   const [selectedModel, setSelectedModel] = useState('surrogate')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showModelAnalytics, setShowModelAnalytics] = useState(true)
   const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
 
   const handleUpload = (file: File) => {
@@ -213,6 +215,7 @@ export default function UploadPage() {
                   ? Object.keys(results.per_class_metrics as Record<string, unknown>)
                   : undefined
               }
+              source={source}
             />
           </div>
 
@@ -253,6 +256,24 @@ export default function UploadPage() {
           )}
         </>
       )}
+
+      {/* Model Analytics — always available */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowModelAnalytics(!showModelAnalytics)}
+          className="flex items-center gap-2 text-sm font-semibold text-text-primary hover:text-accent-blue transition-colors"
+        >
+          <TrendingUp className="w-4 h-4 text-accent-blue" />
+          Model Analytics & Evaluation
+          {showModelAnalytics ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {!results && !loading && (
+          <p className="text-xs text-text-secondary">
+            Pre-computed benchmark metrics for all dissertation models. Upload a dataset above or send results from Live Monitor to see per-dataset analysis alongside these model evaluations.
+          </p>
+        )}
+        {showModelAnalytics && <ModelAnalyticsPanel />}
+      </div>
     </div>
   )
 }
