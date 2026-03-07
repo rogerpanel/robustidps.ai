@@ -19,6 +19,7 @@ Endpoints:
   GET    /api/auth/me             Current user info
   GET    /api/audit/logs          Audit trail (admin)
   POST   /api/firewall/generate   Generate firewall rules
+  POST   /api/models/benchmark    Quick benchmark across enabled models
 """
 
 import asyncio
@@ -634,6 +635,86 @@ async def ablation_endpoint(
     }
 
 
+@app.post("/api/models/benchmark")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def benchmark_models(
+    request: Request,
+    user=Depends(require_auth),
+):
+    """
+    Run a quick benchmark across all enabled models using synthetic test data.
+    No dataset upload needed — generates random feature vectors and measures
+    inference speed and prediction distribution for each model.
+    """
+    import time as _time
+
+    n_samples = 200
+    test_features = torch.randn(n_samples, SurrogateIDS.N_FEATURES).to(DEVICE)
+
+    results = []
+    for mid in sorted(enabled_models):
+        try:
+            m = get_model(mid)
+            m.eval()
+            # Warm-up run
+            with torch.no_grad():
+                _ = m(test_features[:1])
+
+            # Timed inference
+            start = _time.perf_counter()
+            with torch.no_grad():
+                logits = m(test_features)
+            elapsed = _time.perf_counter() - start
+
+            probs = torch.softmax(logits, dim=-1)
+            preds = probs.argmax(-1).cpu()
+            confidence = probs.max(-1).values.cpu()
+
+            # Class distribution
+            class_counts: dict = {}
+            for idx in preds.tolist():
+                label = SurrogateIDS.CLASS_NAMES[idx] if idx < len(SurrogateIDS.CLASS_NAMES) else f"class_{idx}"
+                class_counts[label] = class_counts.get(label, 0) + 1
+
+            # Top 5 predictions
+            top5 = sorted(class_counts.items(), key=lambda x: -x[1])[:5]
+
+            # Threat rate (non-Benign)
+            benign_count = class_counts.get("Benign", 0)
+            threat_rate = round(1.0 - benign_count / max(n_samples, 1), 4)
+
+            info = MODEL_INFO.get(mid, {})
+            results.append({
+                "model_id": mid,
+                "model_name": info.get("name", mid),
+                "category": info.get("category", "custom"),
+                "inference_ms": round(elapsed * 1000, 1),
+                "throughput": round(n_samples / max(elapsed, 0.001)),
+                "mean_confidence": round(confidence.mean().item(), 4),
+                "std_confidence": round(confidence.std().item(), 4),
+                "threat_rate": threat_rate,
+                "n_classes_predicted": len(class_counts),
+                "top_predictions": [{"label": l, "count": c} for l, c in top5],
+                "class_distribution": class_counts,
+            })
+        except Exception as e:
+            logger.warning("Benchmark failed for %s: %s", mid, e)
+            info = MODEL_INFO.get(mid, {})
+            results.append({
+                "model_id": mid,
+                "model_name": info.get("name", mid),
+                "category": info.get("category", "custom"),
+                "error": str(e),
+            })
+
+    return {
+        "n_samples": n_samples,
+        "device": str(DEVICE),
+        "results": results,
+        "active_model": active_model_id,
+    }
+
+
 @app.delete("/api/jobs/{job_id}")
 @limiter.limit(RATE_LIMIT_DEFAULT)
 async def delete_job(
@@ -1061,6 +1142,7 @@ async def stream(ws: WebSocket):
         msg = json.loads(init)
         job_id = msg.get("job_id")
         rate = float(msg.get("rate", 100))
+        stream_model_name = msg.get("model_name", "")
 
         if job_id not in job_store:
             await ws.send_json({"error": "job not found"})
@@ -1072,13 +1154,15 @@ async def stream(ws: WebSocket):
         metadata = job["metadata"]
         label_names = job["label_names"]
 
-        model.eval()
+        # Use specified model or fall back to active model
+        stream_model = get_model(stream_model_name if stream_model_name else None)
+        stream_model.eval()
         delay = 1.0 / rate if rate > 0 else 0.01
 
         with torch.no_grad():
             for i in range(len(features)):
                 row_feat = features[i : i + 1]
-                logits = model(row_feat)
+                logits = stream_model(row_feat)
                 probs = torch.softmax(logits, dim=-1)
                 cls_idx = probs.argmax(-1).item()
                 conf = probs.max(-1).values.item()

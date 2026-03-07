@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp } from 'lucide-react'
+import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import FileUpload from '../components/FileUpload'
+import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import { uploadFile, connectStream } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
@@ -80,6 +81,7 @@ const _store: {
   showSetup: boolean
   showAnalytics: boolean
   sentToUpload: boolean
+  selectedModel: string
 } = {
   jobId: null,
   fileName: '',
@@ -99,6 +101,7 @@ const _store: {
   showSetup: false,
   showAnalytics: false,
   sentToUpload: false,
+  selectedModel: 'surrogate',
 }
 
 // Keep the WebSocket ref at module level so it survives remount
@@ -130,6 +133,7 @@ export default function LiveMonitor() {
   const [showSetup, _setShowSetup] = useState(_store.showSetup)
   const [showAnalytics, _setShowAnalytics] = useState(_store.showAnalytics)
   const [sentToUpload, _setSentToUpload] = useState(_store.sentToUpload)
+  const [selectedModel, _setSelectedModel] = useState(_store.selectedModel)
 
   const { setLiveResults } = useAnalysis()
 
@@ -164,6 +168,7 @@ export default function LiveMonitor() {
   const setShowSetup = (v: boolean) => { _store.showSetup = v; _setShowSetup(v) }
   const setShowAnalytics = (v: boolean) => { _store.showAnalytics = v; _setShowAnalytics(v) }
   const setSentToUpload = (v: boolean) => { _store.sentToUpload = v; _setSentToUpload(v) }
+  const setSelectedModel = (v: string) => { _store.selectedModel = v; _setSelectedModel(v) }
 
   // Computed analytics from events
   const analytics = useMemo(() => {
@@ -342,16 +347,17 @@ export default function LiveMonitor() {
       },
       () => { setRunning(false); setDone(true) },
       (err) => { setWsError(`WebSocket error: ${err instanceof Event ? 'connection failed' : err}`); setRunning(false) },
+      selectedModel,
     )
     _wsRef = ws
-  }, [jobId, rate])
+  }, [jobId, rate, selectedModel])
 
   const startLiveCapture = useCallback(() => {
     setRunning(true); setDone(false); setEvents([]); setThreatCount(0); setBenignCount(0)
     setCurrentCycle(0); setCaptureStatus('Connecting...'); setWsError('')
     const wsUrl = `${wsBaseUrl()}/ws/live_capture`
     const ws = new WebSocket(wsUrl)
-    ws.onopen = () => { ws.send(JSON.stringify({ interface: iface, interval: captureInterval })) }
+    ws.onopen = () => { ws.send(JSON.stringify({ interface: iface, interval: captureInterval, model_name: selectedModel })) }
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data)
       if (data.status === 'error') { setCaptureStatus(`Error: ${data.message}`); setRunning(false); return }
@@ -430,8 +436,11 @@ export default function LiveMonitor() {
       )}
 
       {captureMode === 'file' && !jobId && !running && (
-        <div className="max-w-lg">
-          <p className="text-sm text-text-secondary mb-4">Upload a CSV or PCAP file to start. Flows will be streamed and classified in real time.</p>
+        <div className="max-w-lg space-y-4">
+          <p className="text-sm text-text-secondary">Upload a CSV or PCAP file to start. Flows will be streamed and classified in real time.</p>
+          <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+            <ModelSelector value={selectedModel} onChange={setSelectedModel} compact />
+          </div>
           <FileUpload onFileSelect={handleUpload} />
         </div>
       )}
@@ -476,6 +485,11 @@ export default function LiveMonitor() {
           )}
           {captureMode === 'file' && fileName && (
             <span className="text-xs text-text-secondary truncate max-w-[200px]" title={fileName}>{fileName}</span>
+          )}
+          {selectedModel && selectedModel !== 'surrogate' && (
+            <span className="flex items-center gap-1 text-[10px] text-accent-purple bg-accent-purple/10 px-2 py-0.5 rounded-full">
+              <Brain className="w-3 h-3" /> {selectedModel}
+            </span>
           )}
           {captureMode === 'live' && captureStatus && (
             <div className="flex items-center gap-2 text-xs">

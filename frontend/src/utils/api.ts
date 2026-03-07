@@ -83,6 +83,17 @@ export async function deleteCustomModel(modelId: string) {
   return res.json();
 }
 
+export async function benchmarkModels() {
+  const res = await authFetch(`${API}/api/models/benchmark`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Benchmark failed (${res.status})`);
+  }
+  return res.json();
+}
+
 export async function uploadFile(file: File) {
   const form = new FormData();
   form.append('file', file);
@@ -142,11 +153,12 @@ export function connectStream(
   onMessage: (data: Record<string, unknown>) => void,
   onDone?: () => void,
   onError?: (err: Event) => void,
+  modelName?: string,
 ) {
   const wsUrl = `${wsBaseUrl()}/ws/stream`;
   const ws = new WebSocket(wsUrl);
   ws.onopen = () => {
-    ws.send(JSON.stringify({ job_id: jobId, rate }));
+    ws.send(JSON.stringify({ job_id: jobId, rate, model_name: modelName || '' }));
   };
   ws.onmessage = (e) => {
     const data = JSON.parse(e.data);

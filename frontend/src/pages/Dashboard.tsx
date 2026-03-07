@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
   Activity, ShieldAlert, ShieldCheck, Gauge, Ban, Search as SearchIcon,
-  Eye, AlertTriangle, ChevronDown, ChevronRight, Download, Globe,
+  Eye, AlertTriangle, ChevronDown, ChevronRight, Download, Globe, Brain,
 } from 'lucide-react'
 import StatCard from '../components/StatCard'
 import AttackDistribution from '../components/AttackDistribution'
@@ -111,7 +111,14 @@ export default function Dashboard() {
       />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <h1 className="text-xl md:text-2xl font-display font-bold">SOC Dashboard</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl md:text-2xl font-display font-bold">SOC Dashboard</h1>
+          {(analysisResults as Record<string, unknown> | null)?.model_used && (
+            <span className="flex items-center gap-1 text-[10px] text-accent-purple bg-accent-purple/10 px-2 py-0.5 rounded-full">
+              <Brain className="w-3 h-3" /> {String((analysisResults as Record<string, unknown>).model_used)}
+            </span>
+          )}
+        </div>
         {predictions.length > 0 && (
           <button
             onClick={downloadCSV}

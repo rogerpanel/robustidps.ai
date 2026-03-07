@@ -10,7 +10,7 @@ import { useAnalysis } from '../hooks/useAnalysis'
 import { useAblation } from '../hooks/useAblation'
 import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical, ToggleRight, ToggleLeft, TrendingDown } from 'lucide-react'
+import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical, ToggleRight, ToggleLeft, TrendingDown, Brain } from 'lucide-react'
 
 interface DatasetInfo {
   total_rows: number
@@ -271,6 +271,11 @@ export default function UploadPage() {
               )}
               <span className="font-medium text-text-primary">{fileName}</span>
               {jobId && <span className="ml-2 opacity-50">Job: {jobId}</span>}
+              {results?.model_used && (
+                <span className="flex items-center gap-1 ml-2 text-[10px] text-accent-purple bg-accent-purple/10 px-2 py-0.5 rounded-full">
+                  <Brain className="w-3 h-3" /> {String(results.model_used)}
+                </span>
+              )}
             </div>
             {!showDeleteConfirm ? (
               <button
