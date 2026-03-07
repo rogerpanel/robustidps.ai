@@ -24,18 +24,26 @@ const AnalysisContext = createContext<AnalysisContextType | null>(null)
 
 export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AnalysisState>(() => {
-    // Restore previous results from localStorage on mount
-    const cached = localStorage.getItem('robustidps_results')
-    const cachedJobId = localStorage.getItem('robustidps_job_id')
-    const cachedFileName = localStorage.getItem('robustidps_file_name')
-    const cachedSource = localStorage.getItem('robustidps_source') as AnalysisState['source']
-    return {
-      loading: false,
-      results: cached ? JSON.parse(cached) : null,
-      error: null,
-      fileName: cachedFileName || null,
-      jobId: cachedJobId || null,
-      source: cachedSource || null,
+    try {
+      const cached = localStorage.getItem('robustidps_results')
+      const cachedJobId = localStorage.getItem('robustidps_job_id')
+      const cachedFileName = localStorage.getItem('robustidps_file_name')
+      const cachedSource = localStorage.getItem('robustidps_source') as AnalysisState['source']
+      return {
+        loading: false,
+        results: cached ? JSON.parse(cached) : null,
+        error: null,
+        fileName: cachedFileName || null,
+        jobId: cachedJobId || null,
+        source: cachedSource || null,
+      }
+    } catch {
+      // Corrupted localStorage — clear and start fresh
+      localStorage.removeItem('robustidps_results')
+      localStorage.removeItem('robustidps_job_id')
+      localStorage.removeItem('robustidps_file_name')
+      localStorage.removeItem('robustidps_source')
+      return { loading: false, results: null, error: null, fileName: null, jobId: null, source: null }
     }
   })
 
