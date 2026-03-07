@@ -24,6 +24,23 @@ Endpoints:
   GET    /api/redteam/attacks     List available attacks
   POST   /api/xai/run             Explainability Studio
   POST   /api/federated/run       Federated Learning Simulator
+  GET    /api/pq/algorithms       PQ Cryptography algorithm catalogue
+  POST   /api/pq/benchmark        PQ algorithm benchmark
+  GET    /api/pq/risk-assessment  Quantum risk assessment
+  POST   /api/pq/simulate-handshake  PQ key exchange simulation
+  GET    /api/pq/comparison-matrix   PQ algorithm comparison
+  POST   /api/pq/migration-assessment  PQ migration readiness
+  GET    /api/zerotrust/trust-score     Zero-Trust score
+  GET    /api/zerotrust/policies        Governance policies
+  GET    /api/zerotrust/compliance      Compliance dashboard
+  GET    /api/zerotrust/model-provenance  Model integrity
+  GET    /api/zerotrust/access-analytics  Access analytics (admin)
+  GET    /api/zerotrust/verification-status  Continuous verification
+  GET    /api/threat-response/playbooks     Response playbooks
+  POST   /api/threat-response/simulate      Simulate threat response
+  GET    /api/threat-response/incidents      Incident timeline
+  GET    /api/threat-response/integrations   Security integrations
+  GET    /api/threat-response/response-metrics  Response metrics
 """
 
 import asyncio
@@ -71,6 +88,9 @@ from continual import ContinualLearningEngine
 from redteam import run_arena, ATTACKS as REDTEAM_ATTACKS
 from explainability import run_explainability
 from federated import simulate_federated
+from pq_crypto import router as pq_router
+from zerotrust import router as zerotrust_router
+from threat_response import router as threat_response_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -132,6 +152,9 @@ except ImportError:
 app.include_router(auth_router)
 app.include_router(firewall_router)
 app.include_router(copilot_router)
+app.include_router(pq_router)
+app.include_router(zerotrust_router)
+app.include_router(threat_response_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 

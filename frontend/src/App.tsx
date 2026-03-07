@@ -22,6 +22,9 @@ import {
   Swords,
   Eye,
   Network,
+  KeySquare,
+  Fingerprint,
+  Crosshair,
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/Upload'
@@ -36,6 +39,9 @@ import ContinualLearning from './pages/ContinualLearning'
 import RedTeamArena from './pages/RedTeamArena'
 import ExplainabilityStudio from './pages/ExplainabilityStudio'
 import FederatedSimulator from './pages/FederatedSimulator'
+import PQCryptography from './pages/PQCryptography'
+import ZeroTrustGovernance from './pages/ZeroTrustGovernance'
+import ThreatResponse from './pages/ThreatResponse'
 import AdminDashboard from './pages/AdminDashboard'
 import Login from './pages/Login'
 import { fetchHealth } from './utils/api'
@@ -55,6 +61,9 @@ const NAV = [
   { to: '/redteam', label: 'Red Team Arena', icon: Swords },
   { to: '/xai', label: 'Explainability', icon: Eye },
   { to: '/federated', label: 'Federated Learning', icon: Network },
+  { to: '/pq-crypto', label: 'PQ Cryptography', icon: KeySquare },
+  { to: '/zero-trust', label: 'Zero-Trust Gov', icon: Fingerprint },
+  { to: '/threat-response', label: 'Threat Response', icon: Crosshair },
   { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
   { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
   { to: '/about', label: 'About', icon: Info },
@@ -251,6 +260,9 @@ export default function App() {
             <Route path="/redteam" element={<RedTeamArena />} />
             <Route path="/xai" element={<ExplainabilityStudio />} />
             <Route path="/federated" element={<FederatedSimulator />} />
+            <Route path="/pq-crypto" element={<PQCryptography />} />
+            <Route path="/zero-trust" element={<ZeroTrustGovernance />} />
+            <Route path="/threat-response" element={<ThreatResponse />} />
             <Route path="/copilot" element={<Copilot />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/about" element={<About />} />

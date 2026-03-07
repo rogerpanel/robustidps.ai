@@ -401,6 +401,187 @@ export async function runFederated(
   return res.json();
 }
 
+// ── PQ Cryptography ──────────────────────────────────────────────────────
+
+export async function fetchPqAlgorithms() {
+  const res = await authFetch(`${API}/api/pq/algorithms`);
+  return res.json();
+}
+
+export async function benchmarkPqAlgorithm(algorithm: string, iterations = 100) {
+  const res = await authFetch(`${API}/api/pq/benchmark`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ algorithm, iterations }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Benchmark failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchPqRiskAssessment() {
+  const res = await authFetch(`${API}/api/pq/risk-assessment`);
+  return res.json();
+}
+
+export async function simulatePqHandshake(algorithm: string) {
+  const res = await authFetch(`${API}/api/pq/simulate-handshake`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ algorithm, iterations: 1 }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Simulation failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchPqComparisonMatrix() {
+  const res = await authFetch(`${API}/api/pq/comparison-matrix`);
+  return res.json();
+}
+
+export async function fetchPqMigrationAssessment(targetLevel = 3, includeHybrid = true) {
+  const res = await authFetch(`${API}/api/pq/migration-assessment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_nist_level: targetLevel, include_hybrid: includeHybrid }),
+  });
+  return res.json();
+}
+
+// ── Zero-Trust AI Governance ─────────────────────────────────────────────
+
+export async function fetchTrustScore() {
+  const res = await authFetch(`${API}/api/zerotrust/trust-score`);
+  return res.json();
+}
+
+export async function fetchSystemTrustScore() {
+  const res = await authFetch(`${API}/api/zerotrust/trust-score/system`);
+  return res.json();
+}
+
+export async function fetchGovernancePolicies() {
+  const res = await authFetch(`${API}/api/zerotrust/policies`);
+  return res.json();
+}
+
+export async function updateGovernancePolicy(policyId: string, newValue: number | boolean) {
+  const res = await authFetch(`${API}/api/zerotrust/policies/${policyId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ policy_id: policyId, new_value: newValue }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Update failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchComplianceDashboard() {
+  const res = await authFetch(`${API}/api/zerotrust/compliance`);
+  return res.json();
+}
+
+export async function fetchModelProvenance() {
+  const res = await authFetch(`${API}/api/zerotrust/model-provenance`);
+  return res.json();
+}
+
+export async function fetchAccessAnalytics() {
+  const res = await authFetch(`${API}/api/zerotrust/access-analytics`);
+  return res.json();
+}
+
+export async function fetchVerificationStatus() {
+  const res = await authFetch(`${API}/api/zerotrust/verification-status`);
+  return res.json();
+}
+
+// ── Autonomous Threat Response ───────────────────────────────────────────
+
+export async function fetchPlaybooks() {
+  const res = await authFetch(`${API}/api/threat-response/playbooks`);
+  return res.json();
+}
+
+export async function fetchPlaybook(playbookId: string) {
+  const res = await authFetch(`${API}/api/threat-response/playbooks/${playbookId}`);
+  return res.json();
+}
+
+export async function togglePlaybookAutoExecute(playbookId: string, autoExecute: boolean) {
+  const res = await authFetch(`${API}/api/threat-response/playbooks/${playbookId}/toggle`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auto_execute: autoExecute }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Toggle failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function simulateThreatResponse(
+  playbookId: string,
+  sourceIp = '192.168.1.100',
+  targetIp = '10.0.0.1',
+  confidence = 0.95,
+) {
+  const res = await authFetch(`${API}/api/threat-response/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      playbook_id: playbookId,
+      source_ip: sourceIp,
+      target_ip: targetIp,
+      confidence,
+    }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Simulation failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchIncidents(limit = 50, severity?: string) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (severity) params.set('severity', severity);
+  const res = await authFetch(`${API}/api/threat-response/incidents?${params}`);
+  return res.json();
+}
+
+export async function fetchIncident(incidentId: string) {
+  const res = await authFetch(`${API}/api/threat-response/incidents/${incidentId}`);
+  return res.json();
+}
+
+export async function addIncidentNote(incidentId: string, note: string) {
+  const res = await authFetch(`${API}/api/threat-response/incidents/${incidentId}/note`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ note }),
+  });
+  return res.json();
+}
+
+export async function fetchSecurityIntegrations() {
+  const res = await authFetch(`${API}/api/threat-response/integrations`);
+  return res.json();
+}
+
+export async function fetchResponseMetrics() {
+  const res = await authFetch(`${API}/api/threat-response/response-metrics`);
+  return res.json();
+}
+
 // Sample/fallback data for offline mode
 export const SAMPLE_RESULTS = {
   job_id: 'demo',
