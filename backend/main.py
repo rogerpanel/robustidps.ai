@@ -20,6 +20,10 @@ Endpoints:
   GET    /api/audit/logs          Audit trail (admin)
   POST   /api/firewall/generate   Generate firewall rules
   POST   /api/models/benchmark    Quick benchmark across enabled models
+  POST   /api/redteam/run         Adversarial Red Team Arena
+  GET    /api/redteam/attacks     List available attacks
+  POST   /api/xai/run             Explainability Studio
+  POST   /api/federated/run       Federated Learning Simulator
 """
 
 import asyncio
@@ -64,6 +68,9 @@ from audit import AuditMiddleware, log_audit
 from firewall import router as firewall_router
 from copilot import router as copilot_router
 from continual import ContinualLearningEngine
+from redteam import run_arena, ATTACKS as REDTEAM_ATTACKS
+from explainability import run_explainability
+from federated import simulate_federated
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -1130,6 +1137,133 @@ async def continual_rollback(request: Request, user=Depends(require_auth)):
         "version": cl_engine.state.version,
         "message": f"Model rolled back to version {cl_engine.state.version}",
     }
+
+
+# ── Adversarial Red Team Arena ─────────────────────────────────────────────
+
+@app.get("/api/redteam/attacks")
+async def redteam_attacks():
+    """List available adversarial attacks."""
+    return {
+        "attacks": [
+            {"id": k, "label": v["label"], "needs_grad": v["needs_grad"]}
+            for k, v in REDTEAM_ATTACKS.items()
+        ],
+    }
+
+
+@app.post("/api/redteam/run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def redteam_run(
+    request: Request,
+    file: UploadFile = File(...),
+    attacks: str = Form(default="[]"),
+    epsilon: float = Form(default=0.1),
+    n_samples: int = Form(default=500),
+    model_name: str = Form(default=""),
+    user=Depends(require_auth),
+):
+    """Run adversarial red-team arena on uploaded dataset."""
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "redteam.csv")
+
+    selected = get_model(model_name if model_name else None)
+    attack_list = json.loads(attacks) if attacks and attacks != "[]" else None
+
+    result = run_arena(
+        selected, features,
+        labels=labels_encoded,
+        attacks=attack_list,
+        epsilon=epsilon,
+        n_samples=min(n_samples, MAX_ROWS),
+    )
+    result["model_used"] = model_name if model_name else active_model_id
+    result["dataset_format"] = fmt
+    logger.info("Red team arena by %s: %d attacks, eps=%.3f", user.email, len(result["attacks"]), epsilon)
+    return result
+
+
+# ── Explainability Studio ─────────────────────────────────────────────────
+
+@app.post("/api/xai/run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def xai_run(
+    request: Request,
+    file: UploadFile = File(...),
+    method: str = Form(default="all"),
+    n_samples: int = Form(default=200),
+    model_name: str = Form(default=""),
+    user=Depends(require_auth),
+):
+    """Run XAI analysis on uploaded dataset."""
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "xai.csv")
+
+    selected = get_model(model_name if model_name else None)
+    result = run_explainability(
+        selected, features,
+        labels=labels_encoded,
+        n_samples=min(n_samples, MAX_ROWS),
+        method=method,
+    )
+    result["model_used"] = model_name if model_name else active_model_id
+    result["dataset_format"] = fmt
+    logger.info("XAI analysis by %s: method=%s, %d samples", user.email, method, result["n_samples"])
+    return result
+
+
+# ── Federated Learning Simulator ──────────────────────────────────────────
+
+@app.post("/api/federated/run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def federated_run(
+    request: Request,
+    file: UploadFile = File(...),
+    n_nodes: int = Form(default=4),
+    rounds: int = Form(default=5),
+    local_epochs: int = Form(default=3),
+    lr: float = Form(default=0.0001),
+    strategy: str = Form(default="fedavg"),
+    dp_enabled: bool = Form(default=False),
+    dp_sigma: float = Form(default=0.01),
+    iid: bool = Form(default=True),
+    model_name: str = Form(default=""),
+    user=Depends(require_auth),
+):
+    """Run federated learning simulation on uploaded dataset."""
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "federated.csv")
+
+    selected = get_model(model_name if model_name else None)
+    result = simulate_federated(
+        selected, features,
+        labels=labels_encoded,
+        n_nodes=min(n_nodes, 6),
+        rounds=min(rounds, 20),
+        local_epochs=min(local_epochs, 10),
+        lr=lr,
+        strategy=strategy,
+        dp_enabled=dp_enabled,
+        dp_sigma=dp_sigma,
+        iid=iid,
+    )
+    result["model_used"] = model_name if model_name else active_model_id
+    result["dataset_format"] = fmt
+    logger.info("Federated sim by %s: %d nodes, %d rounds, strategy=%s",
+                user.email, n_nodes, rounds, strategy)
+    return result
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────

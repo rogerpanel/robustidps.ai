@@ -19,6 +19,9 @@ import {
   Sparkles,
   User,
   RefreshCw,
+  Swords,
+  Eye,
+  Network,
 } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import UploadPage from './pages/Upload'
@@ -30,11 +33,15 @@ import Models from './pages/Models'
 import About from './pages/About'
 import Copilot from './pages/Copilot'
 import ContinualLearning from './pages/ContinualLearning'
+import RedTeamArena from './pages/RedTeamArena'
+import ExplainabilityStudio from './pages/ExplainabilityStudio'
+import FederatedSimulator from './pages/FederatedSimulator'
 import AdminDashboard from './pages/AdminDashboard'
 import Login from './pages/Login'
 import { fetchHealth } from './utils/api'
 import { useAnalysis } from './hooks/useAnalysis'
 import { isAuthenticated, getUser, clearAuth, type AuthUser } from './utils/auth'
+import { resetAllSessions } from './utils/sessionReset'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -45,6 +52,9 @@ const NAV = [
   { to: '/ablation', label: 'Ablation Studio', icon: FlaskConical },
   { to: '/live', label: 'Live Monitor', icon: Radio },
   { to: '/continual', label: 'Continual Learning', icon: RefreshCw },
+  { to: '/redteam', label: 'Red Team Arena', icon: Swords },
+  { to: '/xai', label: 'Explainability', icon: Eye },
+  { to: '/federated', label: 'Federated Learning', icon: Network },
   { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
   { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
   { to: '/about', label: 'About', icon: Info },
@@ -55,7 +65,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authed, setAuthed] = useState(isAuthenticated())
   const [user, setUser] = useState<AuthUser | null>(getUser())
-  const { loading: analysisRunning } = useAnalysis()
+  const { loading: analysisRunning, clearResults } = useAnalysis()
   const location = useLocation()
 
   const handleLogin = () => {
@@ -64,7 +74,9 @@ export default function App() {
   }
 
   const handleLogout = () => {
-    clearAuth()
+    resetAllSessions()   // wipe all module-level stores + user-scoped localStorage
+    clearResults()        // flush AnalysisProvider context
+    clearAuth()           // remove token + user from localStorage
     setAuthed(false)
     setUser(null)
   }
@@ -236,6 +248,9 @@ export default function App() {
             <Route path="/ablation" element={<AblationStudio />} />
             <Route path="/live" element={<LiveMonitor />} />
             <Route path="/continual" element={<ContinualLearning />} />
+            <Route path="/redteam" element={<RedTeamArena />} />
+            <Route path="/xai" element={<ExplainabilityStudio />} />
+            <Route path="/federated" element={<FederatedSimulator />} />
             <Route path="/copilot" element={<Copilot />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/about" element={<About />} />

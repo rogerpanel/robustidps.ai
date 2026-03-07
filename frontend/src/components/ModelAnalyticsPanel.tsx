@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { Loader2, TrendingUp, Shield, Target, ScatterChart as ScatterIcon } from 'lucide-react'
 import { fetchAnalytics } from '../utils/api'
+import { registerSessionReset } from '../utils/sessionReset'
 
 const MODEL_COLORS: Record<string, string> = {
   surrogate: '#3B82F6',
@@ -33,6 +34,9 @@ const TABS: { key: Tab; label: string; icon: typeof TrendingUp }[] = [
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _cachedData: Record<string, any> | null = null
+
+// Register session reset so logout clears cached data
+registerSessionReset(() => { _cachedData = null })
 
 export default function ModelAnalyticsPanel({ compact }: { compact?: boolean }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

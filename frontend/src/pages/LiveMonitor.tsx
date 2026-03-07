@@ -6,6 +6,7 @@ import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import { uploadFile, connectStream } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
+import { registerSessionReset } from '../utils/sessionReset'
 
 interface FlowEvent {
   flow_id: number
@@ -106,6 +107,31 @@ const _store: {
 
 // Keep the WebSocket ref at module level so it survives remount
 let _wsRef: WebSocket | null = null
+
+// Register session reset so logout clears this user's data
+registerSessionReset(() => {
+  _store.jobId = null
+  _store.fileName = ''
+  _store.rate = 100
+  _store.events = []
+  _store.running = false
+  _store.done = false
+  _store.threatCount = 0
+  _store.benignCount = 0
+  _store.captureMode = 'file'
+  _store.iface = 'eth0'
+  _store.captureInterval = 30
+  _store.captureStatus = ''
+  _store.currentCycle = 0
+  _store.wsError = ''
+  _store.showComparison = false
+  _store.showSetup = false
+  _store.showAnalytics = false
+  _store.sentToUpload = false
+  _store.selectedModel = 'surrogate'
+  if (_wsRef) { try { _wsRef.close() } catch {} }
+  _wsRef = null
+})
 
 function wsBaseUrl(): string {
   const API = import.meta.env.VITE_API_URL || ''

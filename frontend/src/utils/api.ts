@@ -317,6 +317,90 @@ export async function rollbackModel() {
   return res.json();
 }
 
+// ── Adversarial Red Team Arena ───────────────────────────────────────────
+
+export async function fetchRedteamAttacks() {
+  const res = await fetch(`${API}/api/redteam/attacks`);
+  return res.json();
+}
+
+export async function runRedteam(
+  file: File,
+  attacks: string[] = [],
+  epsilon: number = 0.1,
+  nSamples: number = 500,
+  modelName: string = '',
+) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('attacks', JSON.stringify(attacks));
+  form.append('epsilon', String(epsilon));
+  form.append('n_samples', String(nSamples));
+  if (modelName) form.append('model_name', modelName);
+  const res = await authFetch(`${API}/api/redteam/run`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Red team failed (${res.status})`);
+  }
+  return res.json();
+}
+
+// ── Explainability Studio (XAI) ─────────────────────────────────────────
+
+export async function runXai(
+  file: File,
+  method: string = 'all',
+  nSamples: number = 200,
+  modelName: string = '',
+) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('method', method);
+  form.append('n_samples', String(nSamples));
+  if (modelName) form.append('model_name', modelName);
+  const res = await authFetch(`${API}/api/xai/run`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `XAI analysis failed (${res.status})`);
+  }
+  return res.json();
+}
+
+// ── Federated Learning Simulator ────────────────────────────────────────
+
+export async function runFederated(
+  file: File,
+  opts: {
+    nNodes?: number
+    rounds?: number
+    localEpochs?: number
+    lr?: number
+    strategy?: string
+    dpEnabled?: boolean
+    dpSigma?: number
+    iid?: boolean
+    modelName?: string
+  } = {},
+) {
+  const form = new FormData();
+  form.append('file', file);
+  if (opts.nNodes !== undefined) form.append('n_nodes', String(opts.nNodes));
+  if (opts.rounds !== undefined) form.append('rounds', String(opts.rounds));
+  if (opts.localEpochs !== undefined) form.append('local_epochs', String(opts.localEpochs));
+  if (opts.lr !== undefined) form.append('lr', String(opts.lr));
+  if (opts.strategy) form.append('strategy', opts.strategy);
+  if (opts.dpEnabled !== undefined) form.append('dp_enabled', String(opts.dpEnabled));
+  if (opts.dpSigma !== undefined) form.append('dp_sigma', String(opts.dpSigma));
+  if (opts.iid !== undefined) form.append('iid', String(opts.iid));
+  if (opts.modelName) form.append('model_name', opts.modelName);
+  const res = await authFetch(`${API}/api/federated/run`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Federated simulation failed (${res.status})`);
+  }
+  return res.json();
+}
+
 // Sample/fallback data for offline mode
 export const SAMPLE_RESULTS = {
   job_id: 'demo',

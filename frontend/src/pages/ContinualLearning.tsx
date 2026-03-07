@@ -8,6 +8,7 @@ import {
   fetchContinualStatus, triggerContinualUpdate,
   measureDrift, rollbackModel,
 } from '../utils/api'
+import { registerSessionReset } from '../utils/sessionReset'
 
 interface UpdateRecord {
   update_id: string
@@ -58,6 +59,20 @@ const _store: {
   status: null,
   statusLoaded: false,
 }
+
+// Register session reset so logout clears this user's data
+registerSessionReset(() => {
+  _store.updateFile = null
+  _store.driftFile = null
+  _store.epochs = 5
+  _store.lr = 0.0001
+  _store.ewcLambda = 5000
+  _store.updateResult = ''
+  _store.driftResult = null
+  _store.historyExpanded = false
+  _store.status = null
+  _store.statusLoaded = false
+})
 
 export default function ContinualLearning() {
   const [status, setStatus] = useState<CLStatus | null>(_store.status)

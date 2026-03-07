@@ -1,0 +1,41 @@
+/**
+ * Session reset registry — ensures all module-level state is cleared on logout.
+ *
+ * Modules with persistent (closure-scoped) stores register a reset callback here.
+ * When a user logs out, `resetAllSessions()` is called to wipe every registered
+ * store plus any user-scoped localStorage keys, preventing data leakage between
+ * different user sessions on the same browser.
+ */
+
+type ResetFn = () => void
+
+const _resetCallbacks: ResetFn[] = []
+
+/** Register a cleanup function to be called on logout / session reset. */
+export function registerSessionReset(fn: ResetFn): void {
+  if (!_resetCallbacks.includes(fn)) {
+    _resetCallbacks.push(fn)
+  }
+}
+
+/** Keys in localStorage that hold user-scoped data and must be cleared on logout. */
+const USER_SCOPED_KEYS = [
+  'robustidps_results',
+  'robustidps_job_id',
+  'robustidps_file_name',
+  'robustidps_source',
+  'robustidps_ablation',
+]
+
+/** Call every registered reset callback and clear user-scoped localStorage. */
+export function resetAllSessions(): void {
+  // 1. Invoke all registered module-level store resets
+  for (const fn of _resetCallbacks) {
+    try { fn() } catch { /* don't let one failure prevent others */ }
+  }
+
+  // 2. Clear user-scoped localStorage keys
+  for (const key of USER_SCOPED_KEYS) {
+    localStorage.removeItem(key)
+  }
+}
