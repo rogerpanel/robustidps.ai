@@ -84,12 +84,14 @@ export default function UploadPage() {
     string,
     { precision: number; recall: number; f1: number }
   >
-  const perClassData = Object.entries(perClass).map(([label, m]) => ({
-    label: label.length > 18 ? label.slice(0, 16) + '..' : label,
-    precision: +(m.precision * 100).toFixed(1),
-    recall: +(m.recall * 100).toFixed(1),
-    f1: +(m.f1 * 100).toFixed(1),
-  }))
+  const perClassData = Object.entries(perClass)
+    .filter(([, m]) => m != null)
+    .map(([label, m]) => ({
+      label: label.length > 18 ? label.slice(0, 16) + '..' : label,
+      precision: +((m.precision ?? 0) * 100).toFixed(1),
+      recall: +((m.recall ?? 0) * 100).toFixed(1),
+      f1: +((m.f1 ?? 0) * 100).toFixed(1),
+    }))
 
   return (
     <div className="space-y-6">

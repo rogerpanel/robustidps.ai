@@ -23,8 +23,8 @@ interface Props {
 export default function UncertaintyChart({ predictions, maxBars = 40 }: Props) {
   const data = predictions.slice(0, maxBars).map((p) => ({
     id: p.flow_id,
-    epi: +p.epistemic_uncertainty.toFixed(4),
-    ale: +p.aleatoric_uncertainty.toFixed(4),
+    epi: +(p.epistemic_uncertainty ?? 0).toFixed(4),
+    ale: +(p.aleatoric_uncertainty ?? 0).toFixed(4),
     label: p.label_predicted,
   }))
 

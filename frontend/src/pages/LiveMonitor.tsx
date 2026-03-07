@@ -78,6 +78,8 @@ const _store: {
   wsError: string
   showComparison: boolean
   showSetup: boolean
+  showAnalytics: boolean
+  sentToUpload: boolean
 } = {
   jobId: null,
   fileName: '',
@@ -95,6 +97,8 @@ const _store: {
   wsError: '',
   showComparison: false,
   showSetup: false,
+  showAnalytics: false,
+  sentToUpload: false,
 }
 
 // Keep the WebSocket ref at module level so it survives remount
@@ -124,8 +128,8 @@ export default function LiveMonitor() {
   const [wsError, _setWsError] = useState(_store.wsError)
   const [showComparison, _setShowComparison] = useState(_store.showComparison)
   const [showSetup, _setShowSetup] = useState(_store.showSetup)
-  const [showAnalytics, _setShowAnalytics] = useState(false)
-  const [sentToUpload, setSentToUpload] = useState(false)
+  const [showAnalytics, _setShowAnalytics] = useState(_store.showAnalytics)
+  const [sentToUpload, _setSentToUpload] = useState(_store.sentToUpload)
 
   const { setLiveResults } = useAnalysis()
 
@@ -158,7 +162,8 @@ export default function LiveMonitor() {
   const setWsError = (v: string) => { _store.wsError = v; _setWsError(v) }
   const setShowComparison = (v: boolean) => { _store.showComparison = v; _setShowComparison(v) }
   const setShowSetup = (v: boolean) => { _store.showSetup = v; _setShowSetup(v) }
-  const setShowAnalytics = (v: boolean) => { _setShowAnalytics(v) }
+  const setShowAnalytics = (v: boolean) => { _store.showAnalytics = v; _setShowAnalytics(v) }
+  const setSentToUpload = (v: boolean) => { _store.sentToUpload = v; _setSentToUpload(v) }
 
   // Computed analytics from events
   const analytics = useMemo(() => {
@@ -246,8 +251,12 @@ export default function LiveMonitor() {
         src_ip: ev.src_ip,
         dst_ip: ev.dst_ip,
         label_predicted: ev.label_predicted,
+        label_true: null,
         confidence: ev.confidence,
         severity: ev.severity,
+        epistemic_uncertainty: 1 - ev.confidence,
+        aleatoric_uncertainty: 0,
+        total_uncertainty: 1 - ev.confidence,
       })),
       dataset_info: {
         total_rows: events.length,
@@ -365,7 +374,8 @@ export default function LiveMonitor() {
     stopStream()
     setJobId(null); setFileName(''); setEvents([]); setThreatCount(0); setBenignCount(0)
     setDone(false); setCaptureStatus(''); setCurrentCycle(0); setWsError('')
-    setShowAnalytics(false); setSentToUpload(false)
+    setShowAnalytics(false)
+    setSentToUpload(false)
   }, [stopStream])
 
   // Do NOT close the WS on unmount — let it keep running while navigated away
