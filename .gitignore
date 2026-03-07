@@ -28,3 +28,6 @@ Thumbs.db
 
 # Scaler pickles are auto-generated per sklearn version — never commit
 backend/weights/scaler_*.pkl
+
+# Runtime SQLite database
+backend/*.db
