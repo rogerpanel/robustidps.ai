@@ -59,7 +59,7 @@ from fastapi import (
     Depends, HTTPException, Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -130,6 +130,20 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+# ── Request ID Middleware (security tracing) ────────────────────────────
+
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class RequestIdMiddleware(BaseHTTPMiddleware):
+    """Attach a unique request ID to every response for audit tracing."""
+    async def dispatch(self, request, call_next):
+        request_id = request.headers.get("X-Request-ID", uuid.uuid4().hex[:16])
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        return response
+
+app.add_middleware(RequestIdMiddleware)
 
 # ── Audit Middleware ──────────────────────────────────────────────────────
 
@@ -1162,6 +1176,21 @@ async def continual_rollback(request: Request, user=Depends(require_auth)):
         "version": cl_engine.state.version,
         "message": f"Model rolled back to version {cl_engine.state.version}",
     }
+
+
+# ── Sample Data ──────────────────────────────────────────────────────────
+
+@app.get("/api/sample-data")
+async def get_sample_data():
+    """Serve built-in CIC-IoT-2023 sample CSV for demo operations."""
+    sample_path = Path(__file__).parent / "sample_data" / "ciciot_sample.csv"
+    if not sample_path.exists():
+        raise HTTPException(404, "Sample data file not found")
+    return FileResponse(
+        sample_path,
+        media_type="text/csv",
+        filename="ciciot_sample.csv",
+    )
 
 
 # ── Adversarial Red Team Arena ─────────────────────────────────────────────

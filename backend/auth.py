@@ -9,6 +9,9 @@ Roles:
 
 import datetime
 import logging
+import re
+import time
+from collections import defaultdict
 from typing import Optional
 
 import bcrypt
@@ -27,6 +30,58 @@ logger = logging.getLogger("robustidps.auth")
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+# ── Brute-Force Protection ───────────────────────────────────────────────
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_SECONDS = 300  # 5-minute lockout
+_failed_attempts: dict[str, list[float]] = defaultdict(list)
+
+
+def _check_lockout(email: str) -> None:
+    """Raise 429 if the account has too many recent failed login attempts."""
+    now = time.time()
+    window = now - LOCKOUT_SECONDS
+    attempts = _failed_attempts.get(email, [])
+    # Prune old attempts outside the window
+    recent = [t for t in attempts if t > window]
+    _failed_attempts[email] = recent
+    if len(recent) >= MAX_FAILED_ATTEMPTS:
+        remaining = int(LOCKOUT_SECONDS - (now - recent[0]))
+        logger.warning("Account locked out: %s (%d failed attempts)", email, len(recent))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed login attempts. Try again in {remaining} seconds.",
+        )
+
+
+def _record_failed_attempt(email: str) -> None:
+    _failed_attempts[email].append(time.time())
+
+
+def _clear_failed_attempts(email: str) -> None:
+    _failed_attempts.pop(email, None)
+
+
+# ── Password Strength Validation ─────────────────────────────────────────
+
+def validate_password_strength(password: str) -> None:
+    """Enforce minimum password complexity requirements."""
+    errors = []
+    if len(password) < 8:
+        errors.append("at least 8 characters")
+    if not re.search(r"[A-Z]", password):
+        errors.append("one uppercase letter")
+    if not re.search(r"[a-z]", password):
+        errors.append("one lowercase letter")
+    if not re.search(r"\d", password):
+        errors.append("one digit")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        errors.append("one special character")
+    if errors:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Password too weak. Requires: {', '.join(errors)}.",
+        )
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────
@@ -151,8 +206,7 @@ def register(body: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    if len(body.password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    validate_password_strength(body.password)
 
     user_count = db.execute(select(func.count(User.id))).scalar()
     is_first = user_count == 0
@@ -177,13 +231,17 @@ def register(body: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Login with email + password, returns JWT."""
+    _check_lockout(form.username)
+
     user = db.execute(select(User).where(User.email == form.username)).scalar_one_or_none()
     if not user or not verify_password(form.password, user.password_hash):
+        _record_failed_attempt(form.username)
         logger.warning("Failed login attempt: %s", form.username)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
 
+    _clear_failed_attempts(form.username)
     user.last_login = datetime.datetime.utcnow()
     db.commit()
 
@@ -235,8 +293,7 @@ def reset_password(
     db: Session = Depends(get_db),
 ):
     """Reset a user's password (admin only)."""
-    if len(new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    validate_password_strength(new_password)
     target = db.get(User, user_id)
     if not target:
         raise HTTPException(status_code=404, detail="User not found")

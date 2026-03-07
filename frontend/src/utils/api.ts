@@ -185,6 +185,15 @@ export async function exportResults(jobId: string) {
   URL.revokeObjectURL(url);
 }
 
+// ── Sample Data ─────────────────────────────────────────────────────────
+
+export async function fetchSampleData(): Promise<File> {
+  const res = await fetch(`${API}/api/sample-data`);
+  if (!res.ok) throw new Error('Failed to fetch sample data');
+  const blob = await res.blob();
+  return new File([blob], 'ciciot_sample.csv', { type: 'text/csv' });
+}
+
 // ── Firewall rule generation ─────────────────────────────────────────────
 
 export async function generateFirewallRules(

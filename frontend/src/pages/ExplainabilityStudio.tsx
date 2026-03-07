@@ -10,7 +10,7 @@ import {
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
-import { runXai } from '../utils/api'
+import { runXai, fetchSampleData } from '../utils/api'
 
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
@@ -135,6 +135,17 @@ export default function ExplainabilityStudio() {
               label="Upload traffic dataset"
               accept=".csv,.parquet"
             />
+            <button
+              onClick={async () => {
+                try {
+                  const f = await fetchSampleData()
+                  setFile(f)
+                } catch { setError('Failed to load demo data') }
+              }}
+              className="text-xs text-accent-purple hover:text-accent-purple/80 underline"
+            >
+              or use built-in demo data (1000 flows)
+            </button>
             {file && (
               <div className="text-xs text-text-secondary flex items-center gap-1">
                 <Upload className="w-3 h-3" /> {file.name}

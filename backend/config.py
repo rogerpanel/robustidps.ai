@@ -24,7 +24,7 @@ CORS_ORIGINS = [
     o.strip()
     for o in os.getenv(
         "CORS_ORIGINS",
-        "https://robustidps.ai,http://localhost:3000,http://localhost:5173",
+        "https://robustidps.ai,http://localhost:3000,http://localhost:5173,https://37.27.31.70,http://37.27.31.70",
     ).split(",")
 ]
 RATE_LIMIT_DEFAULT = os.getenv("RATE_LIMIT_DEFAULT", "100/minute")
