@@ -91,6 +91,7 @@ from federated import simulate_federated
 from pq_crypto import router as pq_router
 from zerotrust import router as zerotrust_router
 from threat_response import router as threat_response_router
+from supply_chain import router as supply_chain_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -155,6 +156,7 @@ app.include_router(copilot_router)
 app.include_router(pq_router)
 app.include_router(zerotrust_router)
 app.include_router(threat_response_router)
+app.include_router(supply_chain_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 

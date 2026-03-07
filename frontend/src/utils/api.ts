@@ -582,6 +582,60 @@ export async function fetchResponseMetrics() {
   return res.json();
 }
 
+// ── Model Supply Chain Security ──────────────────────────────────────────
+
+export async function fetchSupplyChainOverview() {
+  const res = await authFetch(`${API}/api/supply-chain/overview`);
+  return res.json();
+}
+
+export async function fetchSupplyChainModels() {
+  const res = await authFetch(`${API}/api/supply-chain/models`);
+  return res.json();
+}
+
+export async function fetchPipelineChecks() {
+  const res = await authFetch(`${API}/api/supply-chain/pipeline-checks`);
+  return res.json();
+}
+
+export async function fetchVulnerabilities() {
+  const res = await authFetch(`${API}/api/supply-chain/vulnerabilities`);
+  return res.json();
+}
+
+export async function fetchRiskMatrix() {
+  const res = await authFetch(`${API}/api/supply-chain/risk-matrix`);
+  return res.json();
+}
+
+export async function runSupplyChainScan(modelId = 'all', scanType = 'full') {
+  const res = await authFetch(`${API}/api/supply-chain/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model_id: modelId, scan_type: scanType }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `Scan failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchModelSbom(modelId: string, format = 'cyclonedx') {
+  const res = await authFetch(`${API}/api/supply-chain/models/${modelId}/sbom?format=${encodeURIComponent(format)}`);
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || `SBOM generation failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchScanHistory(limit = 20) {
+  const res = await authFetch(`${API}/api/supply-chain/scan-history?limit=${limit}`);
+  return res.json();
+}
+
 // Sample/fallback data for offline mode
 export const SAMPLE_RESULTS = {
   job_id: 'demo',
