@@ -594,7 +594,7 @@ function ROCSection({ data, models, names }: { data: any; models: string[]; name
                 </tr>
               </thead>
               <tbody>
-                {models.slice(0, 3).map((mid) => (
+                {models.map((mid) => (
                   (tl[mid] as number[][])?.map((row: number[], ri: number) => (
                     <tr key={`${mid}-${ri}`} className={`border-t border-bg-card/30 ${ri === 0 ? 'border-t-bg-card' : ''}`}>
                       {ri === 0 && (

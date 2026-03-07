@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import FileUpload from '../components/FileUpload'
 import ThreatTable from '../components/ThreatTable'
 import UncertaintyChart from '../components/UncertaintyChart'
@@ -6,9 +7,10 @@ import ConfusionMatrix from '../components/ConfusionMatrix'
 import ModelSelector from '../components/ModelSelector'
 import ModelAnalyticsPanel from '../components/ModelAnalyticsPanel'
 import { useAnalysis } from '../hooks/useAnalysis'
+import { useAblation } from '../hooks/useAblation'
 import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
+import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical, ToggleRight, ToggleLeft, TrendingDown } from 'lucide-react'
 
 interface DatasetInfo {
   total_rows: number
@@ -61,13 +63,33 @@ function DatasetSummary({ info, fileName }: { info: DatasetInfo; fileName: strin
   )
 }
 
+const BRANCH_NAMES = [
+  'CT-TGNN (Neural ODE)',
+  'TripleE-TGNN (Multi-scale)',
+  'FedLLM-API (Zero-shot)',
+  'PQ-IDPS (Post-quantum)',
+  'MambaShield (State-space)',
+  'Stochastic Transformer',
+  'Game-Theoretic Defence',
+]
+
 export default function UploadPage() {
+  const navigate = useNavigate()
+  const ablation = useAblation()
   const [mcPasses, setMcPasses] = useState(20)
-  const [selectedModel, setSelectedModel] = useState('surrogate')
+  const [selectedModel, setSelectedModel] = useState(ablation.selectedModel || 'surrogate')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showModelAnalytics, setShowModelAnalytics] = useState(true)
+  const [showAblation, setShowAblation] = useState(true)
   const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
+
+  // Sync model selection from Ablation Studio
+  useEffect(() => {
+    if (ablation.selectedModel && ablation.selectedModel !== selectedModel) {
+      setSelectedModel(ablation.selectedModel)
+    }
+  }, [ablation.selectedModel]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpload = (file: File) => {
     runAnalysis(file, mcPasses, selectedModel)
@@ -115,26 +137,99 @@ export default function UploadPage() {
           <FileUpload onFileSelect={handleUpload} loading={loading} />
         </div>
 
-        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
-          <h3 className="text-sm font-medium text-text-secondary">Settings</h3>
-          <ModelSelector value={selectedModel} onChange={setSelectedModel} compact />
-          <div>
-            <label className="text-xs text-text-secondary block mb-1">
-              MC Dropout Passes: {mcPasses}
-            </label>
-            <input
-              type="range"
-              min={5}
-              max={100}
-              value={mcPasses}
-              onChange={(e) => setMcPasses(+e.target.value)}
-              className="w-full accent-accent-blue"
-            />
-            <div className="flex justify-between text-xs text-text-secondary">
-              <span>5 (fast)</span>
-              <span>100 (precise)</span>
+        <div className="space-y-4">
+          <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
+            <h3 className="text-sm font-medium text-text-secondary">Settings</h3>
+            <ModelSelector value={selectedModel} onChange={(v) => { setSelectedModel(v); ablation.setSelectedModel(v) }} compact />
+            <div>
+              <label className="text-xs text-text-secondary block mb-1">
+                MC Dropout Passes: {mcPasses}
+              </label>
+              <input
+                type="range"
+                min={5}
+                max={100}
+                value={mcPasses}
+                onChange={(e) => setMcPasses(+e.target.value)}
+                className="w-full accent-accent-blue"
+              />
+              <div className="flex justify-between text-xs text-text-secondary">
+                <span>5 (fast)</span>
+                <span>100 (precise)</span>
+              </div>
             </div>
           </div>
+
+          {/* Ablation Configuration Card */}
+          {ablation.data && (
+            <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+              <button
+                onClick={() => setShowAblation(!showAblation)}
+                className="w-full flex items-center justify-between text-xs font-medium text-text-secondary"
+              >
+                <span className="flex items-center gap-1.5">
+                  <FlaskConical className="w-3.5 h-3.5 text-accent-blue" />
+                  Ablation Configuration
+                </span>
+                {showAblation ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+              {showAblation && (
+                <div className="mt-3 space-y-2">
+                  {/* Branch toggles compact */}
+                  <div className="grid grid-cols-1 gap-1">
+                    {BRANCH_NAMES.map((name, i) => (
+                      <div key={i} className={`flex items-center gap-2 px-2 py-1 rounded text-[10px] ${
+                        ablation.enabled[i]
+                          ? 'text-accent-green bg-accent-green/5'
+                          : 'text-accent-red/60 bg-accent-red/5 line-through'
+                      }`}>
+                        {ablation.enabled[i] ? <ToggleRight className="w-3 h-3 shrink-0" /> : <ToggleLeft className="w-3 h-3 shrink-0" />}
+                        <span className="font-mono opacity-60">M{i + 1}</span>
+                        <span className="truncate">{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Key stats */}
+                  {ablation.data.ablation?.['Full System'] && (
+                    <div className="pt-2 border-t border-bg-card space-y-1.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-text-secondary">Full Ensemble</span>
+                        <span className="font-mono text-accent-blue font-semibold">
+                          {(ablation.data.ablation['Full System'].accuracy * 100).toFixed(2)}%
+                        </span>
+                      </div>
+                      {(() => {
+                        const entries = Object.entries(ablation.data.ablation)
+                          .filter(([k]) => k !== 'Full System' && k !== 'Custom')
+                        const most = entries.sort((a, b) => b[1].accuracy_drop - a[1].accuracy_drop)[0]
+                        if (!most) return null
+                        return (
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-text-secondary flex items-center gap-1">
+                              <TrendingDown className="w-2.5 h-2.5 text-accent-red" />
+                              Most impactful
+                            </span>
+                            <span className="font-mono text-accent-red">
+                              {most[0].split('(')[0].trim()} (-{(most[1].accuracy_drop * 100).toFixed(1)}%)
+                            </span>
+                          </div>
+                        )
+                      })()}
+                      <div className="text-[9px] text-text-secondary/50">
+                        {ablation.enabled.filter(v => !v).length > 0
+                          ? `${ablation.enabled.filter(v => !v).length} branch(es) disabled`
+                          : 'All branches active'}
+                        {' · '}
+                        <span className="text-accent-blue cursor-pointer hover:underline" onClick={() => navigate('/ablation')}>
+                          Edit in Ablation Studio
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
