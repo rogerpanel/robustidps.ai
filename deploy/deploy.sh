@@ -11,8 +11,31 @@ APP_DIR="/home/robustidps/robustidps.ai"
 
 echo "=== Deploying to ${SERVER_IP} ==="
 
-echo "[0/6] Generating SSL certificate (if needed)..."
-bash "$(dirname "$0")/generate-ssl.sh"
+echo "[0/6] Checking SSL certificates..."
+SSL_DIR="$(dirname "$0")/ssl"
+if [ ! -f "$SSL_DIR/origin.crt" ] || [ ! -f "$SSL_DIR/origin.key" ]; then
+    echo ""
+    echo "ERROR: SSL certificates not found!"
+    echo ""
+    echo "Please set up Cloudflare Origin CA certificates first:"
+    echo "  1. Go to Cloudflare Dashboard → SSL/TLS → Origin Server"
+    echo "  2. Click 'Create Certificate'"
+    echo "  3. Save certificate to: $SSL_DIR/origin.crt"
+    echo "  4. Save private key to: $SSL_DIR/origin.key"
+    echo ""
+    echo "Or for quick testing (shows browser warnings):"
+    echo "  ./deploy/generate-ssl.sh --self-signed"
+    echo ""
+    exit 1
+fi
+echo "SSL certificates found."
+# Verify certificate details
+if openssl x509 -in "$SSL_DIR/origin.crt" -noout -issuer 2>/dev/null | grep -qi "cloudflare"; then
+    echo "  ✓ Cloudflare Origin CA certificate detected (recommended)"
+else
+    echo "  ⚠ Self-signed certificate detected — browsers may show warnings"
+    echo "    Consider upgrading to Cloudflare Origin CA (see deploy/generate-ssl.sh)"
+fi
 
 echo "[1/6] Syncing project files..."
 rsync -avz --progress \
