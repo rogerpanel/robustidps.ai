@@ -1185,6 +1185,9 @@ async def get_sample_data():
     """Serve built-in CIC-IoT-2023 sample CSV for demo operations."""
     sample_path = Path(__file__).parent / "sample_data" / "ciciot_sample.csv"
     if not sample_path.exists():
+        # Also check project root (sample_data/ may sit alongside backend/)
+        sample_path = Path(__file__).parent.parent / "sample_data" / "ciciot_sample.csv"
+    if not sample_path.exists():
         raise HTTPException(404, "Sample data file not found")
     return FileResponse(
         sample_path,
@@ -1298,10 +1301,16 @@ async def federated_run(
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "federated.csv")
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "federated.csv"
+    )
 
     selected = get_model(model_name if model_name else None)
-    result = simulate_federated(
+
+    # Run CPU-heavy simulation off the event loop to avoid blocking
+    # and causing browser "NetworkError" from stalled connection
+    result = await asyncio.to_thread(
+        simulate_federated,
         selected, features,
         labels=labels_encoded,
         n_nodes=min(n_nodes, 6),
