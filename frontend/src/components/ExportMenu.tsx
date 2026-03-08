@@ -7,8 +7,10 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Download, Image, FileText, Presentation, Loader2 } from 'lucide-react'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
+
+// Lazy-load heavy export libs (~18 MB) — only fetched when user clicks export
+const loadHtml2Canvas = () => import('html2canvas').then(m => m.default)
+const loadJsPDF = () => import('jspdf').then(m => m.default)
 
 interface ExportMenuProps {
   /** CSS selector or ref to the container element to capture */
@@ -39,6 +41,7 @@ export default function ExportMenu({ targetSelector = '.space-y-6', filename = '
   const captureCanvas = async (): Promise<HTMLCanvasElement | null> => {
     const el = getTarget()
     if (!el) return null
+    const html2canvas = await loadHtml2Canvas()
     return html2canvas(el, {
       backgroundColor: '#0F172A',
       scale: 2,
@@ -70,7 +73,8 @@ export default function ExportMenu({ targetSelector = '.space-y-6', filename = '
 
       const imgData = canvas.toDataURL('image/png')
       const orientation = landscape ? 'l' : 'p'
-      const pdf = new jsPDF(orientation, 'mm', 'a4')
+      const JsPDF = await loadJsPDF()
+      const pdf = new JsPDF(orientation, 'mm', 'a4')
       const pageW = pdf.internal.pageSize.getWidth()
       const pageH = pdf.internal.pageSize.getHeight()
 

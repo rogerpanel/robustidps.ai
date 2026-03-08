@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import {
   LayoutDashboard,
   Upload,
@@ -27,25 +27,27 @@ import {
   Crosshair,
   Package,
 } from 'lucide-react'
-import Dashboard from './pages/Dashboard'
-import UploadPage from './pages/Upload'
-import Analytics from './pages/Analytics'
-import Datasets from './pages/Datasets'
-import AblationStudio from './pages/AblationStudio'
-import LiveMonitor from './pages/LiveMonitor'
-import Models from './pages/Models'
-import About from './pages/About'
-import Copilot from './pages/Copilot'
-import ContinualLearning from './pages/ContinualLearning'
-import RedTeamArena from './pages/RedTeamArena'
-import ExplainabilityStudio from './pages/ExplainabilityStudio'
-import FederatedSimulator from './pages/FederatedSimulator'
-import PQCryptography from './pages/PQCryptography'
-import ZeroTrustGovernance from './pages/ZeroTrustGovernance'
-import ThreatResponse from './pages/ThreatResponse'
-import ModelSupplyChain from './pages/ModelSupplyChain'
-import AdminDashboard from './pages/AdminDashboard'
-import Login from './pages/Login'
+
+// ── Lazy-loaded page components (route-based code splitting) ─────────────
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const UploadPage = lazy(() => import('./pages/Upload'))
+const Analytics = lazy(() => import('./pages/Analytics'))
+const Datasets = lazy(() => import('./pages/Datasets'))
+const AblationStudio = lazy(() => import('./pages/AblationStudio'))
+const LiveMonitor = lazy(() => import('./pages/LiveMonitor'))
+const Models = lazy(() => import('./pages/Models'))
+const About = lazy(() => import('./pages/About'))
+const Copilot = lazy(() => import('./pages/Copilot'))
+const ContinualLearning = lazy(() => import('./pages/ContinualLearning'))
+const RedTeamArena = lazy(() => import('./pages/RedTeamArena'))
+const ExplainabilityStudio = lazy(() => import('./pages/ExplainabilityStudio'))
+const FederatedSimulator = lazy(() => import('./pages/FederatedSimulator'))
+const PQCryptography = lazy(() => import('./pages/PQCryptography'))
+const ZeroTrustGovernance = lazy(() => import('./pages/ZeroTrustGovernance'))
+const ThreatResponse = lazy(() => import('./pages/ThreatResponse'))
+const ModelSupplyChain = lazy(() => import('./pages/ModelSupplyChain'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const Login = lazy(() => import('./pages/Login'))
 import { fetchHealth } from './utils/api'
 import { useAnalysis } from './hooks/useAnalysis'
 import { isAuthenticated, getUser, clearAuth, type AuthUser } from './utils/auth'
@@ -112,7 +114,15 @@ export default function App() {
 
   // Show login page if not authenticated
   if (!authed) {
-    return <Login onLogin={handleLogin} />
+    return (
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-screen bg-bg-primary">
+          <Loader2 className="w-6 h-6 animate-spin text-accent-blue" />
+        </div>
+      }>
+        <Login onLogin={handleLogin} />
+      </Suspense>
+    )
   }
 
   const sidebarContent = (
@@ -251,26 +261,33 @@ export default function App() {
               Backend offline — showing cached / sample data
             </div>
           )}
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/upload" element={<UploadPage />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/datasets" element={<Datasets />} />
-            <Route path="/models" element={<Models />} />
-            <Route path="/ablation" element={<AblationStudio />} />
-            <Route path="/live" element={<LiveMonitor />} />
-            <Route path="/continual" element={<ContinualLearning />} />
-            <Route path="/redteam" element={<RedTeamArena />} />
-            <Route path="/xai" element={<ExplainabilityStudio />} />
-            <Route path="/federated" element={<FederatedSimulator />} />
-            <Route path="/pq-crypto" element={<PQCryptography />} />
-            <Route path="/zero-trust" element={<ZeroTrustGovernance />} />
-            <Route path="/threat-response" element={<ThreatResponse />} />
-            <Route path="/supply-chain" element={<ModelSupplyChain />} />
-            <Route path="/copilot" element={<Copilot />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/about" element={<About />} />
-          </Routes>
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="w-6 h-6 animate-spin text-accent-blue" />
+              <span className="ml-2 text-text-secondary text-sm">Loading...</span>
+            </div>
+          }>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/upload" element={<UploadPage />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/datasets" element={<Datasets />} />
+              <Route path="/models" element={<Models />} />
+              <Route path="/ablation" element={<AblationStudio />} />
+              <Route path="/live" element={<LiveMonitor />} />
+              <Route path="/continual" element={<ContinualLearning />} />
+              <Route path="/redteam" element={<RedTeamArena />} />
+              <Route path="/xai" element={<ExplainabilityStudio />} />
+              <Route path="/federated" element={<FederatedSimulator />} />
+              <Route path="/pq-crypto" element={<PQCryptography />} />
+              <Route path="/zero-trust" element={<ZeroTrustGovernance />} />
+              <Route path="/threat-response" element={<ThreatResponse />} />
+              <Route path="/supply-chain" element={<ModelSupplyChain />} />
+              <Route path="/copilot" element={<Copilot />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/about" element={<About />} />
+            </Routes>
+          </Suspense>
         </div>
       </main>
     </div>
