@@ -21,6 +21,7 @@ const STRATEGY_OPTS = [
   { id: 'fedavg', label: 'FedAvg', desc: 'Federated Averaging — equal weight aggregation' },
   { id: 'fedprox', label: 'FedProx', desc: 'Proximal regularisation to prevent local drift' },
   { id: 'weighted', label: 'Weighted', desc: 'Weight by dataset size per node' },
+  { id: 'fedgtd', label: 'FedGTD', desc: 'Graph Temporal Dynamics — similarity-graph + temporal momentum aggregation' },
 ]
 
 interface NodeResult {

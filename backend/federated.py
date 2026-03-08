@@ -4,7 +4,8 @@ Federated Learning Simulator — backend engine
 
 Simulates privacy-preserving federated learning across multiple virtual
 organisations (nodes). Each node trains on a local data partition, then
-model updates are aggregated using FedAvg, FedProx, or Weighted strategies.
+model updates are aggregated using FedAvg, FedProx, Weighted, or
+FedGTD (Federated Graph Temporal Dynamics) strategies.
 
 Optional differential privacy (noise injection) is applied to weight
 updates before aggregation.
@@ -53,6 +54,109 @@ def fedprox_loss(model: nn.Module, global_model: nn.Module, mu: float = 0.01) ->
     return (mu / 2) * proximal
 
 
+def _flatten_params(model: nn.Module) -> torch.Tensor:
+    """Flatten all model parameters into a single 1-D tensor."""
+    return torch.cat([p.detach().float().reshape(-1) for p in model.parameters()])
+
+
+def fedgtd(
+    global_model: nn.Module,
+    node_models: list[nn.Module],
+    round_num: int,
+    total_rounds: int,
+    prev_weights: list[float] | None = None,
+    alpha: float = 0.6,
+    beta: float = 0.3,
+) -> tuple[dict, list[float]]:
+    """
+    Federated Graph Temporal Dynamics (FedGTD) aggregation.
+
+    Combines two signals to compute per-node aggregation weights:
+
+    1. **Graph similarity** — builds a pairwise cosine-similarity graph over
+       each node's gradient update (delta from global).  Nodes whose updates
+       are more aligned with the majority receive higher weight, suppressing
+       outliers / potentially poisoned nodes.
+
+    2. **Temporal momentum** — blends in the previous round's weights with
+       exponential decay so that consistently good contributors accumulate
+       influence while transient anomalies are dampened.
+
+    Parameters
+    ----------
+    global_model : nn.Module
+        The current global model before this round's aggregation.
+    node_models : list[nn.Module]
+        The locally-trained models from each node.
+    round_num : int
+        Current round number (1-indexed).
+    total_rounds : int
+        Total number of rounds (used to anneal temporal factor).
+    prev_weights : list[float] | None
+        Aggregation weights from the previous round (None for round 1).
+    alpha : float
+        Weight given to graph-similarity component vs. uniform baseline.
+    beta : float
+        Temporal momentum factor (0 = no memory, 1 = full memory).
+
+    Returns
+    -------
+    agg_state : dict
+        Aggregated state dict for the global model.
+    weights : list[float]
+        Final normalised weights (to feed as prev_weights next round).
+    """
+    n = len(node_models)
+
+    # ── 1. Compute gradient-update vectors ────────────────────────────────
+    global_flat = _flatten_params(global_model)
+    deltas = [_flatten_params(m) - global_flat for m in node_models]
+
+    # ── 2. Build cosine-similarity graph ──────────────────────────────────
+    #    sim[i] = mean similarity of node i to all other nodes
+    delta_stack = torch.stack(deltas)                       # (n, D)
+    norms = delta_stack.norm(dim=1, keepdim=True).clamp(min=1e-8)
+    normed = delta_stack / norms                            # unit vectors
+    sim_matrix = normed @ normed.T                          # (n, n) cosine sim
+    # Zero out self-similarity, average over neighbours
+    sim_matrix.fill_diagonal_(0.0)
+    graph_scores = sim_matrix.mean(dim=1)                   # (n,)
+    # Shift to non-negative and normalise
+    graph_scores = graph_scores - graph_scores.min()
+    gs_sum = graph_scores.sum()
+    if gs_sum > 0:
+        graph_weights = (graph_scores / gs_sum).tolist()
+    else:
+        graph_weights = [1.0 / n] * n
+
+    # ── 3. Blend with uniform baseline (alpha controls strength) ──────────
+    blended = [(1.0 - alpha) * (1.0 / n) + alpha * gw for gw in graph_weights]
+
+    # ── 4. Temporal momentum — anneal beta over rounds ────────────────────
+    #    Early rounds rely more on graph signal; later rounds accumulate
+    decay = beta * (1.0 - (round_num - 1) / max(total_rounds, 1))
+    if prev_weights is not None and len(prev_weights) == n:
+        final = [(1.0 - decay) * b + decay * pw
+                 for b, pw in zip(blended, prev_weights)]
+    else:
+        final = blended
+
+    # Normalise
+    total = sum(final)
+    final = [w / total for w in final]
+
+    # ── 5. Weighted aggregation using computed weights ────────────────────
+    global_state = global_model.state_dict()
+    agg_state = {}
+    for key in global_state:
+        agg_state[key] = sum(
+            final[i] * node_models[i].state_dict()[key].float()
+            for i in range(n)
+        ).to(global_state[key].dtype)
+
+    return agg_state, final
+
+
 # ── Differential privacy ─────────────────────────────────────────────────
 
 def add_dp_noise(local_state: dict, global_state: dict,
@@ -94,7 +198,7 @@ def simulate_federated(
     rounds: int = 5,
     local_epochs: int = 3,
     lr: float = 0.0001,
-    strategy: str = "fedavg",  # fedavg | fedprox | weighted
+    strategy: str = "fedavg",  # fedavg | fedprox | weighted | fedgtd
     dp_enabled: bool = False,
     dp_sigma: float = 0.01,
     dp_clip: float = 1.0,
@@ -154,6 +258,7 @@ def simulate_federated(
         base_acc = (base_logits.argmax(-1) == labels).float().mean().item()
 
     round_history = []
+    prev_gtd_weights: list[float] | None = None   # FedGTD temporal state
     t0 = time.perf_counter()
 
     # ── Federated rounds ──────────────────────────────────────────────────
@@ -214,7 +319,13 @@ def simulate_federated(
             })
 
         # ── Aggregate ─────────────────────────────────────────────────────
-        if strategy == "weighted":
+        if strategy == "fedgtd":
+            agg_state, prev_gtd_weights = fedgtd(
+                global_model, node_models,
+                round_num=rnd, total_rounds=rounds,
+                prev_weights=prev_gtd_weights,
+            )
+        elif strategy == "weighted":
             agg_state = fedavg(global_model, node_models, weights=node_weights)
         else:
             agg_state = fedavg(global_model, node_models)
