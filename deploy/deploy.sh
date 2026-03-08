@@ -11,8 +11,10 @@ APP_DIR="/home/robustidps/robustidps.ai"
 
 echo "=== Deploying to ${SERVER_IP} ==="
 
-echo "[0/6] Checking SSL certificates..."
+# ── Step 0: Validate SSL certificates locally ───────────────
+echo "[0/7] Validating SSL certificates..."
 SSL_DIR="$(dirname "$0")/ssl"
+
 if [ ! -f "$SSL_DIR/origin.crt" ] || [ ! -f "$SSL_DIR/origin.key" ]; then
     echo ""
     echo "ERROR: SSL certificates not found!"
@@ -25,19 +27,65 @@ if [ ! -f "$SSL_DIR/origin.crt" ] || [ ! -f "$SSL_DIR/origin.key" ]; then
     echo ""
     echo "Or for quick testing (shows browser warnings):"
     echo "  ./deploy/generate-ssl.sh --self-signed"
-    echo ""
     exit 1
 fi
-echo "SSL certificates found."
-# Verify certificate details
-if openssl x509 -in "$SSL_DIR/origin.crt" -noout -issuer 2>/dev/null | grep -qi "cloudflare"; then
-    echo "  ✓ Cloudflare Origin CA certificate detected (recommended)"
-else
-    echo "  ⚠ Self-signed certificate detected — browsers may show warnings"
-    echo "    Consider upgrading to Cloudflare Origin CA (see deploy/generate-ssl.sh)"
+
+# Validate certificate format
+if ! openssl x509 -in "$SSL_DIR/origin.crt" -noout 2>/dev/null; then
+    echo "ERROR: $SSL_DIR/origin.crt is not a valid PEM certificate!"
+    echo ""
+    echo "Make sure the file starts with '-----BEGIN CERTIFICATE-----'"
+    echo "and ends with '-----END CERTIFICATE-----'"
+    echo "with no extra whitespace or characters."
+    exit 1
 fi
 
-echo "[1/6] Syncing project files..."
+# Validate private key format
+if ! openssl rsa -in "$SSL_DIR/origin.key" -check -noout 2>/dev/null && \
+   ! openssl ec -in "$SSL_DIR/origin.key" -check -noout 2>/dev/null; then
+    echo "ERROR: $SSL_DIR/origin.key is not a valid PEM private key!"
+    echo ""
+    echo "Make sure the file starts with '-----BEGIN PRIVATE KEY-----'"
+    echo "or '-----BEGIN RSA PRIVATE KEY-----'"
+    echo "with no extra whitespace or characters."
+    exit 1
+fi
+
+# Verify cert matches key
+CERT_MOD=$(openssl x509 -in "$SSL_DIR/origin.crt" -modulus -noout 2>/dev/null | openssl md5)
+KEY_MOD=$(openssl rsa -in "$SSL_DIR/origin.key" -modulus -noout 2>/dev/null | openssl md5)
+if [ "$CERT_MOD" != "$KEY_MOD" ]; then
+    echo "ERROR: Certificate and private key do not match!"
+    echo "  The origin.crt and origin.key must be from the same keypair."
+    exit 1
+fi
+
+# Check certificate details
+ISSUER=$(openssl x509 -in "$SSL_DIR/origin.crt" -noout -issuer 2>/dev/null)
+SUBJECT=$(openssl x509 -in "$SSL_DIR/origin.crt" -noout -subject 2>/dev/null)
+EXPIRY=$(openssl x509 -in "$SSL_DIR/origin.crt" -noout -enddate 2>/dev/null)
+
+if echo "$ISSUER" | grep -qi "cloudflare"; then
+    echo "  ✓ Cloudflare Origin CA certificate detected"
+else
+    echo "  ⚠ Non-Cloudflare certificate detected (self-signed or other CA)"
+    echo "    $ISSUER"
+    echo "    For Full (Strict) mode, use Cloudflare Origin CA certificates."
+fi
+echo "  Subject: $SUBJECT"
+echo "  Expires: $EXPIRY"
+
+# Verify hostname in certificate
+if ! openssl x509 -in "$SSL_DIR/origin.crt" -noout -text 2>/dev/null | grep -q "robustidps.ai"; then
+    echo "  ⚠ WARNING: Certificate may not cover robustidps.ai"
+    echo "    SANs in certificate:"
+    openssl x509 -in "$SSL_DIR/origin.crt" -noout -text 2>/dev/null | grep -A1 "Subject Alternative Name" || echo "    (none found)"
+fi
+
+echo "  ✓ Certificate and key are valid and match"
+
+# ── Step 1: Sync files ──────────────────────────────────────
+echo "[1/7] Syncing project files..."
 rsync -avz --progress \
     --exclude 'node_modules' \
     --exclude '.git' \
@@ -48,7 +96,8 @@ rsync -avz --progress \
     --exclude '.env' \
     ./ "${SSH_USER}@${SERVER_IP}:${APP_DIR}/"
 
-echo "[2/6] Ensuring .env exists on server..."
+# ── Step 2: Environment setup ───────────────────────────────
+echo "[2/7] Ensuring .env exists on server..."
 ssh "${SSH_USER}@${SERVER_IP}" bash -s <<'REMOTE_SCRIPT'
 cd /home/robustidps/robustidps.ai
 if [ -f .env ]; then
@@ -79,20 +128,51 @@ chmod 600 .env
 echo ".env created successfully (chmod 600)"
 REMOTE_SCRIPT
 
-echo "[3/6] Building Docker images on server..."
+# ── Step 3: Build ────────────────────────────────────────────
+echo "[3/7] Building Docker images on server..."
 ssh "${SSH_USER}@${SERVER_IP}" "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml build"
 
-echo "[4/6] Starting services..."
+# ── Step 4: Start services ───────────────────────────────────
+echo "[4/7] Starting services..."
 ssh "${SSH_USER}@${SERVER_IP}" "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml up -d"
 
-echo "[5/6] Checking health..."
-sleep 15
-ssh "${SSH_USER}@${SERVER_IP}" "curl -sfk https://localhost/api/health && echo ' OK' || echo ' Backend still starting (PostgreSQL may need a moment)...'"
+# ── Step 5: Force-restart nginx to load new SSL certs ────────
+echo "[5/7] Restarting nginx to load SSL certificates..."
+ssh "${SSH_USER}@${SERVER_IP}" "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml restart frontend"
+sleep 5
 
-echo "[6/6] Verifying HTTPS..."
+# ── Step 6: Verify SSL on origin ─────────────────────────────
+echo "[6/7] Verifying SSL certificate on origin..."
+ssh "${SSH_USER}@${SERVER_IP}" bash -s <<'SSL_CHECK'
+echo "--- Checking nginx SSL ---"
+# Test that nginx is serving SSL
+SSL_INFO=$(echo | openssl s_client -connect localhost:443 -servername robustidps.ai 2>/dev/null | openssl x509 -noout -issuer -subject -dates 2>/dev/null)
+if [ -n "$SSL_INFO" ]; then
+    echo "$SSL_INFO"
+    echo "✓ SSL certificate is being served by nginx"
+else
+    echo "✗ Could not retrieve SSL certificate from nginx"
+    echo "  Checking nginx logs for errors..."
+    docker logs --tail 20 $(docker ps -q -f name=frontend) 2>&1 | grep -i "ssl\|error\|emerg" || echo "  (no SSL errors found in recent logs)"
+fi
+
+# Health check
+echo ""
+echo "--- Health check ---"
+curl -sfk https://localhost/api/health && echo ' ✓ Backend healthy' || echo ' ✗ Backend not responding (may still be starting)'
+SSL_CHECK
+
+# ── Step 7: Final verification ────────────────────────────────
+echo "[7/7] Verifying HTTPS..."
 ssh "${SSH_USER}@${SERVER_IP}" "curl -sfk https://localhost/ > /dev/null && echo 'HTTPS OK' || echo 'HTTPS not yet responding'"
 
 echo ""
 echo "============================================"
 echo "  Deployed! Visit: https://robustidps.ai"
 echo "============================================"
+echo ""
+echo "If you see Cloudflare Error 526:"
+echo "  1. Verify SSL mode is 'Full (Strict)' in Cloudflare Dashboard"
+echo "  2. Verify DNS records are Proxied (orange cloud)"
+echo "  3. Check that the Origin CA cert was created for robustidps.ai"
+echo "  4. Run: ssh ${SSH_USER}@${SERVER_IP} 'echo | openssl s_client -connect localhost:443 -servername robustidps.ai 2>/dev/null | openssl x509 -noout -issuer -subject'"
