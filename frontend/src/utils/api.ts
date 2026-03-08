@@ -470,6 +470,60 @@ export async function fetchPqMigrationAssessment(targetLevel = 3, includeHybrid 
   return res.json();
 }
 
+// ── PQ Enhanced Simulation ───────────────────────────────────────────────
+
+export async function pqTrafficAnalysis(algorithm: string, scenario = 'normal', nFlows = 100) {
+  const res = await authFetch(`${API}/api/pq/traffic-analysis`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ algorithm, scenario, n_flows: nFlows }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `Traffic analysis failed (${res.status})`));
+  }
+  return res.json();
+}
+
+export async function pqHandshakeIdsEval(algorithm: string) {
+  const res = await authFetch(`${API}/api/pq/handshake-ids-eval`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ algorithm }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `IDS evaluation failed (${res.status})`));
+  }
+  return res.json();
+}
+
+export async function pqAttackSimulation(algorithm: string, attackType = 'downgrade_attack') {
+  const res = await authFetch(`${API}/api/pq/attack-simulation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ algorithm, attack_type: attackType }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `Attack simulation failed (${res.status})`));
+  }
+  return res.json();
+}
+
+export async function pqModelComparison(algorithm: string) {
+  const res = await authFetch(`${API}/api/pq/model-comparison`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ algorithm }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `Model comparison failed (${res.status})`));
+  }
+  return res.json();
+}
+
 // ── Zero-Trust AI Governance ─────────────────────────────────────────────
 
 export async function fetchTrustScore() {

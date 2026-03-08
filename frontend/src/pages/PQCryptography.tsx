@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import {
   Lock, Shield, Loader2, AlertTriangle, CheckCircle, XCircle,
   Zap, Key, ArrowRight, TrendingUp, BarChart3, ChevronDown, ChevronUp,
-  Clock, Server,
+  Clock, Server, Activity, Crosshair, GitCompare, Radio, ExternalLink,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -14,6 +14,7 @@ import PageGuide from '../components/PageGuide'
 import {
   fetchPqAlgorithms, benchmarkPqAlgorithm, fetchPqRiskAssessment,
   simulatePqHandshake, fetchPqComparisonMatrix, fetchPqMigrationAssessment,
+  pqTrafficAnalysis, pqHandshakeIdsEval, pqAttackSimulation, pqModelComparison,
 } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
@@ -28,7 +29,12 @@ const RISK_COLORS: Record<string, string> = {
   low: '#22C55E', medium: '#F59E0B', high: '#EF4444', critical: '#DC2626',
 }
 
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: '#DC2626', high: '#F97316', medium: '#F59E0B', low: '#22C55E',
+}
+
 type Tab = 'overview' | 'benchmark' | 'risk' | 'migration'
+type SimMode = 'handshake' | 'traffic' | 'ids_eval' | 'attack' | 'model_compare'
 
 export default function PQCryptography() {
   const [tab, setTab] = usePageState<Tab>(PAGE, 'tab', 'overview')
@@ -43,6 +49,13 @@ export default function PQCryptography() {
   const [loading, setLoading] = usePageState<string | null>(PAGE, 'loading', null)
   const [error, setError] = usePageState(PAGE, 'error', '')
   const [expandedStep, setExpandedStep] = usePageState<number | null>(PAGE, 'expandedStep', null)
+  const [simMode, setSimMode] = usePageState<SimMode>(PAGE, 'simMode', 'handshake')
+  const [trafficResult, setTrafficResult] = usePageState<any>(PAGE, 'trafficResult', null)
+  const [idsEvalResult, setIdsEvalResult] = usePageState<any>(PAGE, 'idsEvalResult', null)
+  const [attackResult, setAttackResult] = usePageState<any>(PAGE, 'attackResult', null)
+  const [modelCompResult, setModelCompResult] = usePageState<any>(PAGE, 'modelCompResult', null)
+  const [trafficScenario, setTrafficScenario] = usePageState(PAGE, 'trafficScenario', 'normal')
+  const [attackType, setAttackType] = usePageState(PAGE, 'attackType', 'downgrade_attack')
 
   useEffect(() => {
     Promise.all([
@@ -83,6 +96,66 @@ export default function PQCryptography() {
       setLoading(null)
     }
   }
+
+  const runTrafficAnalysis = async () => {
+    setLoading('traffic')
+    setError('')
+    try {
+      const data = await pqTrafficAnalysis(selectedAlgo, trafficScenario)
+      setTrafficResult(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Traffic analysis failed')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const runIdsEval = async () => {
+    setLoading('ids_eval')
+    setError('')
+    try {
+      const data = await pqHandshakeIdsEval(selectedAlgo)
+      setIdsEvalResult(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'IDS evaluation failed')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const runAttackSim = async () => {
+    setLoading('attack')
+    setError('')
+    try {
+      const data = await pqAttackSimulation(selectedAlgo, attackType)
+      setAttackResult(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Attack simulation failed')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const runModelComparison = async () => {
+    setLoading('model_compare')
+    setError('')
+    try {
+      const data = await pqModelComparison(selectedAlgo)
+      setModelCompResult(data)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Model comparison failed')
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  const SIM_MODES: { id: SimMode; label: string; icon: any; desc: string }[] = [
+    { id: 'handshake', label: 'Handshake', icon: Zap, desc: 'Protocol step simulation' },
+    { id: 'traffic', label: 'Traffic Analysis', icon: Activity, desc: 'PQ traffic through IDS' },
+    { id: 'ids_eval', label: 'IDS Evaluation', icon: Shield, desc: 'Detection impact analysis' },
+    { id: 'attack', label: 'Attack Sim', icon: Crosshair, desc: 'PQ attack scenarios' },
+    { id: 'model_compare', label: 'Model Compare', icon: GitCompare, desc: 'PQ-IDPS vs others' },
+  ]
 
   const TABS: { id: Tab; label: string }[] = [
     { id: 'overview', label: 'Algorithm Catalogue' },
@@ -307,6 +380,7 @@ export default function PQCryptography() {
       {/* ══ BENCHMARK TAB ══ */}
       {tab === 'benchmark' && (
         <>
+          {/* Algorithm + Iterations controls */}
           <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -329,7 +403,7 @@ export default function PQCryptography() {
                   className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-sm text-text-primary"
                 />
               </div>
-              <div className="flex items-end gap-2">
+              <div className="flex items-end">
                 <button
                   onClick={runBenchmark}
                   disabled={loading === 'benchmark'}
@@ -337,14 +411,6 @@ export default function PQCryptography() {
                 >
                   {loading === 'benchmark' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
                   Benchmark
-                </button>
-                <button
-                  onClick={runHandshake}
-                  disabled={loading === 'handshake'}
-                  className="px-4 py-2 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/80 transition-colors disabled:opacity-40 flex items-center gap-2"
-                >
-                  {loading === 'handshake' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-                  Simulate Handshake
                 </button>
               </div>
             </div>
@@ -374,8 +440,6 @@ export default function PQCryptography() {
                   </div>
                 </div>
               </div>
-
-              {/* Key material info */}
               <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
                 <h3 className="text-sm font-semibold mb-2">Key Material</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -398,61 +462,593 @@ export default function PQCryptography() {
             </>
           )}
 
-          {/* Handshake simulation */}
-          {handshakeResult && (
-            <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
-              <h3 className="text-sm font-semibold">Handshake Simulation — {handshakeResult.algorithm_info.name}</h3>
-
-              {/* Steps timeline */}
-              <div className="space-y-2">
-                {handshakeResult.steps.map((step: any) => (
-                  <div key={step.step} className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-accent-blue/15 text-accent-blue flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-                      {step.step}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{step.name}</span>
-                        <span className="text-xs font-mono text-accent-purple">{step.simulated_time_us}μs</span>
-                      </div>
-                      <div className="text-xs text-text-secondary">{step.description}</div>
-                      {step.wire_overhead_vs_x25519 && (
-                        <div className="text-[10px] text-accent-amber mt-0.5">Wire overhead: {step.wire_overhead_vs_x25519}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Comparison vs classical */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-bg-card">
-                <div className="text-center">
-                  <div className="text-xs text-text-secondary">Compute Overhead</div>
-                  <div className="text-sm font-mono font-bold text-accent-amber">
-                    +{handshakeResult.comparison_vs_x25519.compute_overhead_percent}%
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-text-secondary">Wire Overhead</div>
-                  <div className="text-sm font-mono font-bold text-accent-amber">
-                    +{handshakeResult.comparison_vs_x25519.wire_overhead_bytes}B
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-text-secondary">Quantum Security</div>
-                  <div className="text-sm font-mono font-bold text-accent-green">
-                    {handshakeResult.security_gain.quantum_bits}-bit
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xs text-text-secondary">NIST Level</div>
-                  <div className="text-sm font-mono font-bold text-accent-blue">
-                    Level {handshakeResult.security_gain.nist_level}
-                  </div>
-                </div>
-              </div>
+          {/* ── Simulation Mode Tabs ── */}
+          <div className="bg-bg-secondary rounded-xl border border-bg-card overflow-hidden">
+            <div className="flex border-b border-bg-card overflow-x-auto">
+              {SIM_MODES.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setSimMode(m.id)}
+                  className={`flex items-center gap-1.5 px-4 py-3 text-xs font-medium whitespace-nowrap transition-colors border-b-2 ${
+                    simMode === m.id
+                      ? 'border-accent-blue text-accent-blue bg-accent-blue/5'
+                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  <m.icon className="w-3.5 h-3.5" />
+                  {m.label}
+                </button>
+              ))}
             </div>
-          )}
+
+            <div className="p-5">
+              {/* ── Handshake Mode ── */}
+              {simMode === 'handshake' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold">PQ Key Exchange Handshake Simulation</h3>
+                      <p className="text-xs text-text-secondary mt-0.5">5-step TLS 1.3 handshake with PQ KEM key exchange vs classical X25519</p>
+                    </div>
+                    <button
+                      onClick={runHandshake}
+                      disabled={loading === 'handshake' || !algorithms?.kem_algorithms?.[selectedAlgo]}
+                      className="px-4 py-2 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+                    >
+                      {loading === 'handshake' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                      Simulate Handshake
+                    </button>
+                  </div>
+                  {!algorithms?.kem_algorithms?.[selectedAlgo] && (
+                    <div className="text-xs text-accent-amber bg-accent-amber/10 rounded-lg px-3 py-2">
+                      Select a KEM algorithm (Kyber variants, NTRU, McEliece) to simulate a handshake.
+                    </div>
+                  )}
+                  {handshakeResult && (
+                    <>
+                      <div className="space-y-2">
+                        {handshakeResult.steps.map((step: any) => (
+                          <div key={step.step} className="flex items-start gap-3">
+                            <div className="w-6 h-6 rounded-full bg-accent-blue/15 text-accent-blue flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                              {step.step}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium">{step.name}</span>
+                                <span className="text-xs font-mono text-accent-purple">{step.simulated_time_us}μs</span>
+                              </div>
+                              <div className="text-xs text-text-secondary">{step.description}</div>
+                              {step.wire_overhead_vs_x25519 && (
+                                <div className="text-[10px] text-accent-amber mt-0.5">Wire overhead: {step.wire_overhead_vs_x25519}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-bg-card">
+                        <div className="text-center">
+                          <div className="text-xs text-text-secondary">Compute Overhead</div>
+                          <div className="text-sm font-mono font-bold text-accent-amber">
+                            +{handshakeResult.comparison_vs_x25519.compute_overhead_percent}%
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-text-secondary">Wire Overhead</div>
+                          <div className="text-sm font-mono font-bold text-accent-amber">
+                            +{handshakeResult.comparison_vs_x25519.wire_overhead_bytes}B
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-text-secondary">Quantum Security</div>
+                          <div className="text-sm font-mono font-bold text-accent-green">
+                            {handshakeResult.security_gain.quantum_bits}-bit
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-text-secondary">NIST Level</div>
+                          <div className="text-sm font-mono font-bold text-accent-blue">
+                            Level {handshakeResult.security_gain.nist_level}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── Traffic Analysis Mode ── */}
+              {simMode === 'traffic' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">PQ Traffic Analysis Mode</h3>
+                      <p className="text-xs text-text-secondary mt-0.5">Generate synthetic PQ flows and evaluate PQ-IDPS detection performance</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={trafficScenario}
+                        onChange={e => setTrafficScenario(e.target.value)}
+                        className="px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-xs text-text-primary"
+                      >
+                        <option value="normal">Normal (5% attacks)</option>
+                        <option value="mixed">Mixed (25% attacks)</option>
+                        <option value="high_volume">High Volume (15% attacks)</option>
+                      </select>
+                      <button
+                        onClick={runTrafficAnalysis}
+                        disabled={loading === 'traffic' || !algorithms?.kem_algorithms?.[selectedAlgo]}
+                        className="px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+                      >
+                        {loading === 'traffic' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
+                        Analyse Traffic
+                      </button>
+                    </div>
+                  </div>
+                  {!algorithms?.kem_algorithms?.[selectedAlgo] && (
+                    <div className="text-xs text-accent-amber bg-accent-amber/10 rounded-lg px-3 py-2">
+                      Select a KEM algorithm to analyse PQ traffic patterns.
+                    </div>
+                  )}
+                  {trafficResult && (
+                    <>
+                      {/* Key finding */}
+                      <div className="bg-accent-blue/10 border border-accent-blue/20 rounded-lg px-4 py-3">
+                        <div className="text-xs font-medium text-accent-blue mb-1">Key Finding</div>
+                        <div className="text-xs text-text-primary">{trafficResult.pq_traffic_insights.key_finding}</div>
+                      </div>
+
+                      {/* Detection metrics */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="bg-bg-primary rounded-lg p-3 text-center">
+                          <div className="text-[10px] text-text-secondary">Accuracy</div>
+                          <div className="text-lg font-mono font-bold text-accent-green">
+                            {(trafficResult.detection_results.accuracy * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="bg-bg-primary rounded-lg p-3 text-center">
+                          <div className="text-[10px] text-text-secondary">F1-Score</div>
+                          <div className="text-lg font-mono font-bold text-accent-blue">
+                            {(trafficResult.detection_results.f1_score * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="bg-bg-primary rounded-lg p-3 text-center">
+                          <div className="text-[10px] text-text-secondary">Precision</div>
+                          <div className="text-lg font-mono font-bold text-accent-purple">
+                            {(trafficResult.detection_results.precision * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="bg-bg-primary rounded-lg p-3 text-center">
+                          <div className="text-[10px] text-text-secondary">Recall</div>
+                          <div className="text-lg font-mono font-bold text-accent-amber">
+                            {(trafficResult.detection_results.recall * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fingerprint comparison */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">Traffic Fingerprint: PQ vs Classical</h4>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          {[
+                            { label: 'Avg Packet Size', pq: `${trafficResult.fingerprint_comparison.pq_avg_packet_bytes}B`, cl: `${trafficResult.fingerprint_comparison.classical_avg_packet_bytes}B`, ratio: `${trafficResult.fingerprint_comparison.size_ratio}x` },
+                            { label: 'ClientHello', pq: `${trafficResult.fingerprint_comparison.pq_client_hello_bytes}B`, cl: `${trafficResult.fingerprint_comparison.classical_client_hello_bytes}B`, ratio: `${trafficResult.fingerprint_comparison.client_hello_ratio}x` },
+                            { label: 'Handshake Pkts', pq: trafficResult.fingerprint_comparison.pq_handshake_packets, cl: trafficResult.fingerprint_comparison.classical_handshake_packets, ratio: '' },
+                          ].map(r => (
+                            <div key={r.label} className="bg-bg-primary rounded-lg p-2">
+                              <div className="text-[10px] text-text-secondary mb-1">{r.label}</div>
+                              <div className="flex justify-between">
+                                <span className="text-accent-blue font-mono">PQ: {r.pq}</span>
+                                <span className="text-text-secondary font-mono">CL: {r.cl}</span>
+                              </div>
+                              {r.ratio && <div className="text-[10px] text-accent-amber mt-0.5">{r.ratio} larger</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* T/D/L fingerprint */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">PQClass T/D/L Packet Fingerprint</h4>
+                        <div className="text-[10px] text-text-secondary mb-1">{trafficResult.traffic_profile.tdl_fingerprint.description}</div>
+                        <div className="bg-bg-primary rounded-lg p-2 overflow-x-auto">
+                          <table className="text-[10px] font-mono w-full">
+                            <thead><tr className="text-text-secondary"><th className="text-left px-2">Pkt#</th><th className="text-right px-2">T (ms)</th><th className="text-center px-2">Dir</th><th className="text-right px-2">L (bytes)</th></tr></thead>
+                            <tbody>
+                              {trafficResult.traffic_profile.tdl_fingerprint.first_5_packets.map((p: any, i: number) => (
+                                <tr key={i} className={p.direction === 0 ? 'text-accent-blue' : 'text-accent-green'}>
+                                  <td className="px-2">{i + 1}</td>
+                                  <td className="text-right px-2">{p.t_ms}</td>
+                                  <td className="text-center px-2">{p.direction === 0 ? 'C→S' : 'S→C'}</td>
+                                  <td className="text-right px-2">{p.length}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Confusion matrix summary */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {[
+                          { label: 'True Positives', val: trafficResult.detection_results.true_positives, color: 'text-accent-green' },
+                          { label: 'False Positives', val: trafficResult.detection_results.false_positives, color: 'text-accent-amber' },
+                          { label: 'True Negatives', val: trafficResult.detection_results.true_negatives, color: 'text-accent-blue' },
+                          { label: 'False Negatives', val: trafficResult.detection_results.false_negatives, color: 'text-accent-red' },
+                        ].map(c => (
+                          <div key={c.label} className="bg-bg-primary rounded-lg p-2 text-center">
+                            <div className="text-[10px] text-text-secondary">{c.label}</div>
+                            <div className={`text-sm font-mono font-bold ${c.color}`}>{c.val}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Dataset references */}
+                      {trafficResult.dataset_references && (
+                        <div className="border-t border-bg-card pt-3">
+                          <div className="text-[10px] text-text-secondary font-medium mb-1">Dataset Sources</div>
+                          <div className="flex flex-wrap gap-2">
+                            {trafficResult.dataset_references.map((d: any) => (
+                              <a key={d.id} href={d.url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] text-accent-blue hover:text-accent-blue/80 bg-accent-blue/5 rounded px-2 py-0.5">
+                                <ExternalLink className="w-2.5 h-2.5" />{d.name}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── IDS Evaluation Mode ── */}
+              {simMode === 'ids_eval' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold">Handshake-Aware IDS Evaluation</h3>
+                      <p className="text-xs text-text-secondary mt-0.5">How PQ handshake characteristics affect intrusion detection accuracy</p>
+                    </div>
+                    <button
+                      onClick={runIdsEval}
+                      disabled={loading === 'ids_eval' || !algorithms?.kem_algorithms?.[selectedAlgo]}
+                      className="px-4 py-2 bg-accent-purple text-white rounded-lg text-sm font-medium hover:bg-accent-purple/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+                    >
+                      {loading === 'ids_eval' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
+                      Evaluate IDS
+                    </button>
+                  </div>
+                  {!algorithms?.kem_algorithms?.[selectedAlgo] && (
+                    <div className="text-xs text-accent-amber bg-accent-amber/10 rounded-lg px-3 py-2">
+                      Select a KEM algorithm to evaluate IDS impact.
+                    </div>
+                  )}
+                  {idsEvalResult && (
+                    <>
+                      {/* FPR comparison */}
+                      <div className="bg-accent-green/10 border border-accent-green/20 rounded-lg px-4 py-3">
+                        <div className="text-xs font-medium text-accent-green mb-1">False Positive Reduction</div>
+                        <div className="text-xs text-text-primary">{idsEvalResult.false_positive_analysis.explanation}</div>
+                      </div>
+
+                      {/* Impact analysis table */}
+                      <div className="space-y-2">
+                        {idsEvalResult.ids_impact_analysis.map((impact: any) => (
+                          <div key={impact.category} className="bg-bg-primary rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium">{impact.category}</span>
+                              <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${
+                                impact.impact === 'high' ? 'bg-accent-red/15 text-accent-red' :
+                                impact.impact === 'medium' ? 'bg-accent-amber/15 text-accent-amber' :
+                                'bg-accent-green/15 text-accent-green'
+                              }`}>{impact.impact} impact</span>
+                            </div>
+                            <div className="flex items-center gap-4 text-[10px] mb-1">
+                              <span className="text-text-secondary">Classical: <span className="font-mono text-text-primary">{impact.classical_value}</span></span>
+                              <ArrowRight className="w-3 h-3 text-text-secondary" />
+                              <span className="text-text-secondary">PQ: <span className="font-mono text-accent-blue">{impact.pq_value}</span></span>
+                              <span className="text-accent-amber font-mono">+{impact.change_percent}%</span>
+                            </div>
+                            <div className="text-[10px] text-text-secondary">{impact.ids_effect}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* PQClass detection rates */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">PQClass Traffic Classification Accuracy</h4>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: 'PQ Presence', val: idsEvalResult.pqclass_detection.pq_presence_accuracy },
+                            { label: 'Algorithm ID', val: idsEvalResult.pqclass_detection.algorithm_identification_accuracy },
+                            { label: 'Application ID', val: idsEvalResult.pqclass_detection.application_identification_accuracy },
+                          ].map(d => (
+                            <div key={d.label} className="bg-bg-primary rounded-lg p-2 text-center">
+                              <div className="text-[10px] text-text-secondary">{d.label}</div>
+                              <div className="text-sm font-mono font-bold text-accent-blue">{(d.val * 100).toFixed(0)}%</div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="text-[10px] text-text-secondary mt-1">{idsEvalResult.pqclass_detection.source}</div>
+                      </div>
+
+                      {/* Recommendations */}
+                      <div className="border-t border-bg-card pt-3">
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">Recommendations</h4>
+                        <ul className="space-y-1">
+                          {idsEvalResult.recommendations.map((rec: string, i: number) => (
+                            <li key={i} className="flex items-start gap-2 text-[11px] text-text-secondary">
+                              <CheckCircle className="w-3 h-3 text-accent-green shrink-0 mt-0.5" />
+                              {rec}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Dataset references */}
+                      {idsEvalResult.dataset_references && (
+                        <div className="border-t border-bg-card pt-3">
+                          <div className="text-[10px] text-text-secondary font-medium mb-1">Dataset Sources</div>
+                          <div className="flex flex-wrap gap-2">
+                            {idsEvalResult.dataset_references.map((d: any) => (
+                              <a key={d.id} href={d.url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] text-accent-blue hover:text-accent-blue/80 bg-accent-blue/5 rounded px-2 py-0.5">
+                                <ExternalLink className="w-2.5 h-2.5" />{d.name}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── Attack Simulation Mode ── */}
+              {simMode === 'attack' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold">PQ Attack Simulation</h3>
+                      <p className="text-xs text-text-secondary mt-0.5">Simulate quantum-context attacks and PQ-IDPS detection response</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={attackType}
+                        onChange={e => setAttackType(e.target.value)}
+                        className="px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-xs text-text-primary"
+                      >
+                        <option value="downgrade_attack">Downgrade Attack</option>
+                        <option value="harvest_now_decrypt_later">Harvest-Now-Decrypt-Later</option>
+                        <option value="side_channel_timing">Timing Side-Channel</option>
+                        <option value="pq_replay_attack">Session Replay</option>
+                      </select>
+                      <button
+                        onClick={runAttackSim}
+                        disabled={loading === 'attack'}
+                        className="px-4 py-2 bg-accent-red text-white rounded-lg text-sm font-medium hover:bg-accent-red/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+                      >
+                        {loading === 'attack' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Crosshair className="w-4 h-4" />}
+                        Simulate Attack
+                      </button>
+                    </div>
+                  </div>
+                  {attackResult && (
+                    <>
+                      {/* Attack header */}
+                      <div className="flex items-center gap-3 bg-bg-primary rounded-lg p-3">
+                        <div className="px-2 py-0.5 rounded text-[10px] font-bold uppercase" style={{
+                          background: `${SEVERITY_COLORS[attackResult.attack.severity]}20`,
+                          color: SEVERITY_COLORS[attackResult.attack.severity],
+                        }}>
+                          {attackResult.attack.severity}
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">{attackResult.attack.name}</div>
+                          <div className="text-[10px] text-text-secondary">MITRE ATT&CK: {attackResult.attack.mitre_id}</div>
+                        </div>
+                      </div>
+
+                      <div className="text-xs text-text-secondary">{attackResult.attack.description}</div>
+
+                      {/* Attack steps timeline */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">Attack Timeline</h4>
+                        <div className="space-y-2">
+                          {attackResult.attack_steps.map((step: any, i: number) => (
+                            <div key={i} className="flex items-start gap-3">
+                              <div className="w-5 h-5 rounded-full bg-accent-red/15 text-accent-red flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                                {i + 1}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium">{step.phase}</span>
+                                  {step.time_ms > 0 && <span className="text-[10px] font-mono text-text-secondary">+{step.time_ms}ms</span>}
+                                </div>
+                                <div className="text-[10px] text-text-secondary">{step.action}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Detection signals */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">PQ-IDPS Detection Signals</h4>
+                        <div className="space-y-1.5">
+                          {attackResult.ids_detection.signals.map((sig: any, i: number) => (
+                            <div key={i} className="flex items-center gap-2 bg-bg-primary rounded-lg px-3 py-2">
+                              {sig.detected
+                                ? <CheckCircle className="w-3.5 h-3.5 text-accent-green shrink-0" />
+                                : <XCircle className="w-3.5 h-3.5 text-accent-red shrink-0" />}
+                              <div className="flex-1 text-[11px]">{sig.signal}</div>
+                              <div className="text-[10px] font-mono text-text-secondary">{sig.method}</div>
+                              <div className={`text-[10px] font-mono font-bold ${sig.confidence >= 0.9 ? 'text-accent-green' : sig.confidence >= 0.8 ? 'text-accent-amber' : 'text-accent-red'}`}>
+                                {(sig.confidence * 100).toFixed(1)}%
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Overall detection */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-bg-primary rounded-lg p-3 text-center">
+                          <div className="text-[10px] text-text-secondary">Overall Detection</div>
+                          <div className={`text-lg font-mono font-bold ${attackResult.ids_detection.detected ? 'text-accent-green' : 'text-accent-red'}`}>
+                            {(attackResult.ids_detection.overall_confidence * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                        <div className="bg-bg-primary rounded-lg p-3 text-center">
+                          <div className="text-[10px] text-text-secondary">Detection Time</div>
+                          <div className="text-lg font-mono font-bold text-accent-blue">
+                            {attackResult.ids_detection.detection_time_ms}ms
+                          </div>
+                        </div>
+                        <div className="bg-bg-primary rounded-lg p-3 text-center">
+                          <div className="text-[10px] text-text-secondary">Status</div>
+                          <div className={`text-sm font-bold ${attackResult.ids_detection.detected ? 'text-accent-green' : 'text-accent-red'}`}>
+                            {attackResult.ids_detection.detected ? 'DETECTED' : 'MISSED'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Algorithm-specific notes */}
+                      <div className="bg-accent-blue/10 border border-accent-blue/20 rounded-lg px-4 py-3">
+                        <div className="text-xs font-medium text-accent-blue mb-1">Algorithm-Specific Note</div>
+                        <div className="text-[11px] text-text-primary">{attackResult.algorithm_specific_notes}</div>
+                      </div>
+
+                      {/* Mitigation */}
+                      <div className="bg-accent-green/10 border border-accent-green/20 rounded-lg px-4 py-3">
+                        <div className="text-xs font-medium text-accent-green mb-1">Recommended Mitigation</div>
+                        <div className="text-[11px] text-text-primary">{attackResult.mitigation}</div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ── Model Comparison Mode ── */}
+              {simMode === 'model_compare' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold">Model Comparison on PQ Traffic</h3>
+                      <p className="text-xs text-text-secondary mt-0.5">Compare PQ-IDPS (Branch 3) against all 7 surrogate models on PQ-encrypted traffic</p>
+                    </div>
+                    <button
+                      onClick={runModelComparison}
+                      disabled={loading === 'model_compare' || !algorithms?.kem_algorithms?.[selectedAlgo]}
+                      className="px-4 py-2 bg-accent-amber text-white rounded-lg text-sm font-medium hover:bg-accent-amber/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+                    >
+                      {loading === 'model_compare' ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitCompare className="w-4 h-4" />}
+                      Compare Models
+                    </button>
+                  </div>
+                  {!algorithms?.kem_algorithms?.[selectedAlgo] && (
+                    <div className="text-xs text-accent-amber bg-accent-amber/10 rounded-lg px-3 py-2">
+                      Select a KEM algorithm to compare model performance on PQ traffic.
+                    </div>
+                  )}
+                  {modelCompResult && (
+                    <>
+                      {/* PQ-IDPS advantage summary */}
+                      <div className="bg-accent-purple/10 border border-accent-purple/20 rounded-lg px-4 py-3">
+                        <div className="text-xs font-medium text-accent-purple mb-1">PQ-IDPS Advantage</div>
+                        <div className="text-xs text-text-primary">{modelCompResult.pq_idps_advantage.explanation}</div>
+                      </div>
+
+                      {/* Model comparison table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-bg-card">
+                              <th className="text-left py-2 px-2 text-text-secondary font-medium">Model</th>
+                              <th className="text-right py-2 px-2 text-text-secondary font-medium">F1</th>
+                              <th className="text-right py-2 px-2 text-text-secondary font-medium">Accuracy</th>
+                              <th className="text-right py-2 px-2 text-text-secondary font-medium">Precision</th>
+                              <th className="text-right py-2 px-2 text-text-secondary font-medium">Recall</th>
+                              <th className="text-right py-2 px-2 text-text-secondary font-medium">FPR</th>
+                              <th className="text-right py-2 px-2 text-text-secondary font-medium">Latency</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {modelCompResult.model_results.map((m: any) => (
+                              <tr key={m.model_id} className={`border-b border-bg-card/50 ${m.is_pq_optimised ? 'bg-accent-purple/5' : ''}`}>
+                                <td className="py-2 px-2">
+                                  <div className="flex items-center gap-1.5">
+                                    {m.is_pq_optimised && <Radio className="w-3 h-3 text-accent-purple" />}
+                                    <span className={m.is_pq_optimised ? 'font-medium text-accent-purple' : ''}>{m.name}</span>
+                                  </div>
+                                </td>
+                                <td className="text-right py-2 px-2 font-mono font-bold text-accent-green">{(m.f1_score * 100).toFixed(1)}%</td>
+                                <td className="text-right py-2 px-2 font-mono">{(m.accuracy * 100).toFixed(1)}%</td>
+                                <td className="text-right py-2 px-2 font-mono">{(m.precision * 100).toFixed(1)}%</td>
+                                <td className="text-right py-2 px-2 font-mono">{(m.recall * 100).toFixed(1)}%</td>
+                                <td className="text-right py-2 px-2 font-mono text-accent-amber">{(m.false_positive_rate * 100).toFixed(2)}%</td>
+                                <td className="text-right py-2 px-2 font-mono text-text-secondary">{m.latency_ms}ms</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* F1 Score bar chart */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">F1-Score on PQ Traffic</h4>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <BarChart data={modelCompResult.model_results.map((m: any) => ({
+                            name: m.name.split(' ')[0],
+                            F1: +(m.f1_score * 100).toFixed(1),
+                            fill: m.is_pq_optimised ? '#A855F7' : '#3B82F6',
+                          }))} barGap={4}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                            <XAxis dataKey="name" tick={{ fill: '#94A3B8', fontSize: 8 }} angle={-20} />
+                            <YAxis domain={[80, 100]} tick={{ fill: '#94A3B8', fontSize: 10 }} unit="%" />
+                            <Tooltip contentStyle={TT} />
+                            <Bar dataKey="F1" radius={[4, 4, 0, 0]}>
+                              {modelCompResult.model_results.map((m: any, i: number) => (
+                                <Cell key={i} fill={m.is_pq_optimised ? '#A855F7' : '#3B82F6'} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Why PQ-IDPS matters */}
+                      <div className="border-t border-bg-card pt-3">
+                        <h4 className="text-xs font-semibold text-text-secondary mb-2">Why PQ-IDPS Outperforms</h4>
+                        <ul className="space-y-1">
+                          {modelCompResult.why_pq_idps_matters.map((reason: string, i: number) => (
+                            <li key={i} className="flex items-start gap-2 text-[11px] text-text-secondary">
+                              <TrendingUp className="w-3 h-3 text-accent-purple shrink-0 mt-0.5" />
+                              {reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Dataset references */}
+                      {modelCompResult.dataset_references && (
+                        <div className="border-t border-bg-card pt-3">
+                          <div className="text-[10px] text-text-secondary font-medium mb-1">Training Data Sources</div>
+                          <div className="flex flex-wrap gap-2">
+                            {modelCompResult.dataset_references.map((d: any) => (
+                              <a key={d.id} href={d.url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] text-accent-blue hover:text-accent-blue/80 bg-accent-blue/5 rounded px-2 py-0.5">
+                                <ExternalLink className="w-2.5 h-2.5" />{d.name}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* KEM speed comparison chart */}
           {comparison && kemSpeedData.length > 0 && (
