@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Network, Upload, Loader2, Server, Shield, Lock, Unlock,
   TrendingUp, BarChart3, Brain, Zap, ChevronDown, ChevronUp,
@@ -11,7 +10,9 @@ import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import { runFederated, fetchSampleData } from '../utils/api'
+import { usePageState } from '../hooks/usePageState'
 
+const PAGE = 'federated'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
 const NODE_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4']
@@ -59,20 +60,20 @@ interface FedResult {
 }
 
 export default function FederatedSimulator() {
-  const [file, setFile] = useState<File | null>(null)
-  const [selectedModel, setSelectedModel] = useState('surrogate')
-  const [nNodes, setNNodes] = useState(4)
-  const [rounds, setRounds] = useState(5)
-  const [localEpochs, setLocalEpochs] = useState(3)
-  const [lr, setLr] = useState(0.0001)
-  const [strategy, setStrategy] = useState('fedavg')
-  const [dpEnabled, setDpEnabled] = useState(false)
-  const [dpSigma, setDpSigma] = useState(0.01)
-  const [iid, setIid] = useState(true)
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<FedResult | null>(null)
-  const [error, setError] = useState('')
-  const [expandedRound, setExpandedRound] = useState<number | null>(null)
+  const [file, setFile] = usePageState<File | null>(PAGE, 'file', null)
+  const [selectedModel, setSelectedModel] = usePageState(PAGE, 'selectedModel', 'surrogate')
+  const [nNodes, setNNodes] = usePageState(PAGE, 'nNodes', 4)
+  const [rounds, setRounds] = usePageState(PAGE, 'rounds', 5)
+  const [localEpochs, setLocalEpochs] = usePageState(PAGE, 'localEpochs', 3)
+  const [lr, setLr] = usePageState(PAGE, 'lr', 0.0001)
+  const [strategy, setStrategy] = usePageState(PAGE, 'strategy', 'fedavg')
+  const [dpEnabled, setDpEnabled] = usePageState(PAGE, 'dpEnabled', false)
+  const [dpSigma, setDpSigma] = usePageState(PAGE, 'dpSigma', 0.01)
+  const [iid, setIid] = usePageState(PAGE, 'iid', true)
+  const [running, setRunning] = usePageState(PAGE, 'running', false)
+  const [result, setResult] = usePageState<FedResult | null>(PAGE, 'result', null)
+  const [error, setError] = usePageState(PAGE, 'error', '')
+  const [expandedRound, setExpandedRound] = usePageState<number | null>(PAGE, 'expandedRound', null)
 
   const handleRun = async () => {
     if (!file) return

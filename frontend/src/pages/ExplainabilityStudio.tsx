@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Eye, Upload, Loader2, BarChart3, Layers, Zap, Brain,
   ChevronDown, ChevronUp, Target, TrendingUp,
@@ -11,6 +10,9 @@ import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import { runXai, fetchSampleData } from '../utils/api'
+import { usePageState } from '../hooks/usePageState'
+
+const PAGE = 'xai'
 
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
@@ -61,15 +63,15 @@ interface XaiResult {
 }
 
 export default function ExplainabilityStudio() {
-  const [file, setFile] = useState<File | null>(null)
-  const [selectedModel, setSelectedModel] = useState('surrogate')
-  const [method, setMethod] = useState('all')
-  const [nSamples, setNSamples] = useState(200)
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<XaiResult | null>(null)
-  const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState<'saliency' | 'ig' | 'sensitivity'>('saliency')
-  const [expandedClass, setExpandedClass] = useState<string | null>(null)
+  const [file, setFile] = usePageState<File | null>(PAGE, 'file', null)
+  const [selectedModel, setSelectedModel] = usePageState(PAGE, 'selectedModel', 'surrogate')
+  const [method, setMethod] = usePageState(PAGE, 'method', 'all')
+  const [nSamples, setNSamples] = usePageState(PAGE, 'nSamples', 200)
+  const [running, setRunning] = usePageState(PAGE, 'running', false)
+  const [result, setResult] = usePageState<XaiResult | null>(PAGE, 'result', null)
+  const [error, setError] = usePageState(PAGE, 'error', '')
+  const [activeTab, setActiveTab] = usePageState<'saliency' | 'ig' | 'sensitivity'>(PAGE, 'activeTab', 'saliency')
+  const [expandedClass, setExpandedClass] = usePageState<string | null>(PAGE, 'expandedClass', null)
 
   const handleRun = async () => {
     if (!file) return

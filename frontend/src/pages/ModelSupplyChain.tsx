@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import {
   Package, Shield, Loader2, AlertTriangle, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Search, FileText, Scan, BarChart3,
@@ -15,7 +15,9 @@ import {
   fetchVulnerabilities, fetchRiskMatrix, runSupplyChainScan,
   fetchModelSbom,
 } from '../utils/api'
+import { usePageState } from '../hooks/usePageState'
 
+const PAGE = 'supplychain'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
 const SEV_COLORS: Record<string, string> = {
@@ -33,24 +35,24 @@ const STATUS_COLORS: Record<string, string> = {
 type Tab = 'overview' | 'scan' | 'pipeline' | 'sbom'
 
 export default function ModelSupplyChain() {
-  const [tab, setTab] = useState<Tab>('overview')
-  const [overview, setOverview] = useState<any>(null)
-  const [models, setModels] = useState<any>(null)
-  const [pipelineChecks, setPipelineChecks] = useState<any>(null)
-  const [vulns, setVulns] = useState<any>(null)
-  const [riskMatrix, setRiskMatrix] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [scanning, setScanning] = useState(false)
-  const [scanResult, setScanResult] = useState<any>(null)
-  const [scanModelId, setScanModelId] = useState('all')
-  const [sbomModelId, setSbomModelId] = useState('')
-  const [sbomFormat, setSbomFormat] = useState('cyclonedx')
-  const [sbomResult, setSbomResult] = useState<any>(null)
-  const [sbomLoading, setSbomLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [expandedModel, setExpandedModel] = useState<string | null>(null)
-  const [expandedVuln, setExpandedVuln] = useState<string | null>(null)
-  const [vulnFilter, setVulnFilter] = useState('')
+  const [tab, setTab] = usePageState<Tab>(PAGE, 'tab', 'overview')
+  const [overview, setOverview] = usePageState<any>(PAGE, 'overview', null)
+  const [models, setModels] = usePageState<any>(PAGE, 'models', null)
+  const [pipelineChecks, setPipelineChecks] = usePageState<any>(PAGE, 'pipelineChecks', null)
+  const [vulns, setVulns] = usePageState<any>(PAGE, 'vulns', null)
+  const [riskMatrix, setRiskMatrix] = usePageState<any>(PAGE, 'riskMatrix', null)
+  const [loading, setLoading] = usePageState(PAGE, 'loading', true)
+  const [scanning, setScanning] = usePageState(PAGE, 'scanning', false)
+  const [scanResult, setScanResult] = usePageState<any>(PAGE, 'scanResult', null)
+  const [scanModelId, setScanModelId] = usePageState(PAGE, 'scanModelId', 'all')
+  const [sbomModelId, setSbomModelId] = usePageState(PAGE, 'sbomModelId', '')
+  const [sbomFormat, setSbomFormat] = usePageState(PAGE, 'sbomFormat', 'cyclonedx')
+  const [sbomResult, setSbomResult] = usePageState<any>(PAGE, 'sbomResult', null)
+  const [sbomLoading, setSbomLoading] = usePageState(PAGE, 'sbomLoading', false)
+  const [error, setError] = usePageState(PAGE, 'error', '')
+  const [expandedModel, setExpandedModel] = usePageState<string | null>(PAGE, 'expandedModel', null)
+  const [expandedVuln, setExpandedVuln] = usePageState<string | null>(PAGE, 'expandedVuln', null)
+  const [vulnFilter, setVulnFilter] = usePageState(PAGE, 'vulnFilter', '')
 
   useEffect(() => {
     setLoading(true)

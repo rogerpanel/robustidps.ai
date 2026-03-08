@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import {
   Lock, Shield, Loader2, AlertTriangle, CheckCircle, XCircle,
   Zap, Key, ArrowRight, TrendingUp, BarChart3, ChevronDown, ChevronUp,
@@ -15,7 +15,9 @@ import {
   fetchPqAlgorithms, benchmarkPqAlgorithm, fetchPqRiskAssessment,
   simulatePqHandshake, fetchPqComparisonMatrix, fetchPqMigrationAssessment,
 } from '../utils/api'
+import { usePageState } from '../hooks/usePageState'
 
+const PAGE = 'pqcrypto'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
 const NIST_COLORS: Record<number, string> = {
@@ -29,18 +31,18 @@ const RISK_COLORS: Record<string, string> = {
 type Tab = 'overview' | 'benchmark' | 'risk' | 'migration'
 
 export default function PQCryptography() {
-  const [tab, setTab] = useState<Tab>('overview')
-  const [algorithms, setAlgorithms] = useState<any>(null)
-  const [comparison, setComparison] = useState<any>(null)
-  const [risk, setRisk] = useState<any>(null)
-  const [migration, setMigration] = useState<any>(null)
-  const [benchResult, setBenchResult] = useState<any>(null)
-  const [handshakeResult, setHandshakeResult] = useState<any>(null)
-  const [selectedAlgo, setSelectedAlgo] = useState('kyber768')
-  const [benchIterations, setBenchIterations] = useState(100)
-  const [loading, setLoading] = useState<string | null>(null)
-  const [error, setError] = useState('')
-  const [expandedStep, setExpandedStep] = useState<number | null>(null)
+  const [tab, setTab] = usePageState<Tab>(PAGE, 'tab', 'overview')
+  const [algorithms, setAlgorithms] = usePageState<any>(PAGE, 'algorithms', null)
+  const [comparison, setComparison] = usePageState<any>(PAGE, 'comparison', null)
+  const [risk, setRisk] = usePageState<any>(PAGE, 'risk', null)
+  const [migration, setMigration] = usePageState<any>(PAGE, 'migration', null)
+  const [benchResult, setBenchResult] = usePageState<any>(PAGE, 'benchResult', null)
+  const [handshakeResult, setHandshakeResult] = usePageState<any>(PAGE, 'handshakeResult', null)
+  const [selectedAlgo, setSelectedAlgo] = usePageState(PAGE, 'selectedAlgo', 'kyber768')
+  const [benchIterations, setBenchIterations] = usePageState(PAGE, 'benchIterations', 100)
+  const [loading, setLoading] = usePageState<string | null>(PAGE, 'loading', null)
+  const [error, setError] = usePageState(PAGE, 'error', '')
+  const [expandedStep, setExpandedStep] = usePageState<number | null>(PAGE, 'expandedStep', null)
 
   useEffect(() => {
     Promise.all([

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import {
   ShieldCheck, ShieldAlert, Shield, Loader2, CheckCircle, XCircle,
   AlertTriangle, Eye, Lock, FileCheck, Users, BarChart3, Activity,
@@ -14,7 +14,9 @@ import {
   fetchTrustScore, fetchGovernancePolicies, fetchComplianceDashboard,
   fetchModelProvenance, fetchVerificationStatus, fetchAccessAnalytics,
 } from '../utils/api'
+import { usePageState } from '../hooks/usePageState'
 
+const PAGE = 'zerotrust'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -33,15 +35,15 @@ const SEV_COLORS: Record<string, string> = {
 type Tab = 'trust' | 'policies' | 'compliance' | 'provenance'
 
 export default function ZeroTrustGovernance() {
-  const [tab, setTab] = useState<Tab>('trust')
-  const [trustScore, setTrustScore] = useState<any>(null)
-  const [policies, setPolicies] = useState<any>(null)
-  const [compliance, setCompliance] = useState<any>(null)
-  const [provenance, setProvenance] = useState<any>(null)
-  const [verification, setVerification] = useState<any>(null)
-  const [accessAnalytics, setAccessAnalytics] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [expandedFramework, setExpandedFramework] = useState<string | null>(null)
+  const [tab, setTab] = usePageState<Tab>(PAGE, 'tab', 'trust')
+  const [trustScore, setTrustScore] = usePageState<any>(PAGE, 'trustScore', null)
+  const [policies, setPolicies] = usePageState<any>(PAGE, 'policies', null)
+  const [compliance, setCompliance] = usePageState<any>(PAGE, 'compliance', null)
+  const [provenance, setProvenance] = usePageState<any>(PAGE, 'provenance', null)
+  const [verification, setVerification] = usePageState<any>(PAGE, 'verification', null)
+  const [accessAnalytics, setAccessAnalytics] = usePageState<any>(PAGE, 'accessAnalytics', null)
+  const [loading, setLoading] = usePageState(PAGE, 'loading', true)
+  const [expandedFramework, setExpandedFramework] = usePageState<string | null>(PAGE, 'expandedFramework', null)
 
   useEffect(() => {
     setLoading(true)

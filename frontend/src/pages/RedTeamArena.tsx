@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useRef } from 'react'
 import {
   Swords, Upload, Loader2, ShieldAlert, ShieldCheck, Target, Zap,
   BarChart3, TrendingDown, AlertTriangle, ChevronDown, ChevronUp, Brain,
@@ -12,7 +12,9 @@ import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import { runRedteam, fetchSampleData } from '../utils/api'
+import { usePageState } from '../hooks/usePageState'
 
+const PAGE = 'redteam'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
 const ATTACK_OPTS = [
@@ -56,15 +58,15 @@ interface ArenaResult {
 }
 
 export default function RedTeamArena() {
-  const [file, setFile] = useState<File | null>(null)
-  const [selectedModel, setSelectedModel] = useState('surrogate')
-  const [epsilon, setEpsilon] = useState(0.1)
-  const [nSamples, setNSamples] = useState(500)
-  const [selectedAttacks, setSelectedAttacks] = useState<string[]>(ATTACK_OPTS.map(a => a.id))
-  const [running, setRunning] = useState(false)
-  const [result, setResult] = useState<ArenaResult | null>(null)
-  const [error, setError] = useState('')
-  const [expandedAttack, setExpandedAttack] = useState<string | null>(null)
+  const [file, setFile] = usePageState<File | null>(PAGE, 'file', null)
+  const [selectedModel, setSelectedModel] = usePageState(PAGE, 'selectedModel', 'surrogate')
+  const [epsilon, setEpsilon] = usePageState(PAGE, 'epsilon', 0.1)
+  const [nSamples, setNSamples] = usePageState(PAGE, 'nSamples', 500)
+  const [selectedAttacks, setSelectedAttacks] = usePageState<string[]>(PAGE, 'selectedAttacks', ATTACK_OPTS.map(a => a.id))
+  const [running, setRunning] = usePageState(PAGE, 'running', false)
+  const [result, setResult] = usePageState<ArenaResult | null>(PAGE, 'result', null)
+  const [error, setError] = usePageState(PAGE, 'error', '')
+  const [expandedAttack, setExpandedAttack] = usePageState<string | null>(PAGE, 'expandedAttack', null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const toggleAttack = (id: string) => {

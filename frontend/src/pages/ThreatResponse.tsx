@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import {
   Zap, Shield, Loader2, AlertTriangle, CheckCircle, Play, Pause,
   ChevronDown, ChevronUp, Clock, Server, Target, Activity, Link,
@@ -14,7 +14,9 @@ import {
   fetchPlaybooks, simulateThreatResponse, fetchIncidents,
   fetchSecurityIntegrations, fetchResponseMetrics, addIncidentNote,
 } from '../utils/api'
+import { usePageState } from '../hooks/usePageState'
 
+const PAGE = 'threatresponse'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
 
 const SEV_COLORS: Record<string, string> = {
@@ -36,22 +38,22 @@ const ACTION_COLORS: Record<string, string> = {
 type Tab = 'playbooks' | 'simulate' | 'incidents' | 'integrations'
 
 export default function ThreatResponse() {
-  const [tab, setTab] = useState<Tab>('playbooks')
-  const [playbooks, setPlaybooks] = useState<any>(null)
-  const [incidents, setIncidents] = useState<any>(null)
-  const [integrations, setIntegrations] = useState<any>(null)
-  const [metrics, setMetrics] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [simulating, setSimulating] = useState(false)
-  const [simResult, setSimResult] = useState<any>(null)
-  const [selectedPlaybook, setSelectedPlaybook] = useState('')
-  const [sourceIp, setSourceIp] = useState('192.168.1.100')
-  const [targetIp, setTargetIp] = useState('10.0.0.1')
-  const [confidence, setConfidence] = useState(0.95)
-  const [error, setError] = useState('')
-  const [expandedPb, setExpandedPb] = useState<string | null>(null)
-  const [expandedInc, setExpandedInc] = useState<string | null>(null)
-  const [noteText, setNoteText] = useState('')
+  const [tab, setTab] = usePageState<Tab>(PAGE, 'tab', 'playbooks')
+  const [playbooks, setPlaybooks] = usePageState<any>(PAGE, 'playbooks', null)
+  const [incidents, setIncidents] = usePageState<any>(PAGE, 'incidents', null)
+  const [integrations, setIntegrations] = usePageState<any>(PAGE, 'integrations', null)
+  const [metrics, setMetrics] = usePageState<any>(PAGE, 'metrics', null)
+  const [loading, setLoading] = usePageState(PAGE, 'loading', true)
+  const [simulating, setSimulating] = usePageState(PAGE, 'simulating', false)
+  const [simResult, setSimResult] = usePageState<any>(PAGE, 'simResult', null)
+  const [selectedPlaybook, setSelectedPlaybook] = usePageState(PAGE, 'selectedPlaybook', '')
+  const [sourceIp, setSourceIp] = usePageState(PAGE, 'sourceIp', '192.168.1.100')
+  const [targetIp, setTargetIp] = usePageState(PAGE, 'targetIp', '10.0.0.1')
+  const [confidence, setConfidence] = usePageState(PAGE, 'confidence', 0.95)
+  const [error, setError] = usePageState(PAGE, 'error', '')
+  const [expandedPb, setExpandedPb] = usePageState<string | null>(PAGE, 'expandedPb', null)
+  const [expandedInc, setExpandedInc] = usePageState<string | null>(PAGE, 'expandedInc', null)
+  const [noteText, setNoteText] = usePageState(PAGE, 'noteText', '')
 
   useEffect(() => {
     setLoading(true)
