@@ -8,6 +8,7 @@ import {
   fetchContinualStatus, triggerContinualUpdate,
   measureDrift, rollbackModel,
 } from '../utils/api'
+import ExportMenu from '../components/ExportMenu'
 import { registerSessionReset } from '../utils/sessionReset'
 
 interface UpdateRecord {
@@ -206,14 +207,17 @@ export default function ContinualLearning() {
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-display font-bold flex items-center gap-2">
-          <RefreshCw className="w-6 h-6 text-accent-purple" />
-          Continual Learning
-        </h1>
-        <p className="text-sm text-text-secondary mt-1">
-          Incrementally update the IDS model on new traffic data using Elastic Weight Consolidation (EWC) to prevent catastrophic forgetting.
-        </p>
+      <div className="flex items-center gap-3">
+        <RefreshCw className="w-6 h-6 text-accent-purple" />
+        <div className="flex-1">
+          <h1 className="text-2xl font-display font-bold">
+            Continual Learning
+          </h1>
+          <p className="text-sm text-text-secondary mt-1">
+            Incrementally update the IDS model on new traffic data using Elastic Weight Consolidation (EWC) to prevent catastrophic forgetting.
+          </p>
+        </div>
+        <ExportMenu filename="continual-learning" />
       </div>
 
       {error && (

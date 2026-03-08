@@ -9,6 +9,7 @@ import {
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import { runFederated, fetchSampleData } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
@@ -133,10 +134,11 @@ export default function FederatedSimulator() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Network className="w-7 h-7 text-accent-blue" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold">Federated Learning Simulator</h1>
           <p className="text-sm text-text-secondary mt-0.5">Privacy-preserving distributed model training</p>
         </div>
+        <ExportMenu filename="federated-learning" />
       </div>
 
       {/* Config Panel */}

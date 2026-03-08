@@ -9,6 +9,7 @@ import {
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import { runXai, fetchSampleData } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
@@ -122,10 +123,11 @@ export default function ExplainabilityStudio() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Eye className="w-7 h-7 text-accent-purple" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold">Explainability Studio</h1>
           <p className="text-sm text-text-secondary mt-0.5">Understand why the model makes its decisions</p>
         </div>
+        <ExportMenu filename="explainability" />
       </div>
 
       {/* Config Panel */}

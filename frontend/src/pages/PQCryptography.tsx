@@ -11,6 +11,7 @@ import {
   ZAxis,
 } from 'recharts'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import {
   fetchPqAlgorithms, benchmarkPqAlgorithm, fetchPqRiskAssessment,
   simulatePqHandshake, fetchPqComparisonMatrix, fetchPqMigrationAssessment,
@@ -203,10 +204,11 @@ export default function PQCryptography() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Lock className="w-7 h-7 text-accent-purple" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold">Post-Quantum Cryptography</h1>
           <p className="text-sm text-text-secondary mt-0.5">NIST FIPS 203/204/205 algorithm dashboard & migration planner</p>
         </div>
+        <ExportMenu filename="pq-cryptography" />
       </div>
 
       {/* Tabs */}

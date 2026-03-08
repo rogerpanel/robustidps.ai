@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import {
   ShieldCheck, ShieldAlert, Shield, Loader2, CheckCircle, XCircle,
   AlertTriangle, Eye, Lock, FileCheck, Users, BarChart3, Activity,
-  ChevronDown, ChevronUp, Settings, Globe,
+  ChevronDown, ChevronUp, Settings, Globe, Edit3, Save, X,
 } from 'lucide-react'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -10,9 +10,11 @@ import {
   CartesianGrid, Legend, PieChart, Pie, Cell,
 } from 'recharts'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import {
   fetchTrustScore, fetchGovernancePolicies, fetchComplianceDashboard,
   fetchModelProvenance, fetchVerificationStatus, fetchAccessAnalytics,
+  updateGovernancePolicy,
 } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
@@ -44,6 +46,33 @@ export default function ZeroTrustGovernance() {
   const [accessAnalytics, setAccessAnalytics] = usePageState<any>(PAGE, 'accessAnalytics', null)
   const [loading, setLoading] = usePageState(PAGE, 'loading', true)
   const [expandedFramework, setExpandedFramework] = usePageState<string | null>(PAGE, 'expandedFramework', null)
+  const [editingPolicy, setEditingPolicy] = usePageState<string | null>(PAGE, 'editingPolicy', null)
+  const [editValue, setEditValue] = usePageState<string>(PAGE, 'editValue', '')
+  const [policyError, setPolicyError] = usePageState(PAGE, 'policyError', '')
+  const [savingPolicy, setSavingPolicy] = usePageState(PAGE, 'savingPolicy', false)
+
+  const handlePolicyEdit = (policyKey: string, currentValue: any) => {
+    setEditingPolicy(policyKey)
+    setEditValue(String(currentValue))
+    setPolicyError('')
+  }
+
+  const handlePolicySave = async (policyKey: string, unit: string) => {
+    setSavingPolicy(true)
+    setPolicyError('')
+    try {
+      const val = unit === 'boolean' ? editValue === 'true' : parseFloat(editValue)
+      await updateGovernancePolicy(policyKey, val)
+      // Refresh policies
+      const pol = await fetchGovernancePolicies().catch(() => null)
+      if (pol) setPolicies(pol)
+      setEditingPolicy(null)
+    } catch (e) {
+      setPolicyError(e instanceof Error ? e.message : 'Update failed')
+    } finally {
+      setSavingPolicy(false)
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -109,10 +138,11 @@ export default function ZeroTrustGovernance() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <ShieldCheck className="w-7 h-7 text-accent-green" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold">Zero-Trust AI Governance</h1>
           <p className="text-sm text-text-secondary mt-0.5">Continuous verification, policy enforcement & compliance monitoring</p>
         </div>
+        <ExportMenu filename="zerotrust-governance" />
       </div>
 
       {/* Tabs */}
@@ -322,13 +352,67 @@ export default function ZeroTrustGovernance() {
                     </div>
                     <div className="text-xs text-text-secondary mb-2">{p.description}</div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-text-secondary">
-                        Current: <span className="font-mono text-text-primary">
-                          {typeof p.current_value === 'boolean' ? (p.current_value ? 'Enabled' : 'Disabled') : p.current_value} {p.unit !== 'boolean' ? p.unit : ''}
+                      {editingPolicy === Object.keys(policies.policies || {}).find(k => (policies.policies || {})[k]?.id === p.id) ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          {p.unit === 'boolean' ? (
+                            <select
+                              value={editValue}
+                              onChange={e => setEditValue(e.target.value)}
+                              className="px-2 py-1 bg-bg-primary border border-accent-blue/40 rounded text-xs text-text-primary font-mono"
+                            >
+                              <option value="true">Enabled</option>
+                              <option value="false">Disabled</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="number"
+                              step="any"
+                              value={editValue}
+                              onChange={e => setEditValue(e.target.value)}
+                              className="w-24 px-2 py-1 bg-bg-primary border border-accent-blue/40 rounded text-xs text-text-primary font-mono"
+                            />
+                          )}
+                          <span className="text-text-secondary text-[10px]">{p.unit !== 'boolean' ? p.unit : ''}</span>
+                          <button
+                            onClick={() => handlePolicySave(
+                              Object.keys(policies.policies || {}).find(k => (policies.policies || {})[k]?.id === p.id) || '',
+                              p.unit,
+                            )}
+                            disabled={savingPolicy}
+                            className="p-1 text-accent-green hover:bg-accent-green/10 rounded"
+                          >
+                            {savingPolicy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                          </button>
+                          <button onClick={() => setEditingPolicy(null)} className="p-1 text-text-secondary hover:bg-bg-card rounded">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-text-secondary">
+                          Current: <span className="font-mono text-text-primary">
+                            {typeof p.current_value === 'boolean' ? (p.current_value ? 'Enabled' : 'Disabled') : p.current_value} {p.unit !== 'boolean' ? p.unit : ''}
+                          </span>
                         </span>
-                      </span>
-                      <span className="text-accent-blue text-[10px]">{p.enforcement}</span>
+                      )}
+                      {editingPolicy !== Object.keys(policies.policies || {}).find(k => (policies.policies || {})[k]?.id === p.id) && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-accent-blue text-[10px]">{p.enforcement}</span>
+                          <button
+                            onClick={() => handlePolicyEdit(
+                              Object.keys(policies.policies || {}).find(k => (policies.policies || {})[k]?.id === p.id) || '',
+                              p.current_value,
+                            )}
+                            className="p-1 text-text-secondary hover:text-accent-blue hover:bg-accent-blue/10 rounded transition-colors"
+                            title="Edit policy value"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
+                    {policyError && editingPolicy === Object.keys(policies.policies || {}).find(k => (policies.policies || {})[k]?.id === p.id) && (
+                      <div className="text-[10px] text-accent-red mt-1">{policyError}</div>
+                    )}
                     <div className="flex flex-wrap gap-1 mt-2">
                       {p.frameworks?.map((f: string) => (
                         <span key={f} className="px-1.5 py-0.5 bg-accent-blue/10 text-accent-blue text-[9px] rounded">

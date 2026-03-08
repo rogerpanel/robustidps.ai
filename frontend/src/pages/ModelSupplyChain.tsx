@@ -10,6 +10,7 @@ import {
   CartesianGrid, Legend, Cell, PieChart, Pie,
 } from 'recharts'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import {
   fetchSupplyChainOverview, fetchSupplyChainModels, fetchPipelineChecks,
   fetchVulnerabilities, fetchRiskMatrix, runSupplyChainScan,
@@ -167,10 +168,11 @@ export default function ModelSupplyChain() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Package className="w-7 h-7 text-accent-blue" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold">Model Supply Chain Security</h1>
           <p className="text-sm text-text-secondary mt-0.5">Dependency scanning, SBOM generation, provenance & pipeline integrity</p>
         </div>
+        <ExportMenu filename="supply-chain-security" />
       </div>
 
       {/* Tabs */}

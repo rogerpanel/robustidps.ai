@@ -10,15 +10,13 @@ Provides endpoints for ML model supply chain security:
   - Supply chain risk scoring
 """
 
-from __future__ import annotations
-
 import hashlib
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -517,7 +515,7 @@ async def get_model_sbom(model_id: str, format: str = "cyclonedx", user=Depends(
 
 @router.post("/scan")
 @limiter.limit("10/minute")
-async def run_vulnerability_scan(request: Request, body: ScanRequest, user=Depends(require_auth)):
+async def run_vulnerability_scan(request: Request, body: ScanRequest = Body(), user=Depends(require_auth)):
     """Scan model dependencies for known vulnerabilities."""
     t0 = time.time()
 

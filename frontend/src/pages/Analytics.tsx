@@ -8,6 +8,7 @@ import { Loader2, Download, TrendingUp, Shield, GitBranch, Target, Lock, Scatter
 import { fetchAnalytics } from '../utils/api'
 import { exportAsPNG, exportAsPDF, exportAsSlides } from '../utils/exportUtils'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 
 const MODEL_COLORS: Record<string, string> = {
   surrogate: '#3B82F6',
@@ -129,7 +130,8 @@ export default function Analytics() {
       />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <h1 className="text-xl md:text-2xl font-display font-bold">Analytics & Evaluation</h1>
+        <h1 className="text-xl md:text-2xl font-display font-bold flex-1">Analytics & Evaluation</h1>
+        <ExportMenu filename="analytics" />
         <div className="flex items-center gap-2 self-start sm:self-auto">
           {exporting && (
             <span className="flex items-center gap-1.5 text-xs text-accent-blue">

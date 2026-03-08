@@ -2,7 +2,8 @@ import { useEffect } from 'react'
 import {
   Zap, Shield, Loader2, AlertTriangle, CheckCircle, Play, Pause,
   ChevronDown, ChevronUp, Clock, Server, Target, Activity, Link,
-  FileText, MessageSquare, Send,
+  FileText, MessageSquare, Send, ToggleLeft, ToggleRight, Wifi, WifiOff,
+  Filter,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -10,9 +11,11 @@ import {
   PolarAngleAxis, PolarRadiusAxis, Cell, PieChart, Pie,
 } from 'recharts'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import {
   fetchPlaybooks, simulateThreatResponse, fetchIncidents,
   fetchSecurityIntegrations, fetchResponseMetrics, addIncidentNote,
+  togglePlaybookAutoExecute,
 } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
@@ -54,6 +57,31 @@ export default function ThreatResponse() {
   const [expandedPb, setExpandedPb] = usePageState<string | null>(PAGE, 'expandedPb', null)
   const [expandedInc, setExpandedInc] = usePageState<string | null>(PAGE, 'expandedInc', null)
   const [noteText, setNoteText] = usePageState(PAGE, 'noteText', '')
+  const [severityFilter, setSeverityFilter] = usePageState(PAGE, 'severityFilter', 'all')
+  const [togglingPb, setTogglingPb] = usePageState<string | null>(PAGE, 'togglingPb', null)
+  const [testingInteg, setTestingInteg] = usePageState<string | null>(PAGE, 'testingInteg', null)
+  const [integStatus, setIntegStatus] = usePageState<Record<string, string>>(PAGE, 'integStatus', {})
+
+  const handleTogglePlaybook = async (pid: string, current: boolean) => {
+    setTogglingPb(pid)
+    try {
+      await togglePlaybookAutoExecute(pid, !current)
+      const pb = await fetchPlaybooks().catch(() => null)
+      if (pb) setPlaybooks(pb)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Toggle failed')
+    } finally {
+      setTogglingPb(null)
+    }
+  }
+
+  const handleTestIntegration = async (integId: string) => {
+    setTestingInteg(integId)
+    // Simulate connection test (frontend-only, since real integrations aren't configured)
+    await new Promise(r => setTimeout(r, 1500))
+    setIntegStatus(prev => ({ ...prev, [integId]: 'reachable' }))
+    setTestingInteg(null)
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -143,10 +171,11 @@ export default function ThreatResponse() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Zap className="w-7 h-7 text-accent-orange" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold">Autonomous Threat Response</h1>
           <p className="text-sm text-text-secondary mt-0.5">Automated playbooks, incident orchestration & SOAR integration</p>
         </div>
+        <ExportMenu filename="threat-response" />
       </div>
 
       {/* Tabs */}
@@ -265,11 +294,15 @@ export default function ThreatResponse() {
                   <span className="text-xs text-text-secondary">{pb.step_count} steps</span>
                   <span className="text-xs font-mono text-accent-green">{Math.round(pb.effectiveness_score * 100)}%</span>
                   <span className="text-xs text-text-secondary">{pb.estimated_response_ms}ms</span>
-                  {pb.auto_execute ? (
-                    <Play className="w-3.5 h-3.5 text-accent-green" />
-                  ) : (
-                    <Pause className="w-3.5 h-3.5 text-text-secondary" />
-                  )}
+                  <button
+                    onClick={e => { e.stopPropagation(); handleTogglePlaybook(pid, pb.auto_execute) }}
+                    disabled={togglingPb === pid}
+                    className={`p-1 rounded transition-colors ${pb.auto_execute ? 'text-accent-green hover:bg-accent-green/10' : 'text-text-secondary hover:bg-bg-card'}`}
+                    title={pb.auto_execute ? 'Auto-execute ON (click to disable)' : 'Auto-execute OFF (click to enable)'}
+                  >
+                    {togglingPb === pid ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+                     pb.auto_execute ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                  </button>
                   {expandedPb === pid ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {expandedPb === pid && (
@@ -450,20 +483,40 @@ export default function ThreatResponse() {
       {/* ══ INCIDENTS TAB ══ */}
       {tab === 'incidents' && !loading && (
         <>
-          {/* Severity summary */}
+          {/* Severity filter + summary */}
           {incidents && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
-                <div className="text-text-secondary text-xs mb-1">Total</div>
-                <div className="text-xl font-mono font-bold text-text-primary">{incidents.total}</div>
+            <>
+              <div className="flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-text-secondary" />
+                <span className="text-xs text-text-secondary">Filter:</span>
+                {['all', 'critical', 'high', 'medium', 'low'].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setSeverityFilter(s)}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                      severityFilter === s
+                        ? s === 'all' ? 'bg-accent-blue/15 text-accent-blue' : `text-white`
+                        : 'bg-bg-secondary text-text-secondary hover:text-text-primary'
+                    }`}
+                    style={severityFilter === s && s !== 'all' ? { background: SEV_COLORS[s], opacity: 0.9 } : {}}
+                  >
+                    {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                ))}
               </div>
-              {Object.entries(incidents.by_severity || {}).map(([sev, count]: [string, any]) => (
-                <div key={sev} className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
-                  <div className="text-text-secondary text-xs mb-1 capitalize">{sev}</div>
-                  <div className="text-xl font-mono font-bold" style={{ color: SEV_COLORS[sev] }}>{count}</div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+                  <div className="text-text-secondary text-xs mb-1">Total</div>
+                  <div className="text-xl font-mono font-bold text-text-primary">{incidents.total}</div>
                 </div>
-              ))}
-            </div>
+                {Object.entries(incidents.by_severity || {}).map(([sev, count]: [string, any]) => (
+                  <div key={sev} className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+                    <div className="text-text-secondary text-xs mb-1 capitalize">{sev}</div>
+                    <div className="text-xl font-mono font-bold" style={{ color: SEV_COLORS[sev] }}>{count}</div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* Incident list */}
@@ -473,7 +526,7 @@ export default function ThreatResponse() {
                 No incidents yet. Run a simulation to generate incident data.
               </div>
             )}
-            {incidents?.incidents?.map((inc: any) => (
+            {incidents?.incidents?.filter((inc: any) => severityFilter === 'all' || inc.severity === severityFilter).map((inc: any) => (
               <div key={inc.incident_id} className="bg-bg-secondary rounded-xl border border-bg-card overflow-hidden">
                 <button
                   onClick={() => setExpandedInc(expandedInc === inc.incident_id ? null : inc.incident_id)}
@@ -612,8 +665,27 @@ export default function ThreatResponse() {
                     ))}
                   </div>
                 </div>
-                <div className="text-[10px] text-text-secondary">
-                  Protocol: <span className="font-mono text-text-primary">{integ.protocol}</span>
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] text-text-secondary">
+                    Protocol: <span className="font-mono text-text-primary">{integ.protocol}</span>
+                  </div>
+                  <button
+                    onClick={() => handleTestIntegration(iid)}
+                    disabled={testingInteg === iid}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors ${
+                      integStatus[iid] === 'reachable'
+                        ? 'bg-accent-green/15 text-accent-green'
+                        : 'bg-bg-primary text-text-secondary hover:text-accent-blue hover:bg-accent-blue/10'
+                    }`}
+                  >
+                    {testingInteg === iid ? (
+                      <><Loader2 className="w-3 h-3 animate-spin" /> Testing...</>
+                    ) : integStatus[iid] === 'reachable' ? (
+                      <><Wifi className="w-3 h-3" /> Reachable</>
+                    ) : (
+                      <><WifiOff className="w-3 h-3" /> Test Connection</>
+                    )}
+                  </button>
                 </div>
               </div>
             ))}

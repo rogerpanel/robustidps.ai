@@ -11,6 +11,7 @@ import {
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import { runRedteam, fetchSampleData } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
@@ -122,10 +123,11 @@ export default function RedTeamArena() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Swords className="w-7 h-7 text-accent-red" />
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold">Adversarial Red Team Arena</h1>
           <p className="text-sm text-text-secondary mt-0.5">Stress-test model robustness against adversarial attacks</p>
         </div>
+        <ExportMenu filename="red-team" />
       </div>
 
       {/* Config Panel */}

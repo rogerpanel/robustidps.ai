@@ -18,6 +18,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import ExportMenu from '../components/ExportMenu'
 import { exportAsPNG, exportAsPDF, exportAsSlides } from '../utils/exportUtils'
 
 const BRANCH_NAMES = [
@@ -161,7 +162,7 @@ export default function AblationStudio() {
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl md:text-2xl font-display font-bold flex items-center gap-2">
             <FlaskConical className="w-6 h-6 text-accent-blue" />
             Ablation Studio
@@ -171,6 +172,7 @@ export default function AblationStudio() {
             Results persist across navigation — your toggle states and analysis are saved automatically.
           </p>
         </div>
+        <ExportMenu filename="ablation-study" />
         <div className="flex items-center gap-2">
           {exporting && (
             <span className="flex items-center gap-1.5 text-xs text-accent-blue">
