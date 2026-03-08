@@ -2,6 +2,14 @@ import { authHeaders, clearAuth } from './auth'
 
 const API = import.meta.env.VITE_API_URL || '';
 
+/** Extract a human-readable error message from a response body's `detail` field. */
+function errorMsg(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) return detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+  if (detail && typeof detail === 'object') return JSON.stringify(detail);
+  return fallback;
+}
+
 /**
  * Authenticated fetch wrapper.
  * Adds JWT Authorization header and handles 401 responses.
@@ -71,7 +79,7 @@ export async function uploadCustomModel(file: File, modelName: string) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Upload failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Upload failed (${res.status})`));
   }
   return res.json();
 }
@@ -89,7 +97,7 @@ export async function benchmarkModels() {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Benchmark failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Benchmark failed (${res.status})`));
   }
   return res.json();
 }
@@ -216,7 +224,7 @@ export async function generateFirewallRules(
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Error ${res.status}`);
+    throw new Error(errorMsg(data.detail, `Error ${res.status}`));
   }
   return res.json();
 }
@@ -235,7 +243,7 @@ export async function updateUserRole(userId: number, role: string) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Failed (${res.status})`));
   }
   return res.json();
 }
@@ -246,7 +254,7 @@ export async function resetUserPassword(userId: number, newPassword: string) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Failed (${res.status})`));
   }
   return res.json();
 }
@@ -257,7 +265,7 @@ export async function deleteUser(userId: number) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Failed (${res.status})`));
   }
   return res.json();
 }
@@ -268,7 +276,7 @@ export async function toggleUserActive(userId: number, active: boolean) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Failed (${res.status})`));
   }
   return res.json();
 }
@@ -304,7 +312,7 @@ export async function triggerContinualUpdate(
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Update failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Update failed (${res.status})`));
   }
   return res.json();
 }
@@ -349,7 +357,7 @@ export async function runRedteam(
   const res = await authFetch(`${API}/api/redteam/run`, { method: 'POST', body: form });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Red team failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Red team failed (${res.status})`));
   }
   return res.json();
 }
@@ -370,7 +378,7 @@ export async function runXai(
   const res = await authFetch(`${API}/api/xai/run`, { method: 'POST', body: form });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `XAI analysis failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `XAI analysis failed (${res.status})`));
   }
   return res.json();
 }
@@ -405,7 +413,7 @@ export async function runFederated(
   const res = await authFetch(`${API}/api/federated/run`, { method: 'POST', body: form });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Federated simulation failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Federated simulation failed (${res.status})`));
   }
   return res.json();
 }
@@ -425,7 +433,7 @@ export async function benchmarkPqAlgorithm(algorithm: string, iterations = 100) 
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Benchmark failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Benchmark failed (${res.status})`));
   }
   return res.json();
 }
@@ -443,7 +451,7 @@ export async function simulatePqHandshake(algorithm: string) {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Simulation failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Simulation failed (${res.status})`));
   }
   return res.json();
 }
@@ -487,7 +495,7 @@ export async function updateGovernancePolicy(policyId: string, newValue: number 
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Update failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Update failed (${res.status})`));
   }
   return res.json();
 }
@@ -532,7 +540,7 @@ export async function togglePlaybookAutoExecute(playbookId: string, autoExecute:
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Toggle failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Toggle failed (${res.status})`));
   }
   return res.json();
 }
@@ -555,7 +563,7 @@ export async function simulateThreatResponse(
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Simulation failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Simulation failed (${res.status})`));
   }
   return res.json();
 }
@@ -626,7 +634,7 @@ export async function runSupplyChainScan(modelId = 'all', scanType = 'full') {
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `Scan failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `Scan failed (${res.status})`));
   }
   return res.json();
 }
@@ -635,7 +643,7 @@ export async function fetchModelSbom(modelId: string, format = 'cyclonedx') {
   const res = await authFetch(`${API}/api/supply-chain/models/${modelId}/sbom?format=${encodeURIComponent(format)}`);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || `SBOM generation failed (${res.status})`);
+    throw new Error(errorMsg(data.detail, `SBOM generation failed (${res.status})`));
   }
   return res.json();
 }
