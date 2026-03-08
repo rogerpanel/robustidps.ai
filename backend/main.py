@@ -41,6 +41,12 @@ Endpoints:
   GET    /api/threat-response/incidents      Incident timeline
   GET    /api/threat-response/integrations   Security integrations
   GET    /api/threat-response/response-metrics  Response metrics
+  GET    /api/datasets                          List available datasets
+  GET    /api/datasets/{name}/info              Dataset metadata
+  POST   /api/datasets/upload                   Upload custom dataset
+  DELETE /api/datasets/{name}                   Remove dataset
+  POST   /api/datasets/{name}/predict           Predict on stored dataset
+  POST   /api/datasets/{name}/compare           Branch ablation comparison
 """
 
 import asyncio
@@ -92,6 +98,7 @@ from pq_crypto import router as pq_router
 from zerotrust import router as zerotrust_router
 from threat_response import router as threat_response_router
 from supply_chain import router as supply_chain_router
+from datasets import router as datasets_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -171,6 +178,7 @@ app.include_router(pq_router)
 app.include_router(zerotrust_router)
 app.include_router(threat_response_router)
 app.include_router(supply_chain_router)
+app.include_router(datasets_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
@@ -1181,18 +1189,24 @@ async def continual_rollback(request: Request, user=Depends(require_auth)):
 # ── Sample Data ──────────────────────────────────────────────────────────
 
 @app.get("/api/sample-data")
-async def get_sample_data():
-    """Serve built-in CIC-IoT-2023 sample CSV for demo operations."""
-    sample_path = Path(__file__).parent / "sample_data" / "ciciot_sample.csv"
+async def get_sample_data(dataset: str = "ciciot"):
+    """Serve built-in sample CSV for demo operations.
+    dataset: 'ciciot' (default) or 'pqc' for PQC test dataset.
+    """
+    if dataset == "pqc":
+        filename = "pqc_test_dataset.csv"
+    else:
+        filename = "ciciot_sample.csv"
+
+    sample_path = Path(__file__).parent / "sample_data" / filename
     if not sample_path.exists():
-        # Also check project root (sample_data/ may sit alongside backend/)
-        sample_path = Path(__file__).parent.parent / "sample_data" / "ciciot_sample.csv"
+        sample_path = Path(__file__).parent.parent / "sample_data" / filename
     if not sample_path.exists():
-        raise HTTPException(404, "Sample data file not found")
+        raise HTTPException(404, f"Sample data file '{filename}' not found")
     return FileResponse(
         sample_path,
         media_type="text/csv",
-        filename="ciciot_sample.csv",
+        filename=filename,
     )
 
 

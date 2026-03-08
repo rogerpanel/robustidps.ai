@@ -10,7 +10,8 @@ import { useAnalysis } from '../hooks/useAnalysis'
 import { useAblation } from '../hooks/useAblation'
 import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical, ToggleRight, ToggleLeft, TrendingDown, Brain } from 'lucide-react'
+import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical, ToggleRight, ToggleLeft, TrendingDown, Brain, Shield, FolderOpen } from 'lucide-react'
+import { fetchDatasets, fetchSampleData, type DatasetMeta } from '../utils/api'
 
 interface DatasetInfo {
   total_rows: number
@@ -82,6 +83,9 @@ export default function UploadPage() {
   const [deleting, setDeleting] = useState(false)
   const [showModelAnalytics, setShowModelAnalytics] = useState(true)
   const [showAblation, setShowAblation] = useState(true)
+  const [showDatasets, setShowDatasets] = useState(true)
+  const [datasets, setDatasets] = useState<DatasetMeta[]>([])
+  const [loadingDataset, setLoadingDataset] = useState<string | null>(null)
   const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
 
   // Sync model selection from Ablation Studio
@@ -90,6 +94,13 @@ export default function UploadPage() {
       setSelectedModel(ablation.selectedModel)
     }
   }, [ablation.selectedModel]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch available datasets on mount
+  useEffect(() => {
+    fetchDatasets()
+      .then((data) => setDatasets(data.datasets || []))
+      .catch(() => {})
+  }, [])
 
   const handleUpload = (file: File) => {
     runAnalysis(file, mcPasses, selectedModel)
@@ -131,6 +142,89 @@ export default function UploadPage() {
         ]}
         tip="Supported benchmarks: CIC-IoT-2023 (46 features), CSE-CIC-IDS2018 (79 features), UNSW-NB15 (49 features). Any CSV with numeric columns will also work as generic format."
       />
+
+      {/* Sample Datasets Panel */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <button
+          onClick={() => setShowDatasets(!showDatasets)}
+          className="w-full flex items-center justify-between text-sm font-medium text-text-primary"
+        >
+          <span className="flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-accent-purple" />
+            Sample Datasets
+            {datasets.length > 0 && (
+              <span className="text-xs bg-accent-purple/15 text-accent-purple px-2 py-0.5 rounded-full">
+                {datasets.length}
+              </span>
+            )}
+          </span>
+          {showDatasets ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {showDatasets && (
+          <div className="mt-4 space-y-3">
+            {/* Quick-load buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                onClick={async () => {
+                  setLoadingDataset('pqc');
+                  try {
+                    const file = await fetchSampleData('pqc');
+                    handleUpload(file);
+                  } catch { /* ignore */ }
+                  setLoadingDataset(null);
+                }}
+                disabled={loading || loadingDataset !== null}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-accent-purple/30 bg-accent-purple/5 hover:bg-accent-purple/15 text-sm transition-colors disabled:opacity-50"
+              >
+                {loadingDataset === 'pqc' ? <Loader2 className="w-4 h-4 animate-spin text-accent-purple" /> : <Shield className="w-4 h-4 text-accent-purple" />}
+                <div className="text-left">
+                  <div className="font-medium text-text-primary">PQC Test Dataset</div>
+                  <div className="text-[10px] text-text-secondary">50K flows | Kyber + attacks | 38 MB</div>
+                </div>
+              </button>
+              <button
+                onClick={async () => {
+                  setLoadingDataset('ciciot');
+                  try {
+                    const file = await fetchSampleData('ciciot');
+                    handleUpload(file);
+                  } catch { /* ignore */ }
+                  setLoadingDataset(null);
+                }}
+                disabled={loading || loadingDataset !== null}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-accent-blue/30 bg-accent-blue/5 hover:bg-accent-blue/15 text-sm transition-colors disabled:opacity-50"
+              >
+                {loadingDataset === 'ciciot' ? <Loader2 className="w-4 h-4 animate-spin text-accent-blue" /> : <Database className="w-4 h-4 text-accent-blue" />}
+                <div className="text-left">
+                  <div className="font-medium text-text-primary">CIC-IoT-2023 Sample</div>
+                  <div className="text-[10px] text-text-secondary">1K flows | Standard IDS | 0.9 MB</div>
+                </div>
+              </button>
+            </div>
+
+            {/* Server-side datasets */}
+            {datasets.length > 0 && (
+              <div className="border-t border-bg-card pt-3">
+                <div className="text-xs text-text-secondary mb-2">Server Datasets ({datasets.length})</div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {datasets.map((ds) => (
+                    <div
+                      key={ds.name}
+                      className="flex items-center justify-between px-2 py-1.5 rounded bg-bg-card/50 text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        {ds.has_pq_metadata ? <Shield className="w-3 h-3 text-accent-purple" /> : <Database className="w-3 h-3 text-accent-blue" />}
+                        <span className="font-mono text-text-primary">{ds.name}</span>
+                        <span className="text-text-secondary">{ds.n_rows.toLocaleString()} rows | {ds.size_mb} MB</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2">

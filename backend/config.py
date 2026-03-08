@@ -37,6 +37,9 @@ DEVICE = os.getenv("DEVICE", "cpu")
 MC_PASSES = int(os.getenv("MC_PASSES", "20"))
 MAX_ROWS = int(os.getenv("MAX_ROWS", "10000"))
 
+# ── Datasets ──────────────────────────────────────────────────────────────
+DATASETS_DIR = Path(os.getenv("DATASETS_DIR", str(Path(__file__).parent / "datasets")))
+
 # ── Default Admin (created on first startup if DB is empty) ───────────────
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@robustidps.ai")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "R1$")

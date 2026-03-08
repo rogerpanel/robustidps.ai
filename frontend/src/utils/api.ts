@@ -195,11 +195,79 @@ export async function exportResults(jobId: string) {
 
 // ── Sample Data ─────────────────────────────────────────────────────────
 
-export async function fetchSampleData(): Promise<File> {
-  const res = await fetch(`${API}/api/sample-data`);
+export async function fetchSampleData(dataset: 'ciciot' | 'pqc' = 'ciciot'): Promise<File> {
+  const res = await fetch(`${API}/api/sample-data?dataset=${dataset}`);
   if (!res.ok) throw new Error('Failed to fetch sample data');
   const blob = await res.blob();
-  return new File([blob], 'ciciot_sample.csv', { type: 'text/csv' });
+  const filename = dataset === 'pqc' ? 'pqc_test_dataset.csv' : 'ciciot_sample.csv';
+  return new File([blob], filename, { type: 'text/csv' });
+}
+
+// ── Datasets Management ──────────────────────────────────────────────────
+
+export interface DatasetMeta {
+  name: string
+  filename: string
+  size_mb: number
+  n_rows: number
+  n_columns: number
+  columns: string[]
+  has_pq_metadata: boolean
+  pq_distribution: Record<string, number>
+  label_distribution: Record<string, number>
+}
+
+export async function fetchDatasets(): Promise<{ datasets: DatasetMeta[] }> {
+  const res = await authFetch(`${API}/api/datasets`);
+  return res.json();
+}
+
+export async function fetchDatasetInfo(name: string): Promise<DatasetMeta> {
+  const res = await authFetch(`${API}/api/datasets/${encodeURIComponent(name)}/info`);
+  return res.json();
+}
+
+export async function uploadDataset(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await authFetch(`${API}/api/datasets/upload`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `Upload failed (${res.status})`));
+  }
+  return res.json();
+}
+
+export async function deleteDataset(name: string) {
+  const res = await authFetch(`${API}/api/datasets/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+  return res.json();
+}
+
+export async function predictDataset(name: string, mcPasses = 20) {
+  const res = await authFetch(`${API}/api/datasets/${encodeURIComponent(name)}/predict?mc_passes=${mcPasses}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `Prediction failed (${res.status})`));
+  }
+  return res.json();
+}
+
+export async function compareDatasetBranches(name: string, mcPasses = 10) {
+  const res = await authFetch(`${API}/api/datasets/${encodeURIComponent(name)}/compare?mc_passes=${mcPasses}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `Comparison failed (${res.status})`));
+  }
+  return res.json();
 }
 
 // ── Firewall rule generation ─────────────────────────────────────────────

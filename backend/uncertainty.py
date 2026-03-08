@@ -36,13 +36,17 @@ def compute_ece(confidence: torch.Tensor, predictions: torch.Tensor,
 CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE", "5000"))
 
 
-def _mc_chunk(model, chunk: torch.Tensor, n_mc: int):
+def _mc_chunk(model, chunk: torch.Tensor, n_mc: int,
+              disabled_branches: set | None = None):
     """Run MC Dropout on a single chunk and return summary tensors."""
     model.train()
     mc_preds = []
     with torch.no_grad():
         for _ in range(n_mc):
-            logits = model(chunk)
+            if disabled_branches and hasattr(model, "forward"):
+                logits = model(chunk, disabled_branches=disabled_branches)
+            else:
+                logits = model(chunk)
             probs = torch.softmax(logits, dim=-1)
             mc_preds.append(probs)
     model.eval()
@@ -58,7 +62,8 @@ def _mc_chunk(model, chunk: torch.Tensor, n_mc: int):
 
 def predict_with_uncertainty(model, features: torch.Tensor,
                              labels: torch.Tensor | None = None,
-                             n_mc: int = 20) -> dict:
+                             n_mc: int = 20,
+                             disabled_branches: set | None = None) -> dict:
     """MC-Dropout inference with automatic chunking for large inputs."""
     n = features.size(0)
     all_preds, all_conf, all_epi, all_ale, all_mean = [], [], [], [], []
@@ -66,7 +71,7 @@ def predict_with_uncertainty(model, features: torch.Tensor,
     for start in range(0, n, CHUNK_SIZE):
         end = min(start + CHUNK_SIZE, n)
         chunk = features[start:end]
-        p, c, e, a, m = _mc_chunk(model, chunk, n_mc)
+        p, c, e, a, m = _mc_chunk(model, chunk, n_mc, disabled_branches)
         all_preds.append(p)
         all_conf.append(c)
         all_epi.append(e)
