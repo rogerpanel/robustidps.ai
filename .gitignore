@@ -20,5 +20,7 @@ dist/
 .DS_Store
 Thumbs.db
 
+deploy/ssl/
+
 # Weights are tracked (small enough for demo)
 # backend/weights/
