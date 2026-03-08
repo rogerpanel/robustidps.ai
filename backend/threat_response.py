@@ -21,8 +21,10 @@ from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
+from sqlalchemy.orm import Session
+
 from auth import require_auth, require_role
-from database import get_db, SessionLocal, AuditLog, Job
+from database import get_db, SessionLocal, AuditLog, Job, Incident, IncidentNote, CustomPlaybook
 
 router = APIRouter(prefix="/api/threat-response", tags=["threat-response"])
 limiter = Limiter(key_func=get_remote_address)
@@ -214,9 +216,55 @@ INTEGRATIONS = {
     },
 }
 
-# ── In-memory incident store ─────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────
 
-_incidents: list[dict] = []
+def _get_all_playbooks(db: Session) -> dict:
+    """Merge built-in PLAYBOOKS with user-created CustomPlaybooks from DB."""
+    merged = dict(PLAYBOOKS)
+    for cp in db.query(CustomPlaybook).all():
+        merged[cp.playbook_key] = {
+            "id": f"PB-C{cp.id:03d}",
+            "name": cp.name,
+            "description": cp.description or "",
+            "trigger_classes": cp.trigger_classes or [],
+            "severity": cp.severity,
+            "auto_execute": cp.auto_execute,
+            "requires_approval": cp.requires_approval,
+            "response_chain": cp.response_chain or [],
+            "estimated_response_ms": cp.estimated_response_ms,
+            "effectiveness_score": cp.effectiveness_score,
+            "false_positive_rate": cp.false_positive_rate,
+            "custom": True,
+            "created_by": cp.created_by,
+        }
+    return merged
+
+
+def _incident_to_dict(inc: Incident) -> dict:
+    """Convert an Incident ORM object to a JSON-friendly dict."""
+    return {
+        "incident_id": inc.incident_id,
+        "playbook_id": inc.playbook_id,
+        "playbook_name": inc.playbook_name,
+        "severity": inc.severity,
+        "source_ip": inc.source_ip,
+        "target_ip": inc.target_ip,
+        "threat_label": inc.threat_label,
+        "confidence": inc.confidence,
+        "mode": inc.mode,
+        "steps": inc.steps or [],
+        "total_simulated_ms": inc.total_simulated_ms,
+        "actual_execution_ms": inc.actual_execution_ms,
+        "effectiveness_score": inc.effectiveness_score,
+        "false_positive_rate": inc.false_positive_rate,
+        "triggered_by": inc.triggered_by,
+        "timestamp": inc.timestamp.isoformat() if inc.timestamp else None,
+        "notes": [
+            {"author": n.author, "note": n.note, "timestamp": n.timestamp.isoformat() if n.timestamp else None}
+            for n in (inc.notes or [])
+        ],
+    }
+
 
 # ── Request Models ───────────────────────────────────────────────────────
 
@@ -233,64 +281,179 @@ class PlaybookToggleRequest(BaseModel):
 class IncidentNoteRequest(BaseModel):
     note: str = Field(..., min_length=1, max_length=2000, description="Analyst note")
 
+class PlaybookCreateRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=200, description="Playbook name")
+    description: str = Field("", max_length=1000, description="Playbook description")
+    trigger_classes: list[str] = Field(default_factory=list, description="Threat classes that trigger this playbook")
+    severity: str = Field("medium", description="Severity level")
+    requires_approval: bool = Field(True, description="Whether manual approval is needed")
+    response_chain: list[dict] = Field(default_factory=list, description="Response steps")
+
+class PlaybookUpdateRequest(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=200)
+    description: Optional[str] = Field(None, max_length=1000)
+    trigger_classes: Optional[list[str]] = None
+    severity: Optional[str] = None
+    requires_approval: Optional[bool] = None
+    response_chain: Optional[list[dict]] = None
+
 
 # ── Endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/playbooks")
-async def list_playbooks(user=Depends(require_auth)):
-    """List all response playbooks with their configurations."""
+async def list_playbooks(user=Depends(require_auth), db: Session = Depends(get_db)):
+    """List all response playbooks (built-in + custom) with their configurations."""
+    all_pb = _get_all_playbooks(db)
     summary = {}
-    for pid, pb in PLAYBOOKS.items():
+    for pid, pb in all_pb.items():
         summary[pid] = {
             **pb,
-            "trigger_count": len(pb["trigger_classes"]),
-            "step_count": len(pb["response_chain"]),
+            "trigger_count": len(pb.get("trigger_classes", [])),
+            "step_count": len(pb.get("response_chain", [])),
         }
     return {
         "playbooks": summary,
-        "total": len(PLAYBOOKS),
-        "auto_execute_enabled": sum(1 for p in PLAYBOOKS.values() if p["auto_execute"]),
-        "requires_approval": sum(1 for p in PLAYBOOKS.values() if p["requires_approval"]),
+        "total": len(all_pb),
+        "auto_execute_enabled": sum(1 for p in all_pb.values() if p.get("auto_execute")),
+        "requires_approval": sum(1 for p in all_pb.values() if p.get("requires_approval")),
     }
 
 
 @router.get("/playbooks/{playbook_id}")
-async def get_playbook(playbook_id: str, user=Depends(require_auth)):
+async def get_playbook(playbook_id: str, user=Depends(require_auth), db: Session = Depends(get_db)):
     """Get detailed playbook configuration."""
-    if playbook_id not in PLAYBOOKS:
+    all_pb = _get_all_playbooks(db)
+    if playbook_id not in all_pb:
         raise HTTPException(404, f"Playbook not found: {playbook_id}")
-    return PLAYBOOKS[playbook_id]
+    return all_pb[playbook_id]
+
+
+@router.post("/playbooks")
+async def create_playbook(body: PlaybookCreateRequest, user=Depends(require_auth), db: Session = Depends(get_db)):
+    """Create a new custom playbook."""
+    # Generate a URL-safe key from the name
+    key = body.name.lower().replace(" ", "_").replace("-", "_")
+    key = "".join(c for c in key if c.isalnum() or c == "_")
+
+    # Check for duplicates
+    if key in PLAYBOOKS or db.query(CustomPlaybook).filter_by(playbook_key=key).first():
+        raise HTTPException(409, f"Playbook with key '{key}' already exists")
+
+    # Validate severity
+    if body.severity not in ("critical", "high", "medium", "low"):
+        raise HTTPException(400, "Severity must be critical, high, medium, or low")
+
+    # Compute estimated response time from chain
+    estimated_ms = sum(s.get("delay_ms", 0) for s in body.response_chain) if body.response_chain else 0
+
+    cp = CustomPlaybook(
+        playbook_key=key,
+        name=body.name,
+        description=body.description,
+        trigger_classes=body.trigger_classes,
+        severity=body.severity,
+        auto_execute=False,
+        requires_approval=body.requires_approval,
+        response_chain=body.response_chain,
+        estimated_response_ms=estimated_ms,
+        created_by=user.email,
+    )
+    db.add(cp)
+    db.commit()
+    db.refresh(cp)
+
+    return {
+        "playbook_key": key,
+        "id": f"PB-C{cp.id:03d}",
+        "name": cp.name,
+        "message": "Custom playbook created successfully",
+    }
+
+
+@router.put("/playbooks/{playbook_id}")
+async def update_playbook(playbook_id: str, body: PlaybookUpdateRequest, user=Depends(require_auth), db: Session = Depends(get_db)):
+    """Update a custom playbook (built-in playbooks cannot be edited)."""
+    if playbook_id in PLAYBOOKS:
+        raise HTTPException(403, "Built-in playbooks cannot be edited")
+
+    cp = db.query(CustomPlaybook).filter_by(playbook_key=playbook_id).first()
+    if not cp:
+        raise HTTPException(404, f"Custom playbook not found: {playbook_id}")
+
+    if body.name is not None:
+        cp.name = body.name
+    if body.description is not None:
+        cp.description = body.description
+    if body.trigger_classes is not None:
+        cp.trigger_classes = body.trigger_classes
+    if body.severity is not None:
+        if body.severity not in ("critical", "high", "medium", "low"):
+            raise HTTPException(400, "Severity must be critical, high, medium, or low")
+        cp.severity = body.severity
+    if body.requires_approval is not None:
+        cp.requires_approval = body.requires_approval
+    if body.response_chain is not None:
+        cp.response_chain = body.response_chain
+        cp.estimated_response_ms = sum(s.get("delay_ms", 0) for s in body.response_chain)
+
+    db.commit()
+    return {"playbook_key": playbook_id, "message": "Playbook updated"}
+
+
+@router.delete("/playbooks/{playbook_id}")
+async def delete_playbook(playbook_id: str, user=Depends(require_role("admin")), db: Session = Depends(get_db)):
+    """Delete a custom playbook (admin only). Built-in playbooks cannot be deleted."""
+    if playbook_id in PLAYBOOKS:
+        raise HTTPException(403, "Built-in playbooks cannot be deleted")
+
+    cp = db.query(CustomPlaybook).filter_by(playbook_key=playbook_id).first()
+    if not cp:
+        raise HTTPException(404, f"Custom playbook not found: {playbook_id}")
+
+    db.delete(cp)
+    db.commit()
+    return {"playbook_key": playbook_id, "message": "Playbook deleted"}
 
 
 @router.patch("/playbooks/{playbook_id}/toggle")
-async def toggle_playbook(playbook_id: str, body: PlaybookToggleRequest, user=Depends(require_role("admin"))):
+async def toggle_playbook(playbook_id: str, body: PlaybookToggleRequest, user=Depends(require_role("admin")), db: Session = Depends(get_db)):
     """Enable/disable auto-execution for a playbook (admin only)."""
-    if playbook_id not in PLAYBOOKS:
+    all_pb = _get_all_playbooks(db)
+    if playbook_id not in all_pb:
         raise HTTPException(404, f"Playbook not found: {playbook_id}")
 
-    pb = PLAYBOOKS[playbook_id]
-    old_value = pb["auto_execute"]
-    pb["auto_execute"] = body.auto_execute
+    # For built-in playbooks, toggle in-memory
+    if playbook_id in PLAYBOOKS:
+        old_value = PLAYBOOKS[playbook_id]["auto_execute"]
+        PLAYBOOKS[playbook_id]["auto_execute"] = body.auto_execute
+    else:
+        cp = db.query(CustomPlaybook).filter_by(playbook_key=playbook_id).first()
+        old_value = cp.auto_execute
+        cp.auto_execute = body.auto_execute
+        db.commit()
 
+    pb = all_pb[playbook_id]
     return {
         "playbook_id": playbook_id,
         "name": pb["name"],
         "auto_execute": body.auto_execute,
         "previous": old_value,
         "updated_by": user.email,
-        "warning": "Critical playbook — requires human approval even in auto mode" if pb["requires_approval"] else None,
+        "warning": "Critical playbook — requires human approval even in auto mode" if pb.get("requires_approval") else None,
     }
 
 
 @router.post("/simulate")
 @limiter.limit("10/minute")
-async def simulate_response(request: Request, body: SimulateRequest, user=Depends(require_auth)):
+async def simulate_response(request: Request, body: SimulateRequest, user=Depends(require_auth), db: Session = Depends(get_db)):
     """Simulate a threat response playbook execution with detailed step timing."""
-    if body.playbook_id not in PLAYBOOKS:
+    all_pb = _get_all_playbooks(db)
+    if body.playbook_id not in all_pb:
         raise HTTPException(404, f"Playbook not found: {body.playbook_id}")
 
-    pb = PLAYBOOKS[body.playbook_id]
-    threat_label = body.threat_label or (pb["trigger_classes"][0] if pb["trigger_classes"] else "Unknown")
+    pb = all_pb[body.playbook_id]
+    trigger_classes = pb.get("trigger_classes", [])
+    threat_label = body.threat_label or (trigger_classes[0] if trigger_classes else "Unknown")
 
     # Simulate execution of each step
     incident_id = f"INC-{secrets.token_hex(4).upper()}"
@@ -298,9 +461,8 @@ async def simulate_response(request: Request, body: SimulateRequest, user=Depend
     total_time_ms = 0
     t_start = time.perf_counter()
 
-    for step in pb["response_chain"]:
+    for step in pb.get("response_chain", []):
         step_start = time.perf_counter()
-        # Simulate processing with realistic timing
         import asyncio
         await asyncio.sleep(step["delay_ms"] / 10000)  # 100x speedup for simulation
         step_end = time.perf_counter()
@@ -319,29 +481,29 @@ async def simulate_response(request: Request, body: SimulateRequest, user=Depend
 
     t_end = time.perf_counter()
 
-    incident = {
-        "incident_id": incident_id,
-        "playbook_id": body.playbook_id,
-        "playbook_name": pb["name"],
-        "severity": pb["severity"],
-        "source_ip": body.source_ip,
-        "target_ip": body.target_ip,
-        "threat_label": threat_label,
-        "confidence": body.confidence,
-        "mode": "simulation",
-        "steps": steps_executed,
-        "total_simulated_ms": total_time_ms,
-        "actual_execution_ms": round((t_end - t_start) * 1000, 1),
-        "effectiveness_score": pb["effectiveness_score"],
-        "false_positive_rate": pb["false_positive_rate"],
-        "triggered_by": user.email,
-        "timestamp": datetime.utcnow().isoformat(),
-        "notes": [],
-    }
+    # Persist incident to database
+    inc_row = Incident(
+        incident_id=incident_id,
+        playbook_id=body.playbook_id,
+        playbook_name=pb["name"],
+        severity=pb.get("severity", "medium"),
+        source_ip=body.source_ip,
+        target_ip=body.target_ip,
+        threat_label=threat_label,
+        confidence=body.confidence,
+        mode="simulation",
+        steps=steps_executed,
+        total_simulated_ms=total_time_ms,
+        actual_execution_ms=round((t_end - t_start) * 1000, 1),
+        effectiveness_score=pb.get("effectiveness_score", 0),
+        false_positive_rate=pb.get("false_positive_rate", 0),
+        triggered_by=user.email,
+    )
+    db.add(inc_row)
+    db.commit()
+    db.refresh(inc_row)
 
-    _incidents.append(incident)
-
-    return incident
+    return _incident_to_dict(inc_row)
 
 
 @router.get("/incidents")
@@ -349,46 +511,59 @@ async def list_incidents(
     limit: int = 50,
     severity: Optional[str] = None,
     user=Depends(require_auth),
+    db: Session = Depends(get_db),
 ):
-    """List recent incidents (simulated and real)."""
-    filtered = _incidents
+    """List recent incidents (persisted to database)."""
+    query = db.query(Incident)
     if severity:
-        filtered = [i for i in filtered if i.get("severity") == severity]
+        query = query.filter(Incident.severity == severity)
+
+    total_query = db.query(Incident)
+    total = total_query.count()
+
+    incidents = query.order_by(Incident.timestamp.desc()).limit(limit).all()
 
     return {
-        "incidents": list(reversed(filtered[-limit:])),
-        "total": len(filtered),
+        "incidents": [_incident_to_dict(i) for i in incidents],
+        "total": total if not severity else query.count(),
         "by_severity": {
-            "critical": sum(1 for i in _incidents if i.get("severity") == "critical"),
-            "high": sum(1 for i in _incidents if i.get("severity") == "high"),
-            "medium": sum(1 for i in _incidents if i.get("severity") == "medium"),
-            "low": sum(1 for i in _incidents if i.get("severity") == "low"),
+            "critical": total_query.filter(Incident.severity == "critical").count(),
+            "high": total_query.filter(Incident.severity == "high").count(),
+            "medium": total_query.filter(Incident.severity == "medium").count(),
+            "low": total_query.filter(Incident.severity == "low").count(),
         },
     }
 
 
 @router.get("/incidents/{incident_id}")
-async def get_incident(incident_id: str, user=Depends(require_auth)):
+async def get_incident(incident_id: str, user=Depends(require_auth), db: Session = Depends(get_db)):
     """Get detailed incident timeline."""
-    for inc in _incidents:
-        if inc["incident_id"] == incident_id:
-            return inc
-    raise HTTPException(404, f"Incident not found: {incident_id}")
+    inc = db.query(Incident).filter_by(incident_id=incident_id).first()
+    if not inc:
+        raise HTTPException(404, f"Incident not found: {incident_id}")
+    return _incident_to_dict(inc)
 
 
 @router.post("/incidents/{incident_id}/note")
-async def add_incident_note(incident_id: str, body: IncidentNoteRequest, user=Depends(require_auth)):
+async def add_incident_note(incident_id: str, body: IncidentNoteRequest, user=Depends(require_auth), db: Session = Depends(get_db)):
     """Add analyst note to an incident."""
-    for inc in _incidents:
-        if inc["incident_id"] == incident_id:
-            note = {
-                "author": user.email,
-                "note": body.note,
-                "timestamp": datetime.utcnow().isoformat(),
-            }
-            inc.setdefault("notes", []).append(note)
-            return {"incident_id": incident_id, "note_added": note, "total_notes": len(inc["notes"])}
-    raise HTTPException(404, f"Incident not found: {incident_id}")
+    inc = db.query(Incident).filter_by(incident_id=incident_id).first()
+    if not inc:
+        raise HTTPException(404, f"Incident not found: {incident_id}")
+
+    note_row = IncidentNote(
+        incident_id=incident_id,
+        author=user.email,
+        note=body.note,
+    )
+    db.add(note_row)
+    db.commit()
+
+    return {
+        "incident_id": incident_id,
+        "note_added": {"author": user.email, "note": body.note, "timestamp": note_row.timestamp.isoformat()},
+        "total_notes": db.query(IncidentNote).filter_by(incident_id=incident_id).count(),
+    }
 
 
 @router.get("/integrations")
@@ -404,33 +579,36 @@ async def list_integrations(user=Depends(require_auth)):
 
 
 @router.get("/response-metrics")
-async def response_metrics(user=Depends(require_auth)):
+async def response_metrics(user=Depends(require_auth), db: Session = Depends(get_db)):
     """Get aggregated response metrics across all playbooks and incidents."""
+    all_pb = _get_all_playbooks(db)
+
     playbook_metrics = []
-    for pid, pb in PLAYBOOKS.items():
-        related_incidents = [i for i in _incidents if i.get("playbook_id") == pid]
+    for pid, pb in all_pb.items():
+        inc_count = db.query(Incident).filter_by(playbook_id=pid).count()
         playbook_metrics.append({
             "playbook_id": pid,
             "name": pb["name"],
-            "severity": pb["severity"],
-            "incidents_triggered": len(related_incidents),
-            "effectiveness_score": pb["effectiveness_score"],
-            "false_positive_rate": pb["false_positive_rate"],
-            "avg_response_ms": pb["estimated_response_ms"],
-            "auto_execute": pb["auto_execute"],
-            "step_count": len(pb["response_chain"]),
-            "trigger_classes": len(pb["trigger_classes"]),
+            "severity": pb.get("severity", "medium"),
+            "incidents_triggered": inc_count,
+            "effectiveness_score": pb.get("effectiveness_score", 0),
+            "false_positive_rate": pb.get("false_positive_rate", 0),
+            "avg_response_ms": pb.get("estimated_response_ms", 0),
+            "auto_execute": pb.get("auto_execute", False),
+            "step_count": len(pb.get("response_chain", [])),
+            "trigger_classes": len(pb.get("trigger_classes", [])),
+            "custom": pb.get("custom", False),
         })
 
-    total_incidents = len(_incidents)
+    total_incidents = db.query(Incident).count()
     avg_effectiveness = round(
         sum(p["effectiveness_score"] for p in playbook_metrics) / len(playbook_metrics) * 100, 1
     ) if playbook_metrics else 0
 
     # Coverage analysis — which attack classes have playbooks
     covered_classes = set()
-    for pb in PLAYBOOKS.values():
-        covered_classes.update(pb["trigger_classes"])
+    for pb in all_pb.values():
+        covered_classes.update(pb.get("trigger_classes", []))
 
     all_classes = [
         "Benign", "DDoS-TCP_Flood", "DDoS-UDP_Flood", "DDoS-ICMP_Flood", "DDoS-HTTP_Flood",
@@ -448,19 +626,19 @@ async def response_metrics(user=Depends(require_auth)):
     return {
         "playbooks": playbook_metrics,
         "summary": {
-            "total_playbooks": len(PLAYBOOKS),
+            "total_playbooks": len(all_pb),
             "total_incidents": total_incidents,
             "avg_effectiveness": avg_effectiveness,
             "coverage": {
                 "covered_classes": len(covered_classes),
-                "total_threat_classes": len(all_classes) - 1,  # exclude Benign
+                "total_threat_classes": len(all_classes) - 1,
                 "coverage_percentage": round(len(covered_classes) / (len(all_classes) - 1) * 100, 1),
                 "uncovered_classes": uncovered,
             },
         },
         "mttr_by_severity": {
-            "critical": round(sum(pb["estimated_response_ms"] for pb in PLAYBOOKS.values() if pb["severity"] == "critical") / max(1, sum(1 for pb in PLAYBOOKS.values() if pb["severity"] == "critical"))),
-            "high": round(sum(pb["estimated_response_ms"] for pb in PLAYBOOKS.values() if pb["severity"] == "high") / max(1, sum(1 for pb in PLAYBOOKS.values() if pb["severity"] == "high"))),
-            "medium": round(sum(pb["estimated_response_ms"] for pb in PLAYBOOKS.values() if pb["severity"] == "medium") / max(1, sum(1 for pb in PLAYBOOKS.values() if pb["severity"] == "medium"))),
+            "critical": round(sum(pb.get("estimated_response_ms", 0) for pb in all_pb.values() if pb.get("severity") == "critical") / max(1, sum(1 for pb in all_pb.values() if pb.get("severity") == "critical"))),
+            "high": round(sum(pb.get("estimated_response_ms", 0) for pb in all_pb.values() if pb.get("severity") == "high") / max(1, sum(1 for pb in all_pb.values() if pb.get("severity") == "high"))),
+            "medium": round(sum(pb.get("estimated_response_ms", 0) for pb in all_pb.values() if pb.get("severity") == "medium") / max(1, sum(1 for pb in all_pb.values() if pb.get("severity") == "medium"))),
         },
     }

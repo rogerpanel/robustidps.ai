@@ -721,6 +721,50 @@ export async function fetchResponseMetrics() {
   return res.json();
 }
 
+export async function createPlaybook(data: {
+  name: string;
+  description: string;
+  trigger_classes: string[];
+  severity: string;
+  requires_approval: boolean;
+  response_chain: { step: number; action: string; description: string; delay_ms: number }[];
+}) {
+  const res = await authFetch(`${API}/api/threat-response/playbooks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(d.detail, `Create playbook failed (${res.status})`));
+  }
+  return res.json();
+}
+
+export async function updatePlaybook(playbookId: string, data: Record<string, unknown>) {
+  const res = await authFetch(`${API}/api/threat-response/playbooks/${playbookId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(d.detail, `Update playbook failed (${res.status})`));
+  }
+  return res.json();
+}
+
+export async function deletePlaybook(playbookId: string) {
+  const res = await authFetch(`${API}/api/threat-response/playbooks/${playbookId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(d.detail, `Delete playbook failed (${res.status})`));
+  }
+  return res.json();
+}
+
 // ── Model Supply Chain Security ──────────────────────────────────────────
 
 export async function fetchSupplyChainOverview() {

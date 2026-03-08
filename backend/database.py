@@ -8,7 +8,7 @@ import datetime
 
 from sqlalchemy import (
     Column, Integer, String, DateTime, Text, Boolean,
-    ForeignKey, Float, create_engine,
+    ForeignKey, Float, JSON, create_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship, Session, sessionmaker
 
@@ -86,6 +86,62 @@ class FirewallRule(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     job = relationship("Job", back_populates="firewall_rules")
+
+
+class Incident(Base):
+    __tablename__ = "incidents"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    incident_id = Column(String(20), unique=True, nullable=False, index=True)
+    playbook_id = Column(String(100), nullable=False)
+    playbook_name = Column(String(255), nullable=False)
+    severity = Column(String(20), nullable=False)
+    source_ip = Column(String(45))
+    target_ip = Column(String(45))
+    threat_label = Column(String(200))
+    confidence = Column(Float)
+    mode = Column(String(20), default="simulation")
+    steps = Column(JSON, default=list)
+    total_simulated_ms = Column(Integer, default=0)
+    actual_execution_ms = Column(Float, default=0)
+    effectiveness_score = Column(Float)
+    false_positive_rate = Column(Float)
+    triggered_by = Column(String(255))
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+    notes = relationship("IncidentNote", back_populates="incident", cascade="all, delete-orphan")
+
+
+class IncidentNote(Base):
+    __tablename__ = "incident_notes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    incident_id = Column(String(20), ForeignKey("incidents.incident_id"), nullable=False)
+    author = Column(String(255))
+    note = Column(Text, nullable=False)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+    incident = relationship("Incident", back_populates="notes")
+
+
+class CustomPlaybook(Base):
+    __tablename__ = "custom_playbooks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    playbook_key = Column(String(100), unique=True, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+    trigger_classes = Column(JSON, default=list)
+    severity = Column(String(20), default="medium")
+    auto_execute = Column(Boolean, default=False)
+    requires_approval = Column(Boolean, default=True)
+    response_chain = Column(JSON, default=list)
+    estimated_response_ms = Column(Integer, default=0)
+    effectiveness_score = Column(Float, default=0.80)
+    false_positive_rate = Column(Float, default=0.05)
+    created_by = Column(String(255))
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
 
 # ── Engine & Session ──────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import {
   Zap, Shield, Loader2, AlertTriangle, CheckCircle, Play, Pause,
   ChevronDown, ChevronUp, Clock, Server, Target, Activity, Link,
   FileText, MessageSquare, Send, ToggleLeft, ToggleRight, Wifi, WifiOff,
-  Filter,
+  Filter, Plus, Trash2,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -12,10 +12,11 @@ import {
 } from 'recharts'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
+import PlaybookEditor from '../components/PlaybookEditor'
 import {
   fetchPlaybooks, simulateThreatResponse, fetchIncidents,
   fetchSecurityIntegrations, fetchResponseMetrics, addIncidentNote,
-  togglePlaybookAutoExecute,
+  togglePlaybookAutoExecute, createPlaybook, deletePlaybook,
 } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
@@ -61,6 +62,8 @@ export default function ThreatResponse() {
   const [togglingPb, setTogglingPb] = usePageState<string | null>(PAGE, 'togglingPb', null)
   const [testingInteg, setTestingInteg] = usePageState<string | null>(PAGE, 'testingInteg', null)
   const [integStatus, setIntegStatus] = usePageState<Record<string, string>>(PAGE, 'integStatus', {})
+  const [showEditor, setShowEditor] = usePageState(PAGE, 'showEditor', false)
+  const [savingPlaybook, setSavingPlaybook] = usePageState(PAGE, 'savingPlaybook', false)
 
   const handleTogglePlaybook = async (pid: string, current: boolean) => {
     setTogglingPb(pid)
@@ -127,6 +130,37 @@ export default function ThreatResponse() {
       fetchIncidents().then(inc => setIncidents(inc)).catch(() => {})
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to add note')
+    }
+  }
+
+  const handleCreatePlaybook = async (data: Parameters<typeof createPlaybook>[0]) => {
+    setSavingPlaybook(true)
+    try {
+      await createPlaybook(data)
+      setShowEditor(false)
+      // Refresh playbooks and metrics
+      const [pb, met] = await Promise.all([
+        fetchPlaybooks().catch(() => null),
+        fetchResponseMetrics().catch(() => null),
+      ])
+      if (pb) setPlaybooks(pb)
+      if (met) setMetrics(met)
+    } finally {
+      setSavingPlaybook(false)
+    }
+  }
+
+  const handleDeletePlaybook = async (pid: string) => {
+    try {
+      await deletePlaybook(pid)
+      const [pb, met] = await Promise.all([
+        fetchPlaybooks().catch(() => null),
+        fetchResponseMetrics().catch(() => null),
+      ])
+      if (pb) setPlaybooks(pb)
+      if (met) setMetrics(met)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
@@ -239,6 +273,28 @@ export default function ThreatResponse() {
             </div>
           </div>
 
+          {/* Create Playbook button + editor */}
+          {!showEditor ? (
+            <button
+              onClick={() => setShowEditor(true)}
+              className="w-full px-4 py-3 border-2 border-dashed border-accent-orange/30 rounded-xl text-sm text-accent-orange hover:bg-accent-orange/5 transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" /> Create New Playbook
+              {metrics?.summary?.coverage?.uncovered_classes?.length > 0 && (
+                <span className="text-[10px] text-text-secondary ml-1">
+                  ({metrics.summary.coverage.uncovered_classes.length} uncovered threat classes)
+                </span>
+              )}
+            </button>
+          ) : (
+            <PlaybookEditor
+              uncoveredClasses={metrics?.summary?.coverage?.uncovered_classes || []}
+              onSave={handleCreatePlaybook}
+              onCancel={() => setShowEditor(false)}
+              saving={savingPlaybook}
+            />
+          )}
+
           {/* Effectiveness chart */}
           {effectivenessData.length > 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -290,7 +346,10 @@ export default function ThreatResponse() {
                   }}>
                     {pb.id}
                   </span>
-                  <span className="text-sm font-medium flex-1 text-left">{pb.name}</span>
+                  <span className="text-sm font-medium flex-1 text-left">
+                    {pb.name}
+                    {pb.custom && <span className="ml-1.5 px-1 py-0.5 bg-accent-blue/10 text-accent-blue text-[8px] rounded">CUSTOM</span>}
+                  </span>
                   <span className="text-xs text-text-secondary">{pb.step_count} steps</span>
                   <span className="text-xs font-mono text-accent-green">{Math.round(pb.effectiveness_score * 100)}%</span>
                   <span className="text-xs text-text-secondary">{pb.estimated_response_ms}ms</span>
@@ -343,6 +402,18 @@ export default function ThreatResponse() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Delete custom playbook */}
+                    {pb.custom && (
+                      <div className="flex justify-end pt-2 border-t border-bg-card">
+                        <button
+                          onClick={() => handleDeletePlaybook(pid)}
+                          className="px-3 py-1.5 text-xs text-accent-red hover:bg-accent-red/10 rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete Playbook
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -702,9 +773,12 @@ export default function ThreatResponse() {
                   </span>
                 ))}
               </div>
-              <div className="text-xs text-text-secondary mt-2">
-                Create playbooks for these threat classes to achieve full coverage.
-              </div>
+              <button
+                onClick={() => { setTab('playbooks'); setShowEditor(true) }}
+                className="mt-2 text-xs text-accent-orange hover:underline flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Create playbook for uncovered classes
+              </button>
             </div>
           )}
         </>
