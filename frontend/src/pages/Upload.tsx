@@ -179,7 +179,7 @@ export default function UploadPage() {
                 {loadingDataset === 'pqc' ? <Loader2 className="w-4 h-4 animate-spin text-accent-purple" /> : <Shield className="w-4 h-4 text-accent-purple" />}
                 <div className="text-left">
                   <div className="font-medium text-text-primary">PQC Test Dataset</div>
-                  <div className="text-[10px] text-text-secondary">50K flows | Kyber + attacks | 38 MB</div>
+                  <div className="text-[10px] text-text-secondary">5K flows | Kyber + attacks | ~4 MB</div>
                 </div>
               </button>
               <button

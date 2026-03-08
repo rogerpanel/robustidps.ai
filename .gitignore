@@ -31,3 +31,6 @@ backend/weights/scaler_*.pkl
 
 # Runtime SQLite database
 backend/*.db
+
+# Large generated datasets (regenerate with sample_data/generate_pqc_dataset.py)
+sample_data/pqc_test_dataset.csv

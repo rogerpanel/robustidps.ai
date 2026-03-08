@@ -313,7 +313,7 @@ def _generate_flows(profile: dict, n: int) -> np.ndarray:
     return rows
 
 
-def generate_pqc_dataset(n_rows: int = 50000) -> pd.DataFrame:
+def generate_pqc_dataset(n_rows: int = 5000) -> pd.DataFrame:
     """Generate a complete PQC-IDS dataset."""
     # Distribution: 55% benign PQ, 10% benign classical, 35% attacks
     n_benign_pq = int(n_rows * 0.55)
@@ -407,7 +407,7 @@ def generate_pqc_dataset(n_rows: int = 50000) -> pd.DataFrame:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate PQC-IDS test dataset")
-    parser.add_argument("--rows", type=int, default=50000, help="Number of flows (default: 50000)")
+    parser.add_argument("--rows", type=int, default=5000, help="Number of flows (default: 5000)")
     parser.add_argument("--output", type=str, default="pqc_test_dataset.csv", help="Output filename")
     args = parser.parse_args()
 
