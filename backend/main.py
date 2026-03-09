@@ -1304,6 +1304,21 @@ async def redteam_attacks():
 # In-memory store for long-running background jobs (avoids Cloudflare 524 timeout)
 _bg_jobs: dict = {}
 
+# Persistent results cache — keeps completed bg job results so the SOC Copilot
+# (and other tools) can access them after the frontend has polled and consumed them.
+# Keyed by (user_id, page_type) so each user keeps only the latest result per page.
+_completed_results: dict = {}  # {(user_id, page_type): {"job_id": ..., "result": ..., "timestamp": ...}}
+
+
+def _cache_bg_result(user_id: int, page_type: str, job_id: str, result: dict):
+    """Cache a completed background job result for later Copilot access."""
+    import datetime
+    _completed_results[(user_id, page_type)] = {
+        "job_id": job_id,
+        "result": result,
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+    }
+
 
 @app.post("/api/redteam/run")
 @limiter.limit(RATE_LIMIT_HEAVY)
@@ -1340,6 +1355,7 @@ async def redteam_run(
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
             _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "redteam", job_id, result)
             logger.info("Red team arena by %s: %d attacks, eps=%.3f (job %s)",
                         user.email, len(result["attacks"]), epsilon, job_id)
         except Exception as exc:
@@ -1385,6 +1401,7 @@ async def xai_run(
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
             _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "xai", job_id, result)
             logger.info("XAI analysis by %s: method=%s, %d samples (job %s)",
                         user.email, method, result["n_samples"], job_id)
         except Exception as exc:
@@ -1450,6 +1467,7 @@ async def federated_run(
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
             _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "federated", job_id, result)
             logger.info("Federated sim by %s: %d nodes, %d rounds, strategy=%s (job %s)",
                         user.email, n_nodes, rounds, strategy, job_id)
         except Exception as exc:
@@ -1492,6 +1510,38 @@ async def bg_job_status(
 @limiter.limit(RATE_LIMIT_DEFAULT)
 async def federated_status(request: Request, job_id: str, user=Depends(require_auth)):
     return await bg_job_status(request, job_id, user)
+
+
+@app.get("/api/page-results/{page_type}")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def get_page_results(
+    request: Request,
+    page_type: str,
+    user=Depends(require_auth),
+):
+    """Get the most recent cached result for a page type (redteam, xai, federated).
+
+    Used by the SOC Copilot to fetch completed operation results even after
+    the frontend has already polled and consumed them from _bg_jobs.
+    Admin users can optionally pass ?user_id=N to view another user's results.
+    """
+    valid_pages = ("redteam", "xai", "federated")
+    if page_type not in valid_pages:
+        raise HTTPException(status_code=400, detail=f"Invalid page type. Must be one of: {', '.join(valid_pages)}")
+
+    uid = user.id
+    # Admin can look up other users' results
+    if user.role == "admin" and request.query_params.get("user_id"):
+        try:
+            uid = int(request.query_params["user_id"])
+        except ValueError:
+            pass
+
+    cached = _completed_results.get((uid, page_type))
+    if not cached:
+        return {"status": "no_results", "page_type": page_type}
+
+    return {"status": "ok", "page_type": page_type, **cached}
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────

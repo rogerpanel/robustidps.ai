@@ -214,6 +214,48 @@ TOOLS = [
 ]
 
 
+def _summarise_page_result(page: str, result: dict) -> dict:
+    """Extract a concise summary from a page result dict."""
+    summary = {}
+    if page == "redteam" and "attacks" in result:
+        attacks = result["attacks"]
+        summary["n_attacks"] = len(attacks)
+        summary["attack_types"] = list(attacks.keys()) if isinstance(attacks, dict) else []
+        summary["model_used"] = result.get("model_used", "")
+        # Include per-attack metrics if available
+        if isinstance(attacks, dict):
+            attack_details = []
+            for atk_name, atk_data in attacks.items():
+                if isinstance(atk_data, dict):
+                    attack_details.append({
+                        "name": atk_name,
+                        "success_rate": atk_data.get("success_rate"),
+                        "accuracy_before": atk_data.get("accuracy_before"),
+                        "accuracy_after": atk_data.get("accuracy_after"),
+                        "robustness_score": atk_data.get("robustness_score"),
+                    })
+            summary["attack_details"] = attack_details
+        summary["dataset_format"] = result.get("dataset_format", "")
+    elif page == "xai":
+        if "methods" in result:
+            summary["methods"] = list(result.get("methods", {}).keys())
+        summary["n_samples"] = result.get("n_samples", 0)
+        summary["model_used"] = result.get("model_used", "")
+        summary["dataset_format"] = result.get("dataset_format", "")
+    elif page == "federated":
+        rounds = result.get("rounds", [])
+        summary["n_rounds"] = len(rounds)
+        if rounds:
+            summary["final_accuracy"] = rounds[-1].get("global_accuracy")
+            summary["first_accuracy"] = rounds[0].get("global_accuracy")
+        summary["strategy"] = result.get("strategy", "")
+        summary["n_nodes"] = result.get("n_nodes", 0)
+        summary["model_used"] = result.get("model_used", "")
+        summary["dp_enabled"] = result.get("dp_enabled", False)
+        summary["dataset_format"] = result.get("dataset_format", "")
+    return summary
+
+
 def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None) -> str:
     try:
         if name == "get_recent_jobs":
@@ -273,6 +315,15 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 n_flows = len(job["features"]) if "features" in job else 0
                 ops.append({"job_id": jid, "type": "upload_analysis", "n_flows": n_flows,
                             "has_labels": job.get("labels_encoded") is not None})
+            # Cached completed page results (redteam, xai, federated) — survive polling
+            for (cache_uid, page_type), cached in list(_main._completed_results.items()):
+                if not is_admin and uid and cache_uid != uid:
+                    continue
+                result = cached.get("result", {})
+                summary = {"job_id": cached["job_id"], "type": f"{page_type}_completed",
+                           "status": "done", "timestamp": cached.get("timestamp")}
+                summary.update(_summarise_page_result(page_type, result))
+                ops.append(summary)
             # Recent DB jobs — filtered by user
             q = select(Job).order_by(desc(Job.created_at)).limit(5)
             if not is_admin and uid:
@@ -311,26 +362,36 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 return json.dumps({"page": page, "status": "no_active_result"})
 
             if page in ("redteam", "xai", "federated"):
-                # Check background jobs (user-scoped)
+                # Check running/pending background jobs first (user-scoped)
                 for jid, job in list(_main._bg_jobs.items()):
                     if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
                         continue
                     if job["status"] == "done" and job["result"]:
                         result = job["result"]
-                        # Summarise without sending full data
                         summary = {"page": page, "job_id": jid, "status": "done"}
-                        if page == "redteam" and "attacks" in result:
-                            summary["n_attacks"] = len(result["attacks"])
-                            summary["attack_types"] = list(result["attacks"].keys()) if isinstance(result["attacks"], dict) else []
-                            summary["model_used"] = result.get("model_used", "")
-                        elif page == "xai" and "methods" in result:
-                            summary["methods"] = list(result.get("methods", {}).keys())
-                            summary["n_samples"] = result.get("n_samples", 0)
-                        elif page == "federated" and "rounds" in result:
-                            summary["n_rounds"] = len(result.get("rounds", []))
-                            summary["final_accuracy"] = result.get("rounds", [{}])[-1].get("global_accuracy") if result.get("rounds") else None
-                            summary["strategy"] = result.get("strategy", "")
+                        summary.update(_summarise_page_result(page, result))
                         return json.dumps(summary)
+
+                # Fall back to persistent completed results cache
+                lookup_uid = uid
+                if is_admin:
+                    # Admin: check all users, prefer most recent
+                    for (cache_uid, cache_page), cached in _main._completed_results.items():
+                        if cache_page == page:
+                            result = cached["result"]
+                            summary = {"page": page, "job_id": cached["job_id"], "status": "done",
+                                       "timestamp": cached.get("timestamp"), "source": "cached"}
+                            summary.update(_summarise_page_result(page, result))
+                            return json.dumps(summary)
+                else:
+                    cached = _main._completed_results.get((uid, page))
+                    if cached:
+                        result = cached["result"]
+                        summary = {"page": page, "job_id": cached["job_id"], "status": "done",
+                                   "timestamp": cached.get("timestamp"), "source": "cached"}
+                        summary.update(_summarise_page_result(page, result))
+                        return json.dumps(summary)
+
                 return json.dumps({"page": page, "status": "no_active_result"})
 
             return json.dumps({"page": page, "status": "no_data_available"})
@@ -438,7 +499,7 @@ Attack types detected (34 classes): DDoS (TCP/UDP/ICMP/HTTP/SYN flood, SlowLoris
 - **Threat Response**: Automated playbooks, incident management, response metrics
 - **Continual Learning**: Model drift detection, incremental updates
 
-Always use the available tools to look up actual data before answering. Use `get_active_operations` to see what the user is currently working on across all pages, then `get_page_result` to drill into specific results. Be specific and data-driven. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""
+IMPORTANT: Always use the available tools to look up actual data before answering. NEVER give generic descriptions of what a page "can do" — instead, call `get_active_operations` first to see the user's completed operations, then `get_page_result` with the specific page name (e.g. page="redteam", page="federated") to get the actual results. Completed results are cached and available even after the user has navigated away from the page. Be specific and data-driven — report actual numbers, attack success rates, accuracy scores, and model names from the results. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""
 
     return base
 
