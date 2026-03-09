@@ -710,23 +710,43 @@ async def chat(req: ChatRequest, user: User = Depends(require_auth), db: Session
     api_key = req.api_key
     provider = req.provider
 
-    # If no client key, try server-side keys in priority order
+    # If no client key, try server-side keys
     if not api_key:
-        for env_key, prov_name in [
-            (ANTHROPIC_API_KEY, "anthropic"),
-            (OPENAI_API_KEY, "openai"),
-            (GOOGLE_API_KEY, "google"),
-            (DEEPSEEK_API_KEY, "deepseek"),
-        ]:
-            if env_key:
-                api_key = env_key
-                if provider == "auto":
-                    provider = prov_name
-                break
+        server_keys = {
+            "anthropic": ANTHROPIC_API_KEY,
+            "openai": OPENAI_API_KEY,
+            "google": GOOGLE_API_KEY,
+            "deepseek": DEEPSEEK_API_KEY,
+        }
+        if provider != "auto" and server_keys.get(provider):
+            # User selected a specific provider — use the matching server key
+            api_key = server_keys[provider]
+        else:
+            # Auto mode — pick first available key, detect provider from prefix
+            for env_key, prov_name in [
+                (ANTHROPIC_API_KEY, "anthropic"),
+                (OPENAI_API_KEY, "openai"),
+                (GOOGLE_API_KEY, "google"),
+                (DEEPSEEK_API_KEY, "deepseek"),
+            ]:
+                if env_key:
+                    api_key = env_key
+                    detected = detect_provider(env_key)
+                    provider = detected if detected != "local" else prov_name
+                    break
 
     # Auto-detect provider from key prefix if still "auto"
     if provider == "auto":
         provider = detect_provider(api_key)
+
+    # Safety: verify the key actually matches the chosen provider
+    if api_key and provider not in ("auto", "local"):
+        actual = detect_provider(api_key)
+        if actual != "local" and actual != provider:
+            # Key doesn't match provider — use the correct provider for this key
+            logger.warning("API key prefix (%s) doesn't match selected provider (%s), switching to %s",
+                           api_key[:8], provider, actual)
+            provider = actual
 
     if not api_key or provider == "local":
         content = _local_response(req.messages, db, user=user)
