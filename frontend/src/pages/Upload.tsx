@@ -87,6 +87,7 @@ export default function UploadPage() {
   const [datasets, setDatasets] = useState<DatasetMeta[]>([])
   const [loadingDataset, setLoadingDataset] = useState<string | null>(null)
   const [downloadingPcap, setDownloadingPcap] = useState(false)
+  const [pcapProgress, setPcapProgress] = useState('')
   const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
 
   // Sync model selection from Ablation Studio
@@ -209,9 +210,12 @@ export default function UploadPage() {
               <button
                 onClick={async () => {
                   setDownloadingPcap(true);
+                  setPcapProgress('Starting...');
                   try {
-                    await downloadAdversarialBenchmark(500);
-                  } catch { /* ignore */ }
+                    await downloadAdversarialBenchmark(500, setPcapProgress);
+                  } catch (e) {
+                    setPcapProgress(e instanceof Error ? e.message : 'Failed');
+                  }
                   setDownloadingPcap(false);
                 }}
                 disabled={downloadingPcap}
@@ -222,7 +226,7 @@ export default function UploadPage() {
                   <div className="font-medium text-text-primary">Adversarial Benchmark PCAP</div>
                   <div className="text-[10px] text-text-secondary">34 attack classes + PQ-TLS + FGSM/PGD/DeepFool/C&W + banking/gov scenarios | ~10 MB</div>
                 </div>
-                {downloadingPcap && <span className="text-[10px] text-accent-green">Generating...</span>}
+                {downloadingPcap && <span className="text-[10px] text-accent-green">{pcapProgress || 'Generating...'}</span>}
               </button>
             </div>
 

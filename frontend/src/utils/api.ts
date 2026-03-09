@@ -203,16 +203,46 @@ export async function fetchSampleData(dataset: 'ciciot' | 'pqc' = 'ciciot'): Pro
   return new File([blob], filename, { type: 'text/csv' });
 }
 
-export async function downloadAdversarialBenchmark(flows = 500): Promise<void> {
-  const res = await fetch(`${API}/api/sample-data/adversarial-benchmark.pcap?flows=${flows}`);
-  if (!res.ok) throw new Error('Failed to generate adversarial benchmark PCAP');
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'adversarial_benchmark.pcap';
-  a.click();
-  URL.revokeObjectURL(url);
+export async function downloadAdversarialBenchmark(
+  flows = 500,
+  onProgress?: (status: string) => void,
+): Promise<void> {
+  // 1. Start generation job
+  onProgress?.('Starting generation...');
+  const startRes = await fetch(`${API}/api/sample-data/adversarial-benchmark/generate?flows=${flows}`, {
+    method: 'POST',
+  });
+  if (!startRes.ok) throw new Error('Failed to start PCAP generation');
+  const { job_id } = await startRes.json();
+
+  // 2. Poll for completion
+  const POLL_INTERVAL = 3000;
+  const MAX_POLLS = 120; // ~6 min
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    onProgress?.(`Generating PCAP... (${i * 3}s)`);
+    const poll = await fetch(`${API}/api/sample-data/adversarial-benchmark/status/${job_id}`);
+    if (!poll.ok) {
+      const data = await poll.json().catch(() => ({}));
+      throw new Error(data.detail || `Generation failed (${poll.status})`);
+    }
+    const body = await poll.json();
+    if (body.status === 'done') {
+      onProgress?.('Downloading...');
+      // 3. Download the file
+      const dlRes = await fetch(`${API}/api/sample-data/adversarial-benchmark/download/${job_id}`);
+      if (!dlRes.ok) throw new Error('Failed to download PCAP');
+      const blob = await dlRes.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'adversarial_benchmark.pcap';
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+  }
+  throw new Error('PCAP generation timed out');
 }
 
 // ── Datasets Management ──────────────────────────────────────────────────

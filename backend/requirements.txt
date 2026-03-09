@@ -9,6 +9,7 @@ torchdiffeq==0.2.3
 scipy==1.12.0
 websockets==12.0
 nfstream==6.6.0
+dpkt>=1.9.8
 
 # ── Enterprise: Database ──────────────────────────────────────────────────
 sqlalchemy>=2.0.0
