@@ -220,39 +220,107 @@ def _summarise_page_result(page: str, result: dict) -> dict:
     if page == "redteam" and "attacks" in result:
         attacks = result["attacks"]
         summary["n_attacks"] = len(attacks)
-        summary["attack_types"] = list(attacks.keys()) if isinstance(attacks, dict) else []
         summary["model_used"] = result.get("model_used", "")
-        # Include per-attack metrics if available
-        if isinstance(attacks, dict):
-            attack_details = []
+        summary["epsilon"] = result.get("epsilon")
+        summary["n_samples"] = result.get("n_samples", 0)
+        summary["clean_accuracy"] = result.get("clean_accuracy")
+        summary["clean_confidence"] = result.get("clean_confidence")
+        summary["robustness_score"] = result.get("robustness_score")
+        summary["dataset_format"] = result.get("dataset_format", "")
+        # Per-attack detailed metrics (attacks is a list of dicts)
+        attack_details = []
+        if isinstance(attacks, list):
+            for atk in attacks:
+                if isinstance(atk, dict):
+                    detail = {
+                        "attack": atk.get("attack"),
+                        "label": atk.get("label"),
+                    }
+                    if "error" in atk:
+                        detail["error"] = atk["error"]
+                    else:
+                        detail["accuracy_adversarial"] = atk.get("accuracy_adversarial")
+                        detail["confidence_adversarial"] = atk.get("confidence_adversarial")
+                        detail["confidence_drop"] = atk.get("confidence_drop")
+                        detail["flip_rate"] = atk.get("flip_rate")
+                        detail["perturbation_l2"] = atk.get("perturbation_l2")
+                        detail["time_ms"] = atk.get("time_ms")
+                    attack_details.append(detail)
+            summary["attack_types"] = [a.get("attack") or a.get("label", "") for a in attacks if isinstance(a, dict)]
+        elif isinstance(attacks, dict):
             for atk_name, atk_data in attacks.items():
                 if isinstance(atk_data, dict):
-                    attack_details.append({
-                        "name": atk_name,
-                        "success_rate": atk_data.get("success_rate"),
-                        "accuracy_before": atk_data.get("accuracy_before"),
-                        "accuracy_after": atk_data.get("accuracy_after"),
-                        "robustness_score": atk_data.get("robustness_score"),
-                    })
-            summary["attack_details"] = attack_details
-        summary["dataset_format"] = result.get("dataset_format", "")
+                    attack_details.append({"attack": atk_name, **{k: atk_data.get(k) for k in
+                        ("accuracy_adversarial", "confidence_adversarial", "flip_rate", "perturbation_l2")}})
+            summary["attack_types"] = list(attacks.keys())
+        summary["attack_details"] = attack_details
+        # Clean per-class breakdown
+        clean_per_class = result.get("clean_per_class", {})
+        if clean_per_class:
+            summary["clean_per_class"] = clean_per_class
     elif page == "xai":
-        if "methods" in result:
-            summary["methods"] = list(result.get("methods", {}).keys())
         summary["n_samples"] = result.get("n_samples", 0)
+        summary["method"] = result.get("method", "all")
         summary["model_used"] = result.get("model_used", "")
         summary["dataset_format"] = result.get("dataset_format", "")
+        summary["time_ms"] = result.get("time_ms")
+        # Prediction summary
+        pred_summary = result.get("prediction_summary", {})
+        if pred_summary:
+            summary["accuracy"] = pred_summary.get("accuracy")
+            summary["mean_confidence"] = pred_summary.get("mean_confidence")
+        # Gradient saliency — top features
+        saliency = result.get("saliency", {})
+        if saliency:
+            summary["saliency_top_features"] = saliency.get("global_importance", [])[:15]
+            # Per-class top features (just top 3 per class, limit to 10 classes)
+            per_class = saliency.get("per_class_importance", {})
+            if per_class:
+                summary["saliency_per_class"] = {
+                    cls: feats[:5] for cls, feats in list(per_class.items())[:10]
+                }
+        # Integrated gradients — top attributions
+        ig = result.get("integrated_gradients", {})
+        if ig:
+            summary["ig_top_attributions"] = ig.get("global_attribution", [])[:15]
+        # Sensitivity — most sensitive features
+        sens = result.get("sensitivity", {})
+        if sens:
+            summary["sensitivity_top_features"] = sens.get("top_sensitive_features", [])[:15]
+        # Feature names for reference
+        feature_names = result.get("feature_names", [])
+        if feature_names:
+            summary["n_features"] = len(feature_names)
     elif page == "federated":
         rounds = result.get("rounds", [])
         summary["n_rounds"] = len(rounds)
-        if rounds:
-            summary["final_accuracy"] = rounds[-1].get("global_accuracy")
-            summary["first_accuracy"] = rounds[0].get("global_accuracy")
-        summary["strategy"] = result.get("strategy", "")
         summary["n_nodes"] = result.get("n_nodes", 0)
+        summary["strategy"] = result.get("strategy", "")
         summary["model_used"] = result.get("model_used", "")
         summary["dp_enabled"] = result.get("dp_enabled", False)
+        summary["dp_sigma"] = result.get("dp_sigma")
+        summary["iid"] = result.get("iid")
+        summary["n_samples_total"] = result.get("n_samples_total", 0)
+        summary["baseline_accuracy"] = result.get("baseline_accuracy")
+        summary["final_accuracy"] = result.get("final_accuracy")
+        summary["accuracy_gain"] = result.get("accuracy_gain")
+        summary["time_ms"] = result.get("time_ms")
         summary["dataset_format"] = result.get("dataset_format", "")
+        # Node distribution
+        node_dist = result.get("node_distribution", [])
+        if node_dist:
+            summary["node_distribution"] = node_dist
+        # Round-by-round convergence (include all rounds for charting)
+        if rounds:
+            summary["round_history"] = [
+                {"round": r.get("round"), "global_accuracy": r.get("global_accuracy"),
+                 "avg_node_accuracy": r.get("avg_node_accuracy")}
+                for r in rounds
+            ]
+        # Per-class final metrics
+        per_class = result.get("per_class", {})
+        if per_class:
+            summary["per_class"] = per_class
     elif page == "ablation" and "ablation" in result:
         ablation = result["ablation"]
         branch_names = result.get("branch_names", [])
