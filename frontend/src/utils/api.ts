@@ -409,6 +409,36 @@ export async function fetchRedteamAttacks() {
   return res.json();
 }
 
+// ── Background job polling helper ────────────────────────────────────────
+
+async function pollJobResult(jobId: string, label: string): Promise<unknown> {
+  const POLL_INTERVAL = 3000;
+  const MAX_POLLS = 200; // ~10 min
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    const poll = await authFetch(`${API}/api/job/status/${jobId}`);
+    if (!poll.ok) {
+      const data = await poll.json().catch(() => ({}));
+      throw new Error(errorMsg(data.detail, `${label} failed (${poll.status})`));
+    }
+    const body = await poll.json();
+    if (body.status === 'done') return body.result;
+  }
+  throw new Error(`${label} timed out`);
+}
+
+async function startJobAndPoll(url: string, form: FormData, label: string) {
+  const res = await authFetch(url, { method: 'POST', body: form });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `${label} failed (${res.status})`));
+  }
+  const { job_id } = await res.json();
+  return pollJobResult(job_id, label);
+}
+
+// ── Red Team Arena ──────────────────────────────────────────────────────
+
 export async function runRedteam(
   file: File,
   attacks: string[] = [],
@@ -422,12 +452,7 @@ export async function runRedteam(
   form.append('epsilon', String(epsilon));
   form.append('n_samples', String(nSamples));
   if (modelName) form.append('model_name', modelName);
-  const res = await authFetch(`${API}/api/redteam/run`, { method: 'POST', body: form });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(errorMsg(data.detail, `Red team failed (${res.status})`));
-  }
-  return res.json();
+  return startJobAndPoll(`${API}/api/redteam/run`, form, 'Red team');
 }
 
 // ── Explainability Studio (XAI) ─────────────────────────────────────────
@@ -443,12 +468,7 @@ export async function runXai(
   form.append('method', method);
   form.append('n_samples', String(nSamples));
   if (modelName) form.append('model_name', modelName);
-  const res = await authFetch(`${API}/api/xai/run`, { method: 'POST', body: form });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(errorMsg(data.detail, `XAI analysis failed (${res.status})`));
-  }
-  return res.json();
+  return startJobAndPoll(`${API}/api/xai/run`, form, 'XAI analysis');
 }
 
 // ── Federated Learning Simulator ────────────────────────────────────────
@@ -479,29 +499,7 @@ export async function runFederated(
   if (opts.iid !== undefined) form.append('iid', String(opts.iid));
   if (opts.modelName) form.append('model_name', opts.modelName);
 
-  // Start the job (returns immediately with job_id)
-  const res = await authFetch(`${API}/api/federated/run`, { method: 'POST', body: form });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(errorMsg(data.detail, `Federated simulation failed (${res.status})`));
-  }
-  const { job_id } = await res.json();
-
-  // Poll for completion (avoids Cloudflare 524 timeout on long simulations)
-  const POLL_INTERVAL = 3000; // 3 seconds
-  const MAX_POLLS = 200;      // ~10 minutes max
-  for (let i = 0; i < MAX_POLLS; i++) {
-    await new Promise(r => setTimeout(r, POLL_INTERVAL));
-    const poll = await authFetch(`${API}/api/federated/status/${job_id}`);
-    if (!poll.ok) {
-      const data = await poll.json().catch(() => ({}));
-      throw new Error(errorMsg(data.detail, `Federated simulation failed (${poll.status})`));
-    }
-    const body = await poll.json();
-    if (body.status === 'done') return body.result;
-    // status === 'running' → keep polling
-  }
-  throw new Error('Federated simulation timed out');
+  return startJobAndPoll(`${API}/api/federated/run`, form, 'Federated simulation');
 }
 
 // ── PQ Cryptography ──────────────────────────────────────────────────────

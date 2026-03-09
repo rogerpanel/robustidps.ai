@@ -1223,6 +1223,10 @@ async def redteam_attacks():
     }
 
 
+# In-memory store for long-running background jobs (avoids Cloudflare 524 timeout)
+_bg_jobs: dict = {}
+
+
 @app.post("/api/redteam/run")
 @limiter.limit(RATE_LIMIT_HEAVY)
 async def redteam_run(
@@ -1234,28 +1238,38 @@ async def redteam_run(
     model_name: str = Form(default=""),
     user=Depends(require_auth),
 ):
-    """Run adversarial red-team arena on uploaded dataset."""
+    """Start red-team arena as background job. Poll /api/job/status/{job_id}."""
     _validate_upload(file)
     data = await file.read()
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "redteam.csv")
-
+    filename = file.filename or "redteam.csv"
     selected = get_model(model_name if model_name else None)
     attack_list = json.loads(attacks) if attacks and attacks != "[]" else None
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None}
 
-    result = run_arena(
-        selected, features,
-        labels=labels_encoded,
-        attacks=attack_list,
-        epsilon=epsilon,
-        n_samples=min(n_samples, MAX_ROWS),
-    )
-    result["model_used"] = model_name if model_name else active_model_id
-    result["dataset_format"] = fmt
-    logger.info("Red team arena by %s: %d attacks, eps=%.3f", user.email, len(result["attacks"]), epsilon)
-    return result
+    async def _run():
+        try:
+            features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                extract_features, data, filename
+            )
+            result = await asyncio.to_thread(
+                run_arena, selected, features,
+                labels_encoded, attack_list, epsilon, min(n_samples, MAX_ROWS),
+            )
+            result["model_used"] = model_name if model_name else active_model_id
+            result["dataset_format"] = fmt
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None}
+            logger.info("Red team arena by %s: %d attacks, eps=%.3f (job %s)",
+                        user.email, len(result["attacks"]), epsilon, job_id)
+        except Exception as exc:
+            logger.exception("Redteam job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
+
+    asyncio.create_task(_run())
+    return {"job_id": job_id, "status": "running"}
 
 
 # ── Explainability Studio ─────────────────────────────────────────────────
@@ -1270,31 +1284,40 @@ async def xai_run(
     model_name: str = Form(default=""),
     user=Depends(require_auth),
 ):
-    """Run XAI analysis on uploaded dataset."""
+    """Start XAI analysis as background job. Poll /api/job/status/{job_id}."""
     _validate_upload(file)
     data = await file.read()
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "xai.csv")
-
+    filename = file.filename or "xai.csv"
     selected = get_model(model_name if model_name else None)
-    result = run_explainability(
-        selected, features,
-        labels=labels_encoded,
-        n_samples=min(n_samples, MAX_ROWS),
-        method=method,
-    )
-    result["model_used"] = model_name if model_name else active_model_id
-    result["dataset_format"] = fmt
-    logger.info("XAI analysis by %s: method=%s, %d samples", user.email, method, result["n_samples"])
-    return result
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None}
+
+    async def _run():
+        try:
+            features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                extract_features, data, filename
+            )
+            result = await asyncio.to_thread(
+                run_explainability, selected, features,
+                labels_encoded, min(n_samples, MAX_ROWS), method,
+            )
+            result["model_used"] = model_name if model_name else active_model_id
+            result["dataset_format"] = fmt
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None}
+            logger.info("XAI analysis by %s: method=%s, %d samples (job %s)",
+                        user.email, method, result["n_samples"], job_id)
+        except Exception as exc:
+            logger.exception("XAI job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
+
+    asyncio.create_task(_run())
+    return {"job_id": job_id, "status": "running"}
 
 
 # ── Federated Learning Simulator ──────────────────────────────────────────
-
-# In-memory store for long-running federated jobs (avoids Cloudflare 524 timeout)
-_federated_jobs: dict = {}
 
 
 @app.post("/api/federated/run")
@@ -1323,16 +1346,16 @@ async def federated_run(
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
-        extract_features, data, file.filename or "federated.csv"
-    )
-
+    filename = file.filename or "federated.csv"
     selected = get_model(model_name if model_name else None)
     job_id = str(uuid.uuid4())[:8]
-    _federated_jobs[job_id] = {"status": "running", "result": None, "error": None}
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None}
 
-    async def _run_in_background():
+    async def _run():
         try:
+            features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                extract_features, data, filename
+            )
             result = await asyncio.to_thread(
                 simulate_federated,
                 selected, features,
@@ -1348,38 +1371,46 @@ async def federated_run(
             )
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
-            _federated_jobs[job_id] = {"status": "done", "result": result, "error": None}
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None}
             logger.info("Federated sim by %s: %d nodes, %d rounds, strategy=%s (job %s)",
                         user.email, n_nodes, rounds, strategy, job_id)
         except Exception as exc:
             logger.exception("Federated sim job %s failed", job_id)
-            _federated_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
 
-    asyncio.create_task(_run_in_background())
+    asyncio.create_task(_run())
     return {"job_id": job_id, "status": "running"}
 
 
-@app.get("/api/federated/status/{job_id}")
+# ── Unified background job status endpoint ────────────────────────────────
+
+@app.get("/api/job/status/{job_id}")
 @limiter.limit(RATE_LIMIT_DEFAULT)
-async def federated_status(
+async def bg_job_status(
     request: Request,
     job_id: str,
     user=Depends(require_auth),
 ):
-    """Poll federated simulation job status."""
-    job = _federated_jobs.get(job_id)
+    """Poll background job status (used by redteam, xai, federated)."""
+    job = _bg_jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job["status"] == "done":
         result = job["result"]
-        # Clean up after delivery
-        del _federated_jobs[job_id]
+        del _bg_jobs[job_id]
         return {"status": "done", "result": result}
     if job["status"] == "error":
         error = job["error"]
-        del _federated_jobs[job_id]
+        del _bg_jobs[job_id]
         raise HTTPException(status_code=500, detail=error)
     return {"status": "running"}
+
+
+# Keep old endpoint for backwards compatibility
+@app.get("/api/federated/status/{job_id}")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def federated_status(request: Request, job_id: str, user=Depends(require_auth)):
+    return await bg_job_status(request, job_id, user)
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────
