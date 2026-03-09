@@ -1210,68 +1210,54 @@ async def get_sample_data(dataset: str = "ciciot"):
     )
 
 
-_pcap_jobs: dict = {}  # {job_id: {"status": str, "data": bytes|None, "error": str|None}}
+def _find_sample_dir() -> Path:
+    """Locate sample_data directory (works both locally and in Docker)."""
+    # Docker volume mount: /app/sample_data
+    d = Path(__file__).parent / "sample_data"
+    if d.is_dir():
+        return d
+    # Local dev: ../sample_data relative to backend/
+    d = Path(__file__).parent.parent / "sample_data"
+    if d.is_dir():
+        return d
+    return d  # fallback
 
 
-@app.post("/api/sample-data/adversarial-benchmark/generate")
-async def start_adversarial_benchmark(flows: int = 500):
-    """Start background generation of adversarial benchmark PCAP.
-    Returns a job_id for polling. Avoids Cloudflare 524 timeout on heavy generation.
+_adversarial_pcap_path: Path | None = None
+
+
+def _ensure_adversarial_pcap() -> Path:
+    """Return path to adversarial benchmark PCAP, generating it if needed."""
+    global _adversarial_pcap_path
+    if _adversarial_pcap_path and _adversarial_pcap_path.exists():
+        return _adversarial_pcap_path
+
+    sample_dir = _find_sample_dir()
+    out = sample_dir / "adversarial_benchmark.pcap"
+    if not out.exists():
+        import sys as _sys
+        gen_dir = str(sample_dir)
+        if gen_dir not in _sys.path:
+            _sys.path.insert(0, gen_dir)
+        from generate_adversarial_pcap import generate_pcap
+        generate_pcap(str(out), 500)
+
+    _adversarial_pcap_path = out
+    return out
+
+
+@app.get("/api/sample-data/adversarial-benchmark.pcap")
+async def download_adversarial_benchmark():
+    """Download pre-generated adversarial benchmark PCAP (~10 MB).
+    Contains all 34 attack classes, PQ-TLS handshakes, adversarial ML flows,
+    and banking/government attack scenarios.
     """
-    flows = min(max(flows, 50), 2000)
-    job_id = f"pcap-{uuid.uuid4().hex[:12]}"
-    _pcap_jobs[job_id] = {"status": "running", "data": None, "error": None}
-
-    async def _generate():
-        try:
-            import sys as _sys
-            gen_dir = str(Path(__file__).parent.parent / "sample_data")
-            if gen_dir not in _sys.path:
-                _sys.path.insert(0, gen_dir)
-            from generate_adversarial_pcap import generate_to_bytes
-
-            loop = asyncio.get_event_loop()
-            pcap_bytes = await loop.run_in_executor(None, generate_to_bytes, flows)
-            _pcap_jobs[job_id] = {"status": "done", "data": pcap_bytes, "error": None}
-        except Exception as exc:
-            _pcap_jobs[job_id] = {"status": "error", "data": None, "error": str(exc)}
-
-    asyncio.create_task(_generate())
-    return {"job_id": job_id, "status": "running"}
-
-
-@app.get("/api/sample-data/adversarial-benchmark/status/{job_id}")
-async def adversarial_benchmark_status(job_id: str):
-    """Poll generation status."""
-    job = _pcap_jobs.get(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    if job["status"] == "error":
-        error = job["error"]
-        del _pcap_jobs[job_id]
-        raise HTTPException(500, f"Generation failed: {error}")
-    if job["status"] == "done":
-        return {"status": "done", "size_bytes": len(job["data"])}
-    return {"status": "running"}
-
-
-@app.get("/api/sample-data/adversarial-benchmark/download/{job_id}")
-async def download_adversarial_benchmark(job_id: str):
-    """Download the generated PCAP file."""
-    job = _pcap_jobs.get(job_id)
-    if not job:
-        raise HTTPException(404, "Job not found")
-    if job["status"] != "done" or not job["data"]:
-        raise HTTPException(400, "PCAP not ready yet")
-    pcap_bytes = job["data"]
-    del _pcap_jobs[job_id]  # Free memory after download
-    return StreamingResponse(
-        io.BytesIO(pcap_bytes),
+    loop = asyncio.get_event_loop()
+    pcap_path = await loop.run_in_executor(None, _ensure_adversarial_pcap)
+    return FileResponse(
+        pcap_path,
         media_type="application/vnd.tcpdump.pcap",
-        headers={
-            "Content-Disposition": "attachment; filename=adversarial_benchmark.pcap",
-            "Content-Length": str(len(pcap_bytes)),
-        },
+        filename="adversarial_benchmark.pcap",
     )
 
 
