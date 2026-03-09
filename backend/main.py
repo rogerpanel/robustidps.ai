@@ -1293,6 +1293,10 @@ async def xai_run(
 
 # ── Federated Learning Simulator ──────────────────────────────────────────
 
+# In-memory store for long-running federated jobs (avoids Cloudflare 524 timeout)
+_federated_jobs: dict = {}
+
+
 @app.post("/api/federated/run")
 @limiter.limit(RATE_LIMIT_HEAVY)
 async def federated_run(
@@ -1309,7 +1313,11 @@ async def federated_run(
     model_name: str = Form(default=""),
     user=Depends(require_auth),
 ):
-    """Run federated learning simulation on uploaded dataset."""
+    """Start federated learning simulation as a background job.
+
+    Returns a job_id immediately. Poll /api/federated/status/{job_id}
+    until status == 'done' to get results (avoids Cloudflare 524 timeout).
+    """
     _validate_upload(file)
     data = await file.read()
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
@@ -1320,27 +1328,58 @@ async def federated_run(
     )
 
     selected = get_model(model_name if model_name else None)
+    job_id = str(uuid.uuid4())[:8]
+    _federated_jobs[job_id] = {"status": "running", "result": None, "error": None}
 
-    # Run CPU-heavy simulation off the event loop to avoid blocking
-    # and causing browser "NetworkError" from stalled connection
-    result = await asyncio.to_thread(
-        simulate_federated,
-        selected, features,
-        labels=labels_encoded,
-        n_nodes=min(n_nodes, 6),
-        rounds=min(rounds, 20),
-        local_epochs=min(local_epochs, 10),
-        lr=lr,
-        strategy=strategy,
-        dp_enabled=dp_enabled,
-        dp_sigma=dp_sigma,
-        iid=iid,
-    )
-    result["model_used"] = model_name if model_name else active_model_id
-    result["dataset_format"] = fmt
-    logger.info("Federated sim by %s: %d nodes, %d rounds, strategy=%s",
-                user.email, n_nodes, rounds, strategy)
-    return result
+    async def _run_in_background():
+        try:
+            result = await asyncio.to_thread(
+                simulate_federated,
+                selected, features,
+                labels=labels_encoded,
+                n_nodes=min(n_nodes, 6),
+                rounds=min(rounds, 20),
+                local_epochs=min(local_epochs, 10),
+                lr=lr,
+                strategy=strategy,
+                dp_enabled=dp_enabled,
+                dp_sigma=dp_sigma,
+                iid=iid,
+            )
+            result["model_used"] = model_name if model_name else active_model_id
+            result["dataset_format"] = fmt
+            _federated_jobs[job_id] = {"status": "done", "result": result, "error": None}
+            logger.info("Federated sim by %s: %d nodes, %d rounds, strategy=%s (job %s)",
+                        user.email, n_nodes, rounds, strategy, job_id)
+        except Exception as exc:
+            logger.exception("Federated sim job %s failed", job_id)
+            _federated_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
+
+    asyncio.create_task(_run_in_background())
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.get("/api/federated/status/{job_id}")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def federated_status(
+    request: Request,
+    job_id: str,
+    user=Depends(require_auth),
+):
+    """Poll federated simulation job status."""
+    job = _federated_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] == "done":
+        result = job["result"]
+        # Clean up after delivery
+        del _federated_jobs[job_id]
+        return {"status": "done", "result": result}
+    if job["status"] == "error":
+        error = job["error"]
+        del _federated_jobs[job_id]
+        raise HTTPException(status_code=500, detail=error)
+    return {"status": "running"}
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────

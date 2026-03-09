@@ -478,12 +478,30 @@ export async function runFederated(
   if (opts.dpSigma !== undefined) form.append('dp_sigma', String(opts.dpSigma));
   if (opts.iid !== undefined) form.append('iid', String(opts.iid));
   if (opts.modelName) form.append('model_name', opts.modelName);
+
+  // Start the job (returns immediately with job_id)
   const res = await authFetch(`${API}/api/federated/run`, { method: 'POST', body: form });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(errorMsg(data.detail, `Federated simulation failed (${res.status})`));
   }
-  return res.json();
+  const { job_id } = await res.json();
+
+  // Poll for completion (avoids Cloudflare 524 timeout on long simulations)
+  const POLL_INTERVAL = 3000; // 3 seconds
+  const MAX_POLLS = 200;      // ~10 minutes max
+  for (let i = 0; i < MAX_POLLS; i++) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    const poll = await authFetch(`${API}/api/federated/status/${job_id}`);
+    if (!poll.ok) {
+      const data = await poll.json().catch(() => ({}));
+      throw new Error(errorMsg(data.detail, `Federated simulation failed (${poll.status})`));
+    }
+    const body = await poll.json();
+    if (body.status === 'done') return body.result;
+    // status === 'running' → keep polling
+  }
+  throw new Error('Federated simulation timed out');
 }
 
 // ── PQ Cryptography ──────────────────────────────────────────────────────
