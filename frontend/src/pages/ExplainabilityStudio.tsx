@@ -1,5 +1,5 @@
 import {
-  Eye, Upload, Loader2, BarChart3, Layers, Zap, Brain,
+  Eye, Loader2, BarChart3, Layers, Zap, Brain,
   ChevronDown, ChevronUp, Target, TrendingUp,
 } from 'lucide-react'
 import {
@@ -65,6 +65,9 @@ interface XaiResult {
 
 export default function ExplainabilityStudio() {
   const [file, setFile] = usePageState<File | null>(PAGE, 'file', null)
+  const [fileName, setFileName] = usePageState<string | null>(PAGE, 'fileName', null)
+  const [fileReady, setFileReady] = usePageState(PAGE, 'fileReady', false)
+  const [fileLoading, setFileLoading] = usePageState(PAGE, 'fileLoading', false)
   const [selectedModel, setSelectedModel] = usePageState(PAGE, 'selectedModel', 'surrogate')
   const [method, setMethod] = usePageState(PAGE, 'method', 'all')
   const [nSamples, setNSamples] = usePageState(PAGE, 'nSamples', 200)
@@ -73,6 +76,20 @@ export default function ExplainabilityStudio() {
   const [error, setError] = usePageState(PAGE, 'error', '')
   const [activeTab, setActiveTab] = usePageState<'saliency' | 'ig' | 'sensitivity'>(PAGE, 'activeTab', 'saliency')
   const [expandedClass, setExpandedClass] = usePageState<string | null>(PAGE, 'expandedClass', null)
+
+  const handleFileSelect = (f: File) => {
+    setFileLoading(true)
+    setFileReady(false)
+    setFile(f)
+    setFileName(f.name)
+    // Simulate reading/parsing the file
+    const size = f.size
+    const delay = Math.min(Math.max(size / 100000, 400), 3000)
+    setTimeout(() => {
+      setFileLoading(false)
+      setFileReady(true)
+    }, delay)
+  }
 
   const handleRun = async () => {
     if (!file) return
@@ -135,26 +152,28 @@ export default function ExplainabilityStudio() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
             <FileUpload
-              onFile={(f) => setFile(f)}
+              onFile={handleFileSelect}
               label="Upload traffic dataset"
               accept=".csv,.parquet"
+              fileName={fileName}
+              fileLoading={fileLoading}
             />
             <button
               onClick={async () => {
                 try {
+                  setFileLoading(true)
+                  setFileReady(false)
                   const f = await fetchSampleData()
-                  setFile(f)
-                } catch { setError('Failed to load demo data') }
+                  handleFileSelect(f)
+                } catch {
+                  setFileLoading(false)
+                  setError('Failed to load demo data')
+                }
               }}
               className="text-xs text-accent-purple hover:text-accent-purple/80 underline"
             >
               or use built-in demo data (1000 flows)
             </button>
-            {file && (
-              <div className="text-xs text-text-secondary flex items-center gap-1">
-                <Upload className="w-3 h-3" /> {file.name}
-              </div>
-            )}
             <ModelSelector value={selectedModel} onChange={setSelectedModel} />
           </div>
 
@@ -193,7 +212,7 @@ export default function ExplainabilityStudio() {
 
         <button
           onClick={handleRun}
-          disabled={!file || running}
+          disabled={!file || !fileReady || running || fileLoading}
           className="px-5 py-2.5 bg-accent-purple text-white rounded-lg text-sm font-medium hover:bg-accent-purple/80 transition-colors disabled:opacity-40 flex items-center gap-2"
         >
           {running ? (

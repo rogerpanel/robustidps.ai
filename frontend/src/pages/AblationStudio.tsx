@@ -107,9 +107,17 @@ export default function AblationStudio() {
   const disabledCount = enabled.filter((v) => !v).length
   const allEnabled = enabled.every(Boolean)
 
+  const [fileLoading, setFileLoading] = useState(false)
+
   const handleFileSelect = (file: File) => {
     fileRef.current = file
-    run(file)
+    setFileLoading(true)
+    // Small delay to show the loading bar before the run starts
+    const delay = Math.min(Math.max(file.size / 100000, 400), 2000)
+    setTimeout(() => {
+      setFileLoading(false)
+      run(file)
+    }, delay)
   }
 
   const handleRerun = () => {
@@ -321,7 +329,7 @@ export default function AblationStudio() {
       {/* File upload + Run controls */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         {!fileName && !data ? (
-          <FileUpload onFileSelect={handleFileSelect} />
+          <FileUpload onFileSelect={handleFileSelect} fileLoading={fileLoading} />
         ) : (
           <div className="flex items-center gap-4">
             <div className="flex-1 flex items-center gap-3">

@@ -355,7 +355,7 @@ export default function ContinualLearning() {
 
                 <button
                   onClick={handleUpdate}
-                  disabled={!file || updating}
+                  disabled={!file || updating || measuring}
                   className="w-full px-4 py-2.5 bg-accent-blue text-white rounded-lg text-xs font-medium hover:bg-accent-blue/80 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {updating ? (

@@ -1,5 +1,5 @@
 import {
-  Network, Upload, Loader2, Server, Shield, Lock, Unlock,
+  Network, Loader2, Server, Shield, Lock, Unlock,
   TrendingUp, BarChart3, Brain, Zap, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import {
@@ -63,6 +63,9 @@ interface FedResult {
 
 export default function FederatedSimulator() {
   const [file, setFile] = usePageState<File | null>(PAGE, 'file', null)
+  const [fileName, setFileName] = usePageState<string | null>(PAGE, 'fileName', null)
+  const [fileReady, setFileReady] = usePageState(PAGE, 'fileReady', false)
+  const [fileLoading, setFileLoading] = usePageState(PAGE, 'fileLoading', false)
   const [selectedModel, setSelectedModel] = usePageState(PAGE, 'selectedModel', 'surrogate')
   const [nNodes, setNNodes] = usePageState(PAGE, 'nNodes', 4)
   const [rounds, setRounds] = usePageState(PAGE, 'rounds', 5)
@@ -76,6 +79,18 @@ export default function FederatedSimulator() {
   const [result, setResult] = usePageState<FedResult | null>(PAGE, 'result', null)
   const [error, setError] = usePageState(PAGE, 'error', '')
   const [expandedRound, setExpandedRound] = usePageState<number | null>(PAGE, 'expandedRound', null)
+
+  const handleFileSelect = (f: File) => {
+    setFileLoading(true)
+    setFileReady(false)
+    setFile(f)
+    setFileName(f.name)
+    const delay = Math.min(Math.max(f.size / 100000, 400), 3000)
+    setTimeout(() => {
+      setFileLoading(false)
+      setFileReady(true)
+    }, delay)
+  }
 
   const handleRun = async () => {
     if (!file) return
@@ -147,26 +162,28 @@ export default function FederatedSimulator() {
           {/* Upload + Model */}
           <div className="space-y-3">
             <FileUpload
-              onFile={(f) => setFile(f)}
+              onFile={handleFileSelect}
               label="Upload traffic dataset"
               accept=".csv,.parquet"
+              fileName={fileName}
+              fileLoading={fileLoading}
             />
             <button
               onClick={async () => {
                 try {
+                  setFileLoading(true)
+                  setFileReady(false)
                   const f = await fetchSampleData()
-                  setFile(f)
-                } catch { setError('Failed to load demo data') }
+                  handleFileSelect(f)
+                } catch {
+                  setFileLoading(false)
+                  setError('Failed to load demo data')
+                }
               }}
               className="text-xs text-accent-blue hover:text-accent-blue/80 underline"
             >
               or use built-in demo data (1000 flows)
             </button>
-            {file && (
-              <div className="text-xs text-text-secondary flex items-center gap-1">
-                <Upload className="w-3 h-3" /> {file.name}
-              </div>
-            )}
             <ModelSelector value={selectedModel} onChange={setSelectedModel} />
           </div>
 
@@ -289,7 +306,7 @@ export default function FederatedSimulator() {
 
         <button
           onClick={handleRun}
-          disabled={!file || running}
+          disabled={!file || !fileReady || running || fileLoading}
           className="px-5 py-2.5 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/80 transition-colors disabled:opacity-40 flex items-center gap-2"
         >
           {running ? (

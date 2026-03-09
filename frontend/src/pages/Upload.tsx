@@ -228,7 +228,7 @@ export default function UploadPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <div className="lg:col-span-2">
-          <FileUpload onFileSelect={handleUpload} loading={loading} />
+          <FileUpload onFileSelect={handleUpload} loading={loading} fileLoading={loading} />
         </div>
 
         <div className="space-y-4">

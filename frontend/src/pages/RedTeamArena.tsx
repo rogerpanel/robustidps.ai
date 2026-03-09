@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import {
-  Swords, Upload, Loader2, ShieldAlert, ShieldCheck, Target, Zap,
+  Swords, Loader2, ShieldAlert, ShieldCheck, Target, Zap,
   BarChart3, TrendingDown, AlertTriangle, ChevronDown, ChevronUp, Brain,
 } from 'lucide-react'
 import {
@@ -60,6 +60,9 @@ interface ArenaResult {
 
 export default function RedTeamArena() {
   const [file, setFile] = usePageState<File | null>(PAGE, 'file', null)
+  const [fileName, setFileName] = usePageState<string | null>(PAGE, 'fileName', null)
+  const [fileReady, setFileReady] = usePageState(PAGE, 'fileReady', false)
+  const [fileLoading, setFileLoading] = usePageState(PAGE, 'fileLoading', false)
   const [selectedModel, setSelectedModel] = usePageState(PAGE, 'selectedModel', 'surrogate')
   const [epsilon, setEpsilon] = usePageState(PAGE, 'epsilon', 0.1)
   const [nSamples, setNSamples] = usePageState(PAGE, 'nSamples', 500)
@@ -69,6 +72,18 @@ export default function RedTeamArena() {
   const [error, setError] = usePageState(PAGE, 'error', '')
   const [expandedAttack, setExpandedAttack] = usePageState<string | null>(PAGE, 'expandedAttack', null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelect = (f: File) => {
+    setFileLoading(true)
+    setFileReady(false)
+    setFile(f)
+    setFileName(f.name)
+    const delay = Math.min(Math.max(f.size / 100000, 400), 3000)
+    setTimeout(() => {
+      setFileLoading(false)
+      setFileReady(true)
+    }, delay)
+  }
 
   const toggleAttack = (id: string) => {
     setSelectedAttacks(prev =>
@@ -136,26 +151,28 @@ export default function RedTeamArena() {
           {/* Left: upload + model */}
           <div className="space-y-3">
             <FileUpload
-              onFile={(f) => setFile(f)}
+              onFile={handleFileSelect}
               label="Upload traffic dataset"
               accept=".csv,.parquet"
+              fileName={fileName}
+              fileLoading={fileLoading}
             />
             <button
               onClick={async () => {
                 try {
+                  setFileLoading(true)
+                  setFileReady(false)
                   const f = await fetchSampleData()
-                  setFile(f)
-                } catch { setError('Failed to load demo data') }
+                  handleFileSelect(f)
+                } catch {
+                  setFileLoading(false)
+                  setError('Failed to load demo data')
+                }
               }}
               className="text-xs text-accent-blue hover:text-accent-blue/80 underline"
             >
               or use built-in demo data (1000 flows)
             </button>
-            {file && (
-              <div className="text-xs text-text-secondary flex items-center gap-1">
-                <Upload className="w-3 h-3" /> {file.name}
-              </div>
-            )}
             <ModelSelector value={selectedModel} onChange={setSelectedModel} />
           </div>
 
@@ -212,7 +229,7 @@ export default function RedTeamArena() {
         {/* Run button */}
         <button
           onClick={handleRun}
-          disabled={!file || running || selectedAttacks.length === 0}
+          disabled={!file || !fileReady || running || fileLoading || selectedAttacks.length === 0}
           className="px-5 py-2.5 bg-accent-red text-white rounded-lg text-sm font-medium hover:bg-accent-red/80 transition-colors disabled:opacity-40 flex items-center gap-2"
         >
           {running ? (
