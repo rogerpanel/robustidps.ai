@@ -18,8 +18,8 @@ export function registerSessionReset(fn: ResetFn): void {
   }
 }
 
-/** Keys in localStorage that hold user-scoped data and must be cleared on logout. */
-const USER_SCOPED_KEYS = [
+/** Base keys in localStorage that hold user-scoped data and must be cleared on logout. */
+const USER_SCOPED_BASE_KEYS = [
   'robustidps_results',
   'robustidps_job_id',
   'robustidps_file_name',
@@ -34,8 +34,19 @@ export function resetAllSessions(): void {
     try { fn() } catch { /* don't let one failure prevent others */ }
   }
 
-  // 2. Clear user-scoped localStorage keys
-  for (const key of USER_SCOPED_KEYS) {
+  // 2. Clear user-scoped localStorage keys (both legacy un-scoped and email-scoped)
+  for (const key of USER_SCOPED_BASE_KEYS) {
     localStorage.removeItem(key)
+  }
+  // Clear any email-scoped keys (format: baseKey::email)
+  const toRemove: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (k && USER_SCOPED_BASE_KEYS.some(base => k.startsWith(base + '::'))) {
+      toRemove.push(k)
+    }
+  }
+  for (const k of toRemove) {
+    localStorage.removeItem(k)
   }
 }

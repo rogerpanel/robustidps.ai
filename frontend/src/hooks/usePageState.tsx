@@ -13,6 +13,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import { registerSessionReset } from '../utils/sessionReset'
+import { getUser } from '../utils/auth'
 
 // Module-level store — persists across mounts/unmounts
 const _store = new Map<string, any>()
@@ -25,7 +26,9 @@ export function clearAllPageState(): void {
 registerSessionReset(clearAllPageState)
 
 function mk(page: string, key: string) {
-  return `${page}::${key}`
+  const u = getUser()
+  const prefix = u ? `${u.email}::` : ''
+  return `${prefix}${page}::${key}`
 }
 
 /**

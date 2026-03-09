@@ -1,7 +1,11 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
 import { runAblation } from '../utils/api'
+import { getUser } from '../utils/auth'
 
-const STORAGE_KEY = 'robustidps_ablation'
+function _storageKey(): string {
+  const u = getUser()
+  return u ? `robustidps_ablation::${u.email}` : 'robustidps_ablation'
+}
 
 export interface AblationEntry {
   accuracy: number
@@ -61,7 +65,7 @@ const AblationContext = createContext<AblationContextType | null>(null)
 
 function loadCached(): Partial<AblationState> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(_storageKey())
     if (!raw) return {}
     return JSON.parse(raw)
   } catch {
@@ -71,7 +75,7 @@ function loadCached(): Partial<AblationState> {
 
 function saveCache(state: Partial<AblationState>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    localStorage.setItem(_storageKey(), JSON.stringify({
       data: state.data,
       enabled: state.enabled,
       selectedModel: state.selectedModel,
@@ -159,7 +163,7 @@ export function AblationProvider({ children }: { children: ReactNode }) {
   }, [state.enabled, state.selectedModel])
 
   const clear = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY)
+    localStorage.removeItem(_storageKey())
     setState({
       loading: false,
       data: null,

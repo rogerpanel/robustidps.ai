@@ -472,6 +472,7 @@ async def upload(
         "metadata": metadata,
         "labels_encoded": labels_encoded,
         "label_names": label_names,
+        "user_id": user.id,
     }
 
     # Persist job metadata to DB
@@ -499,6 +500,9 @@ async def get_results(
     if job_id not in job_store:
         return JSONResponse({"error": "job not found"}, status_code=404)
     job = job_store[job_id]
+    # Ownership check: only owner or admin can access
+    if job.get("user_id") and job["user_id"] != user.id and user.role != "admin":
+        return JSONResponse({"error": "job not found"}, status_code=404)
     result = await asyncio.to_thread(
         predict_with_uncertainty,
         model, job["features"].to(DEVICE),
@@ -602,6 +606,7 @@ async def predict_uncertain(
         "labels_encoded": labels_encoded,
         "label_names": label_names,
         "_model_ref": selected,
+        "user_id": user.id if user else None,
     }
 
     # Persist job to DB
@@ -789,6 +794,10 @@ async def delete_job(
     db=Depends(get_db),
 ):
     """Delete a job: removes from memory, DB (cascades firewall rules), and frees resources."""
+    # Ownership check on in-memory store
+    mem_job = job_store.get(job_id)
+    if mem_job and mem_job.get("user_id") and mem_job["user_id"] != user.id and user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorised to delete this job")
     # Remove from in-memory store
     job_store.pop(job_id, None)
 
@@ -1001,6 +1010,9 @@ async def export_results(
     if job_id not in job_store:
         return JSONResponse({"error": "job not found"}, status_code=404)
     job = job_store[job_id]
+    # Ownership check: only owner or admin can export
+    if job.get("user_id") and job["user_id"] != user.id and user.role != "admin":
+        return JSONResponse({"error": "job not found"}, status_code=404)
 
     selected = get_model()
     selected.eval()
@@ -1314,7 +1326,7 @@ async def redteam_run(
     selected = get_model(model_name if model_name else None)
     attack_list = json.loads(attacks) if attacks and attacks != "[]" else None
     job_id = str(uuid.uuid4())[:8]
-    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None}
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
 
     async def _run():
         try:
@@ -1327,12 +1339,12 @@ async def redteam_run(
             )
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
-            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None}
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
             logger.info("Red team arena by %s: %d attacks, eps=%.3f (job %s)",
                         user.email, len(result["attacks"]), epsilon, job_id)
         except Exception as exc:
             logger.exception("Redteam job %s failed", job_id)
-            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
 
     asyncio.create_task(_run())
     return {"job_id": job_id, "status": "running"}
@@ -1359,7 +1371,7 @@ async def xai_run(
     filename = file.filename or "xai.csv"
     selected = get_model(model_name if model_name else None)
     job_id = str(uuid.uuid4())[:8]
-    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None}
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
 
     async def _run():
         try:
@@ -1372,12 +1384,12 @@ async def xai_run(
             )
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
-            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None}
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
             logger.info("XAI analysis by %s: method=%s, %d samples (job %s)",
                         user.email, method, result["n_samples"], job_id)
         except Exception as exc:
             logger.exception("XAI job %s failed", job_id)
-            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
 
     asyncio.create_task(_run())
     return {"job_id": job_id, "status": "running"}
@@ -1415,7 +1427,7 @@ async def federated_run(
     filename = file.filename or "federated.csv"
     selected = get_model(model_name if model_name else None)
     job_id = str(uuid.uuid4())[:8]
-    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None}
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
 
     async def _run():
         try:
@@ -1437,12 +1449,12 @@ async def federated_run(
             )
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
-            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None}
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
             logger.info("Federated sim by %s: %d nodes, %d rounds, strategy=%s (job %s)",
                         user.email, n_nodes, rounds, strategy, job_id)
         except Exception as exc:
             logger.exception("Federated sim job %s failed", job_id)
-            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc)}
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
 
     asyncio.create_task(_run())
     return {"job_id": job_id, "status": "running"}
@@ -1460,6 +1472,9 @@ async def bg_job_status(
     """Poll background job status (used by redteam, xai, federated)."""
     job = _bg_jobs.get(job_id)
     if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    # Ownership check: only owner or admin can poll
+    if job.get("user_id") and job["user_id"] != user.id and user.role != "admin":
         raise HTTPException(status_code=404, detail="Job not found")
     if job["status"] == "done":
         result = job["result"]
@@ -1497,6 +1512,13 @@ async def stream(ws: WebSocket):
             return
 
         job = job_store[job_id]
+        # WebSocket ownership check via token in init message
+        ws_user_id = msg.get("user_id")
+        if job.get("user_id") and ws_user_id and job["user_id"] != int(ws_user_id):
+            await ws.send_json({"error": "not authorised"})
+            await ws.close()
+            return
+
         features = job["features"].to(DEVICE)
         metadata = job["metadata"]
         label_names = job["label_names"]

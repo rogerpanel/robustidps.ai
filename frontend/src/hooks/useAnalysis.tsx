@@ -1,8 +1,14 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
 import { uploadAndPredict } from '../utils/api'
-import { authHeaders } from '../utils/auth'
+import { authHeaders, getUser } from '../utils/auth'
 
 const API = import.meta.env.VITE_API_URL || ''
+
+/** Per-user localStorage key to prevent cross-user data leakage. */
+function _key(base: string): string {
+  const u = getUser()
+  return u ? `${base}::${u.email}` : base
+}
 
 interface AnalysisState {
   loading: boolean
@@ -25,10 +31,10 @@ const AnalysisContext = createContext<AnalysisContextType | null>(null)
 export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AnalysisState>(() => {
     try {
-      const cached = localStorage.getItem('robustidps_results')
-      const cachedJobId = localStorage.getItem('robustidps_job_id')
-      const cachedFileName = localStorage.getItem('robustidps_file_name')
-      const cachedSource = localStorage.getItem('robustidps_source') as AnalysisState['source']
+      const cached = localStorage.getItem(_key('robustidps_results'))
+      const cachedJobId = localStorage.getItem(_key('robustidps_job_id'))
+      const cachedFileName = localStorage.getItem(_key('robustidps_file_name'))
+      const cachedSource = localStorage.getItem(_key('robustidps_source')) as AnalysisState['source']
       return {
         loading: false,
         results: cached ? JSON.parse(cached) : null,
@@ -39,10 +45,10 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       // Corrupted localStorage — clear and start fresh
-      localStorage.removeItem('robustidps_results')
-      localStorage.removeItem('robustidps_job_id')
-      localStorage.removeItem('robustidps_file_name')
-      localStorage.removeItem('robustidps_source')
+      localStorage.removeItem(_key('robustidps_results'))
+      localStorage.removeItem(_key('robustidps_job_id'))
+      localStorage.removeItem(_key('robustidps_file_name'))
+      localStorage.removeItem(_key('robustidps_source'))
       return { loading: false, results: null, error: null, fileName: null, jobId: null, source: null }
     }
   })
@@ -62,10 +68,10 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         // Cache summary only (exclude large predictions array) to avoid localStorage quota
         try {
           const { predictions, confusion_matrix, ...summary } = data as Record<string, unknown>
-          localStorage.setItem('robustidps_results', JSON.stringify(summary))
-          if (jobId) localStorage.setItem('robustidps_job_id', jobId)
-          localStorage.setItem('robustidps_file_name', file.name)
-          localStorage.setItem('robustidps_source', 'upload')
+          localStorage.setItem(_key('robustidps_results'), JSON.stringify(summary))
+          if (jobId) localStorage.setItem(_key('robustidps_job_id'), jobId)
+          localStorage.setItem(_key('robustidps_file_name'), file.name)
+          localStorage.setItem(_key('robustidps_source'), 'upload')
         } catch { /* quota exceeded — keep results in memory only */ }
         setState({ loading: false, results: data, error: null, fileName: file.name, jobId, source: 'upload' })
       })
@@ -85,10 +91,10 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const setLiveResults = useCallback((results: Record<string, unknown>, fileName: string) => {
     try {
       const { predictions, confusion_matrix, ...summary } = results
-      localStorage.setItem('robustidps_results', JSON.stringify(summary))
-      localStorage.setItem('robustidps_file_name', fileName)
-      localStorage.setItem('robustidps_source', 'live-monitor')
-      localStorage.removeItem('robustidps_job_id')
+      localStorage.setItem(_key('robustidps_results'), JSON.stringify(summary))
+      localStorage.setItem(_key('robustidps_file_name'), fileName)
+      localStorage.setItem(_key('robustidps_source'), 'live-monitor')
+      localStorage.removeItem(_key('robustidps_job_id'))
     } catch { /* quota exceeded */ }
     setState({
       loading: false,
@@ -101,10 +107,10 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const clearResults = useCallback(() => {
-    localStorage.removeItem('robustidps_results')
-    localStorage.removeItem('robustidps_job_id')
-    localStorage.removeItem('robustidps_file_name')
-    localStorage.removeItem('robustidps_source')
+    localStorage.removeItem(_key('robustidps_results'))
+    localStorage.removeItem(_key('robustidps_job_id'))
+    localStorage.removeItem(_key('robustidps_file_name'))
+    localStorage.removeItem(_key('robustidps_source'))
     setState({ loading: false, results: null, error: null, fileName: null, jobId: null, source: null })
   }, [])
 

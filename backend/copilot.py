@@ -214,11 +214,15 @@ TOOLS = [
 ]
 
 
-def _exec_tool(name: str, args: dict, db: Session) -> str:
+def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None) -> str:
     try:
         if name == "get_recent_jobs":
             limit = args.get("limit", 10)
-            jobs = db.execute(select(Job).order_by(desc(Job.created_at)).limit(limit)).scalars().all()
+            q = select(Job).order_by(desc(Job.created_at)).limit(limit)
+            # Non-admin users only see their own jobs
+            if user and user.role != "admin":
+                q = select(Job).where(Job.user_id == user.id).order_by(desc(Job.created_at)).limit(limit)
+            jobs = db.execute(q).scalars().all()
             return json.dumps([{"job_id": j.id, "filename": j.filename, "format": j.format_detected, "n_flows": j.n_flows, "n_threats": j.n_threats, "model_used": j.model_used, "created_at": j.created_at.isoformat() if j.created_at else None} for j in jobs])
 
         elif name == "get_job_details":
@@ -253,18 +257,27 @@ def _exec_tool(name: str, args: dict, db: Session) -> str:
         elif name == "get_active_operations":
             # Access in-memory job stores from main module
             import main as _main
+            is_admin = user and user.role == "admin"
+            uid = user.id if user else None
             ops = []
-            # Background jobs (redteam, xai, federated)
+            # Background jobs (redteam, xai, federated) — filtered by user
             for jid, job in list(_main._bg_jobs.items()):
+                if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
+                    continue
                 ops.append({"job_id": jid, "status": job["status"], "type": "background_job",
                             "has_result": job["result"] is not None})
-            # Upload/stream job store
+            # Upload/stream job store — filtered by user
             for jid, job in list(_main.job_store.items()):
+                if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
+                    continue
                 n_flows = len(job["features"]) if "features" in job else 0
                 ops.append({"job_id": jid, "type": "upload_analysis", "n_flows": n_flows,
                             "has_labels": job.get("labels_encoded") is not None})
-            # Recent DB jobs
-            recent = db.execute(select(Job).order_by(desc(Job.created_at)).limit(5)).scalars().all()
+            # Recent DB jobs — filtered by user
+            q = select(Job).order_by(desc(Job.created_at)).limit(5)
+            if not is_admin and uid:
+                q = select(Job).where(Job.user_id == uid).order_by(desc(Job.created_at)).limit(5)
+            recent = db.execute(q).scalars().all()
             for j in recent:
                 ops.append({"job_id": j.id, "type": "completed_analysis", "filename": j.filename,
                             "format": j.format_detected, "n_flows": j.n_flows, "n_threats": j.n_threats,
@@ -275,23 +288,33 @@ def _exec_tool(name: str, args: dict, db: Session) -> str:
             page = args.get("page", "")
             job_id = args.get("job_id")
             import main as _main
+            is_admin = user and user.role == "admin"
+            uid = user.id if user else None
 
             if page == "upload" or page == "live_monitor":
                 if job_id and job_id in _main.job_store:
                     job = _main.job_store[job_id]
+                    # Ownership check
+                    if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
+                        return json.dumps({"page": page, "status": "no_active_result"})
                     return json.dumps({"page": page, "job_id": job_id, "n_flows": len(job["features"]),
                                        "has_labels": job.get("labels_encoded") is not None,
                                        "n_label_classes": len(set(job["label_names"])) if job.get("label_names") else 0})
-                # Fall back to most recent DB job
-                recent = db.execute(select(Job).order_by(desc(Job.created_at)).limit(1)).scalars().first()
+                # Fall back to most recent DB job (user-scoped)
+                q = select(Job).order_by(desc(Job.created_at)).limit(1)
+                if not is_admin and uid:
+                    q = select(Job).where(Job.user_id == uid).order_by(desc(Job.created_at)).limit(1)
+                recent = db.execute(q).scalars().first()
                 if recent:
                     return json.dumps({"page": page, "job_id": recent.id, "filename": recent.filename,
                                        "n_flows": recent.n_flows, "n_threats": recent.n_threats, "model": recent.model_used})
                 return json.dumps({"page": page, "status": "no_active_result"})
 
             if page in ("redteam", "xai", "federated"):
-                # Check background jobs
+                # Check background jobs (user-scoped)
                 for jid, job in list(_main._bg_jobs.items()):
+                    if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
+                        continue
                     if job["status"] == "done" and job["result"]:
                         result = job["result"]
                         # Summarise without sending full data
@@ -424,7 +447,7 @@ Always use the available tools to look up actual data before answering. Use `get
 # Provider: Anthropic Claude
 # ---------------------------------------------------------------------------
 
-async def _claude_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
+async def _claude_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
@@ -447,7 +470,7 @@ async def _claude_stream(messages: list[ChatMessage], api_key: str, model: str, 
         assistant_content = response.content
         for block in response.content:
             if block.type == "tool_use":
-                result = _exec_tool(block.name, block.input, db)
+                result = _exec_tool(block.name, block.input, db, user=user)
                 tool_results.append({"type": "tool_result", "tool_use_id": block.id, "content": result})
 
         api_messages.append({"role": "assistant", "content": assistant_content})
@@ -485,7 +508,7 @@ def _tools_to_openai_functions() -> list:
     return funcs
 
 
-async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
+async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
     import openai
 
     client = openai.OpenAI(api_key=api_key)
@@ -509,7 +532,7 @@ async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, 
         api_messages.append(choice.message)
         for tc in choice.message.tool_calls:
             args = json.loads(tc.function.arguments) if tc.function.arguments else {}
-            result = _exec_tool(tc.function.name, args, db)
+            result = _exec_tool(tc.function.name, args, db, user=user)
             api_messages.append({
                 "role": "tool",
                 "tool_call_id": tc.id,
@@ -531,7 +554,7 @@ async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, 
 # Provider: Google Gemini
 # ---------------------------------------------------------------------------
 
-async def _google_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
+async def _google_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
     import openai  # Google Gemini supports OpenAI-compatible API
 
     client = openai.OpenAI(
@@ -556,7 +579,7 @@ async def _google_stream(messages: list[ChatMessage], api_key: str, model: str, 
 # Provider: DeepSeek
 # ---------------------------------------------------------------------------
 
-async def _deepseek_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None) -> AsyncIterator[str]:
+async def _deepseek_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
     import openai
 
     client = openai.OpenAI(
@@ -581,12 +604,12 @@ async def _deepseek_stream(messages: list[ChatMessage], api_key: str, model: str
 # Local fallback
 # ---------------------------------------------------------------------------
 
-def _local_response(messages: list[ChatMessage], db: Session) -> str:
+def _local_response(messages: list[ChatMessage], db: Session, user: Optional["User"] = None) -> str:
     last_msg = messages[-1].content.lower() if messages else ""
 
     if any(w in last_msg for w in ["threat", "summary", "overview", "status"]):
-        data = json.loads(_exec_tool("get_threat_summary", {}, db))
-        status = json.loads(_exec_tool("get_system_status", {}, db))
+        data = json.loads(_exec_tool("get_threat_summary", {}, db, user=user))
+        status = json.loads(_exec_tool("get_system_status", {}, db, user=user))
         return (
             f"**System Status**\n"
             f"- Device: {status['device'].upper()}\n"
@@ -601,7 +624,7 @@ def _local_response(messages: list[ChatMessage], db: Session) -> str:
         )
 
     if any(w in last_msg for w in ["job", "recent", "scan", "analyse"]):
-        data = json.loads(_exec_tool("get_recent_jobs", {"limit": 5}, db))
+        data = json.loads(_exec_tool("get_recent_jobs", {"limit": 5}, db, user=user))
         if not data:
             return "No analysis jobs found yet. Upload a dataset to get started."
         lines = ["**Recent Analysis Jobs**\n"]
@@ -611,7 +634,7 @@ def _local_response(messages: list[ChatMessage], db: Session) -> str:
         return "\n".join(lines)
 
     if any(w in last_msg for w in ["audit", "log", "activity"]):
-        data = json.loads(_exec_tool("get_audit_logs", {"limit": 10}, db))
+        data = json.loads(_exec_tool("get_audit_logs", {"limit": 10}, db, user=user))
         if not data:
             return "No audit log entries found."
         lines = ["**Recent Activity**\n"]
@@ -620,7 +643,7 @@ def _local_response(messages: list[ChatMessage], db: Session) -> str:
         return "\n".join(lines)
 
     if any(w in last_msg for w in ["active", "operation", "running", "current", "page"]):
-        data = json.loads(_exec_tool("get_active_operations", {}, db))
+        data = json.loads(_exec_tool("get_active_operations", {}, db, user=user))
         ops = data.get("active_operations", [])
         if not ops:
             return "No active operations running across any pages. Upload a dataset or run an analysis to get started."
@@ -706,7 +729,7 @@ async def chat(req: ChatRequest, user: User = Depends(require_auth), db: Session
         provider = detect_provider(api_key)
 
     if not api_key or provider == "local":
-        content = _local_response(req.messages, db)
+        content = _local_response(req.messages, db, user=user)
         return ChatResponse(content=content, provider="local")
 
     stream_fn = PROVIDER_STREAMS.get(provider)
@@ -717,7 +740,7 @@ async def chat(req: ChatRequest, user: User = Depends(require_auth), db: Session
 
     async def generate():
         try:
-            async for chunk in stream_fn(req.messages, api_key, model, db, req.active_ids_models):
+            async for chunk in stream_fn(req.messages, api_key, model, db, req.active_ids_models, user=user):
                 yield f"data: {json.dumps({'content': chunk, 'provider': provider})}\n\n"
             yield f"data: {json.dumps({'done': True, 'provider': provider})}\n\n"
         except Exception as e:

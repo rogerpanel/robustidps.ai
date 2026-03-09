@@ -14,12 +14,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 
   handleReset = () => {
-    // Clear potentially corrupted localStorage
+    // Clear potentially corrupted localStorage (both legacy and user-scoped keys)
     try {
-      localStorage.removeItem('robustidps_results')
-      localStorage.removeItem('robustidps_job_id')
-      localStorage.removeItem('robustidps_file_name')
-      localStorage.removeItem('robustidps_source')
+      const bases = ['robustidps_results', 'robustidps_job_id', 'robustidps_file_name', 'robustidps_source']
+      for (const b of bases) localStorage.removeItem(b)
+      // Also clear email-scoped variants
+      const toRemove: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && bases.some(base => k.startsWith(base + '::'))) toRemove.push(k)
+      }
+      for (const k of toRemove) localStorage.removeItem(k)
     } catch { /* ignore */ }
     this.setState({ error: null })
     window.location.reload()
