@@ -253,6 +253,60 @@ def _summarise_page_result(page: str, result: dict) -> dict:
         summary["model_used"] = result.get("model_used", "")
         summary["dp_enabled"] = result.get("dp_enabled", False)
         summary["dataset_format"] = result.get("dataset_format", "")
+    elif page == "ablation" and "ablation" in result:
+        ablation = result["ablation"]
+        branch_names = result.get("branch_names", [])
+        summary["model_used"] = result.get("model_used", "")
+        summary["n_branches"] = len(branch_names)
+        summary["branch_names"] = branch_names
+        # Per-branch accuracy and drop
+        branch_results = []
+        for name, metrics in ablation.items():
+            if isinstance(metrics, dict):
+                branch_results.append({
+                    "name": name,
+                    "accuracy": metrics.get("accuracy"),
+                    "accuracy_drop": metrics.get("accuracy_drop"),
+                    "precision": metrics.get("precision"),
+                    "recall": metrics.get("recall"),
+                    "f1": metrics.get("f1"),
+                    "disabled": metrics.get("disabled", []),
+                })
+        summary["branch_results"] = branch_results
+        # Find most/least important branches
+        drops = [(b["name"], b["accuracy_drop"]) for b in branch_results if b["accuracy_drop"] is not None and b["name"] != "Full System" and b["name"] != "Custom"]
+        if drops:
+            drops.sort(key=lambda x: x[1], reverse=True)
+            summary["most_important_branch"] = drops[0][0]
+            summary["most_important_drop"] = drops[0][1]
+            summary["least_important_branch"] = drops[-1][0]
+            summary["least_important_drop"] = drops[-1][1]
+        # Full system baseline
+        if "Full System" in ablation:
+            summary["full_system_accuracy"] = ablation["Full System"].get("accuracy")
+        # Pairwise interactions
+        pairwise = result.get("pairwise", {})
+        if pairwise:
+            summary["n_pairwise"] = len(pairwise)
+            pw_details = []
+            for pw_name, pw_data in pairwise.items():
+                if isinstance(pw_data, dict):
+                    pw_details.append({
+                        "pair": pw_name,
+                        "pair_accuracy": pw_data.get("pair_accuracy"),
+                        "pair_drop": pw_data.get("pair_drop"),
+                        "interaction": pw_data.get("interaction"),
+                    })
+            summary["pairwise_details"] = pw_details
+        # Incremental gains
+        incremental = result.get("incremental", [])
+        if incremental:
+            summary["n_incremental_steps"] = len(incremental)
+            summary["incremental_steps"] = [
+                {"step": s.get("step"), "label": s.get("label"), "added": s.get("added"),
+                 "accuracy": s.get("accuracy"), "gain": s.get("gain")}
+                for s in incremental
+            ]
     return summary
 
 
@@ -315,7 +369,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 n_flows = len(job["features"]) if "features" in job else 0
                 ops.append({"job_id": jid, "type": "upload_analysis", "n_flows": n_flows,
                             "has_labels": job.get("labels_encoded") is not None})
-            # Cached completed page results (redteam, xai, federated) — survive polling
+            # Cached completed page results (redteam, xai, federated, ablation) — survive polling
             for (cache_uid, page_type), cached in list(_main._completed_results.items()):
                 if not is_admin and uid and cache_uid != uid:
                     continue
@@ -361,7 +415,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                                        "n_flows": recent.n_flows, "n_threats": recent.n_threats, "model": recent.model_used})
                 return json.dumps({"page": page, "status": "no_active_result"})
 
-            if page in ("redteam", "xai", "federated"):
+            if page in ("redteam", "xai", "federated", "ablation"):
                 # Check running/pending background jobs first (user-scoped)
                 for jid, job in list(_main._bg_jobs.items()):
                     if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:

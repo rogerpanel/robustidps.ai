@@ -696,13 +696,18 @@ async def ablation_endpoint(
             "disabled": v["disabled"],
         }
 
-    return {
+    result = {
         "ablation": clean,
         "pairwise": pairwise,
         "incremental": incremental,
         "branch_names": SurrogateIDS.BRANCH_NAMES,
         "model_used": model_name if model_name else active_model_id,
     }
+
+    # Cache for SOC Copilot access
+    _cache_bg_result(user.id, "ablation", str(uuid.uuid4())[:8], result)
+
+    return result
 
 
 @app.post("/api/models/benchmark")
@@ -1525,7 +1530,7 @@ async def get_page_results(
     the frontend has already polled and consumed them from _bg_jobs.
     Admin users can optionally pass ?user_id=N to view another user's results.
     """
-    valid_pages = ("redteam", "xai", "federated")
+    valid_pages = ("redteam", "xai", "federated", "ablation")
     if page_type not in valid_pages:
         raise HTTPException(status_code=400, detail=f"Invalid page type. Must be one of: {', '.join(valid_pages)}")
 

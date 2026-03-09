@@ -85,6 +85,7 @@ const PAGE_CONTEXTS = [
   { id: 'redteam', label: 'Red Team', query: 'Get the red team arena results. What adversarial attacks were tested and what was the model robustness?', icon: 'shield' },
   { id: 'xai', label: 'Explainability', query: 'Get the XAI analysis results. What features are most important for detection? Explain the model decisions.', icon: 'eye' },
   { id: 'federated', label: 'Federated', query: 'Get the federated learning simulation results. What was the convergence, accuracy, and privacy metrics?', icon: 'network' },
+  { id: 'ablation', label: 'Ablation Studio', query: 'Get the ablation study results. Which branches are most important? What is the accuracy drop when each branch is disabled? Show pairwise interactions and incremental gains.', icon: 'layers' },
   { id: 'pq_crypto', label: 'PQ Crypto', query: 'Get the post-quantum cryptography status. What algorithms are recommended and what are the risks?', icon: 'lock' },
   { id: 'zero_trust', label: 'Zero-Trust', query: 'Get the zero-trust governance status. What is the current trust score and policy compliance?', icon: 'shield-check' },
   { id: 'supply_chain', label: 'Supply Chain', query: 'Get the supply chain security status. Are there any vulnerabilities in our model pipeline?', icon: 'package' },
