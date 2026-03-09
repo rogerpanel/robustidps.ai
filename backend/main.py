@@ -1210,6 +1210,36 @@ async def get_sample_data(dataset: str = "ciciot"):
     )
 
 
+@app.get("/api/sample-data/adversarial-benchmark.pcap")
+async def download_adversarial_benchmark(flows: int = 500):
+    """Generate and stream an adversarial benchmark PCAP for download.
+    Contains all 34 attack classes, PQ-TLS handshakes (Kyber-512/768/1024),
+    adversarial ML perturbation flows (FGSM, PGD, DeepFool, C&W, Gaussian, Masking),
+    and banking/government attack scenarios.
+    flows: number of flows (default 500 ≈ 10MB). Max 2000.
+    """
+    flows = min(max(flows, 50), 2000)
+
+    # Import the generator
+    import sys
+    gen_dir = str(Path(__file__).parent.parent / "sample_data")
+    if gen_dir not in sys.path:
+        sys.path.insert(0, gen_dir)
+    from generate_adversarial_pcap import generate_to_bytes
+
+    loop = asyncio.get_event_loop()
+    pcap_bytes = await loop.run_in_executor(None, generate_to_bytes, flows)
+
+    return StreamingResponse(
+        io.BytesIO(pcap_bytes),
+        media_type="application/vnd.tcpdump.pcap",
+        headers={
+            "Content-Disposition": "attachment; filename=adversarial_benchmark.pcap",
+            "Content-Length": str(len(pcap_bytes)),
+        },
+    )
+
+
 # ── Adversarial Red Team Arena ─────────────────────────────────────────────
 
 @app.get("/api/redteam/attacks")

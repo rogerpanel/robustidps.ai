@@ -203,6 +203,18 @@ export async function fetchSampleData(dataset: 'ciciot' | 'pqc' = 'ciciot'): Pro
   return new File([blob], filename, { type: 'text/csv' });
 }
 
+export async function downloadAdversarialBenchmark(flows = 500): Promise<void> {
+  const res = await fetch(`${API}/api/sample-data/adversarial-benchmark.pcap?flows=${flows}`);
+  if (!res.ok) throw new Error('Failed to generate adversarial benchmark PCAP');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'adversarial_benchmark.pcap';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── Datasets Management ──────────────────────────────────────────────────
 
 export interface DatasetMeta {

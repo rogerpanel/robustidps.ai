@@ -10,8 +10,8 @@ import { useAnalysis } from '../hooks/useAnalysis'
 import { useAblation } from '../hooks/useAblation'
 import PageGuide from '../components/PageGuide'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical, ToggleRight, ToggleLeft, TrendingDown, Brain, Shield, FolderOpen } from 'lucide-react'
-import { fetchDatasets, fetchSampleData, type DatasetMeta } from '../utils/api'
+import { Loader2, Database, AlertTriangle, Trash2, X, Radio, Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical, ToggleRight, ToggleLeft, TrendingDown, Brain, Shield, FolderOpen, Download } from 'lucide-react'
+import { fetchDatasets, fetchSampleData, downloadAdversarialBenchmark, type DatasetMeta } from '../utils/api'
 
 interface DatasetInfo {
   total_rows: number
@@ -86,6 +86,7 @@ export default function UploadPage() {
   const [showDatasets, setShowDatasets] = useState(true)
   const [datasets, setDatasets] = useState<DatasetMeta[]>([])
   const [loadingDataset, setLoadingDataset] = useState<string | null>(null)
+  const [downloadingPcap, setDownloadingPcap] = useState(false)
   const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
 
   // Sync model selection from Ablation Studio
@@ -199,6 +200,29 @@ export default function UploadPage() {
                   <div className="font-medium text-text-primary">CIC-IoT-2023 Sample</div>
                   <div className="text-[10px] text-text-secondary">1K flows | Standard IDS | 0.9 MB</div>
                 </div>
+              </button>
+            </div>
+
+            {/* Adversarial Benchmark PCAP Download */}
+            <div className="border-t border-bg-card pt-3">
+              <div className="text-xs text-text-secondary mb-2">Adversarial Benchmark (Download to Device)</div>
+              <button
+                onClick={async () => {
+                  setDownloadingPcap(true);
+                  try {
+                    await downloadAdversarialBenchmark(500);
+                  } catch { /* ignore */ }
+                  setDownloadingPcap(false);
+                }}
+                disabled={downloadingPcap}
+                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-accent-green/30 bg-accent-green/5 hover:bg-accent-green/15 text-sm transition-colors disabled:opacity-50"
+              >
+                {downloadingPcap ? <Loader2 className="w-4 h-4 animate-spin text-accent-green" /> : <Download className="w-4 h-4 text-accent-green" />}
+                <div className="text-left flex-1">
+                  <div className="font-medium text-text-primary">Adversarial Benchmark PCAP</div>
+                  <div className="text-[10px] text-text-secondary">34 attack classes + PQ-TLS + FGSM/PGD/DeepFool/C&W + banking/gov scenarios | ~10 MB</div>
+                </div>
+                {downloadingPcap && <span className="text-[10px] text-accent-green">Generating...</span>}
               </button>
             </div>
 
