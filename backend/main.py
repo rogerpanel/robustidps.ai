@@ -463,7 +463,9 @@ async def upload(
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "upload.csv"
+    )
     job_id = str(uuid.uuid4())[:8]
     job_store[job_id] = {
         "features": features,
@@ -497,7 +499,8 @@ async def get_results(
     if job_id not in job_store:
         return JSONResponse({"error": "job not found"}, status_code=404)
     job = job_store[job_id]
-    result = predict_with_uncertainty(
+    result = await asyncio.to_thread(
+        predict_with_uncertainty,
         model, job["features"].to(DEVICE),
         labels=job["labels_encoded"].to(DEVICE) if job["labels_encoded"] is not None else None,
         n_mc=MC_PASSES,
@@ -522,8 +525,11 @@ async def predict(
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
-    result = predict_with_uncertainty(
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "upload.csv"
+    )
+    result = await asyncio.to_thread(
+        predict_with_uncertainty,
         model, features.to(DEVICE),
         labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
         n_mc=MC_PASSES,
@@ -548,7 +554,9 @@ async def predict_uncertain(
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "upload.csv"
+    )
 
     total_rows = len(features)
     sampled = False
@@ -563,7 +571,8 @@ async def predict_uncertain(
         sampled = True
 
     selected = get_model(model_name if model_name else None)
-    result = predict_with_uncertainty(
+    result = await asyncio.to_thread(
+        predict_with_uncertainty,
         selected, features.to(DEVICE),
         labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
         n_mc=mc_passes,
@@ -622,7 +631,9 @@ async def ablation_endpoint(
 ):
     _validate_upload(file)
     data = await file.read()
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "upload.csv")
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "upload.csv"
+    )
 
     disabled = set(json.loads(disabled_branches))
     selected = get_model(model_name if model_name else None)
@@ -1102,7 +1113,9 @@ async def continual_update(
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
 
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "update.csv")
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "update.csv"
+    )
 
     if labels_encoded is None:
         raise HTTPException(
@@ -1153,7 +1166,9 @@ async def continual_drift(
 
     _validate_upload(file)
     data = await file.read()
-    features, metadata, labels_encoded, label_names, fmt = extract_features(data, file.filename or "drift.csv")
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "drift.csv"
+    )
 
     if labels_encoded is None:
         raise HTTPException(status_code=400, detail="Labelled data required for drift measurement.")

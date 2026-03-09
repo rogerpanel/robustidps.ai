@@ -145,6 +145,72 @@ TOOLS = [
             "required": [],
         },
     },
+    {
+        "name": "get_active_operations",
+        "description": "Get all currently retained operation results across pages (live monitor, red team, XAI, federated, upload, ablation). Shows what analyses are active in the platform right now.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_page_result",
+        "description": "Get detailed results from a specific active page operation. Use after get_active_operations to drill into results.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response"},
+                "job_id": {"type": "string", "description": "Optional specific job_id"},
+            },
+            "required": ["page"],
+        },
+    },
+    {
+        "name": "get_model_performance",
+        "description": "Get performance metrics and ablation analysis for all IDS models.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_pq_crypto_status",
+        "description": "Get post-quantum cryptography risk assessment and algorithm benchmarks.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_zero_trust_status",
+        "description": "Get Zero-Trust AI Governance status: trust scores, compliance, policy state.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_supply_chain_status",
+        "description": "Get model supply chain security: vulnerabilities, scan results, risk matrix.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_threat_response_status",
+        "description": "Get autonomous threat response: active playbooks, incidents, response metrics.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
 ]
 
 
@@ -183,6 +249,113 @@ def _exec_tool(name: str, args: dict, db: Session) -> str:
             from config import DEVICE
             from models.model_registry import MODEL_INFO
             return json.dumps({"device": DEVICE, "total_users": total_users, "total_jobs": total_jobs, "models_available": len(MODEL_INFO), "platform": "RobustIDPS.ai"})
+
+        elif name == "get_active_operations":
+            # Access in-memory job stores from main module
+            import main as _main
+            ops = []
+            # Background jobs (redteam, xai, federated)
+            for jid, job in list(_main._bg_jobs.items()):
+                ops.append({"job_id": jid, "status": job["status"], "type": "background_job",
+                            "has_result": job["result"] is not None})
+            # Upload/stream job store
+            for jid, job in list(_main.job_store.items()):
+                n_flows = len(job["features"]) if "features" in job else 0
+                ops.append({"job_id": jid, "type": "upload_analysis", "n_flows": n_flows,
+                            "has_labels": job.get("labels_encoded") is not None})
+            # Recent DB jobs
+            recent = db.execute(select(Job).order_by(desc(Job.created_at)).limit(5)).scalars().all()
+            for j in recent:
+                ops.append({"job_id": j.id, "type": "completed_analysis", "filename": j.filename,
+                            "format": j.format_detected, "n_flows": j.n_flows, "n_threats": j.n_threats,
+                            "model_used": j.model_used, "created_at": j.created_at.isoformat() if j.created_at else None})
+            return json.dumps({"active_operations": ops, "total": len(ops)})
+
+        elif name == "get_page_result":
+            page = args.get("page", "")
+            job_id = args.get("job_id")
+            import main as _main
+
+            if page == "upload" or page == "live_monitor":
+                if job_id and job_id in _main.job_store:
+                    job = _main.job_store[job_id]
+                    return json.dumps({"page": page, "job_id": job_id, "n_flows": len(job["features"]),
+                                       "has_labels": job.get("labels_encoded") is not None,
+                                       "n_label_classes": len(set(job["label_names"])) if job.get("label_names") else 0})
+                # Fall back to most recent DB job
+                recent = db.execute(select(Job).order_by(desc(Job.created_at)).limit(1)).scalars().first()
+                if recent:
+                    return json.dumps({"page": page, "job_id": recent.id, "filename": recent.filename,
+                                       "n_flows": recent.n_flows, "n_threats": recent.n_threats, "model": recent.model_used})
+                return json.dumps({"page": page, "status": "no_active_result"})
+
+            if page in ("redteam", "xai", "federated"):
+                # Check background jobs
+                for jid, job in list(_main._bg_jobs.items()):
+                    if job["status"] == "done" and job["result"]:
+                        result = job["result"]
+                        # Summarise without sending full data
+                        summary = {"page": page, "job_id": jid, "status": "done"}
+                        if page == "redteam" and "attacks" in result:
+                            summary["n_attacks"] = len(result["attacks"])
+                            summary["attack_types"] = list(result["attacks"].keys()) if isinstance(result["attacks"], dict) else []
+                            summary["model_used"] = result.get("model_used", "")
+                        elif page == "xai" and "methods" in result:
+                            summary["methods"] = list(result.get("methods", {}).keys())
+                            summary["n_samples"] = result.get("n_samples", 0)
+                        elif page == "federated" and "rounds" in result:
+                            summary["n_rounds"] = len(result.get("rounds", []))
+                            summary["final_accuracy"] = result.get("rounds", [{}])[-1].get("global_accuracy") if result.get("rounds") else None
+                            summary["strategy"] = result.get("strategy", "")
+                        return json.dumps(summary)
+                return json.dumps({"page": page, "status": "no_active_result"})
+
+            return json.dumps({"page": page, "status": "no_data_available"})
+
+        elif name == "get_model_performance":
+            from models.model_registry import MODEL_INFO
+            models = []
+            for key, info in MODEL_INFO.items():
+                models.append({"id": key, "name": info["name"], "category": info["category"],
+                               "description": info["description"]})
+            return json.dumps({"models": models, "total": len(models)})
+
+        elif name == "get_pq_crypto_status":
+            try:
+                from pq_crypto import PQ_ALGORITHMS
+                algos = [{"name": a["name"], "type": a["type"], "nist_level": a["nist_level"],
+                          "key_size": a.get("key_size", "N/A")} for a in PQ_ALGORITHMS.values()]
+                return json.dumps({"algorithms": algos, "total": len(algos)})
+            except Exception:
+                return json.dumps({"status": "pq_module_not_available"})
+
+        elif name == "get_zero_trust_status":
+            try:
+                from zero_trust import compute_trust_score, get_policies
+                score = compute_trust_score()
+                policies = get_policies()
+                return json.dumps({"trust_score": score, "n_policies": len(policies)})
+            except Exception:
+                return json.dumps({"status": "zero_trust_module_not_available"})
+
+        elif name == "get_supply_chain_status":
+            try:
+                from supply_chain import get_overview
+                overview = get_overview()
+                return json.dumps(overview)
+            except Exception:
+                return json.dumps({"status": "supply_chain_module_not_available"})
+
+        elif name == "get_threat_response_status":
+            try:
+                from threat_response import get_playbooks, get_incidents, get_response_metrics
+                playbooks = get_playbooks()
+                incidents = get_incidents(limit=5)
+                metrics = get_response_metrics()
+                return json.dumps({"n_playbooks": len(playbooks), "recent_incidents": len(incidents),
+                                   "metrics": metrics})
+            except Exception:
+                return json.dumps({"status": "threat_response_module_not_available"})
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
@@ -227,9 +400,22 @@ The platform has the following IDS/ML models available:
 
     base += """
 
-Attack types detected include: DDoS variants, Brute Force, SQL Injection, XSS, Bot traffic, infiltration, web attacks, SSH/FTP brute force, port scans, and more.
+Attack types detected (34 classes): DDoS (TCP/UDP/ICMP/HTTP/SYN flood, SlowLoris, RST-FIN, PSH-ACK, fragmentation), Recon (port scan, OS scan, host discovery, ping sweep), BruteForce (SSH, FTP, HTTP, dictionary), Spoofing (ARP, DNS, IP), WebAttack (SQLi, XSS, command injection, browser hijacking), Malware (backdoor, ransomware), Mirai variants, and DNS spoofing.
 
-Always use the available tools to look up actual data before answering questions about jobs, threats, or system status. Be specific and data-driven. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""
+**Platform Pages & Operations You Can Access:**
+- **Upload & Analyse**: Upload prediction results, dataset info, threat tables, uncertainty charts
+- **Live Monitor**: Real-time streaming classification results, threat counts
+- **Red Team Arena**: Adversarial attack results (FGSM, PGD, DeepFool, C&W, Gaussian, Masking)
+- **Explainability Studio**: XAI analysis (gradient saliency, integrated gradients, sensitivity)
+- **Federated Learning**: Simulation results (rounds, accuracy, strategies, differential privacy)
+- **Ablation Studio**: Branch importance analysis, component removal impact
+- **PQ Cryptography**: Post-quantum algorithm benchmarks, risk assessment
+- **Zero-Trust Governance**: Trust scores, compliance policies, model provenance
+- **Supply Chain Security**: Model vulnerability scans, SBOM, risk matrix
+- **Threat Response**: Automated playbooks, incident management, response metrics
+- **Continual Learning**: Model drift detection, incremental updates
+
+Always use the available tools to look up actual data before answering. Use `get_active_operations` to see what the user is currently working on across all pages, then `get_page_result` to drill into specific results. Be specific and data-driven. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""
 
     return base
 
@@ -433,14 +619,36 @@ def _local_response(messages: list[ChatMessage], db: Session) -> str:
             lines.append(f"- [{l['action']}] {l['resource']} from {l['ip_address']} — {l['details']}")
         return "\n".join(lines)
 
+    if any(w in last_msg for w in ["active", "operation", "running", "current", "page"]):
+        data = json.loads(_exec_tool("get_active_operations", {}, db))
+        ops = data.get("active_operations", [])
+        if not ops:
+            return "No active operations running across any pages. Upload a dataset or run an analysis to get started."
+        lines = ["**Active Operations Across Pages**\n"]
+        for op in ops:
+            if op["type"] == "background_job":
+                lines.append(f"- **Background Job** `{op['job_id']}`: {op['status']}")
+            elif op["type"] == "upload_analysis":
+                lines.append(f"- **Upload** `{op['job_id']}`: {op['n_flows']} flows loaded")
+            elif op["type"] == "completed_analysis":
+                lines.append(f"- **{op.get('filename', 'Analysis')}** `{op['job_id']}`: {op['n_flows']} flows, {op['n_threats']} threats ({op['model_used']})")
+        lines.append("\n*For deeper investigation, provide your API key in Settings.*")
+        return "\n".join(lines)
+
     if any(w in last_msg for w in ["help", "what can", "how to", "capabilities"]):
         return (
             "**SOC Copilot Capabilities**\n\n"
             "I can help you with:\n"
             "- **Threat analysis**: Ask about detected threats, attack types, and severity\n"
             "- **Job investigation**: Get details on any analysis job by ID\n"
+            "- **Active operations**: Query live results from any page (Red Team, XAI, Federated, etc.)\n"
             "- **Incident reports**: Generate reports from scan results\n"
             "- **System status**: Check model status, user activity, threat overview\n"
+            "- **Model performance**: Compare IDS models and ablation impact\n"
+            "- **PQ Crypto**: Post-quantum algorithm status and risk assessment\n"
+            "- **Zero-Trust**: Governance scores and policy compliance\n"
+            "- **Supply Chain**: Model security scans and vulnerabilities\n"
+            "- **Threat Response**: Playbook status and incident metrics\n"
             "- **Remediation**: Get recommended actions for detected attacks\n"
             "- **Firewall rules**: Review auto-generated rules for any job\n"
             "- **Audit logs**: View recent system activity\n\n"

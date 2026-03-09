@@ -75,9 +75,21 @@ const PROVIDERS: ProviderConfig[] = [
 const SUGGESTIONS = [
   'Show me the threat summary',
   'What are the recent scan jobs?',
-  'Show audit logs',
+  'What active operations are running?',
   'What can you do?',
 ]
+
+const PAGE_CONTEXTS = [
+  { id: 'active_ops', label: 'Active Operations', query: 'Show me all active operations across pages. What analyses are currently running or completed?', icon: 'activity' },
+  { id: 'upload', label: 'Upload Results', query: 'Get the latest upload analysis results. Summarise the threats found, severity distribution, and key findings.', icon: 'upload' },
+  { id: 'redteam', label: 'Red Team', query: 'Get the red team arena results. What adversarial attacks were tested and what was the model robustness?', icon: 'shield' },
+  { id: 'xai', label: 'Explainability', query: 'Get the XAI analysis results. What features are most important for detection? Explain the model decisions.', icon: 'eye' },
+  { id: 'federated', label: 'Federated', query: 'Get the federated learning simulation results. What was the convergence, accuracy, and privacy metrics?', icon: 'network' },
+  { id: 'pq_crypto', label: 'PQ Crypto', query: 'Get the post-quantum cryptography status. What algorithms are recommended and what are the risks?', icon: 'lock' },
+  { id: 'zero_trust', label: 'Zero-Trust', query: 'Get the zero-trust governance status. What is the current trust score and policy compliance?', icon: 'shield-check' },
+  { id: 'supply_chain', label: 'Supply Chain', query: 'Get the supply chain security status. Are there any vulnerabilities in our model pipeline?', icon: 'package' },
+  { id: 'threat_resp', label: 'Threat Response', query: 'Get the threat response status. What playbooks are active and what incidents have been handled?', icon: 'zap' },
+] as const
 
 // Safely parse JSON from localStorage
 function safeJsonParse<T>(key: string, fallback: T): T {
@@ -501,6 +513,20 @@ export default function Copilot() {
           )}
         </div>
       )}
+
+      {/* Page Context Selector */}
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        {PAGE_CONTEXTS.map((ctx) => (
+          <button
+            key={ctx.id}
+            onClick={() => sendMessage(ctx.query)}
+            disabled={loading}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] border border-bg-card bg-bg-secondary hover:border-accent-blue/40 hover:bg-accent-blue/5 text-text-secondary hover:text-accent-blue transition-colors disabled:opacity-50"
+          >
+            {ctx.label}
+          </button>
+        ))}
+      </div>
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4">

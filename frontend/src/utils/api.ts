@@ -106,6 +106,17 @@ export async function uploadFile(file: File) {
   const form = new FormData();
   form.append('file', file);
   const res = await authFetch(`${API}/api/upload`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const text = await res.text();
+    let msg = `Upload failed (${res.status})`;
+    try {
+      const json = JSON.parse(text);
+      msg = json.detail || json.error || msg;
+    } catch {
+      if (res.status === 524) msg = 'Upload timed out — try a smaller file or CSV format';
+    }
+    throw new Error(msg);
+  }
   return res.json();
 }
 
