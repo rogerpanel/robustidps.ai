@@ -594,7 +594,7 @@ async def run_vulnerability_scan(request: Request, body: ScanRequest = Body(), u
         "models_scanned": len(models_scanned),
         "vulnerabilities_found": len(findings),
         "risk_level": result["risk_level"],
-        "triggered_by": user.get("sub", "unknown"),
+        "triggered_by": user.email if hasattr(user, "email") else "unknown",
     })
 
     return result
