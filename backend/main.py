@@ -185,7 +185,7 @@ app.include_router(datasets_router)
 model: SurrogateIDS | None = None
 loaded_models: dict = {}
 active_model_id: str = "surrogate"
-enabled_models: set = {"surrogate"}  # models available for selection in Upload
+enabled_models: set = {"surrogate", "neural_ode", "optimal_transport", "fedgtd", "sde_tgnn", "cybersec_llm"}  # all models enabled by default
 custom_models: dict = {}  # user-uploaded models: {model_id: {"path": ..., "user_id": ..., "name": ...}}
 job_store: dict = {}
 cl_engine: ContinualLearningEngine | None = None  # continual learning engine
