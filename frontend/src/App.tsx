@@ -26,7 +26,9 @@ import {
   Fingerprint,
   Crosshair,
   Package,
+  Scale,
 } from 'lucide-react'
+import EthicalUseAgreement from './components/EthicalUseAgreement'
 
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -79,12 +81,15 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authed, setAuthed] = useState(isAuthenticated())
   const [user, setUser] = useState<AuthUser | null>(getUser())
+  const [ethicalAccepted, setEthicalAccepted] = useState(false)
+  const [showPolicyViewer, setShowPolicyViewer] = useState(false)
   const { loading: analysisRunning, clearResults } = useAnalysis()
   const location = useLocation()
 
   const handleLogin = () => {
     setAuthed(true)
     setUser(getUser())
+    setEthicalAccepted(false) // require acceptance on every login
   }
 
   const handleLogout = () => {
@@ -93,6 +98,7 @@ export default function App() {
     clearAuth()           // remove token + user from localStorage
     setAuthed(false)
     setUser(null)
+    setEthicalAccepted(false)
   }
 
   // Close mobile sidebar on navigation
@@ -123,6 +129,11 @@ export default function App() {
         <Login onLogin={handleLogin} />
       </Suspense>
     )
+  }
+
+  // Show ethical use agreement overlay before granting access
+  if (!ethicalAccepted) {
+    return <EthicalUseAgreement onAccept={() => setEthicalAccepted(true)} />
   }
 
   const sidebarContent = (
@@ -201,6 +212,10 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* Policy viewer overlay — accessible from the persistent footer link */}
+      {showPolicyViewer && (
+        <EthicalUseAgreement onAccept={() => setShowPolicyViewer(false)} />
+      )}
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-56 shrink-0 bg-bg-secondary flex-col border-r border-bg-card">
         {sidebarContent}
@@ -288,6 +303,17 @@ export default function App() {
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
+
+          {/* Persistent policy footer link — unobtrusive, always accessible */}
+          <div className="mt-12 pb-4 text-center">
+            <button
+              onClick={() => setShowPolicyViewer(true)}
+              className="inline-flex items-center gap-1.5 text-[11px] text-text-secondary/40 hover:text-text-secondary/70 transition-colors"
+            >
+              <Scale className="w-3 h-3" />
+              Ethical Use Policy &amp; Guidance
+            </button>
+          </div>
         </div>
       </main>
     </div>
