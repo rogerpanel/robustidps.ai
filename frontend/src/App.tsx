@@ -107,15 +107,15 @@ export default function App() {
   }, [location.pathname])
 
   useEffect(() => {
-    fetchHealth()
-      .then(() => setOnline(true))
-      .catch(() => setOnline(false))
-    const id = setInterval(() => {
+    let cancelled = false
+    const check = () => {
       fetchHealth()
-        .then(() => setOnline(true))
-        .catch(() => setOnline(false))
-    }, 15000)
-    return () => clearInterval(id)
+        .then(() => { if (!cancelled) setOnline(true) })
+        .catch(() => { if (!cancelled) setOnline(false) })
+    }
+    check()
+    const id = setInterval(check, 15000)
+    return () => { cancelled = true; clearInterval(id) }
   }, [])
 
   // Show login page if not authenticated

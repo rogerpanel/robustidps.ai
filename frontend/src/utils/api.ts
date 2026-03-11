@@ -27,8 +27,14 @@ async function authFetch(url: string, opts: RequestInit = {}): Promise<Response>
 // ── Public endpoints (no auth required) ──────────────────────────────────
 
 export async function fetchHealth() {
-  const res = await fetch(`${API}/api/health`);
-  return res.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`${API}/api/health`, { signal: controller.signal });
+    return res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function fetchAnalytics() {
