@@ -1047,6 +1047,135 @@ export async function generateLatexMitre(experimentId: string) {
   return res.text();
 }
 
+// ── SIEM Connectors ─────────────────────────────────────────────────────
+
+export async function fetchSiemConnectors() {
+  const res = await authFetch(`${API}/api/siem/connectors`);
+  return res.json();
+}
+
+export async function upsertSiemConnector(config: Record<string, unknown>) {
+  const res = await authFetch(`${API}/api/siem/connectors`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  });
+  return res.json();
+}
+
+export async function deleteSiemConnector(connectorId: string) {
+  const res = await authFetch(`${API}/api/siem/connectors/${connectorId}`, { method: 'DELETE' });
+  return res.json();
+}
+
+export async function testSiemConnector(connectorId: string) {
+  const res = await authFetch(`${API}/api/siem/connectors/${connectorId}/test`, { method: 'POST' });
+  return res.json();
+}
+
+export async function fetchSiemStats() {
+  const res = await authFetch(`${API}/api/siem/stats`);
+  return res.json();
+}
+
+export async function fetchSiemFormats() {
+  const res = await authFetch(`${API}/api/siem/formats`);
+  return res.json();
+}
+
+// ── Drift Detection ─────────────────────────────────────────────────────
+
+export async function uploadDriftReference(file: File, modelId = 'surrogate') {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('model_id', modelId);
+  const res = await authFetch(`${API}/api/drift/reference`, { method: 'POST', body: form });
+  return res.json();
+}
+
+export async function analyzeDrift(file: File, modelId = 'surrogate') {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('model_id', modelId);
+  const res = await authFetch(`${API}/api/drift/analyze`, { method: 'POST', body: form });
+  return res.json();
+}
+
+export async function fetchDriftReference(modelId = 'surrogate') {
+  const res = await authFetch(`${API}/api/drift/reference?model_id=${modelId}`);
+  return res.json();
+}
+
+// ── Ingestion ───────────────────────────────────────────────────────────
+
+export async function fetchIngestionStatus() {
+  const res = await authFetch(`${API}/api/ingest/status`);
+  return res.json();
+}
+
+// ── Workspaces ──────────────────────────────────────────────────────────
+
+export async function fetchWorkspaces() {
+  const res = await authFetch(`${API}/api/workspaces`);
+  return res.json();
+}
+
+export async function createWorkspace(data: { name: string; description?: string; tags?: string[] }) {
+  const res = await authFetch(`${API}/api/workspaces`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function fetchWorkspace(workspaceId: string) {
+  const res = await authFetch(`${API}/api/workspaces/${workspaceId}`);
+  return res.json();
+}
+
+export async function deleteWorkspace(workspaceId: string) {
+  const res = await authFetch(`${API}/api/workspaces/${workspaceId}`, { method: 'DELETE' });
+  return res.json();
+}
+
+export async function addWorkspaceMember(workspaceId: string, userId: number, role = 'editor') {
+  const res = await authFetch(`${API}/api/workspaces/${workspaceId}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, role }),
+  });
+  return res.json();
+}
+
+export async function fetchWorkspaceAnnotations(workspaceId: string, targetType?: string, targetId?: string) {
+  const params = new URLSearchParams();
+  if (targetType) params.set('target_type', targetType);
+  if (targetId) params.set('target_id', targetId);
+  const qs = params.toString() ? `?${params}` : '';
+  const res = await authFetch(`${API}/api/workspaces/${workspaceId}/annotations${qs}`);
+  return res.json();
+}
+
+export async function addWorkspaceAnnotation(workspaceId: string, data: { target_type: string; target_id: string; text: string }) {
+  const res = await authFetch(`${API}/api/workspaces/${workspaceId}/annotations`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function fetchWorkspaceExperiments(workspaceId: string) {
+  const res = await authFetch(`${API}/api/workspaces/${workspaceId}/experiments`);
+  return res.json();
+}
+
+export async function linkExperimentToWorkspace(workspaceId: string, experimentId: string) {
+  const res = await authFetch(`${API}/api/workspaces/${workspaceId}/experiments/${experimentId}`, { method: 'POST' });
+  return res.json();
+}
+
 // Sample/fallback data for offline mode
 export const SAMPLE_RESULTS = {
   job_id: 'demo',

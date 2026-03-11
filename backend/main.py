@@ -102,6 +102,10 @@ from datasets import router as datasets_router
 from task_queue import router as task_queue_router
 from experiments import router as experiments_router
 from reports import router as reports_router
+from siem_connectors import router as siem_router
+from ingestion import router as ingestion_router
+from drift_detection import router as drift_router
+from workspaces import router as workspaces_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -185,6 +189,10 @@ app.include_router(datasets_router)
 app.include_router(task_queue_router)
 app.include_router(experiments_router)
 app.include_router(reports_router)
+app.include_router(siem_router)
+app.include_router(ingestion_router)
+app.include_router(drift_router)
+app.include_router(workspaces_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
