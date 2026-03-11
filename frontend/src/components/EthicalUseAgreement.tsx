@@ -12,8 +12,8 @@ export default function EthicalUseAgreement({ onAccept }: Props) {
   const canAgree = hasRead && willReport
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-bg-primary/98 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-3xl my-8">
+    <div className="fixed inset-0 z-[9999] bg-bg-primary/98 backdrop-blur-sm overflow-y-auto p-4">
+      <div className="w-full max-w-3xl mx-auto my-8">
         {/* Header */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-3 mb-3">
