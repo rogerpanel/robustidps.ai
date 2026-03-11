@@ -99,6 +99,9 @@ from zerotrust import router as zerotrust_router
 from threat_response import router as threat_response_router
 from supply_chain import router as supply_chain_router
 from datasets import router as datasets_router
+from task_queue import router as task_queue_router
+from experiments import router as experiments_router
+from reports import router as reports_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -179,6 +182,9 @@ app.include_router(zerotrust_router)
 app.include_router(threat_response_router)
 app.include_router(supply_chain_router)
 app.include_router(datasets_router)
+app.include_router(task_queue_router)
+app.include_router(experiments_router)
+app.include_router(reports_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 

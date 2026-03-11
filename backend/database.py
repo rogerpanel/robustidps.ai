@@ -124,6 +124,43 @@ class IncidentNote(Base):
     incident = relationship("Incident", back_populates="notes")
 
 
+class BackgroundTask(Base):
+    __tablename__ = "background_tasks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    task_id = Column(String(12), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    task_type = Column(String(50), nullable=False)      # ablation | redteam | federated | xai | prediction | benchmark
+    name = Column(String(255), default="")
+    status = Column(String(20), default="queued")        # queued | running | completed | failed
+    progress = Column(Integer, default=0)
+    params = Column(JSON, default=dict)
+    result = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+
+class Experiment(Base):
+    __tablename__ = "experiments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    experiment_id = Column(String(12), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+    tags = Column(JSON, default=list)
+    task_type = Column(String(50), default="")
+    dataset_name = Column(String(255), default="")
+    model_used = Column(String(100), default="")
+    params = Column(JSON, default=dict)
+    results = Column(JSON, default=dict)
+    metrics = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 class CustomPlaybook(Base):
     __tablename__ = "custom_playbooks"
 

@@ -866,6 +866,187 @@ export async function fetchScanHistory(limit = 20) {
   return res.json();
 }
 
+// ── Task Queue ──────────────────────────────────────────────────────────
+
+export async function fetchTasks(
+  status?: string,
+  taskType?: string,
+  limit = 50,
+  offset = 0,
+) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (status) params.set('status', status);
+  if (taskType) params.set('task_type', taskType);
+  const res = await authFetch(`${API}/api/tasks?${params}`);
+  return res.json();
+}
+
+export async function fetchTask(taskId: string) {
+  const res = await authFetch(`${API}/api/tasks/${taskId}`);
+  return res.json();
+}
+
+export async function deleteTask(taskId: string) {
+  const res = await authFetch(`${API}/api/tasks/${taskId}`, { method: 'DELETE' });
+  return res.json();
+}
+
+// ── Experiments ─────────────────────────────────────────────────────────
+
+export interface ExperimentData {
+  experiment_id: string
+  name: string
+  description: string
+  tags: string[]
+  task_type: string
+  dataset_name: string
+  model_used: string
+  params: Record<string, unknown>
+  results: Record<string, unknown>
+  metrics: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export async function createExperiment(data: {
+  name: string
+  description?: string
+  tags?: string[]
+  task_type?: string
+  dataset_name?: string
+  model_used?: string
+  params?: Record<string, unknown>
+  results?: Record<string, unknown>
+  metrics?: Record<string, unknown>
+}) {
+  const res = await authFetch(`${API}/api/experiments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    throw new Error(d.detail || `Failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function fetchExperiments(
+  taskType?: string,
+  tag?: string,
+  search?: string,
+  limit = 50,
+  offset = 0,
+) {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (taskType) params.set('task_type', taskType);
+  if (tag) params.set('tag', tag);
+  if (search) params.set('search', search);
+  const res = await authFetch(`${API}/api/experiments?${params}`);
+  return res.json();
+}
+
+export async function fetchExperiment(experimentId: string) {
+  const res = await authFetch(`${API}/api/experiments/${experimentId}`);
+  return res.json();
+}
+
+export async function updateExperiment(experimentId: string, data: {
+  name?: string
+  description?: string
+  tags?: string[]
+}) {
+  const res = await authFetch(`${API}/api/experiments/${experimentId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function deleteExperiment(experimentId: string) {
+  const res = await authFetch(`${API}/api/experiments/${experimentId}`, { method: 'DELETE' });
+  return res.json();
+}
+
+export async function compareExperiments(ids: string[]) {
+  const res = await authFetch(`${API}/api/experiments/compare?ids=${ids.join(',')}`);
+  return res.json();
+}
+
+export async function fetchExperimentTags() {
+  const res = await authFetch(`${API}/api/experiments/tags`);
+  return res.json();
+}
+
+export async function exportExperimentManifest(experimentId: string) {
+  const res = await authFetch(`${API}/api/experiments/${experimentId}/manifest`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `experiment_${experimentId}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Reports & Export ────────────────────────────────────────────────────
+
+export async function generateLatexComparison(experimentIds: string[]) {
+  const res = await authFetch(`${API}/api/reports/latex/comparison`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ experiment_ids: experimentIds }),
+  });
+  return res.text();
+}
+
+export async function generateLatexExperiment(experimentId: string, opts?: {
+  include_confusion?: boolean
+  include_per_class?: boolean
+}) {
+  const res = await authFetch(`${API}/api/reports/latex/experiment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      experiment_id: experimentId,
+      include_confusion: opts?.include_confusion ?? true,
+      include_per_class: opts?.include_per_class ?? true,
+    }),
+  });
+  return res.text();
+}
+
+export async function generateCsvReport(experimentIds: string[]) {
+  const res = await authFetch(`${API}/api/reports/csv`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ experiment_ids: experimentIds }),
+  });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'robustidps_experiments_report.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function fetchMitreMapping(experimentId?: string) {
+  const params = experimentId ? `?experiment_id=${experimentId}` : '';
+  const res = await authFetch(`${API}/api/reports/mitre-mapping${params}`);
+  return res.json();
+}
+
+export async function generateLatexMitre(experimentId: string) {
+  const res = await authFetch(`${API}/api/reports/latex/mitre`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ experiment_id: experimentId }),
+  });
+  return res.text();
+}
+
 // Sample/fallback data for offline mode
 export const SAMPLE_RESULTS = {
   job_id: 'demo',

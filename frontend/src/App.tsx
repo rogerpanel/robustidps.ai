@@ -27,6 +27,7 @@ import {
   Crosshair,
   Package,
   Scale,
+  BookOpen,
 } from 'lucide-react'
 import EthicalUseAgreement from './components/EthicalUseAgreement'
 
@@ -48,6 +49,7 @@ const PQCryptography = lazy(() => import('./pages/PQCryptography'))
 const ZeroTrustGovernance = lazy(() => import('./pages/ZeroTrustGovernance'))
 const ThreatResponse = lazy(() => import('./pages/ThreatResponse'))
 const ModelSupplyChain = lazy(() => import('./pages/ModelSupplyChain'))
+const ResearchHub = lazy(() => import('./pages/ResearchHub'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const Login = lazy(() => import('./pages/Login'))
 import { fetchHealth } from './utils/api'
@@ -71,6 +73,7 @@ const NAV = [
   { to: '/zero-trust', label: 'Zero-Trust Gov', icon: Fingerprint },
   { to: '/threat-response', label: 'Threat Response', icon: Crosshair },
   { to: '/supply-chain', label: 'Supply Chain', icon: Package },
+  { to: '/research', label: 'Research Hub', icon: BookOpen },
   { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
   { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
   { to: '/about', label: 'About', icon: Info },
@@ -298,6 +301,7 @@ export default function App() {
               <Route path="/zero-trust" element={<ZeroTrustGovernance />} />
               <Route path="/threat-response" element={<ThreatResponse />} />
               <Route path="/supply-chain" element={<ModelSupplyChain />} />
+              <Route path="/research" element={<ResearchHub />} />
               <Route path="/copilot" element={<Copilot />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/about" element={<About />} />
