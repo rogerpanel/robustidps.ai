@@ -525,8 +525,18 @@ def compute_transfer_metrics(
     device = next(model.parameters()).device
     source_features = source_features.to(device)
     target_features = target_features.to(device)
-    source_labels = source_labels.to(device)
-    target_labels = target_labels.to(device)
+
+    # Generate pseudo-labels from model predictions if labels are missing
+    if source_labels is None:
+        with torch.no_grad():
+            source_labels = model(source_features).argmax(-1)
+    else:
+        source_labels = source_labels.to(device)
+    if target_labels is None:
+        with torch.no_grad():
+            target_labels = model(target_features).argmax(-1)
+    else:
+        target_labels = target_labels.to(device)
 
     with torch.no_grad():
         # Direct transfer accuracy
@@ -637,6 +647,13 @@ def compute_cross_model_transfer(
     device = features.device
     model_names = list(models.keys())
     n = len(model_names)
+
+    # Generate pseudo-labels if labels are missing
+    if labels is None:
+        first_model = next(iter(models.values()))
+        first_model.eval()
+        with torch.no_grad():
+            labels = first_model(features).argmax(-1)
 
     # Get predictions and features from each model
     model_outputs = {}

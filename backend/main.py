@@ -1702,6 +1702,12 @@ async def federated_transfer_analysis(
                 features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
                     extract_features, finfo["data"], finfo["name"]
                 )
+                # If dataset has no labels, generate pseudo-labels from model predictions
+                if labels_encoded is None:
+                    with torch.no_grad():
+                        surrogate = get_model("surrogate")
+                        surrogate.eval()
+                        labels_encoded = surrogate(features.to(DEVICE)).argmax(-1).cpu()
                 dataset_features.append({
                     "name": finfo["name"],
                     "features": features,
