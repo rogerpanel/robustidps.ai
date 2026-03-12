@@ -504,6 +504,21 @@ def _compute_distillation_metrics(
 
 # ── Transfer Learning Analytics ──────────────────────────────────────────
 
+# Maximum batch size for model inference to prevent OOM from models that
+# construct N×N matrices internally (e.g. SDE-TGNN adjacency, FedGTD graph).
+_TRANSFER_BATCH = 512
+
+
+def _batched_forward(model: nn.Module, features: torch.Tensor,
+                     batch_size: int = _TRANSFER_BATCH) -> torch.Tensor:
+    """Run model forward in chunks to avoid huge intermediate allocations."""
+    if features.shape[0] <= batch_size:
+        return model(features)
+    parts = []
+    for start in range(0, features.shape[0], batch_size):
+        parts.append(model(features[start:start + batch_size]))
+    return torch.cat(parts, dim=0)
+
 def compute_transfer_metrics(
     model: nn.Module,
     source_features: torch.Tensor,
@@ -529,21 +544,21 @@ def compute_transfer_metrics(
     # Generate pseudo-labels from model predictions if labels are missing
     if source_labels is None:
         with torch.no_grad():
-            source_labels = model(source_features).argmax(-1)
+            source_labels = _batched_forward(model, source_features).argmax(-1)
     else:
         source_labels = source_labels.to(device)
     if target_labels is None:
         with torch.no_grad():
-            target_labels = model(target_features).argmax(-1)
+            target_labels = _batched_forward(model, target_features).argmax(-1)
     else:
         target_labels = target_labels.to(device)
 
     with torch.no_grad():
         # Direct transfer accuracy
-        source_logits = model(source_features)
+        source_logits = _batched_forward(model, source_features)
         source_acc = (source_logits.argmax(-1) == source_labels).float().mean().item()
 
-        target_logits = model(target_features)
+        target_logits = _batched_forward(model, target_features)
         target_acc = (target_logits.argmax(-1) == target_labels).float().mean().item()
 
         # Feature representations (use logits as feature proxy)
@@ -653,14 +668,14 @@ def compute_cross_model_transfer(
         first_model = next(iter(models.values()))
         first_model.eval()
         with torch.no_grad():
-            labels = first_model(features).argmax(-1)
+            labels = _batched_forward(first_model, features).argmax(-1)
 
     # Get predictions and features from each model
     model_outputs = {}
-    for name, model in models.items():
-        model.eval()
+    for name, mdl in models.items():
+        mdl.eval()
         with torch.no_grad():
-            logits = model(features)
+            logits = _batched_forward(mdl, features)
             probs = F.softmax(logits, dim=-1)
             preds = logits.argmax(-1)
             acc = (preds == labels).float().mean().item()

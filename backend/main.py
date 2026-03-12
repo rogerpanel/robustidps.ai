@@ -1707,7 +1707,16 @@ async def federated_transfer_analysis(
                     with torch.no_grad():
                         surrogate = get_model("surrogate")
                         surrogate.eval()
-                        labels_encoded = surrogate(features.to(DEVICE)).argmax(-1).cpu()
+                        feat_dev = features.to(DEVICE)
+                        # Batch inference to avoid OOM from models with N×N internals
+                        _batch = 512
+                        if feat_dev.shape[0] <= _batch:
+                            labels_encoded = surrogate(feat_dev).argmax(-1).cpu()
+                        else:
+                            parts = []
+                            for _s in range(0, feat_dev.shape[0], _batch):
+                                parts.append(surrogate(feat_dev[_s:_s + _batch]).argmax(-1))
+                            labels_encoded = torch.cat(parts, dim=0).cpu()
                 dataset_features.append({
                     "name": finfo["name"],
                     "features": features,
