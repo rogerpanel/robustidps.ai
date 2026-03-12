@@ -71,6 +71,13 @@ type TabKey = typeof TAB_SECTIONS[number]['key']
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type XaiResult = Record<string, any>
 
+interface SlotState {
+  file: File | null
+  fileName: string | null
+  fileReady: boolean
+  fileLoading: boolean
+}
+
 export default function ExplainabilityStudio() {
   const [file, setFile] = usePageState<File | null>(PAGE, 'file', null)
   const [fileName, setFileName] = usePageState<string | null>(PAGE, 'fileName', null)
@@ -90,12 +97,6 @@ export default function ExplainabilityStudio() {
   const [runningCompare, setRunningCompare] = usePageState(PAGE, 'runningCompare', false)
 
   // Multi-dataset slot state
-  interface SlotState {
-    file: File | null
-    fileName: string | null
-    fileReady: boolean
-    fileLoading: boolean
-  }
   const defaultSlot = (): SlotState => ({ file: null, fileName: null, fileReady: false, fileLoading: false })
   const [multiMode, setMultiMode] = usePageState(PAGE, 'multiMode', false)
   const [slots, setSlots] = usePageState<SlotState[]>(PAGE, 'slots', [defaultSlot(), defaultSlot(), defaultSlot()])
@@ -349,8 +350,6 @@ export default function ExplainabilityStudio() {
                 <Database className="w-4 h-4" />
                 Multi-Dataset Analysis
               </button>
-            </div>
-
               {compareMode && (
                 <div className="mt-2 p-3 bg-bg-primary rounded-lg border border-bg-card space-y-2">
                   <p className="text-[11px] text-text-secondary">Select 2+ models to compare how they explain the same data:</p>
