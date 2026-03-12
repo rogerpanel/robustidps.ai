@@ -24,12 +24,13 @@ const ATTACK_OPTS = [
   { id: 'fgsm', label: 'FGSM', desc: 'Fast Gradient Sign — single-step, fast' },
   { id: 'pgd', label: 'PGD (10-step)', desc: 'Projected Gradient Descent — iterative, stronger' },
   { id: 'deepfool', label: 'DeepFool', desc: 'Minimal perturbation to cross boundary' },
+  { id: 'cw', label: 'C&W (L2)', desc: 'Carlini & Wagner — optimisation-based, strong' },
   { id: 'gaussian', label: 'Gaussian Noise', desc: 'Random Gaussian perturbation' },
   { id: 'feature_mask', label: 'Feature Masking', desc: 'Randomly zero-out features' },
 ]
 
 const SEV_COLORS: Record<string, string> = {
-  fgsm: '#EF4444', pgd: '#F97316', deepfool: '#F59E0B', gaussian: '#3B82F6', feature_mask: '#A855F7',
+  fgsm: '#EF4444', pgd: '#F97316', deepfool: '#F59E0B', cw: '#EC4899', gaussian: '#3B82F6', feature_mask: '#A855F7',
 }
 
 const MODEL_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4']
@@ -104,9 +105,13 @@ interface MultiArenaResult {
     }>
   }>
   epsilon_profiles: Record<string, {
-    attack: string
-    epsilon_curve: { epsilon: number; accuracy: number }[]
-    breaking_epsilon: number | null
+    per_attack: Record<string, {
+      attack: string
+      epsilon_curve: { epsilon: number; accuracy: number }[]
+      breaking_epsilon: number | null
+    }>
+    worst_attack: string | null
+    worst_breaking_epsilon: number | null
   }>
   confidence_erosion: Record<string, {
     erosion_curves: Record<string, { epsilon: number; confidence: number; accuracy: number }[]>
@@ -260,17 +265,35 @@ export default function RedTeamArena() {
     return entry
   })
 
-  // Epsilon profile chart data
+  // ── Attack selector state for epsilon & erosion tabs ──
+  const [epsilonAttack, setEpsilonAttack] = usePageState<string>(PAGE, 'epsilonAttack', 'fgsm')
+  const [erosionAttack, setErosionAttack] = usePageState<string>(PAGE, 'erosionAttack', 'fgsm')
+
+  // Available attacks from epsilon profiles (per_attack keys)
+  const availableEpsilonAttacks = (() => {
+    if (!multiResult?.epsilon_profiles) return [] as string[]
+    const firstModel = Object.values(multiResult.epsilon_profiles)[0]
+    return firstModel?.per_attack ? Object.keys(firstModel.per_attack) : [] as string[]
+  })()
+
+  // Available attacks from confidence erosion
+  const availableErosionAttacks = (() => {
+    if (!multiResult?.confidence_erosion) return [] as string[]
+    const firstModel = Object.values(multiResult.confidence_erosion)[0]
+    return firstModel?.erosion_curves ? Object.keys(firstModel.erosion_curves) : [] as string[]
+  })()
+
+  // Epsilon profile chart data — driven by selected attack
   const epsilonChartData = (() => {
     if (!multiResult?.epsilon_profiles) return []
     const allEps = new Set<number>()
     Object.values(multiResult.epsilon_profiles).forEach(p => {
-      p.epsilon_curve?.forEach(pt => allEps.add(pt.epsilon))
+      p.per_attack?.[epsilonAttack]?.epsilon_curve?.forEach(pt => allEps.add(pt.epsilon))
     })
     return [...allEps].sort((a, b) => a - b).map(eps => {
       const entry: Record<string, string | number> = { epsilon: eps }
       modelNames.forEach(m => {
-        const profile = multiResult.epsilon_profiles[m]
+        const profile = multiResult.epsilon_profiles[m]?.per_attack?.[epsilonAttack]
         const pt = profile?.epsilon_curve?.find(p => p.epsilon === eps)
         entry[m] = pt ? Math.round(pt.accuracy * 1000) / 10 : 0
       })
@@ -278,18 +301,18 @@ export default function RedTeamArena() {
     })
   })()
 
-  // Confidence erosion chart data for FGSM
+  // Confidence erosion chart data — driven by selected attack
   const erosionChartData = (() => {
     if (!multiResult?.confidence_erosion) return []
     const allEps = new Set<number>()
     Object.values(multiResult.confidence_erosion).forEach(e => {
-      e.erosion_curves?.fgsm?.forEach((pt: { epsilon: number }) => allEps.add(pt.epsilon))
+      e.erosion_curves?.[erosionAttack]?.forEach((pt: { epsilon: number }) => allEps.add(pt.epsilon))
     })
     return [...allEps].sort((a, b) => a - b).map(eps => {
       const entry: Record<string, string | number> = { epsilon: eps }
       modelNames.forEach(m => {
         const curves = multiResult.confidence_erosion[m]?.erosion_curves
-        const pt = curves?.fgsm?.find((p: { epsilon: number }) => p.epsilon === eps)
+        const pt = curves?.[erosionAttack]?.find((p: { epsilon: number }) => p.epsilon === eps)
         entry[m] = pt ? Math.round(pt.confidence * 1000) / 10 : 0
       })
       return entry
@@ -807,48 +830,121 @@ export default function RedTeamArena() {
           )}
 
           {/* ── EPSILON PROFILES TAB ── */}
-          {activeView === 'epsilon' && epsilonChartData.length > 0 && (
+          {activeView === 'epsilon' && (
             <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
-              <h3 className="text-sm font-semibold mb-1 flex items-center gap-2"><Activity className="w-4 h-4 text-accent-amber" /> Epsilon Sensitivity Profiles (FGSM)</h3>
-              <p className="text-xs text-text-secondary mb-4">Accuracy vs. perturbation strength — find each model's breaking point</p>
-              <ResponsiveContainer width="100%" height={320}>
-                <LineChart data={epsilonChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="epsilon" tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'ε', position: 'insideBottomRight', offset: -5, fill: '#94A3B8', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#94A3B8', fontSize: 10 }} unit="%" domain={[0, 100]} />
-                  <Tooltip contentStyle={TT} />
-                  {modelNames.map((m, i) => (
-                    <Line key={m} type="monotone" dataKey={m} stroke={MODEL_COLORS[i % MODEL_COLORS.length]}
-                      strokeWidth={2} dot={{ r: 3 }} />
-                  ))}
-                  <Legend wrapperStyle={{ fontSize: 11, color: '#94A3B8' }} />
-                </LineChart>
-              </ResponsiveContainer>
-              {/* Breaking point badges */}
-              <div className="flex flex-wrap gap-3 mt-4">
-                {modelNames.map((m, i) => {
-                  const profile = multiResult.epsilon_profiles?.[m]
-                  const bp = profile?.breaking_epsilon
-                  return (
-                    <div key={m} className="flex items-center gap-2 text-xs px-3 py-1.5 bg-bg-primary rounded-lg border border-bg-card">
-                      <div className="w-3 h-3 rounded-full" style={{ background: MODEL_COLORS[i % MODEL_COLORS.length] }} />
-                      <span className="font-medium">{m}</span>
-                      <span className="text-text-secondary">breaks at ε =</span>
-                      <span className={`font-mono font-bold ${bp != null ? 'text-accent-red' : 'text-accent-green'}`}>
-                        {bp != null ? bp.toFixed(2) : '> 0.50'}
-                      </span>
-                    </div>
-                  )
-                })}
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-accent-amber" /> Epsilon Sensitivity Profiles
+                </h3>
+                {/* Attack selector pills */}
+                <div className="flex gap-1.5 flex-wrap">
+                  {availableEpsilonAttacks.map(atk => {
+                    const opt = ATTACK_OPTS.find(a => a.id === atk)
+                    return (
+                      <button key={atk} onClick={() => setEpsilonAttack(atk)}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all border ${
+                          epsilonAttack === atk
+                            ? 'border-accent-amber/60 bg-accent-amber/15 text-accent-amber'
+                            : 'border-bg-card bg-bg-primary text-text-secondary hover:text-text-primary hover:border-text-secondary'
+                        }`}
+                      >
+                        {opt?.label || atk}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
+              <p className="text-xs text-text-secondary mb-4">
+                Accuracy vs. perturbation strength — find each model's breaking point
+                <span className="ml-2 text-accent-amber font-medium">({ATTACK_OPTS.find(a => a.id === epsilonAttack)?.label || epsilonAttack})</span>
+              </p>
+              {epsilonChartData.length > 0 ? (
+                <>
+                  <ResponsiveContainer width="100%" height={320}>
+                    <LineChart data={epsilonChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="epsilon" tick={{ fill: '#94A3B8', fontSize: 10 }} label={{ value: 'ε', position: 'insideBottomRight', offset: -5, fill: '#94A3B8', fontSize: 11 }} />
+                      <YAxis tick={{ fill: '#94A3B8', fontSize: 10 }} unit="%" domain={[0, 100]} />
+                      <Tooltip contentStyle={TT} />
+                      {modelNames.map((m, i) => (
+                        <Line key={m} type="monotone" dataKey={m} stroke={MODEL_COLORS[i % MODEL_COLORS.length]}
+                          strokeWidth={2} dot={{ r: 3 }} />
+                      ))}
+                      <Legend wrapperStyle={{ fontSize: 11, color: '#94A3B8' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  {/* Breaking point badges */}
+                  <div className="flex flex-wrap gap-3 mt-4">
+                    {modelNames.map((m, i) => {
+                      const profile = multiResult.epsilon_profiles?.[m]?.per_attack?.[epsilonAttack]
+                      const bp = profile?.breaking_epsilon
+                      return (
+                        <div key={m} className="flex items-center gap-2 text-xs px-3 py-1.5 bg-bg-primary rounded-lg border border-bg-card">
+                          <div className="w-3 h-3 rounded-full" style={{ background: MODEL_COLORS[i % MODEL_COLORS.length] }} />
+                          <span className="font-medium">{m}</span>
+                          <span className="text-text-secondary">breaks at ε =</span>
+                          <span className={`font-mono font-bold ${bp != null ? 'text-accent-red' : 'text-accent-green'}`}>
+                            {bp != null ? bp.toFixed(2) : '> 0.50'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {/* Worst-attack summary */}
+                  <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-bg-card">
+                    {modelNames.map((m, i) => {
+                      const ep = multiResult.epsilon_profiles?.[m]
+                      const worst = ep?.worst_attack
+                      const worstEps = ep?.worst_breaking_epsilon
+                      return worst ? (
+                        <div key={m} className="flex items-center gap-2 text-xs px-3 py-1.5 bg-accent-red/5 rounded-lg border border-accent-red/20">
+                          <div className="w-3 h-3 rounded-full" style={{ background: MODEL_COLORS[i % MODEL_COLORS.length] }} />
+                          <span className="font-medium">{m}</span>
+                          <span className="text-text-secondary">most vulnerable to</span>
+                          <span className="font-semibold text-accent-red">{ATTACK_OPTS.find(a => a.id === worst)?.label || worst}</span>
+                          <span className="text-text-secondary">at ε =</span>
+                          <span className="font-mono font-bold text-accent-red">{worstEps != null ? worstEps.toFixed(2) : '?'}</span>
+                        </div>
+                      ) : null
+                    })}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-text-secondary italic">No data for this attack. Try selecting a different one.</p>
+              )}
             </div>
           )}
 
           {/* ── CONFIDENCE EROSION TAB ── */}
-          {activeView === 'erosion' && erosionChartData.length > 0 && (
+          {activeView === 'erosion' && (
             <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
-              <h3 className="text-sm font-semibold mb-1 flex items-center gap-2"><TrendingDown className="w-4 h-4 text-accent-red" /> Detection Confidence Erosion (FGSM)</h3>
-              <p className="text-xs text-text-secondary mb-4">How quickly models lose confidence under increasing perturbation</p>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4 text-accent-red" /> Detection Confidence Erosion
+                </h3>
+                {/* Attack selector pills */}
+                <div className="flex gap-1.5 flex-wrap">
+                  {availableErosionAttacks.map(atk => {
+                    const opt = ATTACK_OPTS.find(a => a.id === atk)
+                    return (
+                      <button key={atk} onClick={() => setErosionAttack(atk)}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all border ${
+                          erosionAttack === atk
+                            ? 'border-accent-red/60 bg-accent-red/15 text-accent-red'
+                            : 'border-bg-card bg-bg-primary text-text-secondary hover:text-text-primary hover:border-text-secondary'
+                        }`}
+                      >
+                        {opt?.label || atk}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <p className="text-xs text-text-secondary mb-4">
+                How quickly models lose confidence under increasing perturbation
+                <span className="ml-2 text-accent-red font-medium">({ATTACK_OPTS.find(a => a.id === erosionAttack)?.label || erosionAttack})</span>
+              </p>
+              {erosionChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={320}>
                 <AreaChart data={erosionChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -862,6 +958,9 @@ export default function RedTeamArena() {
                   <Legend wrapperStyle={{ fontSize: 11, color: '#94A3B8' }} />
                 </AreaChart>
               </ResponsiveContainer>
+              ) : (
+                <p className="text-xs text-text-secondary italic">No data for this attack. Try selecting a different one.</p>
+              )}
             </div>
           )}
 

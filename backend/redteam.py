@@ -100,10 +100,47 @@ def feature_mask(x: torch.Tensor, mask_ratio: float = 0.2) -> torch.Tensor:
     return x * mask.float()
 
 
+def cw_attack(model: nn.Module, x: torch.Tensor, y: torch.Tensor,
+              eps: float = 0.1, steps: int = 20, lr: float = 0.01,
+              c: float = 1.0) -> torch.Tensor:
+    """
+    Carlini & Wagner L2 attack (simplified).
+    Optimises a perturbation δ that minimises ||δ||₂ while causing
+    misclassification, controlled by confidence parameter `c`.
+    `eps` is used as a hard L2 norm cap on the perturbation.
+    """
+    x_adv = x.clone().detach().requires_grad_(True)
+    optimizer = torch.optim.Adam([x_adv], lr=lr)
+    n_classes = model(x[:1]).shape[-1]
+
+    for _ in range(steps):
+        optimizer.zero_grad()
+        logits = model(x_adv)
+        # C&W f-function: max(Z(x)_y - max_{i≠y} Z(x)_i, 0)
+        one_hot = F.one_hot(y, n_classes).float()
+        real = (logits * one_hot).sum(dim=-1)
+        other = (logits * (1 - one_hot) - one_hot * 1e4).max(dim=-1).values
+        f_loss = torch.clamp(real - other, min=0.0).mean()
+        # L2 distance penalty
+        l2_dist = ((x_adv - x) ** 2).sum(dim=-1).mean()
+        loss = l2_dist + c * f_loss
+        loss.backward()
+        optimizer.step()
+        # Project into eps-ball (L2)
+        with torch.no_grad():
+            delta = x_adv - x
+            norm = delta.norm(dim=-1, keepdim=True).clamp(min=1e-8)
+            factor = torch.clamp(eps / norm, max=1.0)
+            x_adv.data = x + delta * factor
+
+    return x_adv.detach()
+
+
 ATTACKS = {
     "fgsm": {"fn": fgsm_attack, "label": "FGSM", "needs_grad": True},
     "pgd": {"fn": pgd_attack, "label": "PGD (10-step)", "needs_grad": True},
     "deepfool": {"fn": deepfool_approx, "label": "DeepFool (approx)", "needs_grad": True},
+    "cw": {"fn": cw_attack, "label": "C&W (L2)", "needs_grad": True},
     "gaussian": {"fn": gaussian_noise, "label": "Gaussian Noise", "needs_grad": False},
     "feature_mask": {"fn": feature_mask, "label": "Feature Masking", "needs_grad": False},
 }
@@ -291,6 +328,25 @@ SEVERITY_WEIGHTS = {
 }
 
 
+# ── Attack dispatch helper ───────────────────────────────────────────────
+
+def _dispatch_attack(
+    atk: dict, atk_key: str, model: nn.Module,
+    features: torch.Tensor, labels: torch.Tensor, eps: float,
+) -> torch.Tensor:
+    """Run a single attack, dispatching to the correct signature."""
+    if atk["needs_grad"]:
+        if atk_key == "deepfool":
+            return atk["fn"](model, features)
+        else:
+            return atk["fn"](model, features, labels, eps=eps)
+    else:
+        if atk_key == "gaussian":
+            return atk["fn"](features, sigma=eps)
+        else:
+            return atk["fn"](features, mask_ratio=eps)
+
+
 # ── Adaptive epsilon profiling ───────────────────────────────────────────
 
 def compute_epsilon_profile(
@@ -333,16 +389,7 @@ def compute_epsilon_profile(
                 acc = (logits.argmax(-1) == lab_sub).float().mean().item()
         else:
             try:
-                if atk["needs_grad"]:
-                    if attack_key == "deepfool":
-                        adv = atk["fn"](model, feat_sub)
-                    else:
-                        adv = atk["fn"](model, feat_sub, lab_sub, eps=eps)
-                else:
-                    if attack_key == "gaussian":
-                        adv = atk["fn"](feat_sub, sigma=eps)
-                    else:
-                        adv = atk["fn"](feat_sub, mask_ratio=eps)
+                adv = _dispatch_attack(atk, attack_key, model, feat_sub, lab_sub, eps)
                 with torch.no_grad():
                     logits = _batched_forward(model, adv)
                     acc = (logits.argmax(-1) == lab_sub).float().mean().item()
@@ -357,6 +404,43 @@ def compute_epsilon_profile(
         "attack": attack_key,
         "epsilon_curve": curve,
         "breaking_epsilon": breaking_eps,
+    }
+
+
+def compute_epsilon_profiles_all(
+    model: nn.Module,
+    features: torch.Tensor,
+    labels: torch.Tensor,
+    attack_keys: list[str] | None = None,
+    epsilon_schedule: list[float] | None = None,
+) -> dict:
+    """
+    Run epsilon profiling for ALL specified attacks and return a combined
+    result with per-attack curves and breaking points.
+    """
+    if attack_keys is None:
+        attack_keys = list(ATTACKS.keys())
+
+    profiles = {}
+    for atk_key in attack_keys:
+        profiles[atk_key] = compute_epsilon_profile(
+            model, features, labels, attack_key=atk_key,
+            epsilon_schedule=epsilon_schedule,
+        )
+
+    # Find the most vulnerable attack (lowest breaking epsilon)
+    worst_attack = None
+    worst_eps = float("inf")
+    for atk_key, p in profiles.items():
+        bp = p.get("breaking_epsilon")
+        if bp is not None and bp < worst_eps:
+            worst_eps = bp
+            worst_attack = atk_key
+
+    return {
+        "per_attack": profiles,
+        "worst_attack": worst_attack,
+        "worst_breaking_epsilon": worst_eps if worst_attack else None,
     }
 
 
@@ -560,7 +644,7 @@ def compute_confidence_erosion(
     Critical for understanding at what point the model becomes unreliable.
     """
     if attacks is None:
-        attacks = ["fgsm", "pgd"]
+        attacks = list(ATTACKS.keys())
     if epsilon_steps is None:
         epsilon_steps = [0.0, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3]
 
@@ -589,16 +673,7 @@ def compute_confidence_erosion(
                     acc = (logits.argmax(-1) == lab).float().mean().item()
             else:
                 try:
-                    if atk["needs_grad"]:
-                        if atk_key == "deepfool":
-                            adv = atk["fn"](model, feat)
-                        else:
-                            adv = atk["fn"](model, feat, lab, eps=eps)
-                    else:
-                        if atk_key == "gaussian":
-                            adv = atk["fn"](feat, sigma=eps)
-                        else:
-                            adv = atk["fn"](feat, mask_ratio=eps)
+                    adv = _dispatch_attack(atk, atk_key, model, feat, lab, eps)
                     with torch.no_grad():
                         logits = _batched_forward(model, adv)
                         probs = F.softmax(logits, dim=-1)
@@ -686,7 +761,7 @@ def run_multi_arena(
             )
             cross_dataset[mname] = trans
 
-    # ── 4. Epsilon profiles (primary attack on first dataset) ────────────
+    # ── 4. Epsilon profiles (ALL attacks on first dataset) ──────────────
     epsilon_profiles = {}
     if len(datasets) > 0:
         ds0 = datasets[0]
@@ -699,17 +774,16 @@ def run_multi_arena(
             if lab is None:
                 with torch.no_grad():
                     lab = _batched_forward(mdl, feat[:min(300, len(feat))]).argmax(-1)
-                    # Extend if needed
                     if len(lab) < len(feat):
                         lab_full = _batched_forward(mdl, feat).argmax(-1)
                         lab = lab_full
             else:
                 lab = lab.to(device)
-            epsilon_profiles[mname] = compute_epsilon_profile(
-                mdl, feat, lab, attack_key="fgsm",
+            epsilon_profiles[mname] = compute_epsilon_profiles_all(
+                mdl, feat, lab, attack_keys=attacks,
             )
 
-    # ── 5. Confidence erosion (first dataset, all models) ────────────────
+    # ── 5. Confidence erosion (ALL attacks, first dataset, all models) ──
     erosion_profiles = {}
     if len(datasets) > 0:
         ds0 = datasets[0]
@@ -727,7 +801,7 @@ def run_multi_arena(
             else:
                 lab = lab.to(device)
             erosion_profiles[mname] = compute_confidence_erosion(
-                mdl, feat, lab, attacks=["fgsm", "pgd"],
+                mdl, feat, lab, attacks=attacks,
             )
 
     # ── 6. Build summary heatmap: model × dataset → robustness score ────
