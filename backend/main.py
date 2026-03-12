@@ -93,7 +93,7 @@ from firewall import router as firewall_router
 from copilot import router as copilot_router
 from continual import ContinualLearningEngine
 from redteam import run_arena, run_multi_arena, ATTACKS as REDTEAM_ATTACKS
-from explainability import run_explainability
+from explainability import run_explainability, run_comparative_explainability
 from federated import simulate_federated, compute_transfer_metrics, compute_cross_model_transfer
 from pq_crypto import router as pq_router
 from zerotrust import router as zerotrust_router
@@ -1553,6 +1553,58 @@ async def xai_run(
                         user.email, method, result["n_samples"], job_id)
         except Exception as exc:
             logger.exception("XAI job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run())
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.post("/api/xai/compare")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def xai_compare(
+    request: Request,
+    file: UploadFile = File(...),
+    model_names: str = Form(default=""),
+    n_samples: int = Form(default=200),
+    user=Depends(require_auth),
+):
+    """Run comparative XAI analysis across multiple models. Poll /api/job/status/{job_id}."""
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    filename = file.filename or "xai.csv"
+    model_list = [m.strip() for m in model_names.split(",") if m.strip()] if model_names else ["surrogate"]
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run():
+        try:
+            features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                extract_features, data, filename
+            )
+            # Load all requested models
+            models_dict = {}
+            for mname in model_list:
+                try:
+                    models_dict[mname] = get_model(mname)
+                except Exception:
+                    pass
+            if not models_dict:
+                models_dict["surrogate"] = get_model("surrogate")
+
+            result = await asyncio.to_thread(
+                run_comparative_explainability, models_dict, features,
+                labels_encoded, min(n_samples, MAX_ROWS),
+            )
+            result["dataset_format"] = fmt
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "xai", job_id, result)
+            logger.info("Comparative XAI by %s: models=%s, %d samples (job %s)",
+                        user.email, model_list, result["n_samples"], job_id)
+        except Exception as exc:
+            logger.exception("Comparative XAI job %s failed", job_id)
             _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
 
     asyncio.create_task(_run())

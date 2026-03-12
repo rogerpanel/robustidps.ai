@@ -520,6 +520,18 @@ export async function runXai(
   return startJobAndPoll(`${API}/api/xai/run`, form, 'XAI analysis');
 }
 
+export async function runComparativeXai(
+  file: File,
+  modelNames: string[] = ['surrogate'],
+  nSamples: number = 200,
+) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('model_names', modelNames.join(','));
+  form.append('n_samples', String(nSamples));
+  return startJobAndPoll(`${API}/api/xai/compare`, form, 'Comparative XAI analysis');
+}
+
 // ── Federated Learning Simulator ────────────────────────────────────────
 
 export async function runFederated(
