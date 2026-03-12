@@ -92,7 +92,7 @@ from audit import AuditMiddleware, log_audit
 from firewall import router as firewall_router
 from copilot import router as copilot_router
 from continual import ContinualLearningEngine
-from redteam import run_arena, ATTACKS as REDTEAM_ATTACKS
+from redteam import run_arena, run_multi_arena, ATTACKS as REDTEAM_ATTACKS
 from explainability import run_explainability
 from federated import simulate_federated, compute_transfer_metrics, compute_cross_model_transfer
 from pq_crypto import router as pq_router
@@ -1415,6 +1415,101 @@ async def redteam_run(
             _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
 
     asyncio.create_task(_run())
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.post("/api/redteam/multi-run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def redteam_multi_run(
+    request: Request,
+    user=Depends(require_auth),
+):
+    """Multi-dataset × multi-model red team arena.
+
+    Accepts up to 3 files and multiple models. Runs comprehensive adversarial
+    analysis with cross-model comparison, cross-dataset attack transferability,
+    epsilon profiling, confidence erosion, and severity-weighted risk scoring.
+    """
+    form = await request.form()
+
+    # Collect files
+    files = []
+    for key in ["file1", "file2", "file3"]:
+        f = form.get(key)
+        if f is not None and hasattr(f, "read"):
+            content = await f.read()
+            if len(content) > 0:
+                files.append({"name": getattr(f, "filename", key), "data": content})
+
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="At least 1 file required")
+
+    model_names_raw = form.get("model_names", "surrogate")
+    model_names = [m.strip() for m in str(model_names_raw).split(",") if m.strip()]
+    if not model_names:
+        model_names = ["surrogate"]
+
+    attacks_raw = form.get("attacks", "[]")
+    attack_list = json.loads(attacks_raw) if attacks_raw and attacks_raw != "[]" else None
+
+    epsilon = float(form.get("epsilon", 0.1))
+    n_samples = min(int(form.get("n_samples", 500)), MAX_ROWS)
+
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run_multi():
+        try:
+            # Extract features from all files
+            datasets = []
+            for finfo in files:
+                features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                    extract_features, finfo["data"], finfo["name"]
+                )
+                # Generate pseudo-labels if missing (batched to avoid OOM)
+                if labels_encoded is None:
+                    with torch.no_grad():
+                        surrogate = get_model("surrogate")
+                        surrogate.eval()
+                        feat_dev = features.to(DEVICE)
+                        _batch = 512
+                        if feat_dev.shape[0] <= _batch:
+                            labels_encoded = surrogate(feat_dev).argmax(-1).cpu()
+                        else:
+                            parts = []
+                            for _s in range(0, feat_dev.shape[0], _batch):
+                                parts.append(surrogate(feat_dev[_s:_s + _batch]).argmax(-1))
+                            labels_encoded = torch.cat(parts, dim=0).cpu()
+                datasets.append({
+                    "name": finfo["name"],
+                    "features": features,
+                    "labels": labels_encoded,
+                })
+
+            # Load models
+            models_dict = {}
+            for mn in model_names:
+                models_dict[mn] = get_model(mn if mn else None)
+
+            # Run the multi-arena
+            result = await asyncio.to_thread(
+                run_multi_arena,
+                models_dict,
+                datasets,
+                attack_list,
+                epsilon,
+                n_samples,
+            )
+
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "redteam", job_id, result)
+            logger.info("Multi red team by %s: %d datasets × %d models (job %s)",
+                        user.email, len(files), len(model_names), job_id)
+        except Exception as exc:
+            logger.exception("Multi redteam job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_multi())
     return {"job_id": job_id, "status": "running"}
 
 

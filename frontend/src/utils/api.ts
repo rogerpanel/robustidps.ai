@@ -486,6 +486,24 @@ export async function runRedteam(
   return startJobAndPoll(`${API}/api/redteam/run`, form, 'Red team');
 }
 
+export async function runRedteamMulti(
+  files: (File | null)[],
+  modelNames: string[],
+  attacks: string[] = [],
+  epsilon: number = 0.1,
+  nSamples: number = 500,
+) {
+  const form = new FormData();
+  files.forEach((f, i) => {
+    if (f) form.append(`file${i + 1}`, f);
+  });
+  form.append('model_names', modelNames.join(','));
+  form.append('attacks', JSON.stringify(attacks));
+  form.append('epsilon', String(epsilon));
+  form.append('n_samples', String(nSamples));
+  return startJobAndPoll(`${API}/api/redteam/multi-run`, form, 'Multi red team');
+}
+
 // ── Explainability Studio (XAI) ─────────────────────────────────────────
 
 export async function runXai(
