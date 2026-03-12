@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Target, TrendingUp, GitCompare,
   Network, Sparkles, ArrowRightLeft, Workflow, Search,
   AlertTriangle, CheckCircle2, Activity, Cpu, Fingerprint,
-  Share2, Microscope, Radar, Boxes,
+  Share2, Microscope, Radar, Boxes, Database,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -16,7 +16,7 @@ import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
-import { runXai, runComparativeXai, fetchSampleData, fetchModels } from '../utils/api'
+import { runXai, runComparativeXai, runXaiMulti, fetchSampleData, fetchModels } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 
 const PAGE = 'xai'
@@ -63,6 +63,7 @@ const TAB_SECTIONS = [
   { key: 'decision_path', label: 'Decision Path', icon: Workflow, field: 'decision_path' },
   { key: 'agreement', label: 'Cross-Method', icon: Radar, field: 'cross_method_agreement' },
   { key: 'compare', label: 'Model Compare', icon: GitCompare, field: '__compare__' },
+  { key: 'multiDataset', label: 'Multi-Dataset', icon: Database, field: '__multi_dataset__' },
 ] as const
 
 type TabKey = typeof TAB_SECTIONS[number]['key']
@@ -87,6 +88,22 @@ export default function ExplainabilityStudio() {
   const [compareMode, setCompareMode] = usePageState(PAGE, 'compareMode', false)
   const [compareModels, setCompareModels] = usePageState<string[]>(PAGE, 'compareModels', ['surrogate'])
   const [runningCompare, setRunningCompare] = usePageState(PAGE, 'runningCompare', false)
+
+  // Multi-dataset slot state
+  interface SlotState {
+    file: File | null
+    fileName: string | null
+    fileReady: boolean
+    fileLoading: boolean
+  }
+  const defaultSlot = (): SlotState => ({ file: null, fileName: null, fileReady: false, fileLoading: false })
+  const [multiMode, setMultiMode] = usePageState(PAGE, 'multiMode', false)
+  const [slots, setSlots] = usePageState<SlotState[]>(PAGE, 'slots', [defaultSlot(), defaultSlot(), defaultSlot()])
+  const [multiModels, setMultiModels] = usePageState<string[]>(PAGE, 'multiModels', ['surrogate'])
+  const [multiResult, setMultiResult] = usePageState<XaiResult | null>(PAGE, 'multiResult', null)
+  const [runningMulti, setRunningMulti] = usePageState(PAGE, 'runningMulti', false)
+  const [multiView, setMultiView] = usePageState(PAGE, 'multiView', 'overview')
+
   const resultsRef = useRef<HTMLDivElement>(null)
 
   const handleFileSelect = (f: File) => {
@@ -139,15 +156,50 @@ export default function ExplainabilityStudio() {
     )
   }
 
+  // Multi-dataset slot helpers
+  const updateSlot = (idx: number, updates: Partial<SlotState>) => {
+    setSlots((prev: SlotState[]) => prev.map((s: SlotState, i: number) => i === idx ? { ...s, ...updates } : s))
+  }
+  const handleSlotFileSelect = (idx: number, f: File) => {
+    updateSlot(idx, { file: f, fileName: f.name, fileLoading: true, fileReady: false })
+    const delay = Math.min(Math.max(f.size / 100000, 400), 3000)
+    setTimeout(() => updateSlot(idx, { fileLoading: false, fileReady: true }), delay)
+  }
+  const toggleMultiModel = (modelId: string) => {
+    setMultiModels((prev: string[]) =>
+      prev.includes(modelId) ? prev.filter((m: string) => m !== modelId) : [...prev, modelId]
+    )
+  }
+
+  const handleRunMulti = async () => {
+    const activeFiles = slots.filter((s: SlotState) => s.file && s.fileReady)
+    if (activeFiles.length === 0 || multiModels.length === 0) return
+    setRunningMulti(true)
+    setError('')
+    setMultiResult(null)
+    try {
+      const files = slots.map((s: SlotState) => s.file)
+      const data = await runXaiMulti(files, multiModels, method, nSamples)
+      setMultiResult(data)
+      setActiveTab('multiDataset')
+      setMultiView('overview')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Multi-dataset XAI analysis failed')
+    } finally {
+      setRunningMulti(false)
+    }
+  }
+
   // Available tabs from results
   const availableTabs = useMemo(() => {
-    if (!result && !compareResult) return []
+    if (!result && !compareResult && !multiResult) return []
     return TAB_SECTIONS.filter(t => {
       if (t.key === 'compare') return !!compareResult
+      if (t.key === 'multiDataset') return !!multiResult
       if (!result) return false
       return result[t.field] !== undefined
     })
-  }, [result, compareResult])
+  }, [result, compareResult, multiResult])
 
   // Data transforms
   const makeBarData = (items: { name: string; [k: string]: unknown }[], valueKey: string) =>
@@ -273,8 +325,8 @@ export default function ExplainabilityStudio() {
               ))}
             </div>
 
-            {/* Compare Mode Toggle */}
-            <div className="border-t border-bg-card pt-3">
+            {/* Mode Toggles */}
+            <div className="border-t border-bg-card pt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => setCompareMode(!compareMode)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
@@ -286,6 +338,18 @@ export default function ExplainabilityStudio() {
                 <GitCompare className="w-4 h-4" />
                 Multi-Model Comparative Analysis
               </button>
+              <button
+                onClick={() => setMultiMode(!multiMode)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                  multiMode
+                    ? 'bg-accent-green/15 border-accent-green/40 text-accent-green'
+                    : 'bg-bg-primary border-bg-card text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <Database className="w-4 h-4" />
+                Multi-Dataset Analysis
+              </button>
+            </div>
 
               {compareMode && (
                 <div className="mt-2 p-3 bg-bg-primary rounded-lg border border-bg-card space-y-2">
@@ -304,6 +368,58 @@ export default function ExplainabilityStudio() {
                         {m}
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Multi-Dataset Mode */}
+              {multiMode && (
+                <div className="mt-2 p-3 bg-bg-primary rounded-lg border border-accent-green/20 space-y-3">
+                  <p className="text-[11px] text-text-secondary">Upload up to 3 datasets to compare XAI results across different traffic distributions:</p>
+
+                  {/* 3-Slot Dataset Upload Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {slots.map((slot: SlotState, idx: number) => (
+                      <div key={idx} className={`rounded-lg border p-3 ${
+                        slot.fileReady ? 'border-accent-green/40 bg-accent-green/5' : 'border-bg-card bg-bg-secondary'
+                      }`}>
+                        <div className="text-xs text-text-secondary mb-1.5 font-medium">
+                          Dataset {idx + 1} {idx === 0 && <span className="text-accent-red">*</span>}
+                        </div>
+                        <FileUpload
+                          onFile={(f: File) => handleSlotFileSelect(idx, f)}
+                          label={`Dataset ${idx + 1}`}
+                          accept=".csv,.parquet"
+                          fileName={slot.fileName}
+                          fileLoading={slot.fileLoading}
+                        />
+                        {slot.fileReady && (
+                          <div className="flex items-center gap-1 mt-1.5 text-[10px] text-accent-green">
+                            <CheckCircle2 className="w-3 h-3" /> Ready
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Multi-dataset model selection */}
+                  <div>
+                    <p className="text-[11px] text-text-secondary mb-1.5">Models to analyse across datasets:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['surrogate', 'neural_ode', 'optimal_transport', 'sde_tgnn', 'fedgtd', 'cybersec_llm'].map(m => (
+                        <button
+                          key={m}
+                          onClick={() => toggleMultiModel(m)}
+                          className={`px-2.5 py-1 rounded text-xs font-mono border transition-colors ${
+                            multiModels.includes(m)
+                              ? 'bg-accent-green/15 border-accent-green/40 text-accent-green'
+                              : 'border-bg-card text-text-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -338,6 +454,20 @@ export default function ExplainabilityStudio() {
               )}
             </button>
           )}
+
+          {multiMode && (
+            <button
+              onClick={handleRunMulti}
+              disabled={!slots.some((s: SlotState) => s.file && s.fileReady) || runningMulti || multiModels.length === 0}
+              className="px-5 py-2.5 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+            >
+              {runningMulti ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Analysing {slots.filter((s: SlotState) => s.file && s.fileReady).length} datasets...</>
+              ) : (
+                <><Database className="w-4 h-4" /> Multi-Dataset XAI ({slots.filter((s: SlotState) => s.file && s.fileReady).length} datasets, {multiModels.length} models)</>
+              )}
+            </button>
+          )}
         </div>
 
         {error && (
@@ -348,7 +478,7 @@ export default function ExplainabilityStudio() {
       </div>
 
       {/* Results */}
-      {(result || compareResult) && (
+      {(result || compareResult || multiResult) && (
         <div ref={resultsRef}>
           {/* Summary Stats */}
           {result && (
@@ -1031,6 +1161,306 @@ export default function ExplainabilityStudio() {
                     </table>
                   </div>
                 </ChartPanel>
+              )}
+            </div>
+          )}
+
+          {/* ═══════════════ MULTI-DATASET TAB ═══════════════ */}
+          {activeTab === 'multiDataset' && multiResult && (
+            <div className="space-y-4">
+              {/* Overview Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatBox icon={Database} label="Datasets" value={multiResult.n_files} color="text-accent-green" />
+                <StatBox icon={Brain} label="Models" value={multiResult.n_models} color="text-accent-blue" />
+                <StatBox icon={Layers} label="Total Runs" value={multiResult.runs?.length || 0} color="text-accent-purple" />
+                <StatBox icon={Zap} label="Method" value={multiResult.method || 'all'} color="text-accent-amber" />
+              </div>
+
+              {/* Sub-view navigation */}
+              <div className="flex gap-1 bg-bg-secondary rounded-lg p-1 border border-bg-card overflow-x-auto">
+                {[
+                  { key: 'overview', label: 'Overview', icon: Target },
+                  { key: 'per-run', label: 'Per-Run Details', icon: Layers },
+                  { key: 'cross-dataset', label: 'Cross-Dataset', icon: Database },
+                  { key: 'cross-model', label: 'Cross-Model', icon: GitCompare },
+                ].map(v => (
+                  <button
+                    key={v.key}
+                    onClick={() => setMultiView(v.key)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                      multiView === v.key
+                        ? 'bg-accent-green/15 text-accent-green'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    <v.icon className="w-3.5 h-3.5" />
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Overview: per-run summary cards */}
+              {multiView === 'overview' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {(multiResult.runs || []).map((run: XaiResult, ri: number) => (
+                    <div key={ri} className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Database className="w-4 h-4 text-accent-green" />
+                        <span className="text-xs font-mono truncate flex-1">{run.dataset_name}</span>
+                        <span className="text-[10px] px-2 py-0.5 bg-accent-blue/10 text-accent-blue rounded">{run.model_used}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                        <div>
+                          <span className="text-text-secondary">Accuracy</span>
+                          <span className="block font-mono text-accent-green">
+                            {run.prediction_summary ? `${(run.prediction_summary.accuracy * 100).toFixed(1)}%` : 'N/A'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-text-secondary">Confidence</span>
+                          <span className="block font-mono text-accent-blue">
+                            {run.prediction_summary ? `${(run.prediction_summary.mean_confidence * 100).toFixed(1)}%` : 'N/A'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-text-secondary">Features</span>
+                          <span className="block font-mono text-text-primary">{run.n_features || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-text-secondary">Samples</span>
+                          <span className="block font-mono text-text-primary">{run.n_samples || 'N/A'}</span>
+                        </div>
+                      </div>
+                      {/* Top features preview */}
+                      {run.saliency?.global_importance && (
+                        <div>
+                          <div className="text-[10px] text-text-secondary mb-1">Top features (saliency):</div>
+                          <div className="flex flex-wrap gap-1">
+                            {run.saliency.global_importance.slice(0, 5).map((f: XaiResult, fi: number) => (
+                              <span key={fi} className="px-1.5 py-0.5 bg-bg-card rounded text-[10px] font-mono">{f.name}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Per-Run Details: detailed results per dataset/model pair */}
+              {multiView === 'per-run' && (
+                <div className="space-y-6">
+                  {(multiResult.runs || []).map((run: XaiResult, ri: number) => (
+                    <div key={ri} className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
+                      <div className="flex items-center gap-3">
+                        <Database className="w-5 h-5 text-accent-green" />
+                        <div className="flex-1">
+                          <h3 className="text-sm font-display font-semibold">{run.dataset_name}</h3>
+                          <p className="text-[10px] text-text-secondary">Model: {run.model_used} | {run.n_samples} samples | {run.n_features} features</p>
+                        </div>
+                        {run.prediction_summary && (
+                          <span className="text-xs font-mono text-accent-green">{(run.prediction_summary.accuracy * 100).toFixed(1)}% acc</span>
+                        )}
+                      </div>
+
+                      {/* Saliency chart for this run */}
+                      {run.saliency?.global_importance && (
+                        <div>
+                          <h4 className="text-xs font-medium mb-2">Top Features (Saliency)</h4>
+                          <div className="space-y-1">
+                            {run.saliency.global_importance.slice(0, 10).map((f: XaiResult, fi: number) => {
+                              const max = run.saliency.global_importance[0]?.importance || 1
+                              return (
+                                <div key={fi} className="flex items-center gap-2 text-xs">
+                                  <span className="w-4 text-text-secondary font-mono">{fi + 1}</span>
+                                  <span className="w-32 truncate text-text-secondary">{f.name}</span>
+                                  <div className="flex-1 bg-bg-primary rounded-full h-2">
+                                    <div className="h-2 rounded-full bg-accent-purple" style={{ width: `${(f.importance / max) * 100}%` }} />
+                                  </div>
+                                  <span className="font-mono w-14 text-right text-accent-purple">{(f.importance * 100).toFixed(1)}%</span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SHAP summary for this run */}
+                      {run.shap?.global_importance && (
+                        <div>
+                          <h4 className="text-xs font-medium mb-2">SHAP Direction</h4>
+                          <div className="space-y-1">
+                            {run.shap.global_importance.slice(0, 8).map((f: XaiResult, fi: number) => (
+                              <div key={fi} className="flex items-center gap-2 text-xs">
+                                <span className="w-28 truncate text-text-secondary">{f.name}</span>
+                                <span className={`font-mono w-16 text-right ${f.direction === 'positive' ? 'text-accent-green' : 'text-accent-red'}`}>
+                                  {f.direction === 'positive' ? '+' : '-'}{(f.importance * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sensitivity summary */}
+                      {run.sensitivity?.top_sensitive_features && (
+                        <div>
+                          <h4 className="text-xs font-medium mb-2">Most Sensitive Features</h4>
+                          <div className="flex flex-wrap gap-1.5">
+                            {run.sensitivity.top_sensitive_features.slice(0, 6).map((f: XaiResult, fi: number) => (
+                              <span key={fi} className={`px-2 py-1 rounded text-[10px] font-mono ${
+                                f.max_flip_rate > 0.3 ? 'bg-accent-red/10 text-accent-red' : 'bg-accent-amber/10 text-accent-amber'
+                              }`}>
+                                {f.name}: {(f.max_flip_rate * 100).toFixed(0)}% flip
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Cross-Dataset Comparison */}
+              {multiView === 'cross-dataset' && (
+                <div className="space-y-4">
+                  {Object.keys(multiResult.cross_dataset_comparison || {}).length > 0 ? (
+                    Object.entries(multiResult.cross_dataset_comparison).map(([model, data]: [string, unknown]) => {
+                      const d = data as XaiResult
+                      return (
+                        <div key={model} className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Brain className="w-5 h-5 text-accent-blue" />
+                            <h3 className="text-sm font-display font-semibold">{model}</h3>
+                            <span className="text-[10px] text-text-secondary">
+                              {d.n_stable_features} / {d.n_total_features} features stable across datasets
+                            </span>
+                          </div>
+
+                          {/* Feature Stability */}
+                          <ChartPanel title="Feature Importance Stability" subtitle="How consistently features rank across datasets (1.0 = appears in top-15 of ALL datasets)">
+                            <div className="space-y-1 max-h-[350px] overflow-y-auto">
+                              {Object.entries(d.feature_stability || {}).slice(0, 25).map(([feat, score]) => {
+                                const s = Number(score)
+                                return (
+                                  <div key={feat} className="flex items-center gap-2 text-xs">
+                                    <span className="w-36 truncate text-text-secondary">{feat}</span>
+                                    <div className="flex-1 bg-bg-primary rounded-full h-2.5">
+                                      <div
+                                        className={`h-2.5 rounded-full ${s >= 0.8 ? 'bg-accent-green' : s >= 0.5 ? 'bg-accent-amber' : 'bg-accent-red'}`}
+                                        style={{ width: `${s * 100}%` }}
+                                      />
+                                    </div>
+                                    <span className={`font-mono w-12 text-right ${s >= 0.8 ? 'text-accent-green' : s >= 0.5 ? 'text-accent-amber' : 'text-accent-red'}`}>
+                                      {(s * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </ChartPanel>
+
+                          {/* Dataset Summaries */}
+                          <ChartPanel title="Dataset Performance Comparison" subtitle="Model performance across different datasets">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              {(d.dataset_summaries || []).map((ds: XaiResult, di: number) => (
+                                <div key={di} className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+                                  <div className="text-xs font-mono truncate mb-2">{ds.dataset}</div>
+                                  <div className="grid grid-cols-2 gap-1 text-[10px]">
+                                    <div><span className="text-text-secondary">Samples:</span> <span className="font-mono">{ds.n_samples}</span></div>
+                                    <div><span className="text-text-secondary">Features:</span> <span className="font-mono">{ds.n_features}</span></div>
+                                    {ds.accuracy != null && (
+                                      <div><span className="text-text-secondary">Accuracy:</span> <span className="font-mono text-accent-green">{(ds.accuracy * 100).toFixed(1)}%</span></div>
+                                    )}
+                                    {ds.confidence_mean != null && (
+                                      <div><span className="text-text-secondary">Confidence:</span> <span className="font-mono text-accent-blue">{(ds.confidence_mean * 100).toFixed(1)}%</span></div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </ChartPanel>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="text-center text-text-secondary text-sm py-12">
+                      <Database className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                      Upload 2+ datasets to see cross-dataset comparison
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Cross-Model Comparison per Dataset */}
+              {multiView === 'cross-model' && (
+                <div className="space-y-4">
+                  {Object.keys(multiResult.cross_model_comparison || {}).length > 0 ? (
+                    Object.entries(multiResult.cross_model_comparison).map(([dataset, data]: [string, unknown]) => {
+                      const d = data as XaiResult
+                      return (
+                        <div key={dataset} className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Database className="w-5 h-5 text-accent-green" />
+                            <h3 className="text-sm font-display font-semibold truncate">{dataset}</h3>
+                          </div>
+
+                          {/* Model Feature Rankings Side-by-Side */}
+                          {d.model_feature_rankings && (
+                            <ChartPanel title="Top Feature Rankings by Model" subtitle="Top-10 features per model on this dataset">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {Object.entries(d.model_feature_rankings).map(([model, features]) => (
+                                  <div key={model} className="bg-bg-primary rounded-lg p-3">
+                                    <div className="text-xs font-mono font-medium text-accent-blue mb-2">{model}</div>
+                                    <div className="space-y-0.5">
+                                      {(features as string[]).map((f: string, fi: number) => (
+                                        <div key={fi} className="flex items-center gap-1.5 text-[10px]">
+                                          <span className="text-text-secondary w-4">{fi + 1}</span>
+                                          <span className="truncate">{f}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </ChartPanel>
+                          )}
+
+                          {/* Pairwise Agreement */}
+                          {d.pairwise_agreement && Object.keys(d.pairwise_agreement).length > 0 && (
+                            <ChartPanel title="Model Pair Agreement" subtitle="Jaccard similarity of top-10 feature rankings">
+                              <div className="space-y-2">
+                                {Object.entries(d.pairwise_agreement).map(([pair, score]) => {
+                                  const s = Number(score)
+                                  return (
+                                    <div key={pair} className="flex items-center gap-3 text-xs">
+                                      <span className="w-44 font-mono text-text-secondary truncate">{pair.replace(/_vs_/g, ' vs ')}</span>
+                                      <div className="flex-1 bg-bg-primary rounded-full h-3">
+                                        <div
+                                          className={`h-3 rounded-full ${s > 0.6 ? 'bg-accent-green' : s > 0.3 ? 'bg-accent-amber' : 'bg-accent-red'}`}
+                                          style={{ width: `${s * 100}%` }}
+                                        />
+                                      </div>
+                                      <span className={`font-mono w-14 text-right ${s > 0.6 ? 'text-accent-green' : s > 0.3 ? 'text-accent-amber' : 'text-accent-red'}`}>
+                                        {(s * 100).toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </ChartPanel>
+                          )}
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="text-center text-text-secondary text-sm py-12">
+                      <GitCompare className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                      Select 2+ models to see cross-model comparison per dataset
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}

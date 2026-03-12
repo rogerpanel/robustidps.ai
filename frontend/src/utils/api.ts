@@ -532,6 +532,22 @@ export async function runComparativeXai(
   return startJobAndPoll(`${API}/api/xai/compare`, form, 'Comparative XAI analysis');
 }
 
+export async function runXaiMulti(
+  files: (File | null)[],
+  modelNames: string[] = ['surrogate'],
+  method: string = 'all',
+  nSamples: number = 200,
+) {
+  const form = new FormData();
+  files.forEach((f, i) => {
+    if (f) form.append(`file${i + 1}`, f);
+  });
+  form.append('model_names', modelNames.join(','));
+  form.append('method', method);
+  form.append('n_samples', String(nSamples));
+  return startJobAndPoll(`${API}/api/xai/multi-run`, form, 'Multi-dataset XAI analysis');
+}
+
 // ── Federated Learning Simulator ────────────────────────────────────────
 
 export async function runFederated(

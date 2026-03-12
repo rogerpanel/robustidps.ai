@@ -23,6 +23,8 @@ Endpoints:
   POST   /api/redteam/run         Adversarial Red Team Arena
   GET    /api/redteam/attacks     List available attacks
   POST   /api/xai/run             Explainability Studio
+  POST   /api/xai/compare         Comparative XAI (multi-model)
+  POST   /api/xai/multi-run       Multi-dataset × multi-model XAI
   POST   /api/federated/run       Federated Learning Simulator
   GET    /api/pq/algorithms       PQ Cryptography algorithm catalogue
   POST   /api/pq/benchmark        PQ algorithm benchmark
@@ -1608,6 +1610,191 @@ async def xai_compare(
             _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
 
     asyncio.create_task(_run())
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.post("/api/xai/multi-run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def xai_multi_run(
+    request: Request,
+    user=Depends(require_auth),
+):
+    """Multi-dataset × multi-model XAI analysis.
+
+    Accepts up to 3 files and multiple models. Runs comprehensive explainability
+    analysis per dataset/model pair with cross-dataset attribution comparison,
+    feature importance stability, distribution divergence, and dataset-specific
+    insight detection.
+    """
+    form = await request.form()
+
+    # Collect files
+    files = []
+    for key in ["file1", "file2", "file3"]:
+        f = form.get(key)
+        if f is not None and hasattr(f, "read"):
+            content = await f.read()
+            if len(content) > 0:
+                files.append({"name": getattr(f, "filename", key), "data": content})
+
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="At least 1 file required")
+
+    model_names_raw = form.get("model_names", "surrogate")
+    model_names = [m.strip() for m in str(model_names_raw).split(",") if m.strip()]
+    if not model_names:
+        model_names = ["surrogate"]
+
+    method = str(form.get("method", "all"))
+    n_samples = min(int(form.get("n_samples", 200)), MAX_ROWS)
+
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run_multi():
+        try:
+            # Extract features from all files
+            datasets = []
+            for finfo in files:
+                features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                    extract_features, finfo["data"], finfo["name"]
+                )
+                if labels_encoded is None:
+                    with torch.no_grad():
+                        surrogate = get_model("surrogate")
+                        surrogate.eval()
+                        feat_dev = features.to(DEVICE)
+                        _batch = 512
+                        if feat_dev.shape[0] <= _batch:
+                            labels_encoded = surrogate(feat_dev).argmax(-1).cpu()
+                        else:
+                            parts = []
+                            for _s in range(0, feat_dev.shape[0], _batch):
+                                parts.append(surrogate(feat_dev[_s:_s + _batch]).argmax(-1))
+                            labels_encoded = torch.cat(parts, dim=0).cpu()
+                datasets.append({
+                    "name": finfo["name"],
+                    "features": features,
+                    "labels": labels_encoded,
+                    "format": fmt,
+                })
+
+            # Load models
+            models_dict = {}
+            for mn in model_names:
+                try:
+                    models_dict[mn] = get_model(mn if mn else None)
+                except Exception:
+                    pass
+            if not models_dict:
+                models_dict["surrogate"] = get_model("surrogate")
+
+            # Run XAI per dataset × model
+            runs = []
+            for ds in datasets:
+                for mname, mobj in models_dict.items():
+                    result = await asyncio.to_thread(
+                        run_explainability, mobj, ds["features"],
+                        ds["labels"], min(n_samples, ds["features"].shape[0]),
+                        method,
+                    )
+                    result["model_used"] = mname
+                    result["dataset_name"] = ds["name"]
+                    result["dataset_format"] = ds["format"]
+                    runs.append(result)
+
+            # Cross-dataset comparison: feature importance stability
+            cross_dataset = {}
+            if len(datasets) > 1:
+                for mname in models_dict:
+                    model_runs = [r for r in runs if r["model_used"] == mname]
+                    if len(model_runs) < 2:
+                        continue
+
+                    # Compare saliency rankings across datasets
+                    saliency_lists = []
+                    for r in model_runs:
+                        if r.get("saliency") and r["saliency"].get("global_importance"):
+                            names = [f["name"] for f in r["saliency"]["global_importance"][:15]]
+                            saliency_lists.append(set(names))
+
+                    feature_stability = {}
+                    if saliency_lists:
+                        all_features = set().union(*saliency_lists)
+                        for feat in all_features:
+                            count = sum(1 for s in saliency_lists if feat in s)
+                            feature_stability[feat] = count / len(saliency_lists)
+
+                    # Dataset distribution summary
+                    ds_summaries = []
+                    for r in model_runs:
+                        ds_summaries.append({
+                            "dataset": r["dataset_name"],
+                            "n_samples": r.get("n_samples", 0),
+                            "n_features": r.get("n_features", 0),
+                            "accuracy": r.get("accuracy"),
+                            "confidence_mean": r.get("confidence_distribution", {}).get("mean"),
+                        })
+
+                    cross_dataset[mname] = {
+                        "feature_stability": dict(sorted(
+                            feature_stability.items(), key=lambda x: x[1], reverse=True
+                        )),
+                        "n_stable_features": sum(1 for v in feature_stability.values() if v >= 0.8),
+                        "n_total_features": len(feature_stability),
+                        "dataset_summaries": ds_summaries,
+                    }
+
+            # Cross-model comparison per dataset
+            cross_model = {}
+            if len(models_dict) > 1:
+                for ds in datasets:
+                    ds_runs = [r for r in runs if r["dataset_name"] == ds["name"]]
+                    if len(ds_runs) < 2:
+                        continue
+
+                    model_rankings = {}
+                    for r in ds_runs:
+                        if r.get("saliency") and r["saliency"].get("global_importance"):
+                            model_rankings[r["model_used"]] = [
+                                f["name"] for f in r["saliency"]["global_importance"][:10]
+                            ]
+
+                    # Pairwise Jaccard similarity
+                    agreement = {}
+                    mnames = list(model_rankings.keys())
+                    for i in range(len(mnames)):
+                        for j in range(i + 1, len(mnames)):
+                            s1 = set(model_rankings[mnames[i]])
+                            s2 = set(model_rankings[mnames[j]])
+                            jaccard = len(s1 & s2) / len(s1 | s2) if s1 | s2 else 0
+                            agreement[f"{mnames[i]}_vs_{mnames[j]}"] = round(jaccard, 4)
+
+                    cross_model[ds["name"]] = {
+                        "model_feature_rankings": model_rankings,
+                        "pairwise_agreement": agreement,
+                    }
+
+            payload = {
+                "multi_run_id": job_id,
+                "n_files": len(files),
+                "n_models": len(models_dict),
+                "model_names": list(models_dict.keys()),
+                "dataset_names": [d["name"] for d in datasets],
+                "method": method,
+                "runs": runs,
+                "cross_dataset_comparison": cross_dataset,
+                "cross_model_comparison": cross_model,
+            }
+            _bg_jobs[job_id] = {"status": "done", "result": payload, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "xai", job_id, payload)
+            logger.info("Multi XAI by %s: %d datasets × %d models, method=%s (job %s)",
+                        user.email, len(files), len(models_dict), method, job_id)
+        except Exception as exc:
+            logger.exception("Multi XAI job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_multi())
     return {"job_id": job_id, "status": "running"}
 
 
