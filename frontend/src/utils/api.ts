@@ -582,6 +582,19 @@ export async function runFederatedMulti(
   return startJobAndPoll(`${API}/api/federated/run-multi`, form, 'Federated multi-run');
 }
 
+export async function runTransferAnalysis(
+  files: (File | null)[],
+  modelNames: string[],
+) {
+  const form = new FormData();
+  files.forEach((f, i) => {
+    if (f) form.append(`file${i + 1}`, f);
+  });
+  form.append('model_names', modelNames.join(','));
+
+  return startJobAndPoll(`${API}/api/federated/transfer-analysis`, form, 'Transfer analysis');
+}
+
 // ── PQ Cryptography ──────────────────────────────────────────────────────
 
 export async function fetchPqAlgorithms() {

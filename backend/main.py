@@ -50,6 +50,7 @@ Endpoints:
 """
 
 import asyncio
+import copy
 import io
 import json
 import logging
@@ -93,7 +94,7 @@ from copilot import router as copilot_router
 from continual import ContinualLearningEngine
 from redteam import run_arena, ATTACKS as REDTEAM_ATTACKS
 from explainability import run_explainability
-from federated import simulate_federated
+from federated import simulate_federated, compute_transfer_metrics, compute_cross_model_transfer
 from pq_crypto import router as pq_router
 from zerotrust import router as zerotrust_router
 from threat_response import router as threat_response_router
@@ -1656,6 +1657,113 @@ async def federated_run_multi(
             _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
 
     asyncio.create_task(_run_multi())
+    return {"job_id": job_id, "status": "running"}
+
+
+@app.post("/api/federated/transfer-analysis")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def federated_transfer_analysis(
+    request: Request,
+    user=Depends(require_auth),
+):
+    """Compute transfer learning analysis across uploaded datasets and models.
+
+    Accepts up to 3 files and multiple models. Evaluates how well models trained
+    on one dataset transfer to others, including feature similarity (CKA),
+    domain divergence (MMD), and cross-model representation alignment.
+    """
+    form = await request.form()
+
+    # Collect files
+    files = []
+    for key in ["file1", "file2", "file3"]:
+        f = form.get(key)
+        if f is not None and hasattr(f, "read"):
+            content = await f.read()
+            if len(content) > 0:
+                files.append({"name": getattr(f, "filename", key), "data": content})
+
+    if len(files) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 files required for transfer analysis")
+
+    model_names_raw = form.get("model_names", "surrogate")
+    model_names = [m.strip() for m in str(model_names_raw).split(",") if m.strip()]
+    if not model_names:
+        model_names = ["surrogate"]
+
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run_transfer():
+        try:
+            # Extract features from all files
+            dataset_features = []
+            for finfo in files:
+                features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                    extract_features, finfo["data"], finfo["name"]
+                )
+                dataset_features.append({
+                    "name": finfo["name"],
+                    "features": features,
+                    "labels": labels_encoded,
+                })
+
+            # Per-model transfer analysis
+            transfer_results = {}
+            for mname in model_names:
+                selected = get_model(mname if mname else None)
+
+                # Cross-dataset transfer for this model
+                cross_dataset = []
+                for i, src in enumerate(dataset_features):
+                    for j, tgt in enumerate(dataset_features):
+                        if i != j:
+                            metrics = await asyncio.to_thread(
+                                compute_transfer_metrics,
+                                copy.deepcopy(selected),
+                                src["features"], src["labels"],
+                                tgt["features"], tgt["labels"],
+                            )
+                            metrics["source_dataset"] = src["name"]
+                            metrics["target_dataset"] = tgt["name"]
+                            cross_dataset.append(metrics)
+
+                # Cross-model analysis on first dataset
+                if len(model_names) > 1:
+                    models_dict = {}
+                    for mn in model_names:
+                        models_dict[mn] = get_model(mn if mn else None)
+                    cross_model = await asyncio.to_thread(
+                        compute_cross_model_transfer,
+                        models_dict,
+                        dataset_features[0]["features"],
+                        dataset_features[0]["labels"],
+                    )
+                else:
+                    cross_model = None
+
+                transfer_results[mname] = {
+                    "cross_dataset": cross_dataset,
+                    "cross_model": cross_model,
+                }
+
+            payload = {
+                "transfer_id": job_id,
+                "n_datasets": len(files),
+                "dataset_names": [f["name"] for f in files],
+                "n_models": len(model_names),
+                "model_names": model_names,
+                "transfer_results": transfer_results,
+            }
+            _bg_jobs[job_id] = {"status": "done", "result": payload, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "federated", job_id, payload)
+            logger.info("Transfer analysis by %s: %d datasets × %d models (job %s)",
+                        user.email, len(files), len(model_names), job_id)
+        except Exception as exc:
+            logger.exception("Transfer analysis job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_transfer())
     return {"job_id": job_id, "status": "running"}
 
 
