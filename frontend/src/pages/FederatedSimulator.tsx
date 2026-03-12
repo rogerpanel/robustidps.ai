@@ -378,43 +378,45 @@ export default function FederatedSimulator() {
                       use demo data
                     </button>
                   )}
-                  {/* Per-slot hyperparameters */}
-                  {slot.fileReady && (
-                    <div className="grid grid-cols-2 gap-2 mt-3">
-                      <div>
-                        <label className="text-[10px] text-text-secondary block mb-0.5">Nodes</label>
-                        <input
-                          type="number" min={2} max={6} value={slot.nNodes}
-                          onChange={e => updateSlot(idx, { nNodes: parseInt(e.target.value) || 4 })}
-                          className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-text-secondary block mb-0.5">Rounds</label>
-                        <input
-                          type="number" min={1} max={20} value={slot.rounds}
-                          onChange={e => updateSlot(idx, { rounds: parseInt(e.target.value) || 5 })}
-                          className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-text-secondary block mb-0.5">Local Epochs</label>
-                        <input
-                          type="number" min={1} max={10} value={slot.localEpochs}
-                          onChange={e => updateSlot(idx, { localEpochs: parseInt(e.target.value) || 3 })}
-                          className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-text-secondary block mb-0.5">Learning Rate</label>
-                        <input
-                          type="number" min={0.0001} max={0.1} step={0.0001} value={slot.lr}
-                          onChange={e => updateSlot(idx, { lr: parseFloat(e.target.value) || 0.0001 })}
-                          className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary"
-                        />
-                      </div>
+                  {/* Per-slot hyperparameters — always visible, disabled until file ready */}
+                  <div className={`grid grid-cols-2 gap-2 mt-3 ${!slot.fileReady ? 'opacity-50' : ''}`}>
+                    <div>
+                      <label className="text-[10px] text-text-secondary block mb-0.5">Nodes</label>
+                      <input
+                        type="number" min={2} max={6} value={slot.nNodes}
+                        disabled={!slot.fileReady}
+                        onChange={e => updateSlot(idx, { nNodes: parseInt(e.target.value) || 4 })}
+                        className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary disabled:cursor-not-allowed"
+                      />
                     </div>
-                  )}
+                    <div>
+                      <label className="text-[10px] text-text-secondary block mb-0.5">Rounds</label>
+                      <input
+                        type="number" min={1} max={20} value={slot.rounds}
+                        disabled={!slot.fileReady}
+                        onChange={e => updateSlot(idx, { rounds: parseInt(e.target.value) || 5 })}
+                        className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-text-secondary block mb-0.5">Local Epochs</label>
+                      <input
+                        type="number" min={1} max={10} value={slot.localEpochs}
+                        disabled={!slot.fileReady}
+                        onChange={e => updateSlot(idx, { localEpochs: parseInt(e.target.value) || 3 })}
+                        className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary disabled:cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-text-secondary block mb-0.5">Learning Rate</label>
+                      <input
+                        type="number" min={0.0001} max={0.1} step={0.0001} value={slot.lr}
+                        disabled={!slot.fileReady}
+                        onChange={e => updateSlot(idx, { lr: parseFloat(e.target.value) || 0.0001 })}
+                        className="w-full px-2 py-1 bg-bg-primary border border-bg-card rounded text-xs text-text-primary disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
