@@ -106,6 +106,7 @@ from siem_connectors import router as siem_router
 from ingestion import router as ingestion_router
 from drift_detection import router as drift_router
 from workspaces import router as workspaces_router
+from prevention import router as prevention_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -193,6 +194,7 @@ app.include_router(siem_router)
 app.include_router(ingestion_router)
 app.include_router(drift_router)
 app.include_router(workspaces_router)
+app.include_router(prevention_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
@@ -538,6 +540,12 @@ async def predict(
     file: UploadFile = File(...),
     user=Depends(require_auth),
 ):
+    # Circuit breaker check — block predictions if drift threshold exceeded
+    from prevention import check_circuit_breaker
+    cb_error = check_circuit_breaker()
+    if cb_error:
+        raise HTTPException(status_code=503, detail=cb_error)
+
     _validate_upload(file)
     data = await file.read()
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
@@ -554,6 +562,11 @@ async def predict(
     )
     payload = _build_predictions(features, metadata, labels_encoded, label_names, result)
     payload["job_id"] = str(uuid.uuid4())[:8]
+
+    # Confidence gate — flag low-confidence or anomalous predictions
+    from prevention import check_confidence_gate
+    payload = check_confidence_gate(payload)
+
     return payload
 
 
@@ -567,6 +580,12 @@ async def predict_uncertain(
     user=Depends(get_current_user),
     db=Depends(get_db),
 ):
+    # Circuit breaker check — block predictions if drift threshold exceeded
+    from prevention import check_circuit_breaker
+    cb_error = check_circuit_breaker()
+    if cb_error:
+        raise HTTPException(status_code=503, detail=cb_error)
+
     _validate_upload(file)
     data = await file.read()
     if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
@@ -635,6 +654,10 @@ async def predict_uncertain(
     )
     db.add(db_job)
     db.commit()
+
+    # Confidence gate — flag low-confidence or anomalous predictions
+    from prevention import check_confidence_gate
+    payload = check_confidence_gate(payload)
 
     return payload
 
@@ -1211,6 +1234,15 @@ async def continual_drift(
 
     result = cl_engine.measure_drift(features, labels_encoded)
     result["dataset_format"] = fmt
+
+    # Update circuit breaker with drift score
+    try:
+        from prevention import update_drift_score
+        agg = result.get("aggregate_drift_score", result.get("drift_score", 0.0))
+        update_drift_score(agg)
+    except (ImportError, Exception):
+        pass
+
     return result
 
 
@@ -1497,6 +1529,136 @@ async def federated_run(
     return {"job_id": job_id, "status": "running"}
 
 
+@app.post("/api/federated/run-multi")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def federated_run_multi(
+    request: Request,
+    user=Depends(require_auth),
+):
+    """Multi-file, multi-model federated learning comparison.
+
+    Accepts up to 3 files (file1, file2, file3) and multiple models
+    (model_names as comma-separated string). Runs federated simulation
+    for each (file, model) combination and returns cross-dataset comparison.
+    """
+    form = await request.form()
+
+    # Collect files
+    files = []
+    for key in ["file1", "file2", "file3"]:
+        f = form.get(key)
+        if f is not None and hasattr(f, "read"):
+            content = await f.read()
+            if len(content) > 0:
+                files.append({"name": getattr(f, "filename", key), "data": content})
+
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one file is required")
+
+    # Collect model names
+    model_names_raw = form.get("model_names", "surrogate")
+    model_names = [m.strip() for m in str(model_names_raw).split(",") if m.strip()]
+    if not model_names:
+        model_names = ["surrogate"]
+
+    # Shared hyperparameters (can be overridden per-slot via slot1_*, slot2_*, slot3_*)
+    defaults = {
+        "n_nodes": int(form.get("n_nodes", 4)),
+        "rounds": int(form.get("rounds", 5)),
+        "local_epochs": int(form.get("local_epochs", 3)),
+        "lr": float(form.get("lr", 0.0001)),
+        "strategy": str(form.get("strategy", "fedavg")),
+        "dp_enabled": str(form.get("dp_enabled", "false")).lower() == "true",
+        "dp_sigma": float(form.get("dp_sigma", 0.01)),
+        "iid": str(form.get("iid", "true")).lower() == "true",
+    }
+
+    # Per-slot overrides: slot1_rounds, slot2_lr, etc.
+    slot_configs = []
+    for i in range(len(files)):
+        cfg = dict(defaults)
+        prefix = f"slot{i+1}_"
+        for k in defaults:
+            override = form.get(f"{prefix}{k}")
+            if override is not None:
+                if k in ("n_nodes", "rounds", "local_epochs"):
+                    cfg[k] = int(override)
+                elif k in ("lr", "dp_sigma"):
+                    cfg[k] = float(override)
+                elif k in ("dp_enabled", "iid"):
+                    cfg[k] = str(override).lower() == "true"
+                else:
+                    cfg[k] = str(override)
+        slot_configs.append(cfg)
+
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run_multi():
+        try:
+            results = []
+            for fi, finfo in enumerate(files):
+                features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                    extract_features, finfo["data"], finfo["name"]
+                )
+                cfg = slot_configs[fi]
+
+                for mname in model_names:
+                    selected = get_model(mname if mname else None)
+                    result = await asyncio.to_thread(
+                        simulate_federated,
+                        selected, features,
+                        labels=labels_encoded,
+                        n_nodes=min(cfg["n_nodes"], 6),
+                        rounds=min(cfg["rounds"], 20),
+                        local_epochs=min(cfg["local_epochs"], 10),
+                        lr=cfg["lr"],
+                        strategy=cfg["strategy"],
+                        dp_enabled=cfg["dp_enabled"],
+                        dp_sigma=cfg["dp_sigma"],
+                        iid=cfg["iid"],
+                    )
+                    result["model_used"] = mname if mname else active_model_id
+                    result["dataset_format"] = fmt
+                    result["dataset_name"] = finfo["name"]
+                    result["slot_index"] = fi
+                    results.append(result)
+
+            # Build cross-dataset comparison matrix
+            comparison = {}
+            for r in results:
+                key = f"{r['dataset_name']}|{r['model_used']}"
+                comparison[key] = {
+                    "dataset": r["dataset_name"],
+                    "model": r["model_used"],
+                    "baseline_accuracy": r["baseline_accuracy"],
+                    "final_accuracy": r["final_accuracy"],
+                    "accuracy_gain": r["accuracy_gain"],
+                    "time_ms": r["time_ms"],
+                    "strategy": r["strategy"],
+                }
+
+            payload = {
+                "multi_run_id": job_id,
+                "n_files": len(files),
+                "n_models": len(model_names),
+                "model_names": model_names,
+                "dataset_names": [f["name"] for f in files],
+                "runs": results,
+                "comparison": comparison,
+            }
+            _bg_jobs[job_id] = {"status": "done", "result": payload, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "federated", job_id, payload)
+            logger.info("Federated multi-run by %s: %d files × %d models (job %s)",
+                        user.email, len(files), len(model_names), job_id)
+        except Exception as exc:
+            logger.exception("Federated multi-run job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_multi())
+    return {"job_id": job_id, "status": "running"}
+
+
 # ── Unified background job status endpoint ────────────────────────────────
 
 @app.get("/api/job/status/{job_id}")
@@ -1733,14 +1895,24 @@ async def live_capture(ws: WebSocket):
                         if sev != "benign":
                             threats_in_cycle += 1
 
-                        await ws.send_json({
+                        flow_src_ip = str(metadata.iloc[i]["src_ip"])
+                        flow_msg = {
                             "type": "flow", "cycle": cycle, "flow_id": i,
-                            "src_ip": str(metadata.iloc[i]["src_ip"]),
+                            "src_ip": flow_src_ip,
                             "dst_ip": str(metadata.iloc[i]["dst_ip"]),
                             "label_predicted": label,
                             "confidence": round(conf, 4),
                             "severity": sev,
-                        })
+                        }
+
+                        # Tier 1: Auto-block high-severity threats
+                        from prevention import auto_block_check
+                        block_result = auto_block_check(flow_src_ip, label, conf, sev)
+                        if block_result:
+                            flow_msg["auto_blocked"] = True
+                            flow_msg["block_status"] = block_result.get("status")
+
+                        await ws.send_json(flow_msg)
 
                 await ws.send_json({
                     "status": "cycle_done", "cycle": cycle,

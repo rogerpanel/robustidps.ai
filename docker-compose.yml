@@ -39,6 +39,13 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 5s
+    # Prevention engine: network enforcement + ALFA AWUS036ACH wireless monitor
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/bus/usb:/dev/bus/usb  # ALFA AWUS036ACH USB passthrough
+    privileged: false
 
   frontend:
     build:

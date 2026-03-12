@@ -287,6 +287,13 @@ def analyze(
     result["ref_filename"] = _reference[model_id].get("filename", "unknown")
     result["new_filename"] = file.filename
 
+    # Update circuit breaker with aggregate drift score
+    try:
+        from prevention import update_drift_score
+        update_drift_score(result.get("aggregate_drift_score", 0.0))
+    except ImportError:
+        pass
+
     # Forward critical drift to SIEM if connectors are configured
     if result["overall_severity"] in ("high", "critical"):
         try:

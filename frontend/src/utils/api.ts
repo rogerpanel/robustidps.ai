@@ -533,6 +533,55 @@ export async function runFederated(
   return startJobAndPoll(`${API}/api/federated/run`, form, 'Federated simulation');
 }
 
+export interface MultiRunSlotConfig {
+  nNodes?: number
+  rounds?: number
+  localEpochs?: number
+  lr?: number
+  strategy?: string
+  dpEnabled?: boolean
+  dpSigma?: number
+  iid?: boolean
+}
+
+export async function runFederatedMulti(
+  files: (File | null)[],
+  modelNames: string[],
+  globalOpts: MultiRunSlotConfig = {},
+  slotOverrides: MultiRunSlotConfig[] = [],
+) {
+  const form = new FormData();
+  files.forEach((f, i) => {
+    if (f) form.append(`file${i + 1}`, f);
+  });
+  form.append('model_names', modelNames.join(','));
+
+  // Global defaults
+  if (globalOpts.nNodes !== undefined) form.append('n_nodes', String(globalOpts.nNodes));
+  if (globalOpts.rounds !== undefined) form.append('rounds', String(globalOpts.rounds));
+  if (globalOpts.localEpochs !== undefined) form.append('local_epochs', String(globalOpts.localEpochs));
+  if (globalOpts.lr !== undefined) form.append('lr', String(globalOpts.lr));
+  if (globalOpts.strategy) form.append('strategy', globalOpts.strategy);
+  if (globalOpts.dpEnabled !== undefined) form.append('dp_enabled', String(globalOpts.dpEnabled));
+  if (globalOpts.dpSigma !== undefined) form.append('dp_sigma', String(globalOpts.dpSigma));
+  if (globalOpts.iid !== undefined) form.append('iid', String(globalOpts.iid));
+
+  // Per-slot overrides
+  slotOverrides.forEach((so, i) => {
+    const prefix = `slot${i + 1}_`;
+    if (so.nNodes !== undefined) form.append(`${prefix}n_nodes`, String(so.nNodes));
+    if (so.rounds !== undefined) form.append(`${prefix}rounds`, String(so.rounds));
+    if (so.localEpochs !== undefined) form.append(`${prefix}local_epochs`, String(so.localEpochs));
+    if (so.lr !== undefined) form.append(`${prefix}lr`, String(so.lr));
+    if (so.strategy) form.append(`${prefix}strategy`, so.strategy);
+    if (so.dpEnabled !== undefined) form.append(`${prefix}dp_enabled`, String(so.dpEnabled));
+    if (so.dpSigma !== undefined) form.append(`${prefix}dp_sigma`, String(so.dpSigma));
+    if (so.iid !== undefined) form.append(`${prefix}iid`, String(so.iid));
+  });
+
+  return startJobAndPoll(`${API}/api/federated/run-multi`, form, 'Federated multi-run');
+}
+
 // ── PQ Cryptography ──────────────────────────────────────────────────────
 
 export async function fetchPqAlgorithms() {
