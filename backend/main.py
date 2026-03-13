@@ -8,6 +8,7 @@ Endpoints:
   POST   /api/predict             Upload + predict in one call
   POST   /api/predict_uncertain   Predict with MC Dropout uncertainty
   POST   /api/ablation            Run ablation study
+  POST   /api/ablation/multi-run  Multi-dataset × multi-model ablation
   GET    /api/analytics           Pre-computed benchmark / research metrics
   GET    /api/export/{job_id}     Export results as CSV
   GET    /api/model_info          Model metadata and branch names
@@ -748,6 +749,261 @@ async def ablation_endpoint(
     _cache_bg_result(user.id, "ablation", str(uuid.uuid4())[:8], result)
 
     return result
+
+
+@app.post("/api/ablation/multi-run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def ablation_multi_run(
+    request: Request,
+    user=Depends(require_auth),
+):
+    """Multi-dataset × multi-model ablation study.
+
+    Accepts up to 3 files and multiple models. Runs full ablation per
+    model×dataset pair and computes cross-dataset branch stability,
+    cross-model robustness comparison, and dataset sensitivity analysis.
+    Poll /api/job/status/{job_id} for results.
+    """
+    form = await request.form()
+
+    # Collect files
+    files = []
+    for key in ["file1", "file2", "file3"]:
+        f = form.get(key)
+        if f is not None and hasattr(f, "read"):
+            content = await f.read()
+            if len(content) > 0:
+                files.append({"name": getattr(f, "filename", key), "data": content})
+
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="At least 1 file required")
+
+    model_names_raw = form.get("model_names", "surrogate")
+    model_names = [m.strip() for m in str(model_names_raw).split(",") if m.strip()]
+    if not model_names:
+        model_names = ["surrogate"]
+
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run_multi_ablation():
+        try:
+            # Extract features for all datasets
+            datasets = []
+            for finfo in files:
+                features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                    extract_features, finfo["data"], finfo["name"]
+                )
+                if labels_encoded is None:
+                    with torch.no_grad():
+                        surrogate = get_model("surrogate")
+                        surrogate.eval()
+                        feat_dev = features.to(DEVICE)
+                        _batch = 512
+                        if feat_dev.shape[0] <= _batch:
+                            labels_encoded = surrogate(feat_dev).argmax(-1).cpu()
+                        else:
+                            parts = []
+                            for _s in range(0, feat_dev.shape[0], _batch):
+                                parts.append(surrogate(feat_dev[_s:_s + _batch]).argmax(-1))
+                            labels_encoded = torch.cat(parts, dim=0).cpu()
+                datasets.append({
+                    "name": finfo["name"],
+                    "features": features,
+                    "labels": labels_encoded,
+                })
+
+            # Load models
+            models_dict = {}
+            for mn in model_names:
+                models_dict[mn] = get_model(mn if mn else None)
+
+            # ── Run ablation per model × dataset pair ──────────────────
+            ablation_matrix = {}  # keyed by "model|dataset"
+            branch_names_map = {}
+
+            for mn, mdl in models_dict.items():
+                mdl.eval()
+                n_branches = getattr(mdl, "N_BRANCHES", 0)
+                bnames = getattr(mdl, "BRANCH_NAMES", [f"Branch {i}" for i in range(n_branches)])
+                branch_names_map[mn] = bnames
+
+                for ds in datasets:
+                    key = f"{mn}|{ds['name']}"
+                    feat = ds["features"].to(DEVICE)
+                    lab = ds["labels"].to(DEVICE) if ds["labels"] is not None else None
+
+                    if n_branches >= 2:
+                        abl_result = await asyncio.to_thread(
+                            run_ablation, mdl, feat, lab
+                        )
+                        # Round values
+                        cleaned_single = {}
+                        for k, v in abl_result["single"].items():
+                            cleaned_single[k] = {
+                                "accuracy": round(v["accuracy"], 4),
+                                "precision": round(v.get("precision", 0.0), 4),
+                                "recall": round(v.get("recall", 0.0), 4),
+                                "f1": round(v.get("f1", 0.0), 4),
+                                "accuracy_drop": round(v.get("accuracy_drop", 0.0), 4),
+                                "disabled": v["disabled"],
+                            }
+                        ablation_matrix[key] = {
+                            "ablation": cleaned_single,
+                            "pairwise": abl_result["pairwise"],
+                            "incremental": abl_result["incremental"],
+                            "branch_names": bnames,
+                            "model_used": mn,
+                            "dataset_name": ds["name"],
+                        }
+                    else:
+                        # Model has no branches — just full system accuracy
+                        with torch.no_grad():
+                            preds = mdl(feat).argmax(-1)
+                            acc = (preds == lab).float().mean().item() if lab is not None else 1.0
+                        ablation_matrix[key] = {
+                            "ablation": {
+                                "Full System": {
+                                    "accuracy": round(acc, 4),
+                                    "precision": 0.0, "recall": 0.0, "f1": 0.0,
+                                    "accuracy_drop": 0.0, "disabled": [],
+                                }
+                            },
+                            "pairwise": {},
+                            "incremental": [],
+                            "branch_names": [],
+                            "model_used": mn,
+                            "dataset_name": ds["name"],
+                        }
+
+            # ── Cross-dataset branch stability (per model) ─────────────
+            cross_dataset_stability = {}
+            for mn in model_names:
+                bnames = branch_names_map.get(mn, [])
+                if len(bnames) == 0 or len(datasets) < 2:
+                    continue
+                branch_drops = {}  # branch_name -> [drop per dataset]
+                ds_names = [d["name"] for d in datasets]
+                for ds in datasets:
+                    key = f"{mn}|{ds['name']}"
+                    abl = ablation_matrix.get(key, {}).get("ablation", {})
+                    for bname in bnames:
+                        entry = abl.get(bname, {})
+                        branch_drops.setdefault(bname, []).append(
+                            round(entry.get("accuracy_drop", 0.0), 4)
+                        )
+                # Compute stability (low variance = stable)
+                stability = {}
+                for bname, drops in branch_drops.items():
+                    mean_drop = sum(drops) / len(drops) if drops else 0
+                    variance = sum((d - mean_drop) ** 2 for d in drops) / len(drops) if drops else 0
+                    stability[bname] = {
+                        "drops_per_dataset": dict(zip(ds_names, drops)),
+                        "mean_drop": round(mean_drop, 4),
+                        "variance": round(variance, 6),
+                        "stability_score": round(1.0 / (1.0 + variance * 100), 4),
+                    }
+                # Rank branches by consistency
+                ranked = sorted(stability.items(), key=lambda x: x[1]["stability_score"], reverse=True)
+                cross_dataset_stability[mn] = {
+                    "branches": stability,
+                    "most_stable": ranked[0][0] if ranked else None,
+                    "least_stable": ranked[-1][0] if ranked else None,
+                    "dataset_names": ds_names,
+                }
+
+            # ── Cross-model robustness comparison (per dataset) ────────
+            cross_model_comparison = {}
+            for ds in datasets:
+                model_metrics = {}
+                for mn in model_names:
+                    key = f"{mn}|{ds['name']}"
+                    abl = ablation_matrix.get(key, {}).get("ablation", {})
+                    full = abl.get("Full System", {})
+                    # Compute average drop across branches
+                    drops = [v.get("accuracy_drop", 0) for k, v in abl.items()
+                             if k not in ("Full System", "Custom")]
+                    avg_drop = sum(drops) / len(drops) if drops else 0
+                    max_drop = max(drops) if drops else 0
+                    model_metrics[mn] = {
+                        "full_accuracy": round(full.get("accuracy", 0), 4),
+                        "full_precision": round(full.get("precision", 0), 4),
+                        "full_recall": round(full.get("recall", 0), 4),
+                        "full_f1": round(full.get("f1", 0), 4),
+                        "avg_branch_drop": round(avg_drop, 4),
+                        "max_branch_drop": round(max_drop, 4),
+                        "robustness_score": round(1.0 - avg_drop, 4),
+                    }
+                # Rank models
+                ranked = sorted(model_metrics.items(),
+                                key=lambda x: x[1]["robustness_score"], reverse=True)
+                cross_model_comparison[ds["name"]] = {
+                    "models": model_metrics,
+                    "ranking": [r[0] for r in ranked],
+                }
+
+            # ── Dataset sensitivity analysis ───────────────────────────
+            dataset_sensitivity = {}
+            for ds in datasets:
+                model_accuracies = {}
+                for mn in model_names:
+                    key = f"{mn}|{ds['name']}"
+                    abl = ablation_matrix.get(key, {}).get("ablation", {})
+                    full = abl.get("Full System", {})
+                    model_accuracies[mn] = round(full.get("accuracy", 0), 4)
+                # Sensitivity = variance across models
+                vals = list(model_accuracies.values())
+                mean_acc = sum(vals) / len(vals) if vals else 0
+                var_acc = sum((v - mean_acc) ** 2 for v in vals) / len(vals) if vals else 0
+                dataset_sensitivity[ds["name"]] = {
+                    "model_accuracies": model_accuracies,
+                    "mean_accuracy": round(mean_acc, 4),
+                    "variance": round(var_acc, 6),
+                    "sensitivity_score": round(var_acc ** 0.5, 4),
+                }
+
+            # ── Robustness heatmap (model × dataset) ──────────────────
+            robustness_heatmap = []
+            for mn in model_names:
+                for ds in datasets:
+                    key = f"{mn}|{ds['name']}"
+                    abl = ablation_matrix.get(key, {}).get("ablation", {})
+                    full = abl.get("Full System", {})
+                    drops = [v.get("accuracy_drop", 0) for k, v in abl.items()
+                             if k not in ("Full System", "Custom")]
+                    avg_drop = sum(drops) / len(drops) if drops else 0
+                    robustness_heatmap.append({
+                        "model": mn,
+                        "dataset": ds["name"],
+                        "full_accuracy": round(full.get("accuracy", 0), 4),
+                        "avg_drop": round(avg_drop, 4),
+                        "robustness_score": round(1.0 - avg_drop, 4),
+                    })
+
+            payload = {
+                "multi_ablation_id": job_id,
+                "n_models": len(model_names),
+                "n_datasets": len(datasets),
+                "model_names": model_names,
+                "dataset_names": [d["name"] for d in datasets],
+                "ablation_matrix": ablation_matrix,
+                "cross_dataset_stability": cross_dataset_stability,
+                "cross_model_comparison": cross_model_comparison,
+                "dataset_sensitivity": dataset_sensitivity,
+                "robustness_heatmap": robustness_heatmap,
+                "branch_names_map": {mn: list(bnames) for mn, bnames in branch_names_map.items()},
+            }
+
+            _bg_jobs[job_id] = {"status": "done", "result": payload, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "ablation_multi", job_id, payload)
+            logger.info("Multi-ablation by %s: %d datasets × %d models (job %s)",
+                        user.email, len(files), len(model_names), job_id)
+        except Exception as exc:
+            logger.exception("Multi-ablation job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_multi_ablation())
+    return {"job_id": job_id, "status": "running"}
 
 
 @app.post("/api/models/benchmark")

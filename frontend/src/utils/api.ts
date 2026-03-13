@@ -166,6 +166,18 @@ export async function runAblation(file: File, disabledBranches: number[], modelN
   return res.json();
 }
 
+export async function runAblationMulti(
+  files: (File | null)[],
+  modelNames: string[],
+) {
+  const form = new FormData();
+  files.forEach((f, i) => {
+    if (f) form.append(`file${i + 1}`, f);
+  });
+  form.append('model_names', modelNames.join(','));
+  return startJobAndPoll(`${API}/api/ablation/multi-run`, form, 'Multi-ablation study');
+}
+
 function wsBaseUrl(): string {
   if (API) return API.replace(/^http/, 'ws');
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
