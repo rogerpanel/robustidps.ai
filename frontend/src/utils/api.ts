@@ -445,9 +445,28 @@ export async function fetchRedteamAttacks() {
 async function pollJobResult(jobId: string, label: string): Promise<unknown> {
   const POLL_INTERVAL = 3000;
   const MAX_POLLS = 200; // ~10 min
+  const MAX_TRANSIENT_ERRORS = 10; // tolerate up to 10 transient failures (524, network errors)
+  let transientErrors = 0;
   for (let i = 0; i < MAX_POLLS; i++) {
     await new Promise(r => setTimeout(r, POLL_INTERVAL));
-    const poll = await authFetch(`${API}/api/job/status/${jobId}`);
+    let poll: Response;
+    try {
+      poll = await authFetch(`${API}/api/job/status/${jobId}`);
+    } catch {
+      // Network error (fetch failed entirely) — treat as transient
+      transientErrors++;
+      if (transientErrors >= MAX_TRANSIENT_ERRORS)
+        throw new Error(`${label} failed — server unreachable after ${transientErrors} retries`);
+      continue;
+    }
+    if (poll.status === 524 || poll.status === 502 || poll.status === 503) {
+      // Server overloaded / Cloudflare timeout — retry instead of aborting
+      transientErrors++;
+      if (transientErrors >= MAX_TRANSIENT_ERRORS)
+        throw new Error(`${label} failed — server overloaded (${poll.status})`);
+      continue;
+    }
+    transientErrors = 0; // reset on successful contact
     if (!poll.ok) {
       const data = await poll.json().catch(() => ({}));
       throw new Error(errorMsg(data.detail, `${label} failed (${poll.status})`));
@@ -459,12 +478,26 @@ async function pollJobResult(jobId: string, label: string): Promise<unknown> {
 }
 
 async function startJobAndPoll(url: string, form: FormData, label: string) {
-  const res = await authFetch(url, { method: 'POST', body: form });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(errorMsg(data.detail, `${label} failed (${res.status})`));
+  let res: Response;
+  const MAX_START_RETRIES = 3;
+  for (let attempt = 0; attempt < MAX_START_RETRIES; attempt++) {
+    try {
+      res = await authFetch(url, { method: 'POST', body: form });
+    } catch {
+      if (attempt < MAX_START_RETRIES - 1) { await new Promise(r => setTimeout(r, 2000 * (attempt + 1))); continue; }
+      throw new Error(`${label} failed — could not reach server`);
+    }
+    if ((res.status === 524 || res.status === 502 || res.status === 503) && attempt < MAX_START_RETRIES - 1) {
+      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+      continue;
+    }
+    break;
   }
-  const { job_id } = await res.json();
+  if (!res!.ok) {
+    const data = await res!.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `${label} failed (${res!.status})`));
+  }
+  const { job_id } = await res!.json();
   return pollJobResult(job_id, label);
 }
 

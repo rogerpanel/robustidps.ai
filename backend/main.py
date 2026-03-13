@@ -1660,6 +1660,14 @@ async def xai_multi_run(
     method = str(form.get("method", "all"))
     n_samples = min(int(form.get("n_samples", 200)), MAX_ROWS)
 
+    # For multi-dataset × multi-model runs, cap to lightweight methods to avoid
+    # server overload (each combo runs full XAI).  "all" with 3 datasets × 2
+    # models = 6 heavy runs that can starve the event loop and trigger 524.
+    n_combos = len(files) * len(model_names)
+    if method == "all" and n_combos > 2:
+        method = "saliency"
+        logger.info("Multi XAI: capping method to 'saliency' for %d combos", n_combos)
+
     job_id = str(uuid.uuid4())[:8]
     _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
 
@@ -1724,6 +1732,8 @@ async def xai_multi_run(
                     result["model_used"] = mname
                     result["dataset_name"] = ds["name"]
                     result["dataset_format"] = ds["format"]
+                    # Yield to event loop so poll requests can be served
+                    await asyncio.sleep(0)
                     runs.append(result)
 
             # Cross-dataset comparison: feature importance stability
