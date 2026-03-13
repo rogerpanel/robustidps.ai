@@ -188,6 +188,19 @@ def shap_approximation(
 
 # ── Layer-wise Relevance Propagation (LRP) ────────────────────────────────
 
+def _gradient_x_input_fallback(
+    model: nn.Module,
+    features: torch.Tensor,
+) -> torch.Tensor:
+    """Gradient × input attribution as fallback for non-sequential models."""
+    x = features.clone().detach().requires_grad_(True)
+    logits = model(x)
+    preds = logits.argmax(-1)
+    score = logits.gather(1, preds.unsqueeze(1)).sum()
+    score.backward()
+    return (x.grad * features).abs().detach()
+
+
 def lrp_propagation(
     model: nn.Module,
     features: torch.Tensor,
@@ -197,6 +210,9 @@ def lrp_propagation(
     Simplified LRP (epsilon-rule) for feedforward networks.
     Propagates relevance from output back to input features.
     Returns tensor of shape [n_samples, n_features].
+
+    Falls back to gradient × input for models with parallel branches
+    (e.g. SurrogateIDS) where flat layer traversal is invalid.
     """
     model.eval()
     device = next(model.parameters()).device
@@ -208,22 +224,26 @@ def lrp_propagation(
     biases = []
     x = features
 
-    for layer in model.modules():
-        if isinstance(layer, nn.Linear):
-            weights.append(layer.weight.data.clone())
-            biases.append(layer.bias.data.clone() if layer.bias is not None else torch.zeros(layer.out_features, device=device))
-            x = layer(x)
-            activations.append(x.clone().detach())
-        elif isinstance(layer, (nn.ReLU, nn.LeakyReLU, nn.ELU, nn.GELU)):
-            if isinstance(layer, nn.LeakyReLU):
-                x = F.leaky_relu(x, negative_slope=layer.negative_slope)
-            elif isinstance(layer, nn.ELU):
-                x = F.elu(x)
-            elif isinstance(layer, nn.GELU):
-                x = F.gelu(x)
-            else:
-                x = F.relu(x)
-            activations[-1] = x.clone().detach()
+    try:
+        for layer in model.modules():
+            if isinstance(layer, nn.Linear):
+                weights.append(layer.weight.data.clone())
+                biases.append(layer.bias.data.clone() if layer.bias is not None else torch.zeros(layer.out_features, device=device))
+                x = layer(x)
+                activations.append(x.clone().detach())
+            elif isinstance(layer, (nn.ReLU, nn.LeakyReLU, nn.ELU, nn.GELU)):
+                if isinstance(layer, nn.LeakyReLU):
+                    x = F.leaky_relu(x, negative_slope=layer.negative_slope)
+                elif isinstance(layer, nn.ELU):
+                    x = F.elu(x)
+                elif isinstance(layer, nn.GELU):
+                    x = F.gelu(x)
+                else:
+                    x = F.relu(x)
+                activations[-1] = x.clone().detach()
+    except RuntimeError:
+        # Model has parallel branches — flat traversal is invalid
+        return _gradient_x_input_fallback(model, features)
 
     if len(weights) == 0:
         return torch.zeros_like(features)
@@ -275,40 +295,10 @@ def deep_lift(
         baseline = torch.zeros_like(features)
     baseline = baseline.to(device)
 
-    # Forward pass for both input and reference
-    def forward_with_activations(x):
-        acts = [x]
-        current = x
-        for layer in model.modules():
-            if isinstance(layer, nn.Linear):
-                current = layer(current)
-                acts.append(current.clone().detach())
-            elif isinstance(layer, (nn.ReLU, nn.LeakyReLU, nn.ELU, nn.GELU)):
-                if isinstance(layer, nn.LeakyReLU):
-                    current = F.leaky_relu(current, negative_slope=layer.negative_slope)
-                elif isinstance(layer, nn.ELU):
-                    current = F.elu(current)
-                elif isinstance(layer, nn.GELU):
-                    current = F.gelu(current)
-                else:
-                    current = F.relu(current)
-                acts[-1] = current.clone().detach()
-        return acts
-
-    with torch.no_grad():
-        acts_input = forward_with_activations(features)
-        acts_ref = forward_with_activations(baseline)
-
-    # Compute multipliers using rescale rule
-    delta_output = acts_input[-1] - acts_ref[-1]  # [batch, n_classes]
-
-    # Use predicted class difference
-    pred_class = acts_input[-1].argmax(-1)
-    delta_class = delta_output.gather(1, pred_class.unsqueeze(1))  # [batch, 1]
-
-    # Approximate contribution using input-output gradient
+    # Approximate contribution using input-output gradient (works for all architectures)
     x = features.clone().detach().requires_grad_(True)
     logits = model(x)
+    pred_class = logits.argmax(-1)
     target_score = logits.gather(1, pred_class.unsqueeze(1)).sum()
     target_score.backward()
 
