@@ -787,13 +787,21 @@ async def ablation_multi_run(
     _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
 
     async def _run_multi_ablation():
+        import gc
         try:
-            # Extract features for all datasets
+            # Extract features for all datasets (with MAX_ROWS sampling)
             datasets = []
             for finfo in files:
                 features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
                     extract_features, finfo["data"], finfo["name"]
                 )
+                # Sample down to MAX_ROWS to prevent OOM on large datasets
+                if len(features) > MAX_ROWS:
+                    idx = torch.randperm(len(features))[:MAX_ROWS].sort().values
+                    features = features[idx]
+                    if labels_encoded is not None:
+                        labels_encoded = labels_encoded[idx]
+
                 if labels_encoded is None:
                     with torch.no_grad():
                         surrogate = get_model("surrogate")
@@ -807,22 +815,22 @@ async def ablation_multi_run(
                             for _s in range(0, feat_dev.shape[0], _batch):
                                 parts.append(surrogate(feat_dev[_s:_s + _batch]).argmax(-1))
                             labels_encoded = torch.cat(parts, dim=0).cpu()
+                        del feat_dev
                 datasets.append({
                     "name": finfo["name"],
                     "features": features,
                     "labels": labels_encoded,
                 })
-
-            # Load models
-            models_dict = {}
-            for mn in model_names:
-                models_dict[mn] = get_model(mn if mn else None)
+                # Free raw file bytes after extraction
+                finfo["data"] = None
 
             # ── Run ablation per model × dataset pair ──────────────────
+            # Load models one at a time to reduce peak memory
             ablation_matrix = {}  # keyed by "model|dataset"
             branch_names_map = {}
 
-            for mn, mdl in models_dict.items():
+            for mn in model_names:
+                mdl = get_model(mn if mn else None)
                 mdl.eval()
                 n_branches = getattr(mdl, "N_BRANCHES", 0)
                 bnames = getattr(mdl, "BRANCH_NAMES", [f"Branch {i}" for i in range(n_branches)])
@@ -856,6 +864,7 @@ async def ablation_multi_run(
                             "model_used": mn,
                             "dataset_name": ds["name"],
                         }
+                        del abl_result
                     else:
                         # Model has no branches — just full system accuracy
                         with torch.no_grad():
@@ -875,6 +884,12 @@ async def ablation_multi_run(
                             "model_used": mn,
                             "dataset_name": ds["name"],
                         }
+
+                    # Free device tensors between iterations
+                    del feat, lab
+                    gc.collect()
+                    if DEVICE != "cpu":
+                        torch.cuda.empty_cache()
 
             # ── Cross-dataset branch stability (per model) ─────────────
             cross_dataset_stability = {}
