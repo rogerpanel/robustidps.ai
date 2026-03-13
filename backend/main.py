@@ -1811,15 +1811,13 @@ async def xai_run(
 
     async def _run():
         try:
+            from explainability import _get_model_input_dim, _ensure_feature_dim
             features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
                 extract_features, data, filename
             )
             # Ensure features match model input dimension
-            _exp = 83
-            if features.shape[1] < _exp:
-                features = torch.cat([features, torch.zeros(features.shape[0], _exp - features.shape[1])], dim=1)
-            elif features.shape[1] > _exp:
-                features = features[:, :_exp]
+            _exp = _get_model_input_dim(selected) or 83
+            features = _ensure_feature_dim(features, _exp)
             result = await asyncio.to_thread(
                 run_explainability, selected, features,
                 labels_encoded, min(n_samples, MAX_ROWS), method,
@@ -1863,12 +1861,7 @@ async def xai_compare(
             features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
                 extract_features, data, filename
             )
-            # Ensure features match model input dimension
-            _exp = 83
-            if features.shape[1] < _exp:
-                features = torch.cat([features, torch.zeros(features.shape[0], _exp - features.shape[1])], dim=1)
-            elif features.shape[1] > _exp:
-                features = features[:, :_exp]
+            # Feature dimension is ensured inside run_comparative_explainability
             # Load all requested models
             models_dict = {}
             for mname in model_list:
@@ -1944,8 +1937,7 @@ async def xai_multi_run(
 
     async def _run_multi():
         try:
-            # Expected model input dimension
-            _expected_dim = 83
+            from explainability import _get_model_input_dim, _ensure_feature_dim
 
             # Extract features from all files
             datasets = []
@@ -1954,12 +1946,8 @@ async def xai_multi_run(
                     extract_features, finfo["data"], finfo["name"]
                 )
                 # Ensure features match model input dimension (pad or truncate)
-                n_cols = features.shape[1]
-                if n_cols < _expected_dim:
-                    pad = torch.zeros(features.shape[0], _expected_dim - n_cols)
-                    features = torch.cat([features, pad], dim=1)
-                elif n_cols > _expected_dim:
-                    features = features[:, :_expected_dim]
+                _expected_dim = _get_model_input_dim(get_model("surrogate")) or 83
+                features = _ensure_feature_dim(features, _expected_dim)
 
                 if labels_encoded is None:
                     with torch.no_grad():

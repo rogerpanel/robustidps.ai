@@ -29,6 +29,32 @@ import numpy as np
 logger = logging.getLogger("robustidps.xai")
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+def _get_model_input_dim(model: nn.Module) -> int | None:
+    """Detect the expected input dimension from the model's first Linear layer."""
+    # Check common model attributes first
+    if hasattr(model, 'N_FEATURES'):
+        return model.N_FEATURES
+    # Walk the model to find the first nn.Linear layer
+    for module in model.modules():
+        if isinstance(module, nn.Linear):
+            return module.in_features
+    return None
+
+
+def _ensure_feature_dim(features: torch.Tensor, expected_dim: int) -> torch.Tensor:
+    """Pad or truncate features to match the model's expected input dimension."""
+    n_cols = features.shape[1]
+    if n_cols == expected_dim:
+        return features
+    if n_cols < expected_dim:
+        pad = torch.zeros(features.shape[0], expected_dim - n_cols,
+                          dtype=features.dtype, device=features.device)
+        return torch.cat([features, pad], dim=1)
+    return features[:, :expected_dim]
+
+
 # ── Feature importance via gradient saliency ──────────────────────────────
 
 def gradient_saliency(
@@ -918,6 +944,12 @@ def run_explainability(
     if labels is not None:
         labels = labels.to(device)
 
+    # Ensure features match model's expected input dimension
+    expected_dim = _get_model_input_dim(model)
+    if expected_dim is not None and features.shape[1] != expected_dim:
+        logger.info("XAI: adjusting features from %d to %d dims", features.shape[1], expected_dim)
+        features = _ensure_feature_dim(features, expected_dim)
+
     from models.surrogate import SurrogateIDS
     class_names = SurrogateIDS.CLASS_NAMES
 
@@ -1254,6 +1286,15 @@ def run_comparative_explainability(
         features = features[idx]
         if labels is not None:
             labels = labels[idx]
+
+    # Ensure features match models' expected input dimension
+    for mname, mobj in models.items():
+        expected_dim = _get_model_input_dim(mobj)
+        if expected_dim is not None and features.shape[1] != expected_dim:
+            logger.info("Comparative XAI: adjusting features from %d to %d dims for %s",
+                        features.shape[1], expected_dim, mname)
+            features = _ensure_feature_dim(features, expected_dim)
+            break  # All models share the same input dim (83)
 
     t0 = time.perf_counter()
 
