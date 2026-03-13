@@ -531,12 +531,20 @@ function MultiDatasetMode() {
   const resultsRef = useRef<HTMLDivElement>(null)
   const slotInputRefs = useRef<(HTMLInputElement | null)[]>([null, null, null])
   const [selectedRunKey, setSelectedRunKey] = useState<string | null>(null)
+  const [dragSlot, setDragSlot] = useState<number | null>(null)
 
   const activeSlots = slots.filter((s) => s.fileReady || s.fileName)
   const canRun = activeSlots.length >= 1 && selectedModels.length >= 1
 
   const handleSlotFileSelect = (index: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    if (file) setSlotFile(index, file)
+  }
+
+  const handleSlotDrop = (index: number) => (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragSlot(null)
+    const file = e.dataTransfer.files[0]
     if (file) setSlotFile(index, file)
   }
 
@@ -561,8 +569,13 @@ function MultiDatasetMode() {
             {slots.map((slot, i) => (
               <div
                 key={i}
-                className={`rounded-lg border-2 border-dashed p-4 text-center transition-all ${
-                  slot.fileReady || slot.fileName
+                onDragOver={(e) => { e.preventDefault(); setDragSlot(i) }}
+                onDragLeave={() => setDragSlot(null)}
+                onDrop={handleSlotDrop(i)}
+                className={`rounded-lg border-2 border-dashed p-4 text-center transition-all cursor-pointer ${
+                  dragSlot === i
+                    ? 'border-accent-blue bg-accent-blue/10'
+                    : slot.fileReady || slot.fileName
                     ? 'border-accent-green/40 bg-accent-green/5'
                     : 'border-bg-card hover:border-text-secondary'
                 }`}
@@ -590,17 +603,17 @@ function MultiDatasetMode() {
                     </button>
                   </div>
                 ) : (
-                  <button
+                  <div
                     onClick={() => slotInputRefs.current[i]?.click()}
-                    className="space-y-2 w-full"
+                    className="space-y-2 w-full cursor-pointer"
                   >
                     <div className="w-8 h-8 rounded-full bg-bg-card flex items-center justify-center mx-auto">
                       <Plus className="w-4 h-4 text-text-secondary" />
                     </div>
                     <p className="text-xs text-text-secondary">
-                      Dataset {i + 1}
+                      {dragSlot === i ? 'Drop file here' : 'Drop CSV / PCAP or click to browse'}
                     </p>
-                  </button>
+                  </div>
                 )}
               </div>
             ))}
