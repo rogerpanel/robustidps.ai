@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, CartesianGrid,
+  PolarRadiusAxis, CartesianGrid, Cell,
 } from 'recharts'
 import { Loader2, Download, TrendingUp, Shield, GitBranch, Target, Lock, ScatterChart as ScatterIcon, Image, FileText, Presentation, ChevronDown, Database, Brain, Layers, Activity } from 'lucide-react'
 import { fetchAnalytics } from '../utils/api'
