@@ -154,6 +154,20 @@ export async function uploadAndPredict(file: File, mcPasses = 20, modelName = ''
   return res.json();
 }
 
+export async function uploadAndPredictMulti(
+  files: (File | null)[],
+  modelNames: string[],
+  mcPasses = 20,
+) {
+  const form = new FormData();
+  files.forEach((f, i) => {
+    if (f) form.append(`file${i + 1}`, f);
+  });
+  form.append('model_names', modelNames.join(','));
+  form.append('mc_passes', String(mcPasses));
+  return startJobAndPoll(`${API}/api/predict_uncertain/multi-run`, form, 'Multi-dataset analysis');
+}
+
 export async function runAblation(file: File, disabledBranches: number[], modelName = '') {
   const form = new FormData();
   form.append('file', file);

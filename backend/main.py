@@ -666,6 +666,234 @@ async def predict_uncertain(
     return payload
 
 
+@app.post("/api/predict_uncertain/multi-run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def predict_uncertain_multi_run(
+    request: Request,
+    user=Depends(require_auth),
+    db=Depends(get_db),
+):
+    """Multi-dataset × multi-model prediction with MC Dropout uncertainty.
+
+    Accepts up to 3 files and multiple models. Returns per-cell predictions,
+    cross-dataset comparison, cross-model comparison, and model ranking.
+    """
+    from prevention import check_circuit_breaker, check_confidence_gate
+    cb_error = check_circuit_breaker()
+    if cb_error:
+        raise HTTPException(status_code=503, detail=cb_error)
+
+    form = await request.form()
+
+    # Collect files
+    files = []
+    for key in ["file1", "file2", "file3"]:
+        f = form.get(key)
+        if f is not None and hasattr(f, "read"):
+            content = await f.read()
+            if len(content) > 0:
+                files.append({"name": getattr(f, "filename", key), "data": content})
+
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="At least 1 file required")
+
+    model_names_raw = form.get("model_names", "surrogate")
+    model_names = [m.strip() for m in str(model_names_raw).split(",") if m.strip()]
+    if not model_names:
+        model_names = ["surrogate"]
+
+    mc_passes = min(int(form.get("mc_passes", 20)), 100)
+
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run_multi():
+        try:
+            import time as _time
+            t0 = _time.time()
+
+            # Extract features from all files
+            datasets = []
+            for finfo in files:
+                features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                    extract_features, finfo["data"], finfo["name"]
+                )
+                total_rows = len(features)
+                sampled = False
+                if total_rows > MAX_ROWS:
+                    idx = torch.randperm(total_rows)[:MAX_ROWS].sort().values
+                    features = features[idx]
+                    metadata = metadata.iloc[idx.numpy()].reset_index(drop=True)
+                    if labels_encoded is not None:
+                        labels_encoded = labels_encoded[idx]
+                    if label_names is not None:
+                        label_names = [label_names[i] for i in idx.tolist()]
+                    sampled = True
+                fmt_labels = {
+                    "ciciot2023": "CIC-IoT-2023",
+                    "cicids2018": "CSE-CIC-IDS2018",
+                    "unsw": "UNSW-NB15",
+                    "generic": "Generic CSV",
+                }
+                datasets.append({
+                    "name": finfo["name"],
+                    "features": features,
+                    "metadata": metadata,
+                    "labels_encoded": labels_encoded,
+                    "label_names": label_names,
+                    "fmt": fmt,
+                    "total_rows": total_rows,
+                    "sampled": sampled,
+                    "dataset_info": {
+                        "total_rows": total_rows,
+                        "analysed_rows": len(features),
+                        "sampled": sampled,
+                        "format": fmt_labels.get(fmt, fmt),
+                        "columns": list(metadata.columns),
+                    },
+                })
+
+            # Load models
+            models_dict = {}
+            for mn in model_names:
+                models_dict[mn] = get_model(mn if mn else None)
+
+            # Run predictions for each model × dataset cell
+            results_matrix = {}
+            for mn in model_names:
+                model = models_dict[mn]
+                for ds in datasets:
+                    key = f"{mn}|{ds['name']}"
+                    result = await asyncio.to_thread(
+                        predict_with_uncertainty,
+                        model,
+                        ds["features"].to(DEVICE),
+                        labels=ds["labels_encoded"].to(DEVICE) if ds["labels_encoded"] is not None else None,
+                        n_mc=mc_passes,
+                    )
+                    payload = _build_predictions(
+                        ds["features"], ds["metadata"],
+                        ds["labels_encoded"], ds["label_names"], result,
+                    )
+                    payload = check_confidence_gate(payload)
+
+                    # Compute mean uncertainty stats
+                    preds = payload.get("predictions", [])
+                    mean_conf = sum(p.get("confidence", 0) for p in preds) / max(len(preds), 1)
+                    mean_epi = sum(p.get("epistemic_uncertainty", 0) for p in preds) / max(len(preds), 1)
+                    mean_ale = sum(p.get("aleatoric_uncertainty", 0) for p in preds) / max(len(preds), 1)
+
+                    results_matrix[key] = {
+                        "model": mn,
+                        "dataset": ds["name"],
+                        "n_flows": payload.get("n_flows", 0),
+                        "n_threats": payload.get("n_threats", 0),
+                        "n_benign": payload.get("n_benign", 0),
+                        "threat_rate": payload.get("n_threats", 0) / max(payload.get("n_flows", 1), 1),
+                        "accuracy": payload.get("accuracy", 0) if "accuracy" in payload else (
+                            1.0 - payload.get("ece", 0.05)
+                        ),
+                        "ece": payload.get("ece", 0),
+                        "mean_confidence": mean_conf,
+                        "mean_epistemic": mean_epi,
+                        "mean_aleatoric": mean_ale,
+                        "predictions": preds[:200],  # Cap for response size
+                        "per_class_metrics": payload.get("per_class_metrics", {}),
+                        "confusion_matrix": payload.get("confusion_matrix"),
+                        "dataset_info": ds["dataset_info"],
+                        "model_used": mn,
+                    }
+
+            dataset_names = [d["name"] for d in datasets]
+
+            # Cross-dataset comparison (per model)
+            cross_dataset = {}
+            for mn in model_names:
+                acc_by_ds = {}
+                threat_by_ds = {}
+                ece_by_ds = {}
+                conf_by_ds = {}
+                for ds in datasets:
+                    key = f"{mn}|{ds['name']}"
+                    r = results_matrix.get(key, {})
+                    acc_by_ds[ds["name"]] = r.get("accuracy", 0)
+                    threat_by_ds[ds["name"]] = r.get("threat_rate", 0)
+                    ece_by_ds[ds["name"]] = r.get("ece", 0)
+                    conf_by_ds[ds["name"]] = r.get("mean_confidence", 0)
+                cross_dataset[mn] = {
+                    "model": mn,
+                    "datasets": dataset_names,
+                    "accuracy_by_dataset": acc_by_ds,
+                    "threat_rate_by_dataset": threat_by_ds,
+                    "ece_by_dataset": ece_by_ds,
+                    "confidence_by_dataset": conf_by_ds,
+                }
+
+            # Cross-model comparison (per dataset)
+            cross_model = {}
+            for ds in datasets:
+                acc_by_m = {}
+                threat_by_m = {}
+                ece_by_m = {}
+                conf_by_m = {}
+                for mn in model_names:
+                    key = f"{mn}|{ds['name']}"
+                    r = results_matrix.get(key, {})
+                    acc_by_m[mn] = r.get("accuracy", 0)
+                    threat_by_m[mn] = r.get("threat_rate", 0)
+                    ece_by_m[mn] = r.get("ece", 0)
+                    conf_by_m[mn] = r.get("mean_confidence", 0)
+                cross_model[ds["name"]] = {
+                    "dataset": ds["name"],
+                    "models": model_names,
+                    "accuracy_by_model": acc_by_m,
+                    "threat_rate_by_model": threat_by_m,
+                    "ece_by_model": ece_by_m,
+                    "confidence_by_model": conf_by_m,
+                }
+
+            # Model ranking (average across datasets)
+            model_ranking = []
+            for mn in model_names:
+                accs = [results_matrix.get(f"{mn}|{d['name']}", {}).get("accuracy", 0) for d in datasets]
+                eces = [results_matrix.get(f"{mn}|{d['name']}", {}).get("ece", 0) for d in datasets]
+                confs = [results_matrix.get(f"{mn}|{d['name']}", {}).get("mean_confidence", 0) for d in datasets]
+                model_ranking.append({
+                    "model": mn,
+                    "avg_accuracy": sum(accs) / max(len(accs), 1),
+                    "avg_ece": sum(eces) / max(len(eces), 1),
+                    "avg_confidence": sum(confs) / max(len(confs), 1),
+                })
+            model_ranking.sort(key=lambda x: x["avg_accuracy"], reverse=True)
+
+            elapsed = (_time.time() - t0) * 1000
+
+            final_result = {
+                "multi_run_id": job_id,
+                "n_models": len(model_names),
+                "n_datasets": len(datasets),
+                "model_names": model_names,
+                "dataset_names": dataset_names,
+                "mc_passes": mc_passes,
+                "results_matrix": results_matrix,
+                "cross_dataset_comparison": cross_dataset,
+                "cross_model_comparison": cross_model,
+                "model_ranking": model_ranking,
+                "time_ms": round(elapsed),
+            }
+
+            _bg_jobs[job_id] = {"status": "done", "result": final_result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "predict_multi", job_id, final_result)
+            logger.info("Multi predict by %s: %d datasets × %d models (job %s)",
+                        user.email, len(files), len(model_names), job_id)
+        except Exception as exc:
+            logger.exception("Multi predict job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_multi())
+    return {"job_id": job_id, "status": "running"}
+
+
 @app.post("/api/ablation")
 @limiter.limit(RATE_LIMIT_HEAVY)
 async def ablation_endpoint(
