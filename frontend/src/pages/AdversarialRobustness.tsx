@@ -3,8 +3,9 @@ import {
   Loader2, AlertTriangle, Zap,
   Target, CheckCircle2, XCircle, Upload, FileText, X,
   Layers, BarChart3, ArrowRightLeft, TrendingDown,
+  FlaskConical,
 } from 'lucide-react'
-import { runAdversarialEval, runAdversarialMulti, fetchModels } from '../utils/api'
+import { runAdversarialEval, runAdversarialMulti, fetchModels, createExperiment } from '../utils/api'
 import ExportMenu from '../components/ExportMenu'
 import { registerSessionReset } from '../utils/sessionReset'
 
@@ -35,6 +36,7 @@ const _store: {
   multiResult: any
   selectedModels: string[]
   slots: SlotState[]
+  savedExperiment: boolean
 } = {
   file: null,
   modelId: 'surrogate',
@@ -43,6 +45,7 @@ const _store: {
   multiResult: null,
   selectedModels: ['surrogate'],
   slots: [{ fileName: null, fileReady: false }, { fileName: null, fileReady: false }, { fileName: null, fileReady: false }],
+  savedExperiment: false,
 }
 
 registerSessionReset(() => {
@@ -53,6 +56,7 @@ registerSessionReset(() => {
   _store.multiResult = null
   _store.selectedModels = ['surrogate']
   _store.slots = [{ fileName: null, fileReady: false }, { fileName: null, fileReady: false }, { fileName: null, fileReady: false }]
+  _store.savedExperiment = false
 })
 
 // ── Drag-drop file slot ──────────────────────────────────────────────────
@@ -166,7 +170,7 @@ export default function AdversarialRobustness() {
 
   const setFile = (f: File | null) => { _store.file = f; _setFile(f) }
   const setModelId = (v: string) => { _store.modelId = v; _setModelId(v) }
-  const setResult = (v: any) => { _store.result = v; _setResult(v) }
+  const setResult = (v: any) => { _store.result = v; _store.savedExperiment = false; _setResult(v); _setSavedExperiment(false) }
 
   // Multi mode state
   const [slots, _setSlots] = useState<SlotState[]>(_store.slots)
@@ -178,10 +182,15 @@ export default function AdversarialRobustness() {
 
   const setSlots = (s: SlotState[]) => { _store.slots = s; _setSlots(s) }
   const setSelectedModels = (m: string[]) => { _store.selectedModels = m; _setSelectedModels(m) }
-  const setMultiResult = (v: any) => { _store.multiResult = v; _setMultiResult(v) }
+  const setMultiResult = (v: any) => { _store.multiResult = v; _store.savedExperiment = false; _setMultiResult(v); _setSavedExperiment(false) }
 
   // Multi-mode selected cell for detail view
   const [selectedCell, setSelectedCell] = useState<string | null>(null)
+
+  // Save as experiment
+  const [savedExperiment, _setSavedExperiment] = useState(_store.savedExperiment)
+  const [saving, setSaving] = useState(false)
+  const setSavedExperiment = (v: boolean) => { _store.savedExperiment = v; _setSavedExperiment(v) }
 
   useEffect(() => {
     fetchModels()
@@ -246,6 +255,46 @@ export default function AdversarialRobustness() {
       setMultiError(err instanceof Error ? err.message : 'Multi evaluation failed')
     }
     setMultiRunning(false)
+  }
+
+  const handleSaveExperiment = async () => {
+    const activeResult = mode === 'single' ? result : multiResult
+    if (!activeResult || saving) return
+    setSaving(true)
+    try {
+      const isMulti = mode === 'multi'
+      const metrics: Record<string, any> = {}
+      if (!isMulti && result) {
+        metrics.clean_accuracy = result.clean_accuracy
+        const attacks = result.attacks || {}
+        const ratios = Object.values(attacks).map((a: any) => a?.robustness_ratio ?? 0).filter((v: number) => v > 0)
+        if (ratios.length) metrics.avg_robustness = ratios.reduce((a: number, b: number) => a + b, 0) / ratios.length
+        metrics.n_samples = result.n_samples
+      } else if (isMulti && multiResult) {
+        metrics.n_models = multiResult.n_models
+        metrics.n_datasets = multiResult.n_datasets
+        const heatmap = multiResult.robustness_heatmap || []
+        if (heatmap.length) {
+          metrics.avg_robustness = heatmap.reduce((s: number, h: any) => s + (h.avg_robustness || 0), 0) / heatmap.length / 100
+        }
+      }
+      await createExperiment({
+        name: isMulti
+          ? `Adversarial Multi — ${multiResult.n_datasets} datasets × ${multiResult.n_models} models`
+          : `Adversarial Robustness — ${result.model_name || modelId}`,
+        task_type: 'adversarial',
+        tags: ['adversarial', 'robustness', ...(isMulti ? ['multi-dataset'] : [])],
+        params: isMulti
+          ? { model_names: multiResult.model_names, dataset_names: multiResult.dataset_names }
+          : { model_id: modelId, dataset_format: result.dataset_format },
+        results: activeResult,
+        metrics,
+      })
+      setSavedExperiment(true)
+    } catch (err: any) {
+      setError(err.message || 'Failed to save experiment')
+    }
+    setSaving(false)
   }
 
   const activeSlotCount = slots.filter((s) => s.fileReady).length
@@ -402,6 +451,27 @@ export default function AdversarialRobustness() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* Save as Experiment (single mode) */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveExperiment}
+                  disabled={saving || savedExperiment}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    savedExperiment
+                      ? 'bg-accent-green/15 text-accent-green'
+                      : 'bg-accent-blue/15 text-accent-blue hover:bg-accent-blue/25'
+                  } disabled:opacity-60`}
+                >
+                  {saving ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
+                  ) : savedExperiment ? (
+                    <><CheckCircle2 className="w-3.5 h-3.5" /> Saved to Research Hub</>
+                  ) : (
+                    <><FlaskConical className="w-3.5 h-3.5" /> Save as Experiment</>
+                  )}
+                </button>
               </div>
             </>
           )}
@@ -753,6 +823,27 @@ export default function AdversarialRobustness() {
                   Click any cell in the heatmap to view the detailed per-attack breakdown.
                 </div>
               )}
+
+              {/* Save as Experiment (multi mode) */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveExperiment}
+                  disabled={saving || savedExperiment}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    savedExperiment
+                      ? 'bg-accent-green/15 text-accent-green'
+                      : 'bg-accent-blue/15 text-accent-blue hover:bg-accent-blue/25'
+                  } disabled:opacity-60`}
+                >
+                  {saving ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
+                  ) : savedExperiment ? (
+                    <><CheckCircle2 className="w-3.5 h-3.5" /> Saved to Research Hub</>
+                  ) : (
+                    <><FlaskConical className="w-3.5 h-3.5" /> Save as Experiment</>
+                  )}
+                </button>
+              </div>
             </>
           )}
 

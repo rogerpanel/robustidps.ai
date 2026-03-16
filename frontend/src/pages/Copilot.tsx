@@ -90,6 +90,8 @@ const PAGE_CONTEXTS = [
   { id: 'zero_trust', label: 'Zero-Trust', query: 'Get the zero-trust governance status. What is the current trust score and policy compliance?', icon: 'shield-check' },
   { id: 'supply_chain', label: 'Supply Chain', query: 'Get the supply chain security status. Are there any vulnerabilities in our model pipeline?', icon: 'package' },
   { id: 'threat_resp', label: 'Threat Response', query: 'Get the threat response status. What playbooks are active and what incidents have been handled?', icon: 'zap' },
+  { id: 'rl_response', label: 'RL Response Agent', query: 'Get the RL response agent simulation results. What was the threat mitigation rate, false positive blocking rate, action distribution, and constraint violations? Summarise the CPO agent performance.', icon: 'shield' },
+  { id: 'adversarial_robustness', label: 'Adversarial Robustness', query: 'Get the adversarial robustness evaluation results. What attacks were tested (FGSM, PGD, C&W, DeepFool, Gaussian, Label masking), what was the clean accuracy, and how robust is the model? Report per-attack accuracy and robustness ratios.', icon: 'target' },
 ] as const
 
 // Safely parse JSON from localStorage

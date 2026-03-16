@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import {
-  Shield, Loader2, AlertTriangle, Upload, Activity,
+  Shield, Loader2, AlertTriangle, Activity,
   Zap, Target, BarChart3, ChevronDown, ChevronUp,
-  CheckCircle2, XCircle, Eye, Ban, Lock, Wifi,
+  CheckCircle2, XCircle, Eye, Ban, Lock,
+  FlaskConical, Save, Wifi, TrendingUp,
 } from 'lucide-react'
-import { runRLSimulation, fetchRLMetrics, fetchCLRLStatus } from '../utils/api'
+import { runRLSimulation, fetchRLMetrics, fetchCLRLStatus, createExperiment } from '../utils/api'
 import ExportMenu from '../components/ExportMenu'
 import { registerSessionReset } from '../utils/sessionReset'
 
@@ -18,12 +19,14 @@ const _store: {
   result: any
   rlMetrics: any
   clrlStatus: any
+  savedExperiment: boolean
 } = {
   file: null,
   numEpisodes: 50,
   result: null,
   rlMetrics: null,
   clrlStatus: null,
+  savedExperiment: false,
 }
 
 registerSessionReset(() => {
@@ -32,6 +35,7 @@ registerSessionReset(() => {
   _store.result = null
   _store.rlMetrics = null
   _store.clrlStatus = null
+  _store.savedExperiment = false
 })
 
 export default function RLResponseAgent() {
@@ -43,13 +47,17 @@ export default function RLResponseAgent() {
   const [rlMetrics, _setRlMetrics] = useState<any>(_store.rlMetrics)
   const [clrlStatus, _setClrlStatus] = useState<any>(_store.clrlStatus)
   const [showEpisodes, setShowEpisodes] = useState(false)
+  const [showClrlStatus, setShowClrlStatus] = useState(false)
+  const [savedExperiment, _setSavedExperiment] = useState(_store.savedExperiment)
+  const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const setFile = (f: File | null) => { _store.file = f; _setFile(f) }
   const setNumEpisodes = (v: number) => { _store.numEpisodes = v; _setNumEpisodes(v) }
-  const setResult = (v: any) => { _store.result = v; _setResult(v) }
+  const setResult = (v: any) => { _store.result = v; _store.savedExperiment = false; _setResult(v); _setSavedExperiment(false) }
   const setRlMetrics = (v: any) => { _store.rlMetrics = v; _setRlMetrics(v) }
   const setClrlStatus = (v: any) => { _store.clrlStatus = v; _setClrlStatus(v) }
+  const setSavedExperiment = (v: boolean) => { _store.savedExperiment = v; _setSavedExperiment(v) }
 
   useEffect(() => {
     fetchRLMetrics().then(setRlMetrics).catch(() => {})
@@ -68,6 +76,33 @@ export default function RLResponseAgent() {
       setError(err instanceof Error ? err.message : 'Simulation failed')
     }
     setRunning(false)
+  }
+
+  const handleSaveExperiment = async () => {
+    if (!result || saving) return
+    setSaving(true)
+    try {
+      await createExperiment({
+        name: `RL Response — ${numEpisodes} episodes`,
+        task_type: 'rl_response',
+        tags: ['rl', 'cpo', 'response-agent'],
+        params: { num_episodes: numEpisodes, dataset_format: result.dataset_format },
+        results: result,
+        metrics: {
+          threat_mitigation_rate: result.threat_mitigation_rate,
+          fp_blocking_rate: result.fp_blocking_rate,
+          mean_episode_reward: result.mean_episode_reward,
+          constraint_violations: result.constraint_violations,
+          total_steps: result.total_steps,
+          total_attacks: result.total_attacks,
+          total_threats_mitigated: result.total_threats_mitigated,
+        },
+      })
+      setSavedExperiment(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save experiment')
+    }
+    setSaving(false)
   }
 
   const pct = (v: number) => `${(v * 100).toFixed(2)}%`
@@ -210,38 +245,163 @@ export default function RLResponseAgent() {
         </div>
       </div>
 
-      {/* Summary Stats */}
+      {/* Summary Stats + Save Experiment */}
       {result && (
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
-            <div className="text-[10px] text-text-secondary">Total Steps</div>
-            <div className="text-lg font-display font-bold text-accent-blue">
-              {result.total_steps?.toLocaleString()}
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
+              <div className="text-[10px] text-text-secondary">Total Steps</div>
+              <div className="text-lg font-display font-bold text-accent-blue">
+                {result.total_steps?.toLocaleString()}
+              </div>
+            </div>
+            <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
+              <div className="text-[10px] text-text-secondary">Attacks Seen</div>
+              <div className="text-lg font-display font-bold text-accent-red">
+                {result.total_attacks?.toLocaleString()}
+              </div>
+            </div>
+            <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
+              <div className="text-[10px] text-text-secondary">Threats Mitigated</div>
+              <div className="text-lg font-display font-bold text-accent-green">
+                {result.total_threats_mitigated?.toLocaleString()}
+              </div>
+            </div>
+            <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
+              <div className="text-[10px] text-text-secondary">FP Blocked</div>
+              <div className="text-lg font-display font-bold text-accent-amber">
+                {result.total_benign_blocked?.toLocaleString()}
+              </div>
+            </div>
+            <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
+              <div className="text-[10px] text-text-secondary">Episodes</div>
+              <div className="text-lg font-display font-bold text-accent-purple">
+                {result.num_episodes}
+              </div>
             </div>
           </div>
-          <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
-            <div className="text-[10px] text-text-secondary">Attacks Seen</div>
-            <div className="text-lg font-display font-bold text-accent-red">
-              {result.total_attacks?.toLocaleString()}
-            </div>
+
+          {/* Save as Experiment */}
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveExperiment}
+              disabled={saving || savedExperiment}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                savedExperiment
+                  ? 'bg-accent-green/15 text-accent-green'
+                  : 'bg-accent-blue/15 text-accent-blue hover:bg-accent-blue/25'
+              } disabled:opacity-60`}
+            >
+              {saving ? (
+                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
+              ) : savedExperiment ? (
+                <><CheckCircle2 className="w-3.5 h-3.5" /> Saved to Research Hub</>
+              ) : (
+                <><FlaskConical className="w-3.5 h-3.5" /> Save as Experiment</>
+              )}
+            </button>
           </div>
-          <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
-            <div className="text-[10px] text-text-secondary">Threats Mitigated</div>
-            <div className="text-lg font-display font-bold text-accent-green">
-              {result.total_threats_mitigated?.toLocaleString()}
+        </>
+      )}
+
+      {/* CL-RL Framework Status */}
+      {clrlStatus && (
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <button
+            onClick={() => setShowClrlStatus(!showClrlStatus)}
+            className="w-full flex items-center justify-between"
+          >
+            <h2 className="text-lg font-display font-semibold flex items-center gap-2">
+              <Wifi className="w-5 h-5 text-accent-blue" />
+              CL-RL Framework Status
+            </h2>
+            {showClrlStatus ? <ChevronUp className="w-5 h-5 text-text-secondary" /> : <ChevronDown className="w-5 h-5 text-text-secondary" />}
+          </button>
+          {showClrlStatus && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {clrlStatus.rl_metrics && (
+                <div className="bg-bg-primary rounded-lg p-3 border border-bg-card space-y-1">
+                  <div className="text-xs font-medium text-accent-blue flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5" /> RL Metrics Summary
+                  </div>
+                  <div className="text-[10px] text-text-secondary space-y-0.5">
+                    {clrlStatus.rl_metrics.total_episodes != null && (
+                      <div>Total Episodes: <span className="text-text-primary font-mono">{clrlStatus.rl_metrics.total_episodes}</span></div>
+                    )}
+                    {clrlStatus.rl_metrics.avg_mitigation_rate != null && (
+                      <div>Avg Mitigation: <span className="text-accent-green font-mono">{(clrlStatus.rl_metrics.avg_mitigation_rate * 100).toFixed(1)}%</span></div>
+                    )}
+                    {clrlStatus.rl_metrics.avg_fp_rate != null && (
+                      <div>Avg FP Rate: <span className="text-accent-red font-mono">{(clrlStatus.rl_metrics.avg_fp_rate * 100).toFixed(3)}%</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {clrlStatus.drift && (
+                <div className="bg-bg-primary rounded-lg p-3 border border-bg-card space-y-1">
+                  <div className="text-xs font-medium text-accent-amber flex items-center gap-1">
+                    <Activity className="w-3.5 h-3.5" /> Drift Detection
+                  </div>
+                  <div className="text-[10px] text-text-secondary space-y-0.5">
+                    {clrlStatus.drift.drift_detected != null && (
+                      <div>Drift Detected: <span className={clrlStatus.drift.drift_detected ? 'text-accent-red' : 'text-accent-green'}>{clrlStatus.drift.drift_detected ? 'Yes' : 'No'}</span></div>
+                    )}
+                    {clrlStatus.drift.p_value != null && (
+                      <div>P-Value: <span className="text-text-primary font-mono">{clrlStatus.drift.p_value.toFixed(4)}</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {clrlStatus.unified_fim && (
+                <div className="bg-bg-primary rounded-lg p-3 border border-bg-card space-y-1">
+                  <div className="text-xs font-medium text-accent-purple flex items-center gap-1">
+                    <Save className="w-3.5 h-3.5" /> Fisher Information
+                  </div>
+                  <div className="text-[10px] text-text-secondary space-y-0.5">
+                    {clrlStatus.unified_fim.status && (
+                      <div>Status: <span className="text-text-primary">{clrlStatus.unified_fim.status}</span></div>
+                    )}
+                    {clrlStatus.unified_fim.n_params != null && (
+                      <div>Parameters: <span className="text-text-primary font-mono">{clrlStatus.unified_fim.n_params?.toLocaleString()}</span></div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-          <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
-            <div className="text-[10px] text-text-secondary">FP Blocked</div>
-            <div className="text-lg font-display font-bold text-accent-amber">
-              {result.total_benign_blocked?.toLocaleString()}
+          )}
+        </div>
+      )}
+
+      {/* RL Metrics History */}
+      {rlMetrics && rlMetrics.total_episodes > 0 && (
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
+            <TrendingUp className="w-5 h-5 text-accent-green" />
+            Cumulative RL Training Metrics
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+              <div className="text-[10px] text-text-secondary">Total Episodes</div>
+              <div className="text-lg font-display font-bold text-accent-blue">{rlMetrics.total_episodes}</div>
             </div>
-          </div>
-          <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card text-center">
-            <div className="text-[10px] text-text-secondary">Episodes</div>
-            <div className="text-lg font-display font-bold text-accent-purple">
-              {result.num_episodes}
-            </div>
+            {rlMetrics.avg_mitigation_rate != null && (
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+                <div className="text-[10px] text-text-secondary">Avg Mitigation Rate</div>
+                <div className="text-lg font-display font-bold text-accent-green">{(rlMetrics.avg_mitigation_rate * 100).toFixed(1)}%</div>
+              </div>
+            )}
+            {rlMetrics.avg_fp_rate != null && (
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+                <div className="text-[10px] text-text-secondary">Avg FP Rate</div>
+                <div className="text-lg font-display font-bold text-accent-red">{(rlMetrics.avg_fp_rate * 100).toFixed(3)}%</div>
+              </div>
+            )}
+            {rlMetrics.constraint_violation_rate != null && (
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+                <div className="text-[10px] text-text-secondary">Constraint Violation %</div>
+                <div className="text-lg font-display font-bold text-accent-amber">{(rlMetrics.constraint_violation_rate * 100).toFixed(1)}%</div>
+              </div>
+            )}
           </div>
         </div>
       )}

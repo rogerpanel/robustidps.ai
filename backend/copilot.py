@@ -375,6 +375,43 @@ def _summarise_page_result(page: str, result: dict) -> dict:
                  "accuracy": s.get("accuracy"), "gain": s.get("gain")}
                 for s in incremental
             ]
+    elif page == "rl_response":
+        summary["num_episodes"] = result.get("num_episodes", 0)
+        summary["total_steps"] = result.get("total_steps", 0)
+        summary["threat_mitigation_rate"] = result.get("threat_mitigation_rate")
+        summary["fp_blocking_rate"] = result.get("fp_blocking_rate")
+        summary["mean_episode_reward"] = result.get("mean_episode_reward")
+        summary["constraint_violations"] = result.get("constraint_violations", 0)
+        summary["total_attacks"] = result.get("total_attacks", 0)
+        summary["total_threats_mitigated"] = result.get("total_threats_mitigated", 0)
+        summary["total_benign_blocked"] = result.get("total_benign_blocked", 0)
+        summary["action_distribution"] = result.get("action_distribution", {})
+        summary["dataset_format"] = result.get("dataset_format", "")
+        summary["n_samples"] = result.get("n_samples", 0)
+    elif page == "adversarial":
+        summary["model_id"] = result.get("model_id", "")
+        summary["model_name"] = result.get("model_name", "")
+        summary["clean_accuracy"] = result.get("clean_accuracy")
+        summary["n_samples"] = result.get("n_samples", 0)
+        summary["dataset_format"] = result.get("dataset_format", "")
+        attacks = result.get("attacks", {})
+        if isinstance(attacks, dict):
+            attack_details = []
+            for atk_name, atk_data in attacks.items():
+                if isinstance(atk_data, dict):
+                    attack_details.append({
+                        "attack": atk_name,
+                        "label": atk_data.get("label", atk_name),
+                        "accuracy": atk_data.get("accuracy"),
+                        "accuracy_drop": atk_data.get("accuracy_drop"),
+                        "robustness_ratio": atk_data.get("robustness_ratio"),
+                    })
+            summary["attack_details"] = attack_details
+            summary["attack_types"] = list(attacks.keys())
+            ratios = [a.get("robustness_ratio", 0) for a in attacks.values() if isinstance(a, dict) and "robustness_ratio" in a]
+            if ratios:
+                summary["avg_robustness"] = round(sum(ratios) / len(ratios) * 100, 2)
+                summary["min_robustness"] = round(min(ratios) * 100, 2)
     return summary
 
 
@@ -483,7 +520,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                                        "n_flows": recent.n_flows, "n_threats": recent.n_threats, "model": recent.model_used})
                 return json.dumps({"page": page, "status": "no_active_result"})
 
-            if page in ("redteam", "xai", "federated", "ablation"):
+            if page in ("redteam", "xai", "federated", "ablation", "rl_response", "adversarial"):
                 # Check running/pending background jobs first (user-scoped)
                 for jid, job in list(_main._bg_jobs.items()):
                     if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
@@ -619,6 +656,8 @@ Attack types detected (34 classes): DDoS (TCP/UDP/ICMP/HTTP/SYN flood, SlowLoris
 - **Zero-Trust Governance**: Trust scores, compliance policies, model provenance
 - **Supply Chain Security**: Model vulnerability scans, SBOM, risk matrix
 - **Threat Response**: Automated playbooks, incident management, response metrics
+- **RL Response Agent**: CPO-based autonomous threat response simulation, action distribution, mitigation rates (page="rl_response")
+- **Adversarial Robustness**: 6-attack robustness evaluation (FGSM, PGD, C&W, DeepFool, Gaussian, Label masking), multi-dataset comparison (page="adversarial")
 - **Continual Learning**: Model drift detection, incremental updates
 
 IMPORTANT: Always use the available tools to look up actual data before answering. NEVER give generic descriptions of what a page "can do" — instead, call `get_active_operations` first to see the user's completed operations, then `get_page_result` with the specific page name (e.g. page="redteam", page="federated") to get the actual results. Completed results are cached and available even after the user has navigated away from the page. Be specific and data-driven — report actual numbers, attack success rates, accuracy scores, and model names from the results. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""

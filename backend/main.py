@@ -1828,92 +1828,109 @@ async def clrl_rl_simulate(
         features = features[idx]
         labels_encoded = labels_encoded[idx]
 
-    features_np = features.numpy()
-    labels_np = labels_encoded.numpy()
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
 
-    # Get detection model predictions for RL state
-    active = get_model()
-    active.eval()
-    with torch.no_grad():
-        det_logits = active(features.to(DEVICE))
-        det_probs = torch.softmax(det_logits, dim=-1).cpu().numpy()
+    async def _run_rl():
+        try:
+            features_np = features.numpy()
+            labels_np = labels_encoded.numpy()
 
-    # Create environment and run simulation
-    env = NIDSResponseEnv(
-        features=features_np,
-        labels=labels_np,
-        detection_probs=det_probs,
-    )
-
-    # Load CPO policy model
-    policy_model = get_model("cpo_policy")
-
-    episode_results = []
-    total_actions = {name: 0 for name in ACTION_NAMES}
-    total_threats_mitigated = 0
-    total_attacks = 0
-    total_benign_blocked = 0
-    total_steps = 0
-
-    for ep in range(num_episodes):
-        state = env.reset()
-        done = False
-        ep_reward = 0.0
-        ep_actions = []
-
-        while not done:
-            state_t = torch.FloatTensor(state).unsqueeze(0).to(DEVICE)
+            # Get detection model predictions for RL state
+            active = get_model()
+            active.eval()
             with torch.no_grad():
-                policy_out = policy_model.get_policy_output(state_t) if hasattr(policy_model, 'get_policy_output') else None
-                if policy_out:
-                    action_probs = policy_out["action_probs"][0].cpu().numpy()
-                    action = int(action_probs.argmax())
-                else:
-                    action = 0  # fallback: Monitor
+                det_logits = active(features.to(DEVICE))
+                det_probs = torch.softmax(det_logits, dim=-1).cpu().numpy()
 
-            state, reward, cost, done, info = env.step(action)
-            ep_reward += reward
-            ep_actions.append(info["action_name"])
-            total_actions[info["action_name"]] = total_actions.get(info["action_name"], 0) + 1
-            if info["is_attack"]:
-                total_attacks += 1
-                if info["threat_mitigated"]:
-                    total_threats_mitigated += 1
-            if info["benign_blocked"]:
-                total_benign_blocked += 1
-            total_steps += 1
+            # Create environment and run simulation
+            env = NIDSResponseEnv(
+                features=features_np,
+                labels=labels_np,
+                detection_probs=det_probs,
+            )
 
-        stats = env.get_episode_stats()
-        stats["episode"] = ep + 1
-        stats["total_reward"] = round(ep_reward, 2)
-        episode_results.append(stats)
+            # Load CPO policy model
+            policy_model = get_model("cpo_policy")
 
-        # Record in RL metrics
-        clrl_rl_metrics.record_episode({
-            "mitigation_rate": total_threats_mitigated / max(total_attacks, 1),
-            "fp_blocking_rate": total_benign_blocked / max(total_steps, 1),
-            "mean_reward": ep_reward / max(stats.get("num_steps", 1), 1),
-            "constraint_violated": stats.get("constraint_violated", False),
-        })
+            episode_results = []
+            total_actions = {name: 0 for name in ACTION_NAMES}
+            total_threats_mitigated = 0
+            total_attacks = 0
+            total_benign_blocked = 0
+            total_steps = 0
 
-    mitigation_rate = total_threats_mitigated / max(total_attacks, 1)
-    fp_rate = total_benign_blocked / max(total_steps, 1)
+            for ep in range(num_episodes):
+                state = env.reset()
+                done = False
+                ep_reward = 0.0
+                ep_actions = []
 
-    return {
-        "num_episodes": num_episodes,
-        "total_steps": total_steps,
-        "action_distribution": total_actions,
-        "threat_mitigation_rate": round(mitigation_rate, 4),
-        "fp_blocking_rate": round(fp_rate, 6),
-        "total_attacks": total_attacks,
-        "total_threats_mitigated": total_threats_mitigated,
-        "total_benign_blocked": total_benign_blocked,
-        "mean_episode_reward": round(float(np.mean([e.get("total_reward", 0) for e in episode_results])), 2),
-        "constraint_violations": sum(1 for e in episode_results if e.get("constraint_violated", False)),
-        "episodes": episode_results[:20],  # Return first 20 episodes for UI
-        "action_names": ACTION_NAMES,
-        "action_severities": [float(s) for s in ACTION_SEVERITY],
-    }
+                while not done:
+                    state_t = torch.FloatTensor(state).unsqueeze(0).to(DEVICE)
+                    with torch.no_grad():
+                        policy_out = policy_model.get_policy_output(state_t) if hasattr(policy_model, 'get_policy_output') else None
+                        if policy_out:
+                            action_probs = policy_out["action_probs"][0].cpu().numpy()
+                            action = int(action_probs.argmax())
+                        else:
+                            action = 0  # fallback: Monitor
+
+                    state, reward, cost, done, info = env.step(action)
+                    ep_reward += reward
+                    ep_actions.append(info["action_name"])
+                    total_actions[info["action_name"]] = total_actions.get(info["action_name"], 0) + 1
+                    if info["is_attack"]:
+                        total_attacks += 1
+                        if info["threat_mitigated"]:
+                            total_threats_mitigated += 1
+                    if info["benign_blocked"]:
+                        total_benign_blocked += 1
+                    total_steps += 1
+
+                stats = env.get_episode_stats()
+                stats["episode"] = ep + 1
+                stats["total_reward"] = round(ep_reward, 2)
+                episode_results.append(stats)
+
+                # Record in RL metrics
+                clrl_rl_metrics.record_episode({
+                    "mitigation_rate": total_threats_mitigated / max(total_attacks, 1),
+                    "fp_blocking_rate": total_benign_blocked / max(total_steps, 1),
+                    "mean_reward": ep_reward / max(stats.get("num_steps", 1), 1),
+                    "constraint_violated": stats.get("constraint_violated", False),
+                })
+
+            mitigation_rate = total_threats_mitigated / max(total_attacks, 1)
+            fp_rate = total_benign_blocked / max(total_steps, 1)
+
+            result = {
+                "num_episodes": num_episodes,
+                "total_steps": total_steps,
+                "action_distribution": total_actions,
+                "threat_mitigation_rate": round(mitigation_rate, 4),
+                "fp_blocking_rate": round(fp_rate, 6),
+                "total_attacks": total_attacks,
+                "total_threats_mitigated": total_threats_mitigated,
+                "total_benign_blocked": total_benign_blocked,
+                "mean_episode_reward": round(float(np.mean([e.get("total_reward", 0) for e in episode_results])), 2),
+                "constraint_violations": sum(1 for e in episode_results if e.get("constraint_violated", False)),
+                "episodes": episode_results[:20],
+                "action_names": ACTION_NAMES,
+                "action_severities": [float(s) for s in ACTION_SEVERITY],
+                "dataset_format": fmt,
+                "n_samples": len(features),
+            }
+
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "rl_response", job_id, result)
+            logger.info("RL simulation by %s: %d episodes (job %s)", user.email, num_episodes, job_id)
+        except Exception as exc:
+            logger.exception("RL simulation job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_rl())
+    return {"job_id": job_id, "status": "running"}
 
 
 @app.post("/api/clrl/adversarial")
@@ -1941,19 +1958,33 @@ async def clrl_adversarial(
     if labels_encoded is None:
         raise HTTPException(status_code=400, detail="Labelled data required for adversarial evaluation.")
 
-    target_model = get_model(model_id)
-    results = clrl_adversarial_evaluator.evaluate_all_attacks(
-        target_model,
-        features,
-        labels_encoded,
-        max_samples=500,
-    )
-    results["model_id"] = model_id
-    results["model_name"] = MODEL_INFO.get(model_id, {}).get("name", model_id)
-    results["dataset_format"] = fmt
-    results["n_samples"] = len(features)
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
 
-    return results
+    async def _run_adversarial():
+        try:
+            target_model = get_model(model_id)
+            results = await asyncio.to_thread(
+                clrl_adversarial_evaluator.evaluate_all_attacks,
+                target_model,
+                features,
+                labels_encoded,
+                500,
+            )
+            results["model_id"] = model_id
+            results["model_name"] = MODEL_INFO.get(model_id, {}).get("name", model_id)
+            results["dataset_format"] = fmt
+            results["n_samples"] = len(features)
+
+            _bg_jobs[job_id] = {"status": "done", "result": results, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "adversarial", job_id, results)
+            logger.info("Adversarial eval by %s: model=%s (job %s)", user.email, model_id, job_id)
+        except Exception as exc:
+            logger.exception("Adversarial eval job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_adversarial())
+    return {"job_id": job_id, "status": "running"}
 
 
 @app.post("/api/clrl/adversarial/multi-run")

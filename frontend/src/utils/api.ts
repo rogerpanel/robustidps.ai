@@ -1382,24 +1382,14 @@ export async function runRLSimulation(file: File, numEpisodes: number = 50) {
   const fd = new FormData();
   fd.append('file', file);
   fd.append('num_episodes', String(numEpisodes));
-  const res = await authFetch(`${API}/api/clrl/rl-simulate`, { method: 'POST', body: fd });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(errorMsg(data.detail, 'RL simulation failed'));
-  }
-  return res.json();
+  return startJobAndPoll(`${API}/api/clrl/rl-simulate`, fd, 'RL simulation');
 }
 
 export async function runAdversarialEval(file: File, modelId: string = 'surrogate') {
   const fd = new FormData();
   fd.append('file', file);
   fd.append('model_id', modelId);
-  const res = await authFetch(`${API}/api/clrl/adversarial`, { method: 'POST', body: fd });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(errorMsg(data.detail, 'Adversarial evaluation failed'));
-  }
-  return res.json();
+  return startJobAndPoll(`${API}/api/clrl/adversarial`, fd, 'Adversarial evaluation');
 }
 
 export async function runAdversarialMulti(
