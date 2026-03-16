@@ -11,6 +11,7 @@ import {
 } from '../utils/api'
 import ExportMenu from '../components/ExportMenu'
 import { registerSessionReset } from '../utils/sessionReset'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 interface UpdateRecord {
   update_id: string
@@ -101,6 +102,7 @@ export default function ContinualLearning() {
 
   // Expanded history
   const [historyExpanded, _setHistoryExpanded] = useState(_store.historyExpanded)
+  const { addNotice, updateNotice } = useNoticeBoard()
 
   // Wrapped setters that sync to module store
   const setFile = (f: File | null) => { _store.updateFile = f; _setFile(f) }
@@ -150,18 +152,23 @@ export default function ContinualLearning() {
     setUpdating(true)
     setUpdateResult('')
     setError('')
+    const nid = addNotice({ title: `Continual Learning: updating model`, description: `${epochs} epochs, lr=${lr}`, status: 'running', page: '/continual' })
     try {
       const data = await triggerContinualUpdate(file, epochs, lr, ewcLambda)
       if (data.error || data.detail) {
         setError(data.error || data.detail)
+        updateNotice(nid, { status: 'error', title: 'Continual Learning failed', description: data.error || data.detail })
       } else {
         setUpdateResult(data.message || `Model updated to v${data.version}`)
         setFile(null)
         if (fileRef.current) fileRef.current.value = ''
         await loadStatus()
+        updateNotice(nid, { status: 'completed', title: `Model updated to v${data.version}` })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Update failed')
+      const msg = err instanceof Error ? err.message : 'Update failed'
+      setError(msg)
+      updateNotice(nid, { status: 'error', title: 'Continual Learning failed', description: msg })
     }
     setUpdating(false)
   }

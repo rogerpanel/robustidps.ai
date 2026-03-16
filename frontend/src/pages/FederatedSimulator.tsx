@@ -16,6 +16,7 @@ import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
 import { runFederated, runFederatedMulti, runTransferAnalysis, fetchSampleData, fetchModels } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 const PAGE = 'federated'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
@@ -246,6 +247,8 @@ export default function FederatedSimulator() {
       .catch(() => {})
   }, [])
 
+  const { addNotice, updateNotice } = useNoticeBoard()
+
   // ── Slot handlers ──
   const updateSlot = (idx: number, updates: Partial<SlotState>) => {
     setSlots(prev => prev.map((s, i) => i === idx ? { ...s, ...updates } : s))
@@ -278,14 +281,18 @@ export default function FederatedSimulator() {
     setError('')
     setResult(null)
     setMultiResult(null)
+    const nid = addNotice({ title: `Federated Learning: ${fileName || 'dataset'}`, description: `${nNodes} nodes, ${rounds} rounds, ${strategy}`, status: 'running', page: '/federated' })
     try {
       const data = await runFederated(file, {
         nNodes, rounds, localEpochs, lr, strategy,
         dpEnabled, dpSigma, iid, modelName: selectedModel,
       })
       setResult(data)
+      updateNotice(nid, { status: 'completed', title: `Federated Learning complete: ${fileName}` })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Simulation failed')
+      const msg = e instanceof Error ? e.message : 'Simulation failed'
+      setError(msg)
+      updateNotice(nid, { status: 'error', title: `Federated Learning failed`, description: msg })
     } finally {
       setRunning(false)
     }

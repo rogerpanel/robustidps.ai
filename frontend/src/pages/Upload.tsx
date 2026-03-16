@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import FileUpload from '../components/FileUpload'
 import ThreatTable from '../components/ThreatTable'
 import UncertaintyChart from '../components/UncertaintyChart'
@@ -189,6 +190,27 @@ export default function UploadPage() {
   const [downloadingPcap, setDownloadingPcap] = useState(false)
   const [pcapError, setPcapError] = useState('')
   const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
+  const { addNotice, updateNotice } = useNoticeBoard()
+  const analysisNoticeId = useRef<string | null>(null)
+
+  // Post notice when analysis starts/ends
+  useEffect(() => {
+    if (loading && !analysisNoticeId.current) {
+      analysisNoticeId.current = addNotice({
+        title: `Analysing ${fileName || 'dataset'}`,
+        description: `Model: ${selectedModel}`,
+        status: 'running',
+        page: '/upload',
+      })
+    } else if (!loading && analysisNoticeId.current) {
+      updateNotice(analysisNoticeId.current, {
+        status: error ? 'error' : 'completed',
+        title: error ? `Analysis failed: ${fileName}` : `Analysis complete: ${fileName}`,
+        description: error || undefined,
+      })
+      analysisNoticeId.current = null
+    }
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Multi-mode state ──
   const [slots, setSlots] = usePageState<SlotState[]>(PAGE, 'slots', [defaultSlot(), defaultSlot(), defaultSlot()])

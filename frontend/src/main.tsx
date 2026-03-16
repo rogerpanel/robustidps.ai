@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { AnalysisProvider } from './hooks/useAnalysis'
 import { AblationProvider } from './hooks/useAblation'
 import { MultiAblationProvider } from './hooks/useMultiAblation'
+import { NoticeBoardProvider } from './hooks/useNoticeBoard'
 import App from './App'
 import './index.css'
 
@@ -79,7 +80,9 @@ createRoot(document.getElementById('root')!).render(
         <AnalysisProvider>
           <AblationProvider>
             <MultiAblationProvider>
-              <App />
+              <NoticeBoardProvider>
+                <App />
+              </NoticeBoardProvider>
             </MultiAblationProvider>
           </AblationProvider>
         </AnalysisProvider>

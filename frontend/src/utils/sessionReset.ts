@@ -25,6 +25,7 @@ const USER_SCOPED_BASE_KEYS = [
   'robustidps_file_name',
   'robustidps_source',
   'robustidps_ablation',
+  'robustidps_notices',
 ]
 
 /** Call every registered reset callback and clear user-scoped localStorage. */

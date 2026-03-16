@@ -19,6 +19,7 @@ import {
   togglePlaybookAutoExecute, createPlaybook, deletePlaybook,
 } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 const PAGE = 'threatresponse'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
@@ -64,6 +65,7 @@ export default function ThreatResponse() {
   const [integStatus, setIntegStatus] = usePageState<Record<string, string>>(PAGE, 'integStatus', {})
   const [showEditor, setShowEditor] = usePageState(PAGE, 'showEditor', false)
   const [savingPlaybook, setSavingPlaybook] = usePageState(PAGE, 'savingPlaybook', false)
+  const { addNotice, updateNotice } = useNoticeBoard()
 
   const handleTogglePlaybook = async (pid: string, current: boolean) => {
     setTogglingPb(pid)
@@ -110,13 +112,17 @@ export default function ThreatResponse() {
     setSimulating(true)
     setError('')
     setSimResult(null)
+    const nid = addNotice({ title: `Threat Response: ${selectedPlaybook}`, description: `Source: ${sourceIp} → Target: ${targetIp}`, status: 'running', page: '/threat-response' })
     try {
       const data = await simulateThreatResponse(selectedPlaybook, sourceIp, targetIp, confidence)
       setSimResult(data)
+      updateNotice(nid, { status: 'completed', title: `Threat Response complete: ${selectedPlaybook}` })
       // Refresh incidents
       fetchIncidents().then(inc => setIncidents(inc)).catch(() => {})
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Simulation failed')
+      const msg = e instanceof Error ? e.message : 'Simulation failed'
+      setError(msg)
+      updateNotice(nid, { status: 'error', title: `Threat Response failed`, description: msg })
     } finally {
       setSimulating(false)
     }

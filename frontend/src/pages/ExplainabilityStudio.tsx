@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import {
   Eye, Loader2, BarChart3, Layers, Zap, Brain, Shield,
   ChevronDown, ChevronUp, Target, TrendingUp, GitCompare,
@@ -18,6 +18,7 @@ import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
 import { runXai, runComparativeXai, runXaiMulti, fetchSampleData, fetchModels } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 const PAGE = 'xai'
 
@@ -106,6 +107,7 @@ export default function ExplainabilityStudio() {
   const [multiView, setMultiView] = usePageState(PAGE, 'multiView', 'overview')
 
   const resultsRef = useRef<HTMLDivElement>(null)
+  const { addNotice, updateNotice } = useNoticeBoard()
 
   const handleFileSelect = (f: File) => {
     setFileLoading(true)
@@ -125,11 +127,15 @@ export default function ExplainabilityStudio() {
     setRunning(true)
     setError('')
     setResult(null)
+    const nid = addNotice({ title: `Explainability: ${fileName || 'dataset'}`, description: `Method: ${method}, Model: ${selectedModel}`, status: 'running', page: '/xai' })
     try {
       const data = await runXai(file, method, nSamples, selectedModel)
       setResult(data)
+      updateNotice(nid, { status: 'completed', title: `Explainability complete: ${fileName}` })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'XAI analysis failed')
+      const msg = e instanceof Error ? e.message : 'XAI analysis failed'
+      setError(msg)
+      updateNotice(nid, { status: 'error', title: `Explainability failed: ${fileName}`, description: msg })
     } finally {
       setRunning(false)
     }

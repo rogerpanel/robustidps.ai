@@ -32,6 +32,7 @@ import {
   ChevronDown,
   Diamond,
 } from 'lucide-react'
+import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
 const EthicalUseAgreement = lazy(() => import('./components/EthicalUseAgreement'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -439,12 +440,13 @@ export default function App() {
           </button>
         </div>
         <div className="p-4 flex items-center gap-2 justify-end">
-          <span className="font-display font-bold text-lg text-accent-blue">Research</span>
-          <Brain className="w-6 h-6 text-accent-blue" />
+          <ShieldCheck className="w-7 h-7 text-accent-blue" />
+          <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
         </div>
         <nav className="flex-1 px-2 overflow-y-auto">
           {renderNavGroups(rightNavGroups)}
         </nav>
+        <NoticeBoard />
       </aside>
 
       {/* Main content area */}
@@ -474,7 +476,7 @@ export default function App() {
             <button
               onClick={() => { setRightSidebarOpen(true); setSidebarOpen(false) }}
               className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-card/50"
-              title="Research (shortcut: ])"
+              title="Research & Methods (shortcut: ])"
             >
               <Diamond className="w-5 h-5" />
             </button>
@@ -543,12 +545,13 @@ export default function App() {
       {/* Desktop RIGHT sidebar — Research & Methods */}
       <aside className="hidden lg:flex w-52 shrink-0 bg-bg-secondary flex-col border-l border-bg-card">
         <div className="p-4 flex items-center gap-2 justify-end">
-          <span className="font-display font-bold text-lg text-accent-blue">Research</span>
-          <Brain className="w-6 h-6 text-accent-blue" />
+          <ShieldCheck className="w-7 h-7 text-accent-blue" />
+          <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
         </div>
         <nav className="flex-1 px-2 overflow-y-auto">
           {renderNavGroups(rightNavGroups)}
         </nav>
+        <NoticeBoard />
       </aside>
     </div>
   )
