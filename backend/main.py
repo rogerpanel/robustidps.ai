@@ -1869,9 +1869,12 @@ async def clrl_rl_simulate(
                 while not done:
                     state_t = torch.FloatTensor(state).unsqueeze(0).to(DEVICE)
                     with torch.no_grad():
-                        policy_out = policy_model.get_policy_output(state_t) if hasattr(policy_model, 'get_policy_output') else None
-                        if policy_out:
-                            action_probs = policy_out["action_probs"][0].cpu().numpy()
+                        # State from env is already 55-dim RL state; pass
+                        # directly to the policy network (bypasses the
+                        # 83→55 state encoder inside CPOPolicyWrapper).
+                        if hasattr(policy_model, 'policy'):
+                            action_logits = policy_model.policy(state_t)
+                            action_probs = torch.softmax(action_logits, dim=-1)[0].cpu().numpy()
                             action = int(action_probs.argmax())
                         else:
                             action = 0  # fallback: Monitor
