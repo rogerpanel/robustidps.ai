@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import {
   LayoutDashboard,
   Upload,
@@ -28,6 +28,9 @@ import {
   Package,
   Scale,
   BookOpen,
+  ChevronRight,
+  ChevronDown,
+  Diamond,
 } from 'lucide-react'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
 const EthicalUseAgreement = lazy(() => import('./components/EthicalUseAgreement'))
@@ -115,15 +118,74 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
+// Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
+const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'System']
+const RIGHT_GROUPS = ['AI Novel Methods', 'AI Security & Gov']
+
 export default function App() {
   const [online, setOnline] = useState<boolean | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(false)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
   const [authed, setAuthed] = useState(isAuthenticated())
   const [user, setUser] = useState<AuthUser | null>(getUser())
   const [ethicalAccepted, setEthicalAccepted] = useState(false)
   const [showPolicyViewer, setShowPolicyViewer] = useState(false)
   const { loading: analysisRunning, clearResults } = useAnalysis()
   const location = useLocation()
+
+  // Toggle group collapse
+  const toggleGroup = useCallback((heading: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(heading)) next.delete(heading)
+      else next.add(heading)
+      return next
+    })
+  }, [])
+
+  // Find current breadcrumb: Group > Page
+  const breadcrumb = useMemo(() => {
+    for (const group of NAV_GROUPS) {
+      const item = group.items.find((n) =>
+        n.to === '/' ? location.pathname === '/' : location.pathname.startsWith(n.to),
+      )
+      if (item) return { group: group.heading, page: item.label }
+    }
+    return null
+  }, [location.pathname])
+
+  // Auto-expand group containing the active page
+  useEffect(() => {
+    if (breadcrumb) {
+      setCollapsedGroups((prev) => {
+        if (prev.has(breadcrumb.group)) {
+          const next = new Set(prev)
+          next.delete(breadcrumb.group)
+          return next
+        }
+        return prev
+      })
+    }
+  }, [breadcrumb])
+
+  // Keyboard shortcuts: [ opens left sidebar, ] opens right sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger when typing in inputs
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      if ((e.target as HTMLElement)?.isContentEditable) return
+
+      if (e.key === '[') {
+        setSidebarOpen((prev) => !prev)
+      } else if (e.key === ']') {
+        setRightSidebarOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const handleLogin = () => {
     setAuthed(true)
@@ -140,9 +202,10 @@ export default function App() {
     setEthicalAccepted(false)
   }
 
-  // Close mobile sidebar on navigation
+  // Close mobile sidebars on navigation
   useEffect(() => {
     setSidebarOpen(false)
+    setRightSidebarOpen(false)
   }, [location.pathname])
 
   useEffect(() => {
@@ -184,24 +247,34 @@ export default function App() {
     )
   }
 
-  const sidebarContent = (
+  // Render nav groups with collapsible headers
+  const renderNavGroups = (groups: NavGroup[]) => (
     <>
-      <div className="p-4 flex items-center gap-2">
-        <ShieldCheck className="w-7 h-7 text-accent-blue" />
-        <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
-      </div>
-
-      <nav className="flex-1 px-2 overflow-y-auto">
-        {NAV_GROUPS.map((group) => {
-          const visibleItems = group.items.filter(
-            (n) => !n.adminOnly || user?.role === 'admin',
-          )
-          if (visibleItems.length === 0) return null
-          return (
-            <div key={group.heading} className="mb-1">
-              <div className="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-secondary/50">
-                {group.heading}
-              </div>
+      {groups.map((group) => {
+        const visibleItems = group.items.filter(
+          (n) => !n.adminOnly || user?.role === 'admin',
+        )
+        if (visibleItems.length === 0) return null
+        const isCollapsed = collapsedGroups.has(group.heading)
+        const isActiveGroup = breadcrumb?.group === group.heading
+        return (
+          <div key={group.heading} className="mb-1">
+            <button
+              onClick={() => toggleGroup(group.heading)}
+              className={`w-full flex items-center gap-1.5 px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                isActiveGroup
+                  ? 'text-accent-blue/70'
+                  : 'text-text-secondary/50 hover:text-text-secondary/80'
+              }`}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="w-3 h-3 shrink-0" />
+              ) : (
+                <ChevronDown className="w-3 h-3 shrink-0" />
+              )}
+              {group.heading}
+            </button>
+            {!isCollapsed && (
               <div className="space-y-0.5">
                 {visibleItems.map((n) => (
                   <NavLink
@@ -221,57 +294,75 @@ export default function App() {
                   </NavLink>
                 ))}
               </div>
-            </div>
-          )
-        })}
-      </nav>
-
-      <div className="p-4 border-t border-bg-card space-y-2">
-        {/* User info */}
-        {user && (
-          <div className="flex items-center gap-2 text-xs text-text-secondary mb-2">
-            <User className="w-3.5 h-3.5" />
-            <span className="truncate flex-1">{user.email}</span>
-            <span className="px-1.5 py-0.5 bg-accent-blue/15 text-accent-blue rounded text-[10px] font-medium uppercase">
-              {user.role}
-            </span>
+            )}
           </div>
-        )}
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent-red transition-colors w-full"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          Sign Out
-        </button>
-
-        {analysisRunning && (
-          <div className="flex items-center gap-2 text-xs text-accent-blue">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            <span>Analysing...</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2 text-xs">
-          {online === true ? (
-            <>
-              <Wifi className="w-3.5 h-3.5 text-accent-green" />
-              <span className="text-accent-green">Backend online</span>
-            </>
-          ) : online === false ? (
-            <>
-              <WifiOff className="w-3.5 h-3.5 text-accent-red" />
-              <span className="text-accent-red">Backend offline</span>
-            </>
-          ) : (
-            <>
-              <Wifi className="w-3.5 h-3.5 text-text-secondary animate-pulse" />
-              <span className="text-text-secondary">Connecting...</span>
-            </>
-          )}
-        </div>
-      </div>
+        )
+      })}
     </>
   )
+
+  const sidebarFooter = (
+    <div className="p-4 border-t border-bg-card space-y-2">
+      {user && (
+        <div className="flex items-center gap-2 text-xs text-text-secondary mb-2">
+          <User className="w-3.5 h-3.5" />
+          <span className="truncate flex-1">{user.email}</span>
+          <span className="px-1.5 py-0.5 bg-accent-blue/15 text-accent-blue rounded text-[10px] font-medium uppercase">
+            {user.role}
+          </span>
+        </div>
+      )}
+      <button
+        onClick={handleLogout}
+        className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent-red transition-colors w-full"
+      >
+        <LogOut className="w-3.5 h-3.5" />
+        Sign Out
+      </button>
+
+      {analysisRunning && (
+        <div className="flex items-center gap-2 text-xs text-accent-blue">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          <span>Analysing...</span>
+        </div>
+      )}
+      <div className="flex items-center gap-2 text-xs">
+        {online === true ? (
+          <>
+            <Wifi className="w-3.5 h-3.5 text-accent-green" />
+            <span className="text-accent-green">Backend online</span>
+          </>
+        ) : online === false ? (
+          <>
+            <WifiOff className="w-3.5 h-3.5 text-accent-red" />
+            <span className="text-accent-red">Backend offline</span>
+          </>
+        ) : (
+          <>
+            <Wifi className="w-3.5 h-3.5 text-text-secondary animate-pulse" />
+            <span className="text-text-secondary">Connecting...</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+
+  const sidebarContent = (
+    <>
+      <div className="p-4 flex items-center gap-2">
+        <ShieldCheck className="w-7 h-7 text-accent-blue" />
+        <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
+      </div>
+      <nav className="flex-1 px-2 overflow-y-auto">
+        {renderNavGroups(NAV_GROUPS)}
+      </nav>
+      {sidebarFooter}
+    </>
+  )
+
+  // Mobile-only: split nav into left (operations) and right (research) panels
+  const leftNavGroups = NAV_GROUPS.filter((g) => LEFT_GROUPS.includes(g.heading))
+  const rightNavGroups = NAV_GROUPS.filter((g) => RIGHT_GROUPS.includes(g.heading))
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -281,12 +372,13 @@ export default function App() {
           <EthicalUseAgreement onAccept={() => setShowPolicyViewer(false)} />
         </Suspense>
       )}
-      {/* Desktop sidebar */}
+
+      {/* Desktop sidebar — all groups in one panel */}
       <aside className="hidden lg:flex w-56 shrink-0 bg-bg-secondary flex-col border-r border-bg-card">
         {sidebarContent}
       </aside>
 
-      {/* Mobile overlay */}
+      {/* Mobile overlay for left sidebar */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -294,7 +386,15 @@ export default function App() {
         />
       )}
 
-      {/* Mobile sidebar drawer */}
+      {/* Mobile overlay for right sidebar */}
+      {rightSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setRightSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile LEFT sidebar drawer — Operations */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-bg-secondary flex flex-col border-r border-bg-card transform transition-transform duration-200 ease-in-out lg:hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
@@ -308,16 +408,50 @@ export default function App() {
             <X className="w-5 h-5" />
           </button>
         </div>
-        {sidebarContent}
+        <div className="p-4 flex items-center gap-2">
+          <ShieldCheck className="w-7 h-7 text-accent-blue" />
+          <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
+        </div>
+        <div className="px-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-accent-blue/50">Operations</div>
+        <nav className="flex-1 px-2 overflow-y-auto">
+          {renderNavGroups(leftNavGroups)}
+        </nav>
+        {sidebarFooter}
+      </aside>
+
+      {/* Mobile RIGHT sidebar drawer — Research */}
+      <aside
+        className={`fixed inset-y-0 right-0 z-50 w-64 bg-bg-secondary flex flex-col border-l border-bg-card transform transition-transform duration-200 ease-in-out lg:hidden ${
+          rightSidebarOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="absolute top-3 left-3">
+          <button
+            onClick={() => setRightSidebarOpen(false)}
+            className="p-1 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-card/50"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-4 flex items-center gap-2 justify-end">
+          <span className="font-display font-bold text-lg text-accent-blue">Research</span>
+          <Brain className="w-6 h-6 text-accent-blue" />
+        </div>
+        <div className="px-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-accent-blue/50 text-right">Research & Methods</div>
+        <nav className="flex-1 px-2 overflow-y-auto">
+          {renderNavGroups(rightNavGroups)}
+        </nav>
       </aside>
 
       {/* Main content area */}
       <main className="flex-1 overflow-y-auto">
-        {/* Mobile top bar */}
+        {/* Mobile top bar — dual hamburger buttons */}
         <div className="sticky top-0 z-30 lg:hidden flex items-center gap-3 px-4 py-3 bg-bg-secondary/95 backdrop-blur border-b border-bg-card">
+          {/* Left hamburger — Operations */}
           <button
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => { setSidebarOpen(true); setRightSidebarOpen(false) }}
             className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-card/50"
+            title="Operations (shortcut: [)"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -332,10 +466,27 @@ export default function App() {
             ) : (
               <Wifi className="w-3.5 h-3.5 text-text-secondary animate-pulse" />
             )}
+            {/* Right hamburger — Research */}
+            <button
+              onClick={() => { setRightSidebarOpen(true); setSidebarOpen(false) }}
+              className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-card/50"
+              title="Research (shortcut: ])"
+            >
+              <Diamond className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
         <div className="p-3 md:p-6 3xl:px-10 3xl:py-8 max-w-[2200px] 3xl:mx-auto">
+          {/* Breadcrumb bar */}
+          {breadcrumb && (
+            <div className="mb-3 flex items-center gap-2 text-xs text-text-secondary/60">
+              <span className="font-semibold uppercase tracking-wider">{breadcrumb.group}</span>
+              <ChevronRight className="w-3 h-3" />
+              <span className="text-text-primary font-medium">{breadcrumb.page}</span>
+            </div>
+          )}
+
           {online === false && (
             <div className="mb-4 px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
               Backend offline — showing cached / sample data
