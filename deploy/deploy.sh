@@ -9,7 +9,33 @@ SERVER_IP="${1:?Usage: ./deploy/deploy.sh YOUR_SERVER_IP}"
 SSH_USER="robustidps"
 APP_DIR="/home/robustidps/robustidps.ai"
 
+# ── SSH connection multiplexing (reuse one connection for all steps) ──
+SSH_CONTROL_DIR=$(mktemp -d)
+SSH_CONTROL_PATH="${SSH_CONTROL_DIR}/ssh-%r@%h:%p"
+SSH_OPTS="-o ControlMaster=auto -o ControlPath=${SSH_CONTROL_PATH} -o ControlPersist=300 -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
+export RSYNC_RSH="ssh ${SSH_OPTS}"
+
+cleanup_ssh() {
+    ssh -O exit -o ControlPath="${SSH_CONTROL_PATH}" "${SSH_USER}@${SERVER_IP}" 2>/dev/null || true
+    rm -rf "${SSH_CONTROL_DIR}"
+}
+trap cleanup_ssh EXIT
+
+# Helper: ssh with multiplexing options
+remote() {
+    ssh ${SSH_OPTS} "${SSH_USER}@${SERVER_IP}" "$@"
+}
+
 echo "=== Deploying to ${SERVER_IP} ==="
+
+# Pre-flight: establish the master SSH connection
+echo "Establishing SSH connection..."
+if ! ssh ${SSH_OPTS} -fN "${SSH_USER}@${SERVER_IP}"; then
+    echo "ERROR: Cannot connect to ${SERVER_IP} via SSH."
+    echo "  Check that the server is reachable and SSH is running."
+    exit 1
+fi
+echo "  ✓ SSH connection established"
 
 # ── Step 0: Validate SSL certificates locally ───────────────
 echo "[0/7] Validating SSL certificates..."
@@ -86,7 +112,7 @@ echo "  ✓ Certificate and key are valid and match"
 
 # ── Step 1: Sync files ──────────────────────────────────────
 echo "[1/7] Syncing project files..."
-rsync -avz --progress \
+rsync -avz --progress --timeout=60 \
     --exclude 'node_modules' \
     --exclude '.git' \
     --exclude 'frontend/dist' \
@@ -98,7 +124,7 @@ rsync -avz --progress \
 
 # ── Step 2: Environment setup ───────────────────────────────
 echo "[2/7] Ensuring .env exists on server..."
-ssh "${SSH_USER}@${SERVER_IP}" bash -s <<'REMOTE_SCRIPT'
+remote bash -s <<'REMOTE_SCRIPT'
 cd /home/robustidps/robustidps.ai
 if [ -f .env ]; then
     echo ".env already exists — keeping existing configuration"
@@ -130,20 +156,20 @@ REMOTE_SCRIPT
 
 # ── Step 3: Build ────────────────────────────────────────────
 echo "[3/7] Building Docker images on server..."
-ssh "${SSH_USER}@${SERVER_IP}" "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml build"
+remote "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml build"
 
 # ── Step 4: Start services ───────────────────────────────────
 echo "[4/7] Starting services..."
-ssh "${SSH_USER}@${SERVER_IP}" "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml up -d"
+remote "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml up -d"
 
 # ── Step 5: Force-restart nginx to load new SSL certs ────────
 echo "[5/7] Restarting nginx to load SSL certificates..."
-ssh "${SSH_USER}@${SERVER_IP}" "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml restart frontend"
+remote "cd ${APP_DIR} && docker compose -f docker-compose.prod.yml restart frontend"
 sleep 5
 
 # ── Step 6: Verify SSL on origin ─────────────────────────────
 echo "[6/7] Verifying SSL certificate on origin..."
-ssh "${SSH_USER}@${SERVER_IP}" bash -s <<'SSL_CHECK'
+remote bash -s <<'SSL_CHECK'
 echo "--- Checking nginx SSL ---"
 # Test that nginx is serving SSL
 SSL_INFO=$(echo | openssl s_client -connect localhost:443 -servername robustidps.ai 2>/dev/null | openssl x509 -noout -issuer -subject -dates 2>/dev/null)
@@ -164,7 +190,7 @@ SSL_CHECK
 
 # ── Step 7: Final verification ────────────────────────────────
 echo "[7/7] Verifying HTTPS..."
-ssh "${SSH_USER}@${SERVER_IP}" "curl -sfk https://localhost/ > /dev/null && echo 'HTTPS OK' || echo 'HTTPS not yet responding'"
+remote "curl -sfk https://localhost/ > /dev/null && echo 'HTTPS OK' || echo 'HTTPS not yet responding'"
 
 echo ""
 echo "============================================"
