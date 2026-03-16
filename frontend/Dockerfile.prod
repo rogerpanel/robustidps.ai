@@ -15,7 +15,7 @@ RUN find /dist -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -na
     -exec sh -c 'brotli -q 11 -o "$1.br" "$1" && gzip -9 -k "$1"' _ {} \;
 
 # Stage 3: Serve with nginx
-FROM nginx:1.28-alpine
+FROM nginx:1.27-alpine
 COPY --from=compress /dist /usr/share/nginx/html
 # nginx.conf is mounted via docker-compose
 EXPOSE 80 443
