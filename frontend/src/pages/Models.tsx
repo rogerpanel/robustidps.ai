@@ -43,6 +43,7 @@ const CATEGORY_META: Record<string, { icon: typeof Brain; color: string; label: 
   temporal: { icon: Clock, color: 'accent-purple', label: 'Temporal' },
   federated: { icon: Network, color: 'accent-green', label: 'Federated' },
   foundation: { icon: Sparkles, color: 'accent-amber', label: 'Foundation' },
+  clrl: { icon: Zap, color: 'accent-red', label: 'CL-RL' },
   custom: { icon: Upload, color: 'accent-red', label: 'Custom' },
 }
 
@@ -51,7 +52,8 @@ const CAT_COLORS: Record<string, string> = {
   temporal: '#A855F7',
   federated: '#22C55E',
   foundation: '#F59E0B',
-  custom: '#EF4444',
+  clrl: '#EF4444',
+  custom: '#9CA3AF',
 }
 
 export default function Models() {
@@ -668,6 +670,11 @@ export default function Models() {
                 ['FedGTD', 'Graph + federated + game-theoretic', 'Byzantine-resilient aggregation', 'Distributed multi-org IDS'],
                 ['SDE-TGNN', 'Stochastic DE + temporal GNN', 'Drift-diffusion uncertainty', 'Noisy network environments'],
                 ['CyberSecLLM', 'Mamba SSM + CrossAttn + MoE', 'Foundation model on all 6 datasets', 'Maximum accuracy & transfer'],
+                ['CL-RL Unified', '7-branch + MC Dropout + RL state', 'Unified FIM + continual adaptation', 'Live adaptive IDS with RL response'],
+                ['CPO Policy', 'Constrained Policy Optimisation', '5 graduated actions + FP constraint', 'Autonomous threat response'],
+                ['Value Network', 'MLP reward estimator', 'GAE advantage computation', 'RL training & evaluation'],
+                ['Cost Value Net', 'MLP cost estimator', 'Lagrangian FP constraint', 'Safety-constrained response'],
+                ['Unified FIM', 'Fisher Information regularisation', 'β-weighted detection + policy FIM', 'Robust continual updates'],
               ].map(([name, approach, innovation, best]) => (
                 <tr key={name} className="border-t border-bg-card/50">
                   <td className="px-3 py-2 font-medium text-accent-blue">{name}</td>

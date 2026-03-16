@@ -205,10 +205,23 @@ app.include_router(prevention_router)
 model: SurrogateIDS | None = None
 loaded_models: dict = {}
 active_model_id: str = "surrogate"
-enabled_models: set = {"surrogate", "neural_ode", "optimal_transport", "fedgtd", "sde_tgnn", "cybersec_llm"}  # all models enabled by default
+enabled_models: set = {"surrogate", "neural_ode", "optimal_transport", "fedgtd", "sde_tgnn", "cybersec_llm", "clrl_unified", "cpo_policy", "value_net", "cost_value_net", "unified_fim"}  # all models enabled by default
 custom_models: dict = {}  # user-uploaded models: {model_id: {"path": ..., "user_id": ..., "name": ...}}
 job_store: dict = {}
 cl_engine: ContinualLearningEngine | None = None  # continual learning engine
+
+# CL-RL components
+from models.clrl_metrics import ContinualMetrics, RLMetrics, DriftDetector as CLRLDriftDetector
+from models.adversarial import AdversarialEvaluator, ATTACK_CONFIGS
+from models.unified_fim import UnifiedFIM
+from models.nids_env import NIDSResponseEnv, ACTION_NAMES, ACTION_SEVERITY
+from models.policy_network import PolicyNetwork, ValueNetwork, CostValueNetwork
+
+clrl_continual_metrics = ContinualMetrics()
+clrl_rl_metrics = RLMetrics()
+clrl_drift_detector = CLRLDriftDetector(num_classes=34)
+clrl_adversarial_evaluator = AdversarialEvaluator(device=DEVICE)
+clrl_unified_fim = UnifiedFIM(beta=0.7)
 
 CUSTOM_MODELS_DIR = Path(__file__).parent / "custom_models"
 CUSTOM_MODELS_DIR.mkdir(exist_ok=True)
@@ -1764,6 +1777,267 @@ async def continual_rollback(request: Request, user=Depends(require_auth)):
         "version": cl_engine.state.version,
         "message": f"Model rolled back to version {cl_engine.state.version}",
     }
+
+
+# ── CL-RL Framework Endpoints ──────────────────────────────────────────
+
+@app.get("/api/clrl/status")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def clrl_status(request: Request, user=Depends(require_auth)):
+    """Return full CL-RL framework status including all components."""
+    return {
+        "continual_metrics": clrl_continual_metrics.compute_all_metrics(),
+        "accuracy_matrix": clrl_continual_metrics.get_accuracy_matrix(),
+        "rl_metrics": clrl_rl_metrics.compute_summary(),
+        "drift": clrl_drift_detector.get_drift_summary(),
+        "unified_fim": clrl_unified_fim.get_status(),
+        "models_registered": [
+            k for k in MODEL_INFO if MODEL_INFO[k].get("category") == "clrl"
+        ],
+    }
+
+
+@app.post("/api/clrl/rl-simulate")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def clrl_rl_simulate(
+    request: Request,
+    file: UploadFile = File(...),
+    num_episodes: int = Form(default=50),
+    user=Depends(require_auth),
+):
+    """
+    Run RL response agent simulation on uploaded traffic data.
+
+    The CPO agent processes each flow through the detection model,
+    then selects graduated response actions (Monitor → Quarantine).
+    """
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "rl_sim.csv"
+    )
+
+    if labels_encoded is None:
+        raise HTTPException(status_code=400, detail="Labelled data required for RL simulation.")
+
+    if len(features) > MAX_ROWS:
+        idx = torch.randperm(len(features))[:MAX_ROWS].sort().values
+        features = features[idx]
+        labels_encoded = labels_encoded[idx]
+
+    features_np = features.numpy()
+    labels_np = labels_encoded.numpy()
+
+    # Get detection model predictions for RL state
+    active = get_model()
+    active.eval()
+    with torch.no_grad():
+        det_logits = active(features.to(DEVICE))
+        det_probs = torch.softmax(det_logits, dim=-1).cpu().numpy()
+
+    # Create environment and run simulation
+    env = NIDSResponseEnv(
+        features=features_np,
+        labels=labels_np,
+        detection_probs=det_probs,
+    )
+
+    # Load CPO policy model
+    policy_model = get_model("cpo_policy")
+
+    episode_results = []
+    total_actions = {name: 0 for name in ACTION_NAMES}
+    total_threats_mitigated = 0
+    total_attacks = 0
+    total_benign_blocked = 0
+    total_steps = 0
+
+    for ep in range(num_episodes):
+        state = env.reset()
+        done = False
+        ep_reward = 0.0
+        ep_actions = []
+
+        while not done:
+            state_t = torch.FloatTensor(state).unsqueeze(0).to(DEVICE)
+            with torch.no_grad():
+                policy_out = policy_model.get_policy_output(state_t) if hasattr(policy_model, 'get_policy_output') else None
+                if policy_out:
+                    action_probs = policy_out["action_probs"][0].cpu().numpy()
+                    action = int(action_probs.argmax())
+                else:
+                    action = 0  # fallback: Monitor
+
+            state, reward, cost, done, info = env.step(action)
+            ep_reward += reward
+            ep_actions.append(info["action_name"])
+            total_actions[info["action_name"]] = total_actions.get(info["action_name"], 0) + 1
+            if info["is_attack"]:
+                total_attacks += 1
+                if info["threat_mitigated"]:
+                    total_threats_mitigated += 1
+            if info["benign_blocked"]:
+                total_benign_blocked += 1
+            total_steps += 1
+
+        stats = env.get_episode_stats()
+        stats["episode"] = ep + 1
+        stats["total_reward"] = round(ep_reward, 2)
+        episode_results.append(stats)
+
+        # Record in RL metrics
+        clrl_rl_metrics.record_episode({
+            "mitigation_rate": total_threats_mitigated / max(total_attacks, 1),
+            "fp_blocking_rate": total_benign_blocked / max(total_steps, 1),
+            "mean_reward": ep_reward / max(stats.get("num_steps", 1), 1),
+            "constraint_violated": stats.get("constraint_violated", False),
+        })
+
+    mitigation_rate = total_threats_mitigated / max(total_attacks, 1)
+    fp_rate = total_benign_blocked / max(total_steps, 1)
+
+    return {
+        "num_episodes": num_episodes,
+        "total_steps": total_steps,
+        "action_distribution": total_actions,
+        "threat_mitigation_rate": round(mitigation_rate, 4),
+        "fp_blocking_rate": round(fp_rate, 6),
+        "total_attacks": total_attacks,
+        "total_threats_mitigated": total_threats_mitigated,
+        "total_benign_blocked": total_benign_blocked,
+        "mean_episode_reward": round(float(np.mean([e.get("total_reward", 0) for e in episode_results])), 2),
+        "constraint_violations": sum(1 for e in episode_results if e.get("constraint_violated", False)),
+        "episodes": episode_results[:20],  # Return first 20 episodes for UI
+        "action_names": ACTION_NAMES,
+        "action_severities": [float(s) for s in ACTION_SEVERITY],
+    }
+
+
+@app.post("/api/clrl/adversarial")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def clrl_adversarial(
+    request: Request,
+    file: UploadFile = File(...),
+    model_id: str = Form(default="surrogate"),
+    user=Depends(require_auth),
+):
+    """
+    Run adversarial robustness evaluation with 6 attack methods.
+
+    Tests FGSM, PGD, C&W, DeepFool, Gaussian noise, and Label masking.
+    """
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "adversarial.csv"
+    )
+
+    if labels_encoded is None:
+        raise HTTPException(status_code=400, detail="Labelled data required for adversarial evaluation.")
+
+    target_model = get_model(model_id)
+    results = clrl_adversarial_evaluator.evaluate_all_attacks(
+        target_model,
+        features,
+        labels_encoded,
+        max_samples=500,
+    )
+    results["model_id"] = model_id
+    results["model_name"] = MODEL_INFO.get(model_id, {}).get("name", model_id)
+    results["dataset_format"] = fmt
+    results["n_samples"] = len(features)
+
+    return results
+
+
+@app.post("/api/clrl/drift-check")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def clrl_drift_check(
+    request: Request,
+    file: UploadFile = File(...),
+    user=Depends(require_auth),
+):
+    """
+    KL-divergence based drift detection.
+
+    Compares model prediction distribution on new data against reference.
+    Returns: stable (D_KL < 0.05), monitor (0.05-0.15), or drift (>0.15).
+    """
+    _validate_upload(file)
+    data = await file.read()
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "drift.csv"
+    )
+
+    if len(features) > MAX_ROWS:
+        idx = torch.randperm(len(features))[:MAX_ROWS].sort().values
+        features = features[idx]
+
+    # Get model predictions
+    active = get_model()
+    active.eval()
+    with torch.no_grad():
+        logits = active(features.to(DEVICE))
+        preds = logits.argmax(dim=-1).cpu().numpy()
+
+    # Set reference if not yet set
+    if clrl_drift_detector.reference_distribution is None:
+        clrl_drift_detector.set_reference_from_predictions(preds)
+        return {
+            "status": "reference_set",
+            "message": "Reference distribution set from this data. Upload new data to check for drift.",
+            "n_samples": len(features),
+        }
+
+    result = clrl_drift_detector.check_drift(preds)
+    result["dataset_format"] = fmt
+    result["n_samples_checked"] = len(features)
+    result["summary"] = clrl_drift_detector.get_drift_summary()
+
+    return result
+
+
+@app.get("/api/clrl/fim-status")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def clrl_fim_status(request: Request, user=Depends(require_auth)):
+    """Return unified FIM status and parameter importance summary."""
+    status = clrl_unified_fim.get_status()
+    if clrl_unified_fim.unified_fisher or clrl_unified_fim.detection_fisher:
+        status["importance_summary"] = clrl_unified_fim.compute_parameter_importance_summary()
+    return status
+
+
+@app.get("/api/clrl/rl-metrics")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def clrl_rl_metrics_endpoint(request: Request, user=Depends(require_auth)):
+    """Return accumulated RL response agent metrics."""
+    return {
+        "summary": clrl_rl_metrics.compute_summary(),
+        "action_names": ACTION_NAMES,
+        "action_severities": [float(s) for s in ACTION_SEVERITY],
+    }
+
+
+@app.get("/api/clrl/continual-metrics")
+@limiter.limit(RATE_LIMIT_DEFAULT)
+async def clrl_continual_metrics_endpoint(request: Request, user=Depends(require_auth)):
+    """Return CL metrics: Average Accuracy, Backward Transfer, Forward Transfer."""
+    return {
+        "metrics": clrl_continual_metrics.compute_all_metrics(),
+        "accuracy_matrix": clrl_continual_metrics.get_accuracy_matrix(),
+    }
+
+
+@app.get("/api/clrl/attack-configs")
+async def clrl_attack_configs():
+    """Return available adversarial attack configurations."""
+    return {"attacks": ATTACK_CONFIGS}
 
 
 # ── Sample Data ──────────────────────────────────────────────────────────

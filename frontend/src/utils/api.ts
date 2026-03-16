@@ -1370,3 +1370,65 @@ export const SAMPLE_RESULTS = {
   per_class_metrics: {},
   class_labels: [],
 };
+
+// ── CL-RL Framework API ─────────────────────────────────────────────────
+
+export async function fetchCLRLStatus() {
+  const res = await authFetch(`${API}/api/clrl/status`);
+  return res.json();
+}
+
+export async function runRLSimulation(file: File, numEpisodes: number = 50) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('num_episodes', String(numEpisodes));
+  const res = await authFetch(`${API}/api/clrl/rl-simulate`, { method: 'POST', body: fd });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, 'RL simulation failed'));
+  }
+  return res.json();
+}
+
+export async function runAdversarialEval(file: File, modelId: string = 'surrogate') {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('model_id', modelId);
+  const res = await authFetch(`${API}/api/clrl/adversarial`, { method: 'POST', body: fd });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, 'Adversarial evaluation failed'));
+  }
+  return res.json();
+}
+
+export async function checkDrift(file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await authFetch(`${API}/api/clrl/drift-check`, { method: 'POST', body: fd });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, 'Drift check failed'));
+  }
+  return res.json();
+}
+
+export async function fetchFIMStatus() {
+  const res = await authFetch(`${API}/api/clrl/fim-status`);
+  return res.json();
+}
+
+export async function fetchRLMetrics() {
+  const res = await authFetch(`${API}/api/clrl/rl-metrics`);
+  return res.json();
+}
+
+export async function fetchCLRLContinualMetrics() {
+  const res = await authFetch(`${API}/api/clrl/continual-metrics`);
+  return res.json();
+}
+
+export async function fetchAttackConfigs() {
+  const res = await fetch(`${API}/api/clrl/attack-configs`);
+  return res.json();
+}

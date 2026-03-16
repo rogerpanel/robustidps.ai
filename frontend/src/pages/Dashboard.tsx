@@ -1,13 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Activity, ShieldAlert, ShieldCheck, Gauge, Ban, Search as SearchIcon,
   Eye, AlertTriangle, ChevronDown, ChevronRight, Download, Globe, Brain,
+  RefreshCw, Shield, Target, Zap,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
 import AttackDistribution from '../components/AttackDistribution'
 import ConfidenceHistogram from '../components/ConfidenceHistogram'
 import PageGuide from '../components/PageGuide'
-import { SAMPLE_RESULTS } from '../utils/api'
+import { SAMPLE_RESULTS, fetchCLRLStatus } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
@@ -54,8 +56,15 @@ export default function Dashboard() {
   const data = (analysisResults as unknown as Results) || (SAMPLE_RESULTS as unknown as Results)
   const predictions = data.predictions ?? []
 
+  const navigate = useNavigate()
   const benignPct = data.n_flows > 0 ? ((data.n_benign / data.n_flows) * 100).toFixed(1) : '0'
   const confidences = predictions.map((p) => p.confidence)
+
+  // CL-RL status
+  const [clrlStatus, setClrlStatus] = useState<any>(null)
+  useEffect(() => {
+    fetchCLRLStatus().then(setClrlStatus).catch(() => {})
+  }, [])
 
   // Severity breakdown
   const sevCounts = useMemo(() => {
@@ -346,6 +355,82 @@ function SOCThreatTable({ predictions }: { predictions: Prediction[] }) {
             Showing first 200 of {filtered.length.toLocaleString()} flows (sorted by severity)
           </div>
         )}
+      </div>
+
+      {/* CL-RL Framework Status */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-display font-semibold flex items-center gap-2">
+            <Zap className="w-5 h-5 text-accent-red" />
+            CL-RL Framework
+          </h2>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent-red/15 text-accent-red font-medium">
+            Continual Learning + Reinforcement Learning
+          </span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+            <RefreshCw className="w-4 h-4 text-accent-purple mx-auto mb-1" />
+            <div className="text-[10px] text-text-secondary">Avg Accuracy</div>
+            <div className="text-sm font-mono font-semibold text-accent-purple">
+              {clrlStatus?.continual_metrics?.average_accuracy
+                ? `${(clrlStatus.continual_metrics.average_accuracy * 100).toFixed(1)}%`
+                : '—'}
+            </div>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+            <Activity className="w-4 h-4 text-accent-blue mx-auto mb-1" />
+            <div className="text-[10px] text-text-secondary">BWT</div>
+            <div className="text-sm font-mono font-semibold text-accent-blue">
+              {clrlStatus?.continual_metrics?.backward_transfer != null
+                ? `${(clrlStatus.continual_metrics.backward_transfer * 100).toFixed(2)}%`
+                : '—'}
+            </div>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+            <Shield className="w-4 h-4 text-accent-green mx-auto mb-1" />
+            <div className="text-[10px] text-text-secondary">Mitigation</div>
+            <div className="text-sm font-mono font-semibold text-accent-green">
+              {clrlStatus?.rl_metrics?.mitigation_rate != null
+                ? `${(clrlStatus.rl_metrics.mitigation_rate * 100).toFixed(1)}%`
+                : '—'}
+            </div>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+            <Target className="w-4 h-4 text-accent-amber mx-auto mb-1" />
+            <div className="text-[10px] text-text-secondary">Drift Checks</div>
+            <div className="text-sm font-mono font-semibold text-accent-amber">
+              {clrlStatus?.drift?.total_checks ?? 0}
+            </div>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+            <Zap className="w-4 h-4 text-accent-red mx-auto mb-1" />
+            <div className="text-[10px] text-text-secondary">CL-RL Models</div>
+            <div className="text-sm font-mono font-semibold text-accent-red">
+              {clrlStatus?.models_registered?.length ?? 0}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button
+            onClick={() => navigate('/rl-agent')}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs text-accent-red bg-accent-red/10 rounded-lg hover:bg-accent-red/20 transition-colors"
+          >
+            <Shield className="w-3 h-3" /> RL Response Agent
+          </button>
+          <button
+            onClick={() => navigate('/adversarial')}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs text-accent-amber bg-accent-amber/10 rounded-lg hover:bg-accent-amber/20 transition-colors"
+          >
+            <Target className="w-3 h-3" /> Adversarial Eval
+          </button>
+          <button
+            onClick={() => navigate('/continual')}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs text-accent-purple bg-accent-purple/10 rounded-lg hover:bg-accent-purple/20 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" /> Continual Learning
+          </button>
+        </div>
       </div>
     </div>
   )

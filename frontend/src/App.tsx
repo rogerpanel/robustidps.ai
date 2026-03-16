@@ -49,6 +49,8 @@ const ZeroTrustGovernance = lazy(() => import('./pages/ZeroTrustGovernance'))
 const ThreatResponse = lazy(() => import('./pages/ThreatResponse'))
 const ModelSupplyChain = lazy(() => import('./pages/ModelSupplyChain'))
 const ResearchHub = lazy(() => import('./pages/ResearchHub'))
+const RLResponseAgent = lazy(() => import('./pages/RLResponseAgent'))
+const AdversarialRobustness = lazy(() => import('./pages/AdversarialRobustness'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const Login = lazy(() => import('./pages/Login'))
 import { fetchHealth } from './utils/api'
@@ -65,6 +67,8 @@ const NAV = [
   { to: '/ablation', label: 'Ablation Studio', icon: FlaskConical },
   { to: '/live', label: 'Live Monitor', icon: Radio },
   { to: '/continual', label: 'Continual Learning', icon: RefreshCw },
+  { to: '/rl-agent', label: 'RL Response Agent', icon: Crosshair },
+  { to: '/adversarial', label: 'Adversarial Eval', icon: Fingerprint },
   { to: '/redteam', label: 'Red Team Arena', icon: Swords },
   { to: '/xai', label: 'Explainability', icon: Eye },
   { to: '/federated', label: 'Federated Learning', icon: Network },
@@ -304,6 +308,8 @@ export default function App() {
               <Route path="/ablation" element={<AblationStudio />} />
               <Route path="/live" element={<LiveMonitor />} />
               <Route path="/continual" element={<ContinualLearning />} />
+              <Route path="/rl-agent" element={<RLResponseAgent />} />
+              <Route path="/adversarial" element={<AdversarialRobustness />} />
               <Route path="/redteam" element={<RedTeamArena />} />
               <Route path="/xai" element={<ExplainabilityStudio />} />
               <Route path="/federated" element={<FederatedSimulator />} />

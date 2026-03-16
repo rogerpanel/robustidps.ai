@@ -7,6 +7,7 @@ import {
 import {
   fetchContinualStatus, triggerContinualUpdate,
   measureDrift, rollbackModel,
+  fetchCLRLContinualMetrics, checkDrift as checkCLRLDrift,
 } from '../utils/api'
 import ExportMenu from '../components/ExportMenu'
 import { registerSessionReset } from '../utils/sessionReset'
@@ -203,6 +204,15 @@ export default function ContinualLearning() {
     return d.toLocaleString()
   }
 
+  // CL-RL metrics
+  const [clrlMetrics, setClrlMetrics] = useState<{average_accuracy: number; backward_transfer: number; forward_transfer: number} | null>(null)
+
+  useEffect(() => {
+    fetchCLRLContinualMetrics()
+      .then((data: any) => setClrlMetrics(data?.metrics || null))
+      .catch(() => {})
+  }, [updateResult])
+
   const pct = (v: number) => `${(v * 100).toFixed(1)}%`
 
   return (
@@ -215,6 +225,7 @@ export default function ContinualLearning() {
           </h1>
           <p className="text-sm text-text-secondary mt-1">
             Incrementally update the IDS model on new traffic data using Elastic Weight Consolidation (EWC) to prevent catastrophic forgetting.
+            Enhanced with CL-RL unified Fisher Information and KL-divergence drift monitoring.
           </p>
         </div>
         <ExportMenu filename="continual-learning" />
@@ -285,6 +296,45 @@ export default function ContinualLearning() {
               </div>
             </div>
           </div>
+
+          {/* CL-RL Metrics: AA, BWT, FWT */}
+          {clrlMetrics && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+                <div className="text-xs text-text-secondary mb-1 flex items-center gap-1.5">
+                  <BarChart3 className="w-3.5 h-3.5" /> Average Accuracy (AA)
+                </div>
+                <div className="text-2xl font-display font-bold text-accent-blue">
+                  {pct(clrlMetrics.average_accuracy)}
+                </div>
+                <div className="text-[10px] text-text-secondary">
+                  (1/T) &times; &Sigma; a_&#123;T,t&#125;
+                </div>
+              </div>
+              <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+                <div className="text-xs text-text-secondary mb-1 flex items-center gap-1.5">
+                  <TrendingDown className="w-3.5 h-3.5" /> Backward Transfer (BWT)
+                </div>
+                <div className={`text-2xl font-display font-bold ${clrlMetrics.backward_transfer >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                  {clrlMetrics.backward_transfer >= 0 ? '+' : ''}{(clrlMetrics.backward_transfer * 100).toFixed(2)}%
+                </div>
+                <div className="text-[10px] text-text-secondary">
+                  {clrlMetrics.backward_transfer >= -0.02 ? 'Minimal forgetting' : 'Significant forgetting detected'}
+                </div>
+              </div>
+              <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
+                <div className="text-xs text-text-secondary mb-1 flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5" /> Forward Transfer (FWT)
+                </div>
+                <div className={`text-2xl font-display font-bold ${clrlMetrics.forward_transfer >= 0 ? 'text-accent-green' : 'text-accent-amber'}`}>
+                  {clrlMetrics.forward_transfer >= 0 ? '+' : ''}{(clrlMetrics.forward_transfer * 100).toFixed(2)}%
+                </div>
+                <div className="text-[10px] text-text-secondary">
+                  Knowledge transfer to new tasks
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Main actions: Update + Drift side by side */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -17,6 +17,13 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from .surrogate import SurrogateIDS
+from .clrl_models import (
+    CLRLUnifiedWrapper,
+    CPOPolicyWrapper,
+    ValueNetWrapper,
+    CostValueNetWrapper,
+    UnifiedFIMWrapper,
+)
 
 WEIGHTS_DIR = Path(__file__).parent.parent / "weights"
 
@@ -293,6 +300,52 @@ MODEL_INFO = {
         "weight_file": "cybersec_llm.pt",
         "has_ablation": False,
         "category": "foundation",
+    },
+    # ── CL-RL Models (Continual Learning + Reinforcement Learning) ───────
+    "clrl_unified": {
+        "name": "CL-RL Unified (7-Branch + MC Dropout + RL State)",
+        "description": "Enhanced 7-branch ensemble with MC Dropout uncertainty estimation, RL state vector construction, and unified FIM computation. Complements all 7 surrogate branches as a single CL-RL framework.",
+        "paper": "Continual Learning and Constrained RL for Adversarially Robust NIDS",
+        "class": CLRLUnifiedWrapper,
+        "weight_file": "clrl_unified.pt",
+        "has_ablation": True,
+        "category": "clrl",
+    },
+    "cpo_policy": {
+        "name": "CPO Response Agent (Constrained Policy Optimisation)",
+        "description": "Constrained Policy Optimisation agent with 5 graduated response actions (Monitor → Quarantine). Uses trust-region updates with false-positive constraint satisfaction.",
+        "paper": "Continual Learning and Constrained RL for Adversarially Robust NIDS",
+        "class": CPOPolicyWrapper,
+        "weight_file": "cpo_policy.pt",
+        "has_ablation": False,
+        "category": "clrl",
+    },
+    "value_net": {
+        "name": "Value Network (Reward Estimator)",
+        "description": "Reward value estimator for the CPO agent. Estimates expected cumulative reward for GAE advantage computation during policy updates.",
+        "paper": "Continual Learning and Constrained RL for Adversarially Robust NIDS",
+        "class": ValueNetWrapper,
+        "weight_file": "value_net.pt",
+        "has_ablation": False,
+        "category": "clrl",
+    },
+    "cost_value_net": {
+        "name": "Cost Value Network (Constraint Estimator)",
+        "description": "False-positive cost estimator for CPO constraint satisfaction. Estimates cumulative FP cost for Lagrangian dual variable updates (ε_fp < 0.1%).",
+        "paper": "Continual Learning and Constrained RL for Adversarially Robust NIDS",
+        "class": CostValueNetWrapper,
+        "weight_file": "cost_value_net.pt",
+        "has_ablation": False,
+        "category": "clrl",
+    },
+    "unified_fim": {
+        "name": "Unified FIM Model (Fisher Information-Regularised)",
+        "description": "Fisher Information-regularised detection network. Balances detection preservation (β=0.7) with policy plasticity (1−β=0.3) via unified FIM from both EWC and CPO trust regions.",
+        "paper": "Continual Learning and Constrained RL for Adversarially Robust NIDS",
+        "class": UnifiedFIMWrapper,
+        "weight_file": "unified_fim.pt",
+        "has_ablation": False,
+        "category": "clrl",
     },
 }
 
