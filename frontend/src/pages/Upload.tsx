@@ -802,7 +802,7 @@ export default function UploadPage() {
                     <FileUpload
                       onFile={(f) => handleSlotFileSelect(idx, f)}
                       label={`Dataset ${idx + 1}`}
-                      accept=".csv,.parquet"
+                      accept=".csv,.parquet,.pcap,.pcapng"
                       fileName={slot.fileName}
                       fileLoading={slot.fileLoading}
                     />

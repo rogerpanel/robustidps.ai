@@ -371,7 +371,7 @@ export default function RedTeamArena() {
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-3">
-              <FileUpload onFile={handleFileSelect} label="Upload traffic dataset" accept=".csv,.parquet" fileName={fileName} fileLoading={fileLoading} />
+              <FileUpload onFile={handleFileSelect} label="Upload traffic dataset" accept=".csv,.parquet,.pcap,.pcapng" fileName={fileName} fileLoading={fileLoading} />
               <button
                 onClick={async () => {
                   try { setFileLoading(true); setFileReady(false); const f = await fetchSampleData(); handleFileSelect(f) }
@@ -445,7 +445,7 @@ export default function RedTeamArena() {
                   <FileUpload
                     onFile={(f) => handleSlotFileSelect(idx, f)}
                     label={`Dataset ${idx + 1}`}
-                    accept=".csv,.parquet"
+                    accept=".csv,.parquet,.pcap,.pcapng"
                     fileName={slot.fileName}
                     fileLoading={slot.fileLoading}
                   />

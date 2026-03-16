@@ -273,7 +273,7 @@ export default function ExplainabilityStudio() {
             <FileUpload
               onFile={handleFileSelect}
               label="Upload traffic dataset"
-              accept=".csv,.parquet"
+              accept=".csv,.parquet,.pcap,.pcapng"
               fileName={fileName}
               fileLoading={fileLoading}
             />
@@ -388,7 +388,7 @@ export default function ExplainabilityStudio() {
                         <FileUpload
                           onFile={(f: File) => handleSlotFileSelect(idx, f)}
                           label={`Dataset ${idx + 1}`}
-                          accept=".csv,.parquet"
+                          accept=".csv,.parquet,.pcap,.pcapng"
                           fileName={slot.fileName}
                           fileLoading={slot.fileLoading}
                         />

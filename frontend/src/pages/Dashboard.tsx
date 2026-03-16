@@ -202,14 +202,14 @@ export default function Dashboard() {
       </div>
 
       {/* Row 4: SOC Threat Table with drill-down */}
-      <SOCThreatTable predictions={predictions} />
+      <SOCThreatTable predictions={predictions} clrlStatus={clrlStatus} />
     </div>
   )
 }
 
 /* ── SOC Threat Table with expandable drill-down ──────────────────────── */
 
-function SOCThreatTable({ predictions }: { predictions: Prediction[] }) {
+function SOCThreatTable({ predictions, clrlStatus }: { predictions: Prediction[]; clrlStatus: any }) {
   const [query, setQuery] = useState('')
   const [sevFilter, setSevFilter] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<number>>(new Set())

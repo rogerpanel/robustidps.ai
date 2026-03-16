@@ -508,7 +508,7 @@ export default function FederatedSimulator() {
                   <FileUpload
                     onFile={(f) => handleSlotFileSelect(idx, f)}
                     label={`Dataset ${idx + 1}`}
-                    accept=".csv,.parquet"
+                    accept=".csv,.parquet,.pcap,.pcapng"
                     fileName={slot.fileName}
                     fileLoading={slot.fileLoading}
                   />
@@ -733,7 +733,7 @@ export default function FederatedSimulator() {
               <FileUpload
                 onFile={handleFileSelect}
                 label="Upload traffic dataset"
-                accept=".csv,.parquet"
+                accept=".csv,.parquet,.pcap,.pcapng"
                 fileName={fileName}
                 fileLoading={fileLoading}
               />
