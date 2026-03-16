@@ -1402,6 +1402,18 @@ export async function runAdversarialEval(file: File, modelId: string = 'surrogat
   return res.json();
 }
 
+export async function runAdversarialMulti(
+  files: (File | null)[],
+  modelNames: string[],
+) {
+  const form = new FormData();
+  files.forEach((f, i) => {
+    if (f) form.append(`file${i + 1}`, f);
+  });
+  form.append('model_names', modelNames.join(','));
+  return startJobAndPoll(`${API}/api/clrl/adversarial/multi-run`, form, 'Multi adversarial evaluation');
+}
+
 export async function checkDrift(file: File) {
   const fd = new FormData();
   fd.append('file', file);

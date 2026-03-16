@@ -301,15 +301,20 @@ MODEL_INFO = {
         "has_ablation": False,
         "category": "foundation",
     },
-    # ── CL-RL Models (Continual Learning + Reinforcement Learning) ───────
+    # ── CL-RL Model (Continual Learning + Reinforcement Learning) ────────
+    # The unified CL-RL model is the 6th individual model (alongside the 5 core
+    # models above + the 7-in-1 Surrogate).  Its 4 sub-models (CPO Policy,
+    # Value Net, Cost Value Net, Unified FIM) are internal components that
+    # together form the CL-RL framework and are exposed for advanced users.
     "clrl_unified": {
-        "name": "CL-RL Unified (7-Branch + MC Dropout + RL State)",
-        "description": "Enhanced 7-branch ensemble with MC Dropout uncertainty estimation, RL state vector construction, and unified FIM computation. Complements all 7 surrogate branches as a single CL-RL framework.",
+        "name": "CL-RL Unified (Continual Learning + Reinforcement Learning)",
+        "description": "Enhanced 7-branch ensemble with MC Dropout uncertainty estimation, RL state vector construction, and unified FIM computation. Integrates continual learning (EWC) with constrained RL (CPO) for adversarially robust, adaptive intrusion detection.",
         "paper": "Continual Learning and Constrained RL for Adversarially Robust NIDS",
         "class": CLRLUnifiedWrapper,
         "weight_file": "clrl_unified.pt",
         "has_ablation": True,
         "category": "clrl",
+        "sub_models": ["cpo_policy", "value_net", "cost_value_net", "unified_fim"],
     },
     "cpo_policy": {
         "name": "CPO Response Agent (Constrained Policy Optimisation)",
@@ -319,6 +324,7 @@ MODEL_INFO = {
         "weight_file": "cpo_policy.pt",
         "has_ablation": False,
         "category": "clrl",
+        "parent_model": "clrl_unified",
     },
     "value_net": {
         "name": "Value Network (Reward Estimator)",
@@ -328,6 +334,7 @@ MODEL_INFO = {
         "weight_file": "value_net.pt",
         "has_ablation": False,
         "category": "clrl",
+        "parent_model": "clrl_unified",
     },
     "cost_value_net": {
         "name": "Cost Value Network (Constraint Estimator)",
@@ -337,6 +344,7 @@ MODEL_INFO = {
         "weight_file": "cost_value_net.pt",
         "has_ablation": False,
         "category": "clrl",
+        "parent_model": "clrl_unified",
     },
     "unified_fim": {
         "name": "Unified FIM Model (Fisher Information-Regularised)",
@@ -346,6 +354,7 @@ MODEL_INFO = {
         "weight_file": "unified_fim.pt",
         "has_ablation": False,
         "category": "clrl",
+        "parent_model": "clrl_unified",
     },
 }
 
@@ -355,7 +364,7 @@ def list_models() -> list:
     result = []
     for key, info in MODEL_INFO.items():
         weight_path = WEIGHTS_DIR / info["weight_file"]
-        result.append({
+        entry = {
             "id": key,
             "name": info["name"],
             "description": info["description"],
@@ -363,7 +372,12 @@ def list_models() -> list:
             "has_ablation": info["has_ablation"],
             "category": info["category"],
             "weights_available": weight_path.exists(),
-        })
+        }
+        if "sub_models" in info:
+            entry["sub_models"] = info["sub_models"]
+        if "parent_model" in info:
+            entry["parent_model"] = info["parent_model"]
+        result.append(entry)
     return result
 
 

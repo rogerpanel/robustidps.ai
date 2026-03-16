@@ -1956,6 +1956,182 @@ async def clrl_adversarial(
     return results
 
 
+@app.post("/api/clrl/adversarial/multi-run")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def clrl_adversarial_multi_run(
+    request: Request,
+    user=Depends(require_auth),
+):
+    """
+    Multi-dataset × multi-model adversarial robustness evaluation.
+
+    Accepts up to 3 files and multiple models. Runs 6 attack methods on each
+    (model, dataset) pair and computes cross-model and cross-dataset comparison
+    metrics for advanced research analysis.
+    """
+    form = await request.form()
+
+    # Collect files
+    files = []
+    for key in ["file1", "file2", "file3"]:
+        f = form.get(key)
+        if f is not None and hasattr(f, "read"):
+            content = await f.read()
+            if len(content) > 0:
+                files.append({"name": getattr(f, "filename", key), "data": content})
+
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="At least 1 file required")
+
+    model_names_raw = form.get("model_names", "surrogate")
+    model_names = [m.strip() for m in str(model_names_raw).split(",") if m.strip()]
+    if not model_names:
+        model_names = ["surrogate"]
+
+    job_id = str(uuid.uuid4())[:8]
+    _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
+
+    async def _run_multi():
+        try:
+            # Extract features from all files
+            datasets = []
+            for finfo in files:
+                features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+                    extract_features, finfo["data"], finfo["name"]
+                )
+                # Generate pseudo-labels if missing
+                if labels_encoded is None:
+                    with torch.no_grad():
+                        surrogate = get_model("surrogate")
+                        surrogate.eval()
+                        feat_dev = features.to(DEVICE)
+                        _batch = 512
+                        if feat_dev.shape[0] <= _batch:
+                            labels_encoded = surrogate(feat_dev).argmax(-1).cpu()
+                        else:
+                            parts = []
+                            for _s in range(0, feat_dev.shape[0], _batch):
+                                parts.append(surrogate(feat_dev[_s:_s + _batch]).argmax(-1))
+                            labels_encoded = torch.cat(parts, dim=0).cpu()
+                datasets.append({
+                    "name": finfo["name"],
+                    "features": features,
+                    "labels": labels_encoded,
+                    "format": fmt,
+                })
+
+            # Load models
+            models_dict = {}
+            for mn in model_names:
+                models_dict[mn] = get_model(mn if mn else None)
+
+            # Run adversarial evaluation for each (model, dataset) pair
+            eval_matrix = {}
+            for mn, model in models_dict.items():
+                model_name_display = MODEL_INFO.get(mn, {}).get("name", mn)
+                for ds in datasets:
+                    cell_key = f"{mn}|{ds['name']}"
+                    try:
+                        cell_result = await asyncio.to_thread(
+                            clrl_adversarial_evaluator.evaluate_all_attacks,
+                            model,
+                            ds["features"],
+                            ds["labels"],
+                            500,  # max_samples
+                        )
+                        cell_result["model_id"] = mn
+                        cell_result["model_name"] = model_name_display
+                        cell_result["dataset_name"] = ds["name"]
+                        cell_result["dataset_format"] = ds["format"]
+                        cell_result["n_samples"] = len(ds["features"])
+                        eval_matrix[cell_key] = cell_result
+                    except Exception as cell_err:
+                        eval_matrix[cell_key] = {
+                            "model_id": mn,
+                            "model_name": model_name_display,
+                            "dataset_name": ds["name"],
+                            "error": str(cell_err),
+                        }
+
+            # Compute cross-model comparison per dataset
+            cross_model = {}
+            for ds in datasets:
+                ds_name = ds["name"]
+                model_scores = {}
+                for mn in model_names:
+                    cell = eval_matrix.get(f"{mn}|{ds_name}", {})
+                    if "error" in cell and "attacks" not in cell:
+                        continue
+                    attacks = cell.get("attacks", {})
+                    if not attacks:
+                        continue
+                    ratios = [a.get("robustness_ratio", 0) for a in attacks.values() if isinstance(a, dict) and "robustness_ratio" in a]
+                    avg_ratio = sum(ratios) / len(ratios) if ratios else 0
+                    model_scores[mn] = {
+                        "clean_accuracy": cell.get("clean_accuracy", 0),
+                        "avg_robustness": round(avg_ratio * 100, 2),
+                        "min_robustness": round(min(ratios) * 100, 2) if ratios else 0,
+                        "max_drop": round(max(a.get("accuracy_drop", 0) for a in attacks.values() if isinstance(a, dict)), 2) if attacks else 0,
+                    }
+                ranking = sorted(model_scores.keys(), key=lambda k: model_scores[k]["avg_robustness"], reverse=True)
+                cross_model[ds_name] = {"models": model_scores, "ranking": ranking}
+
+            # Compute cross-dataset comparison per model
+            cross_dataset = {}
+            for mn in model_names:
+                ds_scores = {}
+                for ds in datasets:
+                    cell = eval_matrix.get(f"{mn}|{ds['name']}", {})
+                    if "error" in cell and "attacks" not in cell:
+                        continue
+                    attacks = cell.get("attacks", {})
+                    if not attacks:
+                        continue
+                    ratios = [a.get("robustness_ratio", 0) for a in attacks.values() if isinstance(a, dict) and "robustness_ratio" in a]
+                    ds_scores[ds["name"]] = {
+                        "clean_accuracy": cell.get("clean_accuracy", 0),
+                        "avg_robustness": round((sum(ratios) / len(ratios)) * 100, 2) if ratios else 0,
+                    }
+                cross_dataset[mn] = ds_scores
+
+            # Build robustness heatmap
+            heatmap = []
+            for mn in model_names:
+                for ds in datasets:
+                    cell = eval_matrix.get(f"{mn}|{ds['name']}", {})
+                    attacks = cell.get("attacks", {})
+                    ratios = [a.get("robustness_ratio", 0) for a in attacks.values() if isinstance(a, dict) and "robustness_ratio" in a]
+                    heatmap.append({
+                        "model": mn,
+                        "model_name": MODEL_INFO.get(mn, {}).get("name", mn),
+                        "dataset": ds["name"],
+                        "clean_accuracy": cell.get("clean_accuracy", 0),
+                        "avg_robustness": round((sum(ratios) / len(ratios)) * 100, 2) if ratios else 0,
+                    })
+
+            result = {
+                "n_models": len(model_names),
+                "n_datasets": len(datasets),
+                "model_names": model_names,
+                "dataset_names": [d["name"] for d in datasets],
+                "eval_matrix": eval_matrix,
+                "cross_model_comparison": cross_model,
+                "cross_dataset_comparison": cross_dataset,
+                "robustness_heatmap": heatmap,
+            }
+
+            _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}
+            _cache_bg_result(user.id, "adversarial", job_id, result)
+            logger.info("Multi adversarial eval by %s: %d datasets × %d models (job %s)",
+                        user.email, len(files), len(model_names), job_id)
+        except Exception as exc:
+            logger.exception("Multi adversarial job %s failed", job_id)
+            _bg_jobs[job_id] = {"status": "error", "result": None, "error": str(exc), "user_id": user.id}
+
+    asyncio.create_task(_run_multi())
+    return {"job_id": job_id, "status": "running"}
+
+
 @app.post("/api/clrl/drift-check")
 @limiter.limit(RATE_LIMIT_HEAVY)
 async def clrl_drift_check(

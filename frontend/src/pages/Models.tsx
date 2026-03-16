@@ -13,6 +13,8 @@ interface ModelInfo {
   weights_available: boolean
   enabled?: boolean
   custom?: boolean
+  sub_models?: string[]
+  parent_model?: string
   uploaded_by?: string
 }
 
@@ -154,7 +156,14 @@ export default function Models() {
     setDeletingCustom(null)
   }
 
-  const builtInModels = models.filter((m) => !m.custom)
+  const builtInModels = models.filter((m) => !m.custom && !m.parent_model)
+  const subModelsMap = models.reduce<Record<string, ModelInfo[]>>((acc, m) => {
+    if (m.parent_model) {
+      if (!acc[m.parent_model]) acc[m.parent_model] = []
+      acc[m.parent_model].push(m)
+    }
+    return acc
+  }, {})
   const customModels = models.filter((m) => m.custom)
 
   // Find fastest and highest-confidence models from benchmark
@@ -323,6 +332,55 @@ export default function Models() {
                   )}
                 </div>
               </div>
+
+              {/* Sub-models (CL-RL hierarchy) */}
+              {subModelsMap[m.id] && subModelsMap[m.id].length > 0 && (
+                <div className="mt-4 pt-3 border-t border-bg-card/50">
+                  <div className="text-[10px] text-text-secondary uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <ArrowRight className="w-3 h-3" />
+                    Sub-Components ({subModelsMap[m.id].length})
+                  </div>
+                  <div className="space-y-2">
+                    {subModelsMap[m.id].map((sub) => {
+                      const subEnabled = enabledModels.includes(sub.id)
+                      const subToggling = toggling === sub.id
+                      return (
+                        <div
+                          key={sub.id}
+                          className={`px-3 py-2 rounded-lg border transition-all ${
+                            subEnabled
+                              ? 'border-accent-red/20 bg-accent-red/5'
+                              : 'border-bg-card/30 bg-bg-card/10 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium truncate">{sub.name}</div>
+                              <div className="text-[10px] text-text-secondary mt-0.5 line-clamp-1">{sub.description}</div>
+                            </div>
+                            <div className="flex items-center gap-1.5 ml-2 shrink-0">
+                              <span className={`text-[9px] px-1 py-0.5 rounded ${sub.weights_available ? 'bg-accent-green/15 text-accent-green' : 'bg-accent-red/15 text-accent-red'}`}>
+                                {sub.weights_available ? 'Ready' : 'No wt'}
+                              </span>
+                              {sub.weights_available && (
+                                <button
+                                  onClick={() => handleToggle(sub.id, subEnabled)}
+                                  disabled={subToggling}
+                                  className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium ${
+                                    subEnabled ? 'text-accent-green' : 'text-text-secondary hover:bg-bg-card'
+                                  }`}
+                                >
+                                  {subToggling ? <Loader2 className="w-3 h-3 animate-spin" /> : subEnabled ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}
