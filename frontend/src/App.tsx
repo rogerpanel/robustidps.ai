@@ -58,28 +58,61 @@ import { useAnalysis } from './hooks/useAnalysis'
 import { isAuthenticated, getUser, clearAuth, type AuthUser } from './utils/auth'
 import { resetAllSessions } from './utils/sessionReset'
 
-const NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/upload', label: 'Upload & Analyse', icon: Upload },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { to: '/datasets', label: 'Datasets', icon: Database },
-  { to: '/models', label: 'Models', icon: Brain },
-  { to: '/ablation', label: 'Ablation Studio', icon: FlaskConical },
-  { to: '/live', label: 'Live Monitor', icon: Radio },
-  { to: '/continual', label: 'Continual Learning', icon: RefreshCw },
-  { to: '/rl-agent', label: 'RL Response Agent', icon: Crosshair },
-  { to: '/adversarial', label: 'Adversarial Eval', icon: Fingerprint },
-  { to: '/redteam', label: 'Red Team Arena', icon: Swords },
-  { to: '/xai', label: 'Explainability', icon: Eye },
-  { to: '/federated', label: 'Federated Learning', icon: Network },
-  { to: '/pq-crypto', label: 'PQ Cryptography', icon: KeySquare },
-  { to: '/zero-trust', label: 'Zero-Trust Gov', icon: Fingerprint },
-  { to: '/threat-response', label: 'Threat Response', icon: Crosshair },
-  { to: '/supply-chain', label: 'Supply Chain', icon: Package },
-  { to: '/research', label: 'Research Hub', icon: BookOpen },
-  { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
-  { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
-  { to: '/about', label: 'About', icon: Info },
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean }
+type NavGroup = { heading: string; items: NavItem[] }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    heading: 'AI Command Center',
+    items: [
+      { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/upload', label: 'Upload & Analyse', icon: Upload },
+      { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/live', label: 'Live Monitor', icon: Radio },
+    ],
+  },
+  {
+    heading: 'AI Data & Models',
+    items: [
+      { to: '/datasets', label: 'Datasets', icon: Database },
+      { to: '/models', label: 'Models', icon: Brain },
+      { to: '/ablation', label: 'Ablation Studio', icon: FlaskConical },
+    ],
+  },
+  {
+    heading: 'AI Novel Methods',
+    items: [
+      { to: '/continual', label: 'Continual Learning', icon: RefreshCw },
+      { to: '/rl-agent', label: 'RL Response Agent', icon: Crosshair },
+      { to: '/adversarial', label: 'Adversarial Eval', icon: Fingerprint },
+      { to: '/xai', label: 'Explainability', icon: Eye },
+    ],
+  },
+  {
+    heading: 'AI Active Defence',
+    items: [
+      { to: '/redteam', label: 'Red Team Arena', icon: Swords },
+      { to: '/threat-response', label: 'Threat Response', icon: Crosshair },
+      { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
+      { to: '/federated', label: 'Federated Learning', icon: Network },
+    ],
+  },
+  {
+    heading: 'AI Security & Gov',
+    items: [
+      { to: '/pq-crypto', label: 'PQ Cryptography', icon: KeySquare },
+      { to: '/zero-trust', label: 'Zero-Trust Gov', icon: Fingerprint },
+      { to: '/supply-chain', label: 'Supply Chain', icon: Package },
+      { to: '/research', label: 'Research Hub', icon: BookOpen },
+    ],
+  },
+  {
+    heading: 'System',
+    items: [
+      { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
+      { to: '/about', label: 'About', icon: Info },
+    ],
+  },
 ]
 
 export default function App() {
@@ -158,24 +191,39 @@ export default function App() {
         <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
       </div>
 
-      <nav className="flex-1 px-2 space-y-1 overflow-y-auto">
-        {NAV.filter(n => !('adminOnly' in n && n.adminOnly) || user?.role === 'admin').map((n) => (
-          <NavLink
-            key={n.to}
-            to={n.to}
-            end={n.to === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-accent-blue/15 text-accent-blue'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
-              }`
-            }
-          >
-            <n.icon className="w-4 h-4" />
-            {n.label}
-          </NavLink>
-        ))}
+      <nav className="flex-1 px-2 overflow-y-auto">
+        {NAV_GROUPS.map((group) => {
+          const visibleItems = group.items.filter(
+            (n) => !n.adminOnly || user?.role === 'admin',
+          )
+          if (visibleItems.length === 0) return null
+          return (
+            <div key={group.heading} className="mb-1">
+              <div className="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-secondary/50">
+                {group.heading}
+              </div>
+              <div className="space-y-0.5">
+                {visibleItems.map((n) => (
+                  <NavLink
+                    key={n.to}
+                    to={n.to}
+                    end={n.to === '/'}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-accent-blue/15 text-accent-blue'
+                          : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
+                      }`
+                    }
+                  >
+                    <n.icon className="w-4 h-4" />
+                    {n.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          )
+        })}
       </nav>
 
       <div className="p-4 border-t border-bg-card space-y-2">
