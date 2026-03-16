@@ -29,9 +29,8 @@ import {
   Scale,
   BookOpen,
 } from 'lucide-react'
-import EthicalUseAgreement from './components/EthicalUseAgreement'
-
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
+const EthicalUseAgreement = lazy(() => import('./components/EthicalUseAgreement'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const UploadPage = lazy(() => import('./pages/Upload'))
 const Analytics = lazy(() => import('./pages/Analytics'))
@@ -137,7 +136,15 @@ export default function App() {
 
   // Show ethical use agreement overlay before granting access
   if (!ethicalAccepted) {
-    return <EthicalUseAgreement onAccept={() => setEthicalAccepted(true)} />
+    return (
+      <Suspense fallback={
+        <div className="flex items-center justify-center h-screen bg-bg-primary">
+          <Loader2 className="w-6 h-6 animate-spin text-accent-blue" />
+        </div>
+      }>
+        <EthicalUseAgreement onAccept={() => setEthicalAccepted(true)} />
+      </Suspense>
+    )
   }
 
   const sidebarContent = (
@@ -218,7 +225,9 @@ export default function App() {
     <div className="flex h-screen overflow-hidden">
       {/* Policy viewer overlay — accessible from the persistent footer link */}
       {showPolicyViewer && (
-        <EthicalUseAgreement onAccept={() => setShowPolicyViewer(false)} />
+        <Suspense fallback={null}>
+          <EthicalUseAgreement onAccept={() => setShowPolicyViewer(false)} />
+        </Suspense>
       )}
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-56 shrink-0 bg-bg-secondary flex-col border-r border-bg-card">

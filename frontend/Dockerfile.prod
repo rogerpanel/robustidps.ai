@@ -14,8 +14,10 @@ COPY --from=build /app/dist /dist
 RUN find /dist -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.svg" -o -name "*.json" -o -name "*.xml" \) \
     -exec sh -c 'brotli -q 11 -o "$1.br" "$1" && gzip -9 -k "$1"' _ {} \;
 
-# Stage 3: Serve with nginx
+# Stage 3: Serve with nginx + Brotli support
 FROM nginx:1.27-alpine
+# Install the dynamic Brotli module for nginx (serves pre-compressed .br files)
+RUN apk add --no-cache nginx-mod-http-brotli 2>/dev/null || true
 COPY --from=compress /dist /usr/share/nginx/html
 # nginx.conf is mounted via docker-compose
 EXPOSE 80 443

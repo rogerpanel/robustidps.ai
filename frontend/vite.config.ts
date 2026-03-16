@@ -1,8 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import compression from 'vite-plugin-compression'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Pre-compress assets at build time so nginx serves static .gz/.br
+    // files instead of compressing on every request
+    compression({ algorithm: 'gzip', ext: '.gz', threshold: 1024 }),
+    compression({ algorithm: 'brotliCompress', ext: '.br', threshold: 1024 }),
+  ],
   server: {
     port: 3000,
     host: '0.0.0.0',
@@ -21,6 +28,11 @@ export default defineConfig({
     cssCodeSplit: true,
     // Increase chunk size warning (recharts is large)
     chunkSizeWarningLimit: 600,
+    // Disable automatic modulepreload injection — the default preloads ALL
+    // reachable chunks (including vendor-export at 549KB) which blocks
+    // initial paint on slow connections.  Critical vendor-react is preloaded
+    // manually in index.html instead.
+    modulePreload: false,
     rollupOptions: {
       output: {
         // Manual chunk splitting for optimal caching
@@ -29,9 +41,8 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           // Charting library — large but stable
           'vendor-recharts': ['recharts'],
-          // NOTE: html2canvas + jspdf are dynamically imported in
-          // exportUtils.ts and ExportMenu.tsx — Vite auto-splits them
-          // into async chunks that load only when export is triggered.
+          // Export libs — only loaded when user triggers export
+          'vendor-export': ['html2canvas', 'jspdf'],
         },
       },
     },
