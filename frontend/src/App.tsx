@@ -373,20 +373,25 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* Desktop sidebar — all groups in one panel */}
-      <aside className="hidden lg:flex w-56 shrink-0 bg-bg-secondary flex-col border-r border-bg-card">
-        {sidebarContent}
+      {/* Desktop LEFT sidebar — Operations */}
+      <aside className="hidden lg:flex w-52 shrink-0 bg-bg-secondary flex-col border-r border-bg-card">
+        <div className="p-4 flex items-center gap-2">
+          <ShieldCheck className="w-7 h-7 text-accent-blue" />
+          <span className="font-display font-bold text-lg">RobustIDPS<span className="text-accent-blue">.AI</span></span>
+        </div>
+        <nav className="flex-1 px-2 overflow-y-auto">
+          {renderNavGroups(leftNavGroups)}
+        </nav>
+        {sidebarFooter}
       </aside>
 
-      {/* Mobile overlay for left sidebar */}
+      {/* Overlays for mobile drawers */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-
-      {/* Mobile overlay for right sidebar */}
       {rightSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -437,7 +442,6 @@ export default function App() {
           <span className="font-display font-bold text-lg text-accent-blue">Research</span>
           <Brain className="w-6 h-6 text-accent-blue" />
         </div>
-        <div className="px-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-accent-blue/50 text-right">Research & Methods</div>
         <nav className="flex-1 px-2 overflow-y-auto">
           {renderNavGroups(rightNavGroups)}
         </nav>
@@ -535,6 +539,17 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {/* Desktop RIGHT sidebar — Research & Methods */}
+      <aside className="hidden lg:flex w-52 shrink-0 bg-bg-secondary flex-col border-l border-bg-card">
+        <div className="p-4 flex items-center gap-2 justify-end">
+          <span className="font-display font-bold text-lg text-accent-blue">Research</span>
+          <Brain className="w-6 h-6 text-accent-blue" />
+        </div>
+        <nav className="flex-1 px-2 overflow-y-auto">
+          {renderNavGroups(rightNavGroups)}
+        </nav>
+      </aside>
     </div>
   )
 }
