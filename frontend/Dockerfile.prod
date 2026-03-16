@@ -16,8 +16,6 @@ RUN find /dist -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -na
 
 # Stage 3: Serve with nginx
 FROM nginx:1.28-alpine
-# Install nginx brotli module
-RUN apk add --no-cache nginx-mod-http-brotli
 COPY --from=compress /dist /usr/share/nginx/html
 # nginx.conf is mounted via docker-compose
 EXPOSE 80 443
