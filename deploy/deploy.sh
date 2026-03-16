@@ -10,14 +10,14 @@ SSH_USER="robustidps"
 APP_DIR="/home/robustidps/robustidps.ai"
 
 # ── SSH connection multiplexing (reuse one connection for all steps) ──
-SSH_CONTROL_DIR=$(mktemp -d)
-SSH_CONTROL_PATH="${SSH_CONTROL_DIR}/ssh-%r@%h:%p"
+# Use /tmp with a short name to stay under macOS 104-char Unix socket limit
+SSH_CONTROL_PATH="/tmp/deploy-ssh-${SERVER_IP}"
 SSH_OPTS="-o ControlMaster=auto -o ControlPath=${SSH_CONTROL_PATH} -o ControlPersist=300 -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
 export RSYNC_RSH="ssh ${SSH_OPTS}"
 
 cleanup_ssh() {
     ssh -O exit -o ControlPath="${SSH_CONTROL_PATH}" "${SSH_USER}@${SERVER_IP}" 2>/dev/null || true
-    rm -rf "${SSH_CONTROL_DIR}"
+    rm -f "${SSH_CONTROL_PATH}"
 }
 trap cleanup_ssh EXIT
 
