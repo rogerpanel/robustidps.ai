@@ -1,13 +1,19 @@
-/* Self-hosted fonts — eliminates external Google Fonts dependency */
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
-@import '@fontsource/space-grotesk/500.css';
-@import '@fontsource/space-grotesk/600.css';
-@import '@fontsource/space-grotesk/700.css';
-@import '@fontsource/jetbrains-mono/400.css';
-@import '@fontsource/jetbrains-mono/500.css';
+/* Self-hosted fonts — latin subset only to cut ~1MB of unused glyphs.
+   Using font-display: swap so text renders immediately with fallback. */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+@import '@fontsource/space-grotesk/latin-500.css';
+@import '@fontsource/space-grotesk/latin-600.css';
+@import '@fontsource/space-grotesk/latin-700.css';
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
+
+/* Force font-display: swap — prevents FOIT (flash of invisible text) */
+@font-face { font-family: 'Inter'; font-display: swap; }
+@font-face { font-family: 'Space Grotesk'; font-display: swap; }
+@font-face { font-family: 'JetBrains Mono'; font-display: swap; }
 
 @tailwind base;
 @tailwind components;

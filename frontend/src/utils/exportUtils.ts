@@ -1,16 +1,18 @@
 /**
  * Export utilities for capturing charts as PNG / PDF / PDF Slides.
- * Uses html2canvas + jsPDF (added as dependencies).
+ * Uses html2canvas + jsPDF — dynamically imported to avoid bloating the
+ * initial bundle (~549 KB saved from first load).
  */
 
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
+const loadHtml2Canvas = () => import('html2canvas').then(m => m.default)
+const loadJsPDF = () => import('jspdf').then(m => m.default)
 
 /** Capture a DOM element as a PNG and trigger download. */
 export async function exportAsPNG(
   element: HTMLElement,
   filename: string = 'robustidps_export.png',
 ) {
+  const html2canvas = await loadHtml2Canvas()
   const canvas = await html2canvas(element, {
     backgroundColor: '#0F172A', // bg-primary dark
     scale: 2, // retina quality
@@ -29,6 +31,7 @@ export async function exportAsPDF(
   element: HTMLElement,
   filename: string = 'robustidps_export.pdf',
 ) {
+  const html2canvas = await loadHtml2Canvas()
   const canvas = await html2canvas(element, {
     backgroundColor: '#0F172A',
     scale: 2,
@@ -43,6 +46,7 @@ export async function exportAsPDF(
   // A4 landscape (wider) or portrait depending on aspect ratio
   const isWide = imgW > imgH * 1.2
   const orientation = isWide ? 'landscape' : 'portrait'
+  const jsPDF = await loadJsPDF()
   const pdf = new jsPDF({ orientation, unit: 'mm', format: 'a4' })
 
   const pageW = pdf.internal.pageSize.getWidth()
@@ -70,6 +74,8 @@ export async function exportAsSlides(
   filename: string = 'robustidps_slides.pdf',
   title: string = 'RobustIDPS.AI — Analytics Report',
 ) {
+  const html2canvas = await loadHtml2Canvas()
+  const jsPDF = await loadJsPDF()
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const pageW = pdf.internal.pageSize.getWidth()
   const pageH = pdf.internal.pageSize.getHeight()

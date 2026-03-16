@@ -116,9 +116,10 @@ export default function App() {
         .then(() => { if (!cancelled) setOnline(true) })
         .catch(() => { if (!cancelled) setOnline(false) })
     }
-    check()
+    // Defer first health check so it doesn't compete with initial page resources
+    const startDelay = setTimeout(check, 2000)
     const id = setInterval(check, 15000)
-    return () => { cancelled = true; clearInterval(id) }
+    return () => { cancelled = true; clearTimeout(startDelay); clearInterval(id) }
   }, [])
 
   // Show login page if not authenticated

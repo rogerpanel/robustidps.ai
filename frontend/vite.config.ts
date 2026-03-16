@@ -29,8 +29,9 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           // Charting library — large but stable
           'vendor-recharts': ['recharts'],
-          // Export libs — only loaded on-demand via dynamic import
-          'vendor-export': ['html2canvas', 'jspdf'],
+          // NOTE: html2canvas + jspdf are dynamically imported in
+          // exportUtils.ts and ExportMenu.tsx — Vite auto-splits them
+          // into async chunks that load only when export is triggered.
         },
       },
     },
