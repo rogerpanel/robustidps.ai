@@ -16,8 +16,8 @@ RUN find /dist -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -na
 
 # Stage 3: Serve with nginx + Brotli support
 FROM nginx:1.27-alpine
-# Install the dynamic Brotli module for nginx (serves pre-compressed .br files)
-RUN apk add --no-cache nginx-mod-http-brotli 2>/dev/null || true
+# NOTE: nginx-mod-http-brotli removed — not reliably available on alpine
+# and brotli directives in nginx.conf crash nginx if module is missing.
 COPY --from=compress /dist /usr/share/nginx/html
 # nginx.conf is mounted via docker-compose
 EXPOSE 80 443
