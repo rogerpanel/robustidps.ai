@@ -31,6 +31,10 @@ import {
   ChevronRight,
   ChevronDown,
   Diamond,
+  Building2,
+  GraduationCap,
+  ClipboardCheck,
+  Trophy,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -56,6 +60,10 @@ const ModelSupplyChain = lazy(() => import('./pages/ModelSupplyChain'))
 const ResearchHub = lazy(() => import('./pages/ResearchHub'))
 const RLResponseAgent = lazy(() => import('./pages/RLResponseAgent'))
 const AdversarialRobustness = lazy(() => import('./pages/AdversarialRobustness'))
+const LabPartnerships = lazy(() => import('./pages/LabPartnerships'))
+const PostdocPortal = lazy(() => import('./pages/PostdocPortal'))
+const InterviewPrep = lazy(() => import('./pages/InterviewPrep'))
+const Benchmarks = lazy(() => import('./pages/Benchmarks'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 const Architecture = lazy(() => import('./pages/Architecture'))
@@ -114,6 +122,15 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    heading: 'Industry & Research',
+    items: [
+      { to: '/lab-partnerships', label: 'Lab Partnerships', icon: Building2 },
+      { to: '/postdoc-portal', label: 'Postdoc Portal', icon: GraduationCap },
+      { to: '/interview-prep', label: 'Interview Prep', icon: ClipboardCheck },
+      { to: '/benchmarks', label: 'Benchmarks', icon: Trophy },
+    ],
+  },
+  {
     heading: 'System',
     items: [
       { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
@@ -126,7 +143,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 // Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
 const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'System']
-const RIGHT_GROUPS = ['AI Novel Methods', 'AI Security & Gov']
+const RIGHT_GROUPS = ['AI Novel Methods', 'AI Security & Gov', 'Industry & Research']
 
 export default function App() {
   const [online, setOnline] = useState<boolean | null>(null)
@@ -563,6 +580,10 @@ export default function App() {
               <Route path="/supply-chain" element={<ModelSupplyChain />} />
               <Route path="/research" element={<ResearchHub />} />
               <Route path="/copilot" element={<Copilot />} />
+              <Route path="/lab-partnerships" element={<LabPartnerships />} />
+              <Route path="/postdoc-portal" element={<PostdocPortal />} />
+              <Route path="/interview-prep" element={<InterviewPrep />} />
+              <Route path="/benchmarks" element={<Benchmarks />} />
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/architecture" element={<Architecture />} />
               <Route path="/api-docs" element={<ApiDocs />} />
