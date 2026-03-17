@@ -201,31 +201,11 @@ def _user_response(u: User) -> UserResponse:
 
 @router.post("/register", response_model=Token)
 def register(body: UserCreate, db: Session = Depends(get_db)):
-    """Register a new account. The first user becomes admin."""
-    existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    validate_password_strength(body.password)
-
-    user_count = db.execute(select(func.count(User.id))).scalar()
-    is_first = user_count == 0
-
-    user = User(
-        email=body.email,
-        password_hash=hash_password(body.password),
-        full_name=body.full_name,
-        organization=body.organization,
-        use_case=body.use_case,
-        role="admin" if is_first else "analyst",
+    """Public registration is disabled. Accounts are managed by admins only."""
+    raise HTTPException(
+        status_code=403,
+        detail="Public registration is disabled. Contact your administrator.",
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    logger.info("User registered: %s (role=%s)", user.email, user.role)
-    token = create_access_token({"sub": user.email, "role": user.role})
-    return Token(access_token=token, user=_user_response(user))
 
 
 @router.post("/login", response_model=Token)
@@ -339,6 +319,37 @@ def toggle_active(
     db.commit()
     logger.info("Admin %s set user %s active=%s", admin.email, target.email, active)
     return {"ok": True, "user": _user_response(target)}
+
+
+@router.post("/users", response_model=UserResponse)
+def create_user(
+    body: UserCreate,
+    admin: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Create a new user account (admin only). Replaces public registration."""
+    existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    validate_password_strength(body.password)
+
+    role = "analyst"  # new users default to analyst; admin can change via /users/{id}/role
+
+    user = User(
+        email=body.email,
+        password_hash=hash_password(body.password),
+        full_name=body.full_name,
+        organization=body.organization,
+        use_case=body.use_case,
+        role=role,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info("Admin %s created user %s (role=%s)", admin.email, user.email, user.role)
+    return _user_response(user)
 
 
 # ── Startup: create default admin ─────────────────────────────────────────

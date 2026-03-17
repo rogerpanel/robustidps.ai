@@ -1,28 +1,16 @@
 import { useState } from 'react'
-import { ShieldCheck, LogIn, UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { ShieldCheck, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { setAuth, type AuthUser } from '../utils/auth'
 
 const API = import.meta.env.VITE_API_URL || ''
-
-const USE_CASE_OPTIONS = [
-  'Industry Work',
-  'Academic Research',
-  'Evaluation & Assessment',
-  'Government / Defense',
-  'Personal / Self-Study',
-]
 
 interface Props {
   onLogin: () => void
 }
 
 export default function Login({ onLogin }: Props) {
-  const [isRegister, setIsRegister] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [fullName, setFullName] = useState('')
-  const [organization, setOrganization] = useState('')
-  const [useCase, setUseCase] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,24 +21,14 @@ export default function Login({ onLogin }: Props) {
     setLoading(true)
 
     try {
-      let res: Response
-
-      if (isRegister) {
-        res = await fetch(`${API}/api/auth/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, full_name: fullName, organization, use_case: useCase }),
-        })
-      } else {
-        const form = new URLSearchParams()
-        form.append('username', email)
-        form.append('password', password)
-        res = await fetch(`${API}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: form,
-        })
-      }
+      const form = new URLSearchParams()
+      form.append('username', email)
+      form.append('password', password)
+      const res = await fetch(`${API}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form,
+      })
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -86,7 +64,7 @@ export default function Login({ onLogin }: Props) {
         {/* Form Card */}
         <div className="bg-bg-card border border-bg-card rounded-xl p-6 shadow-xl">
           <h2 className="text-lg font-semibold text-text-primary mb-6">
-            {isRegister ? 'Create Account' : 'Sign In'}
+            Sign In
           </h2>
 
           {error && (
@@ -97,52 +75,6 @@ export default function Login({ onLogin }: Props) {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegister && (
-              <>
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                    placeholder="Roger Anaedevha"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Organisation
-                  </label>
-                  <input
-                    type="text"
-                    value={organization}
-                    onChange={(e) => setOrganization(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                    placeholder="e.g. MEPhI, MIT, Cisco, etc."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Reason of Use
-                  </label>
-                  <select
-                    value={useCase}
-                    onChange={(e) => setUseCase(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                  >
-                    <option value="">Select a reason...</option>
-                    {USE_CASE_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-
             <div>
               <label className="block text-sm text-text-secondary mb-1">
                 Email
@@ -153,7 +85,7 @@ export default function Login({ onLogin }: Props) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                placeholder="admin@robustidps.ai"
+                placeholder="you@example.com"
               />
             </div>
 
@@ -168,8 +100,7 @@ export default function Login({ onLogin }: Props) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2.5 pr-10 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                  placeholder="Min. 8 characters"
-                  minLength={isRegister ? 8 : 1}
+                  placeholder="Enter your password"
                 />
                 <button
                   type="button"
@@ -188,28 +119,16 @@ export default function Login({ onLogin }: Props) {
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : isRegister ? (
-                <UserPlus className="w-4 h-4" />
               ) : (
                 <LogIn className="w-4 h-4" />
               )}
-              {isRegister ? 'Create Account' : 'Sign In'}
+              Sign In
             </button>
           </form>
 
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => {
-                setIsRegister(!isRegister)
-                setError('')
-              }}
-              className="text-sm text-accent-blue hover:underline"
-            >
-              {isRegister
-                ? 'Already have an account? Sign in'
-                : "Don't have an account? Register"}
-            </button>
-          </div>
+          <p className="mt-4 text-center text-xs text-text-secondary">
+            Accounts are managed by your administrator.
+          </p>
         </div>
 
         {/* Footer */}

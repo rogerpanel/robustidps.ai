@@ -3,7 +3,11 @@ Centralised configuration loaded from environment variables / .env file.
 """
 
 import os
+import secrets
+import logging
 from pathlib import Path
+
+_cfg_logger = logging.getLogger("robustidps.config")
 
 try:
     from dotenv import load_dotenv
@@ -15,7 +19,15 @@ except ImportError:
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./robustidps.db")
 
 # ── Authentication ────────────────────────────────────────────────────────
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-in-production")
+_DEFAULT_SECRET = "dev-only-change-in-production"
+SECRET_KEY = os.getenv("SECRET_KEY", _DEFAULT_SECRET)
+if SECRET_KEY == _DEFAULT_SECRET:
+    _cfg_logger.critical(
+        "SECRET_KEY is using the default value! "
+        "Set a strong SECRET_KEY environment variable in production. "
+        "Generating a random ephemeral key for this session."
+    )
+    SECRET_KEY = secrets.token_urlsafe(64)
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 
@@ -24,7 +36,7 @@ CORS_ORIGINS = [
     o.strip()
     for o in os.getenv(
         "CORS_ORIGINS",
-        "https://robustidps.ai,http://localhost:3000,http://localhost:5173,https://37.27.31.70,http://37.27.31.70",
+        "https://robustidps.ai,http://localhost:3000,http://localhost:5173",
     ).split(",")
 ]
 RATE_LIMIT_DEFAULT = os.getenv("RATE_LIMIT_DEFAULT", "100/minute")
@@ -42,7 +54,12 @@ DATASETS_DIR = Path(os.getenv("DATASETS_DIR", str(Path(__file__).parent / "datas
 
 # ── Default Admin (created on first startup if DB is empty) ───────────────
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@robustidps.ai")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "R1$")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+if not ADMIN_PASSWORD:
+    _cfg_logger.warning(
+        "ADMIN_PASSWORD not set — default admin will not be created. "
+        "Set ADMIN_PASSWORD to a strong value (min 8 chars, mixed case, digit, special char)."
+    )
 
 # ── AI Copilot ───────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")

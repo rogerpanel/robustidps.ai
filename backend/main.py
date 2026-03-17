@@ -15,7 +15,7 @@ Endpoints:
   GET    /api/health              Health check
   WS     /ws/stream               WebSocket: stream predictions row-by-row
   GET    /metrics                 Prometheus metrics
-  POST   /api/auth/register       Register new account
+  POST   /api/auth/register       (Disabled — returns 403)
   POST   /api/auth/login          Login, returns JWT
   GET    /api/auth/me             Current user info
   GET    /api/audit/logs          Audit trail (admin)
@@ -132,12 +132,15 @@ limiter = Limiter(key_func=get_remote_address)
 
 WEIGHTS_DIR = Path(__file__).parent / "weights"
 
+# Disable interactive API docs in production to reduce attack surface
+_is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
+
 app = FastAPI(
     title="RobustIDPS.ai",
     version="2.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    docs_url=None if _is_production else "/api/docs",
+    redoc_url=None if _is_production else "/api/redoc",
+    openapi_url=None if _is_production else "/api/openapi.json",
 )
 
 app.state.limiter = limiter
@@ -166,6 +169,26 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(RequestIdMiddleware)
+
+
+# ── Security Headers Middleware ─────────────────────────────────────────
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add defense-in-depth security headers to all API responses."""
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Cache-Control"] = "no-store"
+        if _is_production:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains; preload"
+            )
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # ── Audit Middleware ──────────────────────────────────────────────────────
 
@@ -688,7 +711,7 @@ async def predict_uncertain(
     file: UploadFile = File(...),
     mc_passes: int = Form(default=20),
     model_name: str = Form(default=""),
-    user=Depends(get_current_user),
+    user=Depends(require_auth),
     db=Depends(get_db),
 ):
     # Circuit breaker check — block predictions if drift threshold exceeded

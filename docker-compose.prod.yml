@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-robustidps}
       POSTGRES_USER: ${POSTGRES_USER:-robustidps}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -43,7 +43,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-robustidps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-robustidps}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-robustidps}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-robustidps}
       - REDIS_URL=redis://redis:6379/0
     depends_on:
       postgres:
@@ -97,7 +97,7 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-robustidps}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-robustidps}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-robustidps}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-robustidps}
       - REDIS_URL=redis://redis:6379/0
       - DEVICE=cuda
       - BATCH_SIZE=8192
@@ -129,8 +129,7 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
       - '--web.enable-lifecycle'
-    ports:
-      - "9090:9090"
+    # Prometheus only accessible within Docker network (not exposed to host)
     networks:
       - app
 
@@ -139,7 +138,7 @@ services:
     restart: always
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-robustidps}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set in .env}
       - GF_SERVER_ROOT_URL=https://robustidps.ai/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
@@ -147,8 +146,7 @@ services:
       - ./deploy/monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
       - ./deploy/monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
       - ./deploy/monitoring/dashboards:/var/lib/grafana/dashboards:ro
-    ports:
-      - "3001:3000"
+    # Grafana only accessible within Docker network (proxy via nginx if needed)
     depends_on:
       - prometheus
     networks:
