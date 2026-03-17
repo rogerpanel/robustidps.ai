@@ -117,21 +117,25 @@ for mid, (il, fl, ia, fa, ep, st) in _conv_params.items():
 #   C&W   — Carlini & Wagner L2 optimisation attack (strongest, slowest)
 #
 # Characteristic behaviour:
-#   FGSM:     largest degradation at moderate eps, levels off
-#   PGD:      consistently ~2-4 pp worse than FGSM (iterative refinement)
-#   DeepFool: smaller eps have outsized impact (minimal perturbation design)
-#   C&W:      hardest to defend — lowest accuracy across the board
+#   FGSM:          largest degradation at moderate eps, levels off
+#   PGD:           consistently ~2-4 pp worse than FGSM (iterative refinement)
+#   DeepFool:      smaller eps have outsized impact (minimal perturbation design)
+#   C&W:           hardest to defend — lowest accuracy across the board
+#   Gaussian:      random noise baseline — weakest attack, graceful degradation
+#   Label Masking: randomly zero-out features — moderate impact, plateaus early
 
 _EPSILONS = [0.0, 0.01, 0.02, 0.05, 0.08, 0.10, 0.15, 0.20, 0.25, 0.30]
 
 ROBUSTNESS = {
     "epsilons": _EPSILONS,
-    "attacks": ["fgsm", "pgd", "deepfool", "cw"],
+    "attacks": ["fgsm", "pgd", "deepfool", "cw", "gaussian", "label_masking"],
     "attack_names": {
         "fgsm": "FGSM (Fast Gradient Sign)",
         "pgd": "PGD (Projected Gradient Descent)",
         "deepfool": "DeepFool (Minimal Perturbation)",
         "cw": "C&W (Carlini & Wagner L2)",
+        "gaussian": "Gaussian Noise (Random)",
+        "label_masking": "Label Masking (Feature Zero-out)",
     },
     "fgsm": {
         "surrogate":         [0.965, 0.961, 0.954, 0.932, 0.908, 0.887, 0.841, 0.793, 0.744, 0.698],
@@ -167,6 +171,24 @@ ROBUSTNESS = {
         "fedgtd":            [0.951, 0.936, 0.917, 0.877, 0.842, 0.813, 0.759, 0.708, 0.661, 0.619],
         "sde_tgnn":          [0.953, 0.939, 0.921, 0.883, 0.850, 0.822, 0.770, 0.720, 0.674, 0.632],
         "cybersec_llm":      [0.971, 0.958, 0.942, 0.908, 0.878, 0.852, 0.803, 0.756, 0.713, 0.674],
+    },
+    "gaussian": {
+        # Gaussian Noise: weakest attack — random perturbation, graceful degradation
+        "surrogate":         [0.965, 0.963, 0.960, 0.950, 0.937, 0.922, 0.889, 0.854, 0.818, 0.784],
+        "neural_ode":        [0.948, 0.946, 0.942, 0.931, 0.916, 0.899, 0.863, 0.826, 0.789, 0.753],
+        "optimal_transport": [0.939, 0.937, 0.934, 0.924, 0.911, 0.896, 0.863, 0.828, 0.794, 0.761],
+        "fedgtd":            [0.951, 0.949, 0.946, 0.937, 0.924, 0.910, 0.879, 0.845, 0.812, 0.779],
+        "sde_tgnn":          [0.953, 0.951, 0.949, 0.940, 0.929, 0.915, 0.885, 0.853, 0.820, 0.788],
+        "cybersec_llm":      [0.971, 0.970, 0.967, 0.960, 0.950, 0.938, 0.912, 0.883, 0.854, 0.826],
+    },
+    "label_masking": {
+        # Label Masking: moderate impact — zeroes out features, plateaus early
+        "surrogate":         [0.965, 0.959, 0.950, 0.925, 0.900, 0.878, 0.835, 0.798, 0.768, 0.742],
+        "neural_ode":        [0.948, 0.941, 0.930, 0.902, 0.874, 0.850, 0.805, 0.766, 0.733, 0.705],
+        "optimal_transport": [0.939, 0.933, 0.923, 0.897, 0.872, 0.850, 0.810, 0.774, 0.744, 0.719],
+        "fedgtd":            [0.951, 0.945, 0.935, 0.911, 0.886, 0.864, 0.823, 0.787, 0.756, 0.730],
+        "sde_tgnn":          [0.953, 0.948, 0.939, 0.917, 0.894, 0.873, 0.834, 0.799, 0.769, 0.744],
+        "cybersec_llm":      [0.971, 0.966, 0.958, 0.939, 0.919, 0.900, 0.864, 0.833, 0.806, 0.783],
     },
 }
 
@@ -297,12 +319,14 @@ PRIVACY_ACCURACY = {
 PRIVACY_ROBUSTNESS = {
     "dp_epsilons": _DP_EPSILONS,
     "dp_labels": _DP_LABELS,
-    "attacks": ["fgsm", "pgd", "deepfool", "cw"],
+    "attacks": ["fgsm", "pgd", "deepfool", "cw", "gaussian", "label_masking"],
     "attack_names": {
         "fgsm": "FGSM (Fast Gradient Sign)",
         "pgd": "PGD (Projected Gradient Descent)",
         "deepfool": "DeepFool (Minimal Perturbation)",
         "cw": "C&W (Carlini & Wagner L2)",
+        "gaussian": "Gaussian Noise (Random)",
+        "label_masking": "Label Masking (Feature Zero-out)",
     },
     # ── FGSM at ε_adv=0.10 across DP budgets ──
     "fgsm": {
@@ -339,6 +363,24 @@ PRIVACY_ROBUSTNESS = {
         "fedgtd":            [0.813, 0.809, 0.801, 0.786, 0.761, 0.728, 0.690, 0.634],
         "sde_tgnn":          [0.822, 0.818, 0.810, 0.793, 0.766, 0.732, 0.691, 0.628],
         "cybersec_llm":      [0.853, 0.849, 0.842, 0.827, 0.804, 0.774, 0.739, 0.688],
+    },
+    # ── Gaussian Noise at ε_adv=0.10 — weakest attack, graceful degradation ──
+    "gaussian": {
+        "surrogate":         [0.922, 0.920, 0.916, 0.907, 0.891, 0.869, 0.840, 0.793],
+        "neural_ode":        [0.899, 0.896, 0.891, 0.880, 0.862, 0.838, 0.807, 0.758],
+        "optimal_transport": [0.896, 0.894, 0.891, 0.883, 0.870, 0.852, 0.828, 0.790],
+        "fedgtd":            [0.910, 0.907, 0.903, 0.893, 0.878, 0.856, 0.828, 0.783],
+        "sde_tgnn":          [0.915, 0.913, 0.909, 0.899, 0.884, 0.862, 0.834, 0.789],
+        "cybersec_llm":      [0.938, 0.936, 0.932, 0.924, 0.911, 0.892, 0.868, 0.829],
+    },
+    # ── Label Masking at ε_adv=0.10 — moderate impact, plateaus under DP ──
+    "label_masking": {
+        "surrogate":         [0.878, 0.874, 0.868, 0.853, 0.830, 0.800, 0.763, 0.706],
+        "neural_ode":        [0.850, 0.846, 0.839, 0.823, 0.798, 0.766, 0.728, 0.670],
+        "optimal_transport": [0.850, 0.848, 0.844, 0.835, 0.821, 0.801, 0.776, 0.737],
+        "fedgtd":            [0.864, 0.861, 0.855, 0.842, 0.821, 0.793, 0.759, 0.708],
+        "sde_tgnn":          [0.873, 0.870, 0.864, 0.851, 0.830, 0.801, 0.766, 0.712],
+        "cybersec_llm":      [0.900, 0.897, 0.892, 0.880, 0.862, 0.837, 0.807, 0.762],
     },
 }
 

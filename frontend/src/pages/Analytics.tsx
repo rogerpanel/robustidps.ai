@@ -496,6 +496,8 @@ const ATTACK_COLORS: Record<string, string> = {
   pgd: '#A855F7',
   deepfool: '#F59E0B',
   cw: '#EF4444',
+  gaussian: '#22C55E',
+  label_masking: '#EC4899',
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -604,7 +606,7 @@ function RobustnessTab({ data, models, names }: { data: any; models: string[]; n
         <div className="lg:col-span-2 bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
             <h3 className="text-sm font-medium text-text-secondary">
-              All 4 Attacks on {names[selectedModel].split('(')[0].trim()}
+              All {attacks.length} Attacks on {names[selectedModel].split('(')[0].trim()}
             </h3>
             <div className="flex gap-1">
               {models.map((mid) => (
@@ -725,7 +727,7 @@ function RobustnessTab({ data, models, names }: { data: any; models: string[]; n
         </div>
         <p className="text-xs text-text-secondary mt-3">
           Green AUC = best resilience for that model. Red = most vulnerable attack vector.
-          C&W consistently degrades accuracy the most, while FGSM is the least effective.
+          C&W consistently degrades accuracy the most, while Gaussian Noise is the least effective.
         </p>
       </div>
     </div>
@@ -869,9 +871,11 @@ function TradeoffsTab({ data, models, names }: { data: any; models: string[]; na
           <p className="text-xs text-text-secondary mt-2">
             Adversarial accuracy under <strong>{(prAttackNames[selectedAttack] || selectedAttack).split('(')[0].trim()}</strong> (ε<sub>adv</sub>=0.10) at each DP level.
             {selectedAttack === 'cw' && ' C&W is the strongest attack — lowest accuracy across all DP levels.'}
-            {selectedAttack === 'fgsm' && ' FGSM is the fastest but weakest attack.'}
+            {selectedAttack === 'fgsm' && ' FGSM is the fastest but weakest gradient-based attack.'}
             {selectedAttack === 'pgd' && ' PGD iterates 20 steps, consistently ~2-3% worse than FGSM.'}
             {selectedAttack === 'deepfool' && ' DeepFool finds minimal perturbations with outsized impact at low ε.'}
+            {selectedAttack === 'gaussian' && ' Gaussian Noise is the weakest attack — random perturbations cause graceful degradation.'}
+            {selectedAttack === 'label_masking' && ' Label Masking zeroes out features, causing moderate impact that plateaus under strong DP.'}
           </p>
         </div>
       </div>
