@@ -34,6 +34,7 @@ import {
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
+const LandingPage = lazy(() => import('./pages/LandingPage'))
 const EthicalUseAgreement = lazy(() => import('./components/EthicalUseAgreement'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const UploadPage = lazy(() => import('./pages/Upload'))
@@ -56,6 +57,8 @@ const ResearchHub = lazy(() => import('./pages/ResearchHub'))
 const RLResponseAgent = lazy(() => import('./pages/RLResponseAgent'))
 const AdversarialRobustness = lazy(() => import('./pages/AdversarialRobustness'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const ApiDocs = lazy(() => import('./pages/ApiDocs'))
+const Architecture = lazy(() => import('./pages/Architecture'))
 const Login = lazy(() => import('./pages/Login'))
 import { fetchHealth } from './utils/api'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -114,6 +117,8 @@ const NAV_GROUPS: NavGroup[] = [
     heading: 'System',
     items: [
       { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
+      { to: '/architecture', label: 'Architecture', icon: Database },
+      { to: '/api-docs', label: 'API Docs', icon: BookOpen },
       { to: '/about', label: 'About', icon: Info },
     ],
   },
@@ -132,6 +137,8 @@ export default function App() {
   const [user, setUser] = useState<AuthUser | null>(getUser())
   const [ethicalAccepted, setEthicalAccepted] = useState(false)
   const [showPolicyViewer, setShowPolicyViewer] = useState(false)
+  const [demoMode, setDemoMode] = useState(false)
+  const [showLogin, setShowLogin] = useState(false)
   const { loading: analysisRunning, clearResults } = useAnalysis()
   const location = useLocation()
 
@@ -194,12 +201,19 @@ export default function App() {
     setEthicalAccepted(false) // require acceptance on every login
   }
 
+  const handleEnterDemo = () => {
+    setDemoMode(true)
+    setEthicalAccepted(true) // skip ethical agreement in demo mode
+  }
+
   const handleLogout = () => {
     resetAllSessions()   // wipe all module-level stores + user-scoped localStorage
     clearResults()        // flush AnalysisProvider context
     clearAuth()           // remove token + user from localStorage
     setAuthed(false)
     setUser(null)
+    setDemoMode(false)
+    setShowLogin(false)
     setEthicalAccepted(false)
   }
 
@@ -222,20 +236,37 @@ export default function App() {
     return () => { cancelled = true; clearTimeout(startDelay); clearInterval(id) }
   }, [])
 
-  // Show login page if not authenticated
-  if (!authed) {
+  // Show public landing page if not authenticated and not in demo mode
+  if (!authed && !demoMode) {
+    // If user clicked "Sign In" from landing, show login form
+    if (showLogin) {
+      return (
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-screen bg-bg-primary">
+            <Loader2 className="w-6 h-6 animate-spin text-accent-blue" />
+          </div>
+        }>
+          <Login onLogin={handleLogin} />
+        </Suspense>
+      )
+    }
+
+    // Otherwise show the public landing page
     return (
       <Suspense fallback={
         <div className="flex items-center justify-center h-screen bg-bg-primary">
           <Loader2 className="w-6 h-6 animate-spin text-accent-blue" />
         </div>
       }>
-        <Login onLogin={handleLogin} />
+        <LandingPage
+          onEnterDemo={handleEnterDemo}
+          onSignIn={() => setShowLogin(true)}
+        />
       </Suspense>
     )
   }
 
-  // Show ethical use agreement overlay before granting access
+  // Show ethical use agreement overlay before granting access (skip in demo mode)
   if (!ethicalAccepted) {
     return (
       <Suspense fallback={
@@ -304,6 +335,14 @@ export default function App() {
 
   const sidebarFooter = (
     <div className="p-4 border-t border-bg-card space-y-2">
+      {demoMode && !authed && (
+        <div className="flex items-center gap-2 text-xs mb-2">
+          <span className="px-2 py-0.5 bg-accent-amber/15 text-accent-amber rounded text-[10px] font-medium uppercase">
+            Demo Mode
+          </span>
+          <span className="text-text-secondary text-[10px]">Read-only</span>
+        </div>
+      )}
       {user && (
         <div className="flex items-center gap-2 text-xs text-text-secondary mb-2">
           <User className="w-3.5 h-3.5" />
@@ -318,7 +357,7 @@ export default function App() {
         className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent-red transition-colors w-full"
       >
         <LogOut className="w-3.5 h-3.5" />
-        Sign Out
+        {demoMode && !authed ? 'Exit Demo' : 'Sign Out'}
       </button>
 
       {analysisRunning && (
@@ -525,6 +564,8 @@ export default function App() {
               <Route path="/research" element={<ResearchHub />} />
               <Route path="/copilot" element={<Copilot />} />
               <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/architecture" element={<Architecture />} />
+              <Route path="/api-docs" element={<ApiDocs />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
