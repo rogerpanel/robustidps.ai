@@ -149,6 +149,25 @@ MODEL_DEPENDENCIES = {
         "training_dataset": "CIC-IoT-2023",
         "training_environment": "CUDA 12.1, A100 80GB, Ubuntu 22.04",
     },
+    "clrl_unified": {
+        "name": "CL-RL Unified",
+        "framework": "PyTorch",
+        "framework_version": "2.1.0",
+        "python_version": "3.10.12",
+        "dependencies": [
+            {"name": "torch", "version": "2.1.0", "license": "BSD-3", "cve_count": 0, "risk": "low"},
+            {"name": "numpy", "version": "1.26.2", "license": "BSD-3", "cve_count": 0, "risk": "low"},
+            {"name": "gymnasium", "version": "0.29.1", "license": "MIT", "cve_count": 0, "risk": "low"},
+            {"name": "scikit-learn", "version": "1.3.2", "license": "BSD-3", "cve_count": 0, "risk": "low"},
+        ],
+        "total_dependencies": 45,
+        "direct_dependencies": 4,
+        "transitive_dependencies": 41,
+        "weight_file": "clrl_unified.pt",
+        "weight_hash_algorithm": "SHA-256",
+        "training_dataset": "CIC-IoT-2023",
+        "training_environment": "CUDA 12.1, Ubuntu 22.04",
+    },
 }
 
 # ── Vulnerability database (simulated) ───────────────────────────────────
@@ -257,7 +276,7 @@ PIPELINE_CHECKS = {
         "category": "integrity",
         "description": "SHA-256 hash verification of all model weight files",
         "status": "pass",
-        "details": "All 6 model weight files pass SHA-256 integrity verification",
+        "details": "All 7 model weight files pass SHA-256 integrity verification",
         "severity": "critical",
         "automated": True,
     },
@@ -297,7 +316,7 @@ PIPELINE_CHECKS = {
         "category": "provenance",
         "description": "Verify model artifacts are cryptographically signed by authorised trainers",
         "status": "warning",
-        "details": "4/6 models signed with Ed25519; 2 models pending signature",
+        "details": "5/7 models signed with Ed25519; 2 models pending signature",
         "severity": "high",
         "automated": True,
     },

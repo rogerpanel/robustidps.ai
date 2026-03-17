@@ -20,6 +20,7 @@ const MODEL_COLORS: Record<string, string> = {
 
 const ATTACK_COLORS: Record<string, string> = {
   fgsm: '#3B82F6', pgd: '#A855F7', deepfool: '#F59E0B', cw: '#EF4444',
+  gaussian: '#22C55E', label_masking: '#EC4899',
 }
 
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
