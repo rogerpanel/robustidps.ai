@@ -15,6 +15,7 @@ const MODEL_COLORS: Record<string, string> = {
   fedgtd: '#F59E0B',
   sde_tgnn: '#EF4444',
   cybersec_llm: '#06B6D4',
+  clrl_unified: '#EC4899',
 }
 
 const ATTACK_COLORS: Record<string, string> = {

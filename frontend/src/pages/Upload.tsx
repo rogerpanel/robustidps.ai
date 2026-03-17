@@ -32,7 +32,7 @@ import {
 
 const PAGE = 'upload'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
-const MODEL_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4']
+const MODEL_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4', '#EC4899']
 const DATASET_COLORS = ['#3B82F6', '#22C55E', '#F59E0B']
 
 interface DatasetInfo {

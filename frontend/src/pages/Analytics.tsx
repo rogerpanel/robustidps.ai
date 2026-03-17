@@ -17,6 +17,7 @@ const MODEL_COLORS: Record<string, string> = {
   fedgtd: '#F59E0B',
   sde_tgnn: '#EF4444',
   cybersec_llm: '#06B6D4',
+  clrl_unified: '#EC4899',
 }
 
 type Tab = 'performance' | 'convergence' | 'robustness' | 'transfer' | 'calibration' | 'roc' | 'tradeoffs' | 'datasets' | 'statistical' | 'crossmodule'
@@ -147,7 +148,7 @@ export default function Analytics() {
       <PageGuide
         title="How to use Analytics & Evaluation"
         steps={[
-          { title: 'Browse tabs', desc: 'Use the 10 tabs to compare all 6 dissertation models: Performance, Convergence, Robustness, Privacy, Transfer Learning, Calibration, ROC/AUC, plus the new Dataset Comparison, Statistical Analysis, and Cross-Module Intelligence tabs.' },
+          { title: 'Browse tabs', desc: 'Use the 10 tabs to compare all 7 dissertation models (including CL-RL Unified): Performance, Convergence, Robustness, Privacy, Transfer Learning, Calibration, ROC/AUC, plus the new Dataset Comparison, Statistical Analysis, and Cross-Module Intelligence tabs.' },
           { title: 'Compare models', desc: 'Each chart shows all models side by side. Hover for exact values. Models are color-coded consistently across all tabs.' },
           { title: 'Multi-dataset analysis', desc: 'The new Dataset Comparison tab evaluates models across all 6 benchmark datasets. Statistical Analysis provides Friedman rankings, confidence intervals, and ensemble potential.' },
           { title: 'Cross-Module Intel', desc: 'The Cross-Module Intelligence tab aggregates insights from Red Team, XAI, Federated Learning, and all other operational modules into a unified security posture view.' },
@@ -1662,8 +1663,8 @@ function StatisticalTab({ data, models, names }: { data: any; models: string[]; 
           Statistical Analysis & Ensemble Intelligence
         </h3>
         <p className="text-xs text-text-secondary">
-          Rigorous statistical comparison using Friedman ranking across all 6 datasets and 5 core metrics,
-          with 95% confidence intervals, pairwise model correlation analysis, and multi-model ensemble potential.
+          Rigorous statistical comparison using Friedman ranking across all 6 datasets, 7 models (including CL-RL Unified),
+          and 5 core metrics, with 95% confidence intervals, pairwise model correlation analysis, and multi-model ensemble potential.
           This validates whether performance differences are statistically significant.
         </p>
       </div>
@@ -1688,7 +1689,7 @@ function StatisticalTab({ data, models, names }: { data: any; models: string[]; 
                   <div
                     className="h-2 rounded-full"
                     style={{
-                      width: `${((6 - f.rank) / 5) * 100}%`,
+                      width: `${((models.length - f.rank) / (models.length - 1)) * 100}%`,
                       background: MODEL_COLORS[f.mid],
                     }}
                   />

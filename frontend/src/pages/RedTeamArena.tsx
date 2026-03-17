@@ -33,7 +33,7 @@ const SEV_COLORS: Record<string, string> = {
   fgsm: '#EF4444', pgd: '#F97316', deepfool: '#F59E0B', cw: '#EC4899', gaussian: '#3B82F6', feature_mask: '#A855F7',
 }
 
-const MODEL_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4']
+const MODEL_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4', '#EC4899']
 const DATASET_COLORS = ['#3B82F6', '#22C55E', '#F59E0B']
 
 interface ModelInfo {

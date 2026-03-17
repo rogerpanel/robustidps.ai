@@ -24,7 +24,7 @@ const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '
 const NODE_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4']
 const NODE_NAMES = ['Enterprise-HQ', 'Branch-Office-A', 'Branch-Office-B', 'Cloud-DC-1', 'IoT-Gateway', 'Remote-SOC']
 const DATASET_COLORS = ['#3B82F6', '#22C55E', '#F59E0B']
-const MODEL_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4']
+const MODEL_COLORS = ['#3B82F6', '#22C55E', '#F59E0B', '#EF4444', '#A855F7', '#06B6D4', '#EC4899']
 
 const STRATEGY_OPTS = [
   { id: 'fedavg', label: 'FedAvg', desc: 'Federated Averaging — equal weight aggregation' },

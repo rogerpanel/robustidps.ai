@@ -39,7 +39,7 @@ const TAB_LABELS: Record<ViewTab, string> = {
   incremental_compare: 'Incremental Compare',
 }
 
-const MODEL_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899']
+const MODEL_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4']
 const DATASET_COLORS = ['#06B6D4', '#F97316', '#84CC16', '#E879F9']
 
 const TOOLTIP_STYLE = {

@@ -360,7 +360,7 @@ export default function ExplainabilityStudio() {
                 <div className="mt-2 p-3 bg-bg-primary rounded-lg border border-bg-card space-y-2">
                   <p className="text-[11px] text-text-secondary">Select 2+ models to compare how they explain the same data:</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {['surrogate', 'neural_ode', 'optimal_transport', 'sde_tgnn', 'fedgtd', 'cybersec_llm'].map(m => (
+                    {['surrogate', 'neural_ode', 'optimal_transport', 'sde_tgnn', 'fedgtd', 'cybersec_llm', 'clrl_unified'].map(m => (
                       <button
                         key={m}
                         onClick={() => toggleCompareModel(m)}
@@ -411,7 +411,7 @@ export default function ExplainabilityStudio() {
                   <div>
                     <p className="text-[11px] text-text-secondary mb-1.5">Models to analyse across datasets:</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {['surrogate', 'neural_ode', 'optimal_transport', 'sde_tgnn', 'fedgtd', 'cybersec_llm'].map(m => (
+                      {['surrogate', 'neural_ode', 'optimal_transport', 'sde_tgnn', 'fedgtd', 'cybersec_llm', 'clrl_unified'].map(m => (
                         <button
                           key={m}
                           onClick={() => toggleMultiModel(m)}
