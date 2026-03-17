@@ -37,6 +37,15 @@ const STORAGE_KEYS = {
   activeIdsModels: 'robustidps_copilot_ids_models',
 }
 
+// Migrate any API key from localStorage to sessionStorage (one-time cleanup)
+;(() => {
+  const legacy = localStorage.getItem(STORAGE_KEYS.apiKey)
+  if (legacy) {
+    sessionStorage.setItem(STORAGE_KEYS.apiKey, legacy)
+    localStorage.removeItem(STORAGE_KEYS.apiKey)
+  }
+})()
+
 const PROVIDERS: ProviderConfig[] = [
   {
     id: 'anthropic',
@@ -112,7 +121,7 @@ export default function Copilot() {
   const [loading, setLoading] = useState(false)
 
   // Settings
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(STORAGE_KEYS.apiKey) || '')
+  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem(STORAGE_KEYS.apiKey) || '')
   const [provider, setProvider] = useState(() => localStorage.getItem(STORAGE_KEYS.provider) || 'auto')
   const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem(STORAGE_KEYS.model) || '')
   const [showSettings, setShowSettings] = useState(false)
@@ -143,10 +152,10 @@ export default function Copilot() {
     }
   }, [messages])
 
-  // Persist settings
+  // Persist API key in sessionStorage (cleared on tab close for security)
   useEffect(() => {
-    if (apiKey) localStorage.setItem(STORAGE_KEYS.apiKey, apiKey)
-    else localStorage.removeItem(STORAGE_KEYS.apiKey)
+    if (apiKey) sessionStorage.setItem(STORAGE_KEYS.apiKey, apiKey)
+    else sessionStorage.removeItem(STORAGE_KEYS.apiKey)
   }, [apiKey])
 
   useEffect(() => {
@@ -187,7 +196,7 @@ export default function Copilot() {
 
   const clearKey = () => {
     setApiKey('')
-    localStorage.removeItem(STORAGE_KEYS.apiKey)
+    sessionStorage.removeItem(STORAGE_KEYS.apiKey)
   }
 
   const clearHistory = () => {
@@ -411,7 +420,7 @@ export default function Copilot() {
               )}
             </div>
             <p className="text-[10px] text-text-secondary opacity-60">
-              Your key is stored locally in your browser and never sent to our servers — it goes directly to the provider's API.
+              Your key is stored in your browser session only — it is automatically cleared when you close the tab and is never sent to our servers.
             </p>
           </div>
 

@@ -28,6 +28,11 @@ const USER_SCOPED_BASE_KEYS = [
   'robustidps_notices',
 ]
 
+/** sessionStorage keys that hold sensitive data and must be cleared on logout. */
+const SESSION_SCOPED_KEYS = [
+  'robustidps_copilot_api_key',
+]
+
 /** Call every registered reset callback and clear user-scoped localStorage. */
 export function resetAllSessions(): void {
   // 1. Invoke all registered module-level store resets
@@ -50,4 +55,11 @@ export function resetAllSessions(): void {
   for (const k of toRemove) {
     localStorage.removeItem(k)
   }
+
+  // 3. Clear sensitive sessionStorage keys (e.g. copilot API key)
+  for (const key of SESSION_SCOPED_KEYS) {
+    sessionStorage.removeItem(key)
+  }
+  // Also clear any legacy localStorage copy of the API key
+  localStorage.removeItem('robustidps_copilot_api_key')
 }

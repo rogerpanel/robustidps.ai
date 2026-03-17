@@ -128,6 +128,15 @@ remote bash -s <<'REMOTE_SCRIPT'
 cd /home/robustidps/robustidps.ai
 if [ -f .env ]; then
     echo ".env already exists — keeping existing configuration"
+    # Ensure GRAFANA_PASSWORD is set (may be missing from older deployments)
+    if ! grep -q '^GRAFANA_PASSWORD=' .env; then
+        GF_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))" 2>/dev/null || openssl rand -base64 24 | tr -d '\n')
+        echo "" >> .env
+        echo "# Grafana admin credentials (auto-generated)" >> .env
+        echo "GRAFANA_USER=admin" >> .env
+        echo "GRAFANA_PASSWORD=${GF_PASS}" >> .env
+        echo "  → Added missing GRAFANA_PASSWORD to .env"
+    fi
     exit 0
 fi
 echo "Creating .env with generated secrets..."
@@ -150,6 +159,8 @@ MAX_ROWS=10000
 POSTGRES_DB=robustidps
 POSTGRES_USER=robustidps
 POSTGRES_PASSWORD=${PG_PASS}
+GRAFANA_USER=admin
+GRAFANA_PASSWORD=${PG_PASS}
 EOF
 chmod 600 .env
 echo ".env created successfully (chmod 600)"
