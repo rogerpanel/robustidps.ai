@@ -426,7 +426,7 @@ export default function UploadPage() {
         title="How to use Upload & Analyse"
         steps={[
           { title: 'Choose a mode', desc: 'Single mode for quick analysis of one dataset with one model. Multi mode for cross-dataset, cross-model comparative analysis.' },
-          { title: 'Upload dataset(s)', desc: 'Drag & drop CSV (CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15) or PCAP files. Multi mode supports up to 3 datasets simultaneously.' },
+          { title: 'Upload dataset(s)', desc: 'Drag & drop CSV (CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15, Microsoft GUIDE, Container Security, Edge-IIoT) or PCAP files. Multi mode supports up to 6 datasets simultaneously.' },
           { title: 'Select model(s)', desc: 'Single mode: pick one model. Multi mode: select multiple models for cross-comparison of accuracy, uncertainty, and calibration.' },
           { title: 'Review results', desc: 'Single: Threat Table, Uncertainty Chart, Confusion Matrix. Multi: Accuracy matrix, uncertainty decomposition, model ranking, per-cell drill-down.' },
         ]}

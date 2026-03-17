@@ -69,7 +69,7 @@ export default function AblationStudio() {
         title="How to use Ablation Studio"
         steps={[
           { title: 'Choose mode', desc: 'Single-dataset for focused branch analysis, or Multi-dataset for cross-dataset/cross-model comparative ablation.' },
-          { title: 'Upload datasets', desc: 'Drop CSV files to evaluate the ensemble. In multi mode, upload up to 3 datasets and select multiple models.' },
+          { title: 'Upload datasets', desc: 'Drop CSV files to evaluate the ensemble. In multi mode, upload up to 6 datasets and select multiple models.' },
           { title: 'Toggle branches', desc: 'In single mode, click the colored cards to enable/disable individual methods.' },
           { title: 'Analyze results', desc: 'View cross-dataset branch stability, model robustness rankings, deprecation/appreciation trends, and sensitivity analysis.' },
         ]}

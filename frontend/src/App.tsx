@@ -69,6 +69,7 @@ const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 const Architecture = lazy(() => import('./pages/Architecture'))
 const Login = lazy(() => import('./pages/Login'))
 import { fetchHealth } from './utils/api'
+import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
 import { isAuthenticated, getUser, clearAuth, type AuthUser } from './utils/auth'
 import { resetAllSessions } from './utils/sessionReset'
@@ -238,6 +239,11 @@ export default function App() {
   useEffect(() => {
     setSidebarOpen(false)
     setRightSidebarOpen(false)
+  }, [location.pathname])
+
+  // Track page views on route changes
+  useEffect(() => {
+    trackPageView(location.pathname)
   }, [location.pathname])
 
   useEffect(() => {

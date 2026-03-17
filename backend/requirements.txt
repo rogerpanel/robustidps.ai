@@ -25,6 +25,9 @@ slowapi>=0.1.9
 # ── Enterprise: Monitoring ────────────────────────────────────────────────
 prometheus-fastapi-instrumentator>=6.0.0
 
+# ── Enterprise: Caching ──────────────────────────────────────────────────
+redis>=5.0.0
+
 # ── Enterprise: Configuration ─────────────────────────────────────────────
 python-dotenv>=1.0.0
 anthropic>=0.43.0

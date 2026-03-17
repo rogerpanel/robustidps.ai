@@ -850,7 +850,7 @@ export default function AdversarialRobustness() {
           {!multiResult && !multiRunning && (
             <div className="text-center py-12 text-text-secondary">
               <Layers className="w-10 h-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm">Load up to 3 datasets, select multiple models, and run comparative adversarial robustness evaluation.</p>
+              <p className="text-sm">Load up to 6 datasets, select multiple models, and run comparative adversarial robustness evaluation.</p>
             </div>
           )}
         </>

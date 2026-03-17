@@ -328,7 +328,7 @@ export default function RedTeamArena() {
       <PageGuide
         title="How to use Adversarial Red Team Arena"
         steps={[
-          { title: 'Upload dataset(s)', desc: 'Single mode: 1 file. Multi mode: up to 3 datasets for cross-domain analysis.' },
+          { title: 'Upload dataset(s)', desc: 'Single mode: 1 file. Multi mode: up to 6 datasets for cross-domain analysis.' },
           { title: 'Select model(s)', desc: 'Multi-select models to compare robustness across architectures.' },
           { title: 'Choose attacks & epsilon', desc: 'Pick attack vectors and perturbation strength.' },
           { title: 'Launch arena', desc: 'View robustness heatmap, evasion matrix, epsilon profiles, and confidence erosion.' },

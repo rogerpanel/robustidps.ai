@@ -103,6 +103,9 @@ from zerotrust import router as zerotrust_router
 from threat_response import router as threat_response_router
 from supply_chain import router as supply_chain_router
 from datasets import router as datasets_router
+from demo_cache import demo_cache
+from redis_cache import cache as redis_cache
+from batch_inference import get_gpu_info, optimal_batch_size, BatchConfig
 from task_queue import router as task_queue_router
 from experiments import router as experiments_router
 from reports import router as reports_router
@@ -388,6 +391,19 @@ async def health():
     return {"status": "ok", "model_loaded": model is not None}
 
 
+@app.get("/api/gpu")
+async def gpu_info():
+    """Return GPU device info and recommended batch configuration."""
+    info = get_gpu_info()
+    info["recommended_batch_size"] = optimal_batch_size()
+    info["batch_config"] = {
+        "default_batch_size": BatchConfig().batch_size,
+        "mc_passes": BatchConfig().mc_passes,
+        "use_fp16": BatchConfig().use_fp16,
+    }
+    return info
+
+
 @app.get("/api/model_info")
 async def model_info():
     return {
@@ -426,7 +442,85 @@ async def get_available_models():
 
 @app.get("/api/analytics")
 async def analytics():
-    return get_analytics_payload()
+    cached = redis_cache.get("analytics:payload")
+    if cached is not None:
+        return cached
+    payload = get_analytics_payload()
+    redis_cache.set("analytics:payload", payload, ttl=300)  # 5 min cache
+    return payload
+
+
+@app.get("/api/cache/stats")
+async def cache_stats():
+    """Return Redis/in-memory cache statistics."""
+    return redis_cache.stats()
+
+
+@app.post("/api/analytics/events")
+async def receive_analytics_events(request: Request):
+    """Accept anonymous visitor analytics events (page views, feature usage).
+
+    Privacy-respecting: no PII, no cookies, no fingerprinting.
+    Events are stored in-memory for aggregation; nothing is persisted to disk.
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Invalid JSON"}, status_code=400)
+
+    session_id = payload.get("session_id", "")
+    visitor_id = payload.get("visitor_id", "")
+    events = payload.get("events", [])
+
+    if not events or not isinstance(events, list):
+        return JSONResponse({"status": "ok", "received": 0})
+
+    # Store in analytics buffer for aggregation
+    if not hasattr(app.state, "analytics_events"):
+        app.state.analytics_events = []
+
+    for evt in events[:50]:  # cap per-request
+        app.state.analytics_events.append({
+            "session_id": session_id,
+            "visitor_id": visitor_id,
+            "event": evt.get("event", ""),
+            "page": evt.get("page", ""),
+            "metadata": evt.get("metadata", {}),
+            "timestamp": payload.get("timestamp", ""),
+        })
+
+    # Ring buffer: keep last 10,000 events in memory
+    if len(app.state.analytics_events) > 10_000:
+        app.state.analytics_events = app.state.analytics_events[-10_000:]
+
+    logger.debug("Analytics: received %d events from session %s", len(events), session_id[:8])
+    return {"status": "ok", "received": len(events)}
+
+
+# ── Demo Mode (pre-computed results for instant responses) ───────────────
+
+@app.get("/api/demo/predict/{dataset_key}")
+async def demo_predict(dataset_key: str = "ciciot"):
+    """Return pre-computed prediction results for demo mode (<50ms)."""
+    return demo_cache.get_demo_prediction(dataset_key)
+
+
+@app.get("/api/demo/ablation")
+async def demo_ablation():
+    """Return pre-computed ablation results for demo mode."""
+    return demo_cache.get_demo_ablation()
+
+
+@app.get("/api/demo/adversarial")
+async def demo_adversarial():
+    """Return pre-computed adversarial robustness results for demo mode."""
+    return demo_cache.get_demo_adversarial()
+
+
+@app.get("/api/demo/datasets")
+async def demo_datasets():
+    """Return summary of all 6 benchmark datasets with pre-computed metrics."""
+    return demo_cache.get_all_datasets_summary()
 
 
 # ── Authenticated endpoints ───────────────────────────────────────────────
@@ -2637,8 +2731,8 @@ async def xai_multi_run(
     n_samples = min(int(form.get("n_samples", 200)), MAX_ROWS)
 
     # For multi-dataset × multi-model runs, cap to lightweight methods to avoid
-    # server overload (each combo runs full XAI).  "all" with 3 datasets × 2
-    # models = 6 heavy runs that can starve the event loop and trigger 524.
+    # server overload (each combo runs full XAI).  "all" with 6 datasets × 2
+    # models = 12 heavy runs that can starve the event loop and trigger 524.
     n_combos = len(files) * len(model_names)
     if method == "all" and n_combos > 2:
         method = "saliency"

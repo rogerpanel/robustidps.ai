@@ -76,14 +76,17 @@ The platform provides:
 
 ## Dataset Support
 
-The platform auto-detects and processes 3 benchmark dataset formats plus raw PCAP:
+The platform auto-detects and processes **6 benchmark dataset formats** plus raw PCAP:
 
-| Format | Detection Method | Features Extracted |
-|--------|-----------------|-------------------|
-| **CIC-IoT-2023** | 46 canonical flow features | 46 → padded to 83 |
-| **CSE-CIC-IDS2018** | 76 full + 30 abbreviated column names | 76 → truncated to 83 |
-| **UNSW-NB15** | 38 flow features (`dur`, `sbytes`, etc.) | 38 → padded to 83 |
-| **PCAP / PCAPNG** | NFStream flow extraction → CIC-IDS2018 mapping | 76 → truncated to 83 |
+| Format | Domain | Detection Method | Features Extracted |
+|--------|--------|-----------------|-------------------|
+| **CIC-IoT-2023** | IoT Networks | 46 canonical flow features | 46 → padded to 83 |
+| **CSE-CIC-IDS2018** | Enterprise | 76 full + 30 abbreviated column names | 76 → truncated to 83 |
+| **UNSW-NB15** | Hybrid | 38 flow features (`dur`, `sbytes`, etc.) | 38 → padded to 83 |
+| **Microsoft GUIDE** | Cloud/Enterprise | 51 telemetry features | 51 → padded to 83 |
+| **Container Security** | Microservices | 93 container security features | 93 → truncated to 83 |
+| **Edge-IIoT** | Edge/Industrial | 69 protocol-level features | 69 → truncated to 83 |
+| **PCAP / PCAPNG** | Any | NFStream flow extraction → CIC-IDS2018 mapping | 76 → truncated to 83 |
 
 - Large datasets (>10,000 rows) are randomly sampled for efficient MC Dropout inference
 - Labels are auto-mapped from dataset-specific names to 34 canonical classes
@@ -400,7 +403,7 @@ The system implements **MC Dropout** (Monte Carlo Dropout) for uncertainty decom
 - [x] `docker compose up` boots both services
 - [x] Live at https://robustidps.ai with HTTPS
 - [x] Upload CSV/PCAP returns classified results with uncertainty
-- [x] 3 benchmark datasets auto-detected (CIC-IoT-2023, CIC-IDS2018, UNSW-NB15)
+- [x] 6 benchmark datasets auto-detected (CIC-IoT-2023, CIC-IDS2018, UNSW-NB15, Microsoft GUIDE, Container Security, Edge-IIoT)
 - [x] Results table shows color-coded severity with SOC action recommendations
 - [x] Uncertainty chart decomposes epistemic vs aleatoric
 - [x] Ablation Studio: each branch toggle shows accuracy drop (6-16%)

@@ -380,9 +380,9 @@ export default function ExplainabilityStudio() {
               {/* Multi-Dataset Mode */}
               {multiMode && (
                 <div className="mt-2 p-3 bg-bg-primary rounded-lg border border-accent-green/20 space-y-3">
-                  <p className="text-[11px] text-text-secondary">Upload up to 3 datasets to compare XAI results across different traffic distributions:</p>
+                  <p className="text-[11px] text-text-secondary">Upload up to 6 datasets to compare XAI results across different traffic distributions:</p>
 
-                  {/* 3-Slot Dataset Upload Grid */}
+                  {/* 6-Slot Dataset Upload Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {slots.map((slot: SlotState, idx: number) => (
                       <div key={idx} className={`rounded-lg border p-3 ${
