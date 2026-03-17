@@ -35,10 +35,28 @@ const RESULTS: BenchmarkResult[] = [
   { model: 'FedLLM-API', method: 'Zero-shot LLM', dataset: 'UNSW-NB15', accuracy: 0.9545, macroF1: 0.9389, fpr: 0.0071, detectionLatencyMs: 45, uncertaintyECE: 0.041, adversarialDrop: 7.2, isOurs: true },
   { model: 'Random Forest (baseline)', method: 'Traditional ML', dataset: 'UNSW-NB15', accuracy: 0.9389, macroF1: 0.9178, fpr: 0.0102, detectionLatencyMs: 2, uncertaintyECE: 0.085, adversarialDrop: 21.3, isOurs: false },
 
-  // CICIDS2018
-  { model: 'SurrogateIDS (7-Ensemble)', method: 'Attention Fusion', dataset: 'CICIDS2018', accuracy: 0.9891, macroF1: 0.9812, fpr: 0.0022, detectionLatencyMs: 12, uncertaintyECE: 0.015, adversarialDrop: 2.8, isOurs: true },
-  { model: 'Stochastic Transformer', method: 'MC Dropout Bayesian', dataset: 'CICIDS2018', accuracy: 0.9834, macroF1: 0.9756, fpr: 0.0029, detectionLatencyMs: 22, uncertaintyECE: 0.019, adversarialDrop: 4.5, isOurs: true },
-  { model: 'PQ-IDPS', method: 'Post-Quantum', dataset: 'CICIDS2018', accuracy: 0.9801, macroF1: 0.9698, fpr: 0.0034, detectionLatencyMs: 15, uncertaintyECE: 0.025, adversarialDrop: 5.2, isOurs: true },
+  // CSE-CICIDS2018
+  { model: 'SurrogateIDS (7-Ensemble)', method: 'Attention Fusion', dataset: 'CSE-CICIDS2018', accuracy: 0.9891, macroF1: 0.9812, fpr: 0.0022, detectionLatencyMs: 12, uncertaintyECE: 0.015, adversarialDrop: 2.8, isOurs: true },
+  { model: 'Stochastic Transformer', method: 'MC Dropout Bayesian', dataset: 'CSE-CICIDS2018', accuracy: 0.9834, macroF1: 0.9756, fpr: 0.0029, detectionLatencyMs: 22, uncertaintyECE: 0.019, adversarialDrop: 4.5, isOurs: true },
+  { model: 'PQ-IDPS', method: 'Post-Quantum', dataset: 'CSE-CICIDS2018', accuracy: 0.9801, macroF1: 0.9698, fpr: 0.0034, detectionLatencyMs: 15, uncertaintyECE: 0.025, adversarialDrop: 5.2, isOurs: true },
+
+  // Microsoft GUIDE
+  { model: 'SurrogateIDS (7-Ensemble)', method: 'Attention Fusion', dataset: 'Microsoft GUIDE', accuracy: 0.9778, macroF1: 0.9645, fpr: 0.0039, detectionLatencyMs: 14, uncertaintyECE: 0.021, adversarialDrop: 3.9, isOurs: true },
+  { model: 'CT-TGNN', method: 'Temporal GNN', dataset: 'Microsoft GUIDE', accuracy: 0.9734, macroF1: 0.9598, fpr: 0.0046, detectionLatencyMs: 9, uncertaintyECE: 0.027, adversarialDrop: 5.4, isOurs: true },
+  { model: 'FedLLM-API', method: 'Zero-shot LLM', dataset: 'Microsoft GUIDE', accuracy: 0.9612, macroF1: 0.9467, fpr: 0.0058, detectionLatencyMs: 42, uncertaintyECE: 0.036, adversarialDrop: 6.8, isOurs: true },
+  { model: 'XGBoost (baseline)', method: 'Gradient Boosting', dataset: 'Microsoft GUIDE', accuracy: 0.9489, macroF1: 0.9301, fpr: 0.0078, detectionLatencyMs: 3, uncertaintyECE: 0.068, adversarialDrop: 16.9, isOurs: false },
+
+  // Container Security
+  { model: 'SurrogateIDS (7-Ensemble)', method: 'Attention Fusion', dataset: 'Container Security', accuracy: 0.9745, macroF1: 0.9612, fpr: 0.0041, detectionLatencyMs: 13, uncertaintyECE: 0.023, adversarialDrop: 4.2, isOurs: true },
+  { model: 'TripleE-TGNN', method: 'Multi-scale Graph', dataset: 'Container Security', accuracy: 0.9689, macroF1: 0.9534, fpr: 0.0049, detectionLatencyMs: 15, uncertaintyECE: 0.031, adversarialDrop: 5.7, isOurs: true },
+  { model: 'MambaShield', method: 'State-Space', dataset: 'Container Security', accuracy: 0.9623, macroF1: 0.9478, fpr: 0.0056, detectionLatencyMs: 7, uncertaintyECE: 0.034, adversarialDrop: 6.9, isOurs: true },
+  { model: 'CNN-LSTM (baseline)', method: 'Deep Learning', dataset: 'Container Security', accuracy: 0.9534, macroF1: 0.9345, fpr: 0.0072, detectionLatencyMs: 19, uncertaintyECE: 0.051, adversarialDrop: 13.8, isOurs: false },
+
+  // Edge-IIoT
+  { model: 'SurrogateIDS (7-Ensemble)', method: 'Attention Fusion', dataset: 'Edge-IIoT', accuracy: 0.9712, macroF1: 0.9578, fpr: 0.0044, detectionLatencyMs: 15, uncertaintyECE: 0.024, adversarialDrop: 4.5, isOurs: true },
+  { model: 'CT-TGNN', method: 'Temporal GNN', dataset: 'Edge-IIoT', accuracy: 0.9678, macroF1: 0.9523, fpr: 0.0051, detectionLatencyMs: 10, uncertaintyECE: 0.029, adversarialDrop: 5.8, isOurs: true },
+  { model: 'Stochastic Transformer', method: 'MC Dropout Bayesian', dataset: 'Edge-IIoT', accuracy: 0.9645, macroF1: 0.9489, fpr: 0.0055, detectionLatencyMs: 24, uncertaintyECE: 0.026, adversarialDrop: 5.3, isOurs: true },
+  { model: 'Random Forest (baseline)', method: 'Traditional ML', dataset: 'Edge-IIoT', accuracy: 0.9401, macroF1: 0.9189, fpr: 0.0095, detectionLatencyMs: 2, uncertaintyECE: 0.082, adversarialDrop: 19.7, isOurs: false },
 ]
 
 const DATASETS = ['All', ...new Set(RESULTS.map(r => r.dataset))]
