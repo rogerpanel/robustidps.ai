@@ -1972,7 +1972,7 @@ async def clrl_adversarial(
                 target_model,
                 features,
                 labels_encoded,
-                500,
+                max_samples=500,
             )
             results["model_id"] = model_id
             results["model_name"] = MODEL_INFO.get(model_id, {}).get("name", model_id)
@@ -2071,7 +2071,7 @@ async def clrl_adversarial_multi_run(
                             model,
                             ds["features"],
                             ds["labels"],
-                            500,  # max_samples
+                            max_samples=500,
                         )
                         cell_result["model_id"] = mn
                         cell_result["model_name"] = model_name_display
