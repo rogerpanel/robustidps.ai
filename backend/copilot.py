@@ -160,7 +160,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response"},
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial"},
                 "job_id": {"type": "string", "description": "Optional specific job_id"},
             },
             "required": ["page"],

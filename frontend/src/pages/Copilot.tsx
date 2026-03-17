@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import { authHeaders } from '../utils/auth'
 
 interface Message {
@@ -517,18 +517,48 @@ export default function Copilot() {
         </div>
       )}
 
-      {/* Page Context Selector */}
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-        {PAGE_CONTEXTS.map((ctx) => (
-          <button
-            key={ctx.id}
-            onClick={() => sendMessage(ctx.query)}
-            disabled={loading}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] border border-bg-card bg-bg-secondary hover:border-accent-blue/40 hover:bg-accent-blue/5 text-text-secondary hover:text-accent-blue transition-colors disabled:opacity-50"
-          >
-            {ctx.label}
-          </button>
-        ))}
+      {/* Page Context Selector — horizontally scrollable */}
+      <div className="mb-3 relative group">
+        {/* Left scroll arrow */}
+        <button
+          onClick={() => {
+            const el = document.getElementById('copilot-ctx-bar')
+            if (el) el.scrollBy({ left: -200, behavior: 'smooth' })
+          }}
+          className="absolute left-0 top-0 bottom-0 z-10 w-7 flex items-center justify-center bg-gradient-to-r from-bg-primary via-bg-primary/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="w-4 h-4 text-text-secondary" />
+        </button>
+
+        <div
+          id="copilot-ctx-bar"
+          className="flex gap-2 overflow-x-auto pb-1"
+          style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
+        >
+          {PAGE_CONTEXTS.map((ctx) => (
+            <button
+              key={ctx.id}
+              onClick={() => sendMessage(ctx.query)}
+              disabled={loading}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] border border-bg-card bg-bg-secondary hover:border-accent-blue/40 hover:bg-accent-blue/5 text-text-secondary hover:text-accent-blue transition-colors disabled:opacity-50"
+            >
+              {ctx.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Right scroll arrow */}
+        <button
+          onClick={() => {
+            const el = document.getElementById('copilot-ctx-bar')
+            if (el) el.scrollBy({ left: 200, behavior: 'smooth' })
+          }}
+          className="absolute right-0 top-0 bottom-0 z-10 w-7 flex items-center justify-center bg-gradient-to-l from-bg-primary via-bg-primary/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="w-4 h-4 text-text-secondary" />
+        </button>
       </div>
 
       {/* Messages */}
