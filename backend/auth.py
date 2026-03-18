@@ -201,11 +201,31 @@ def _user_response(u: User) -> UserResponse:
 
 @router.post("/register", response_model=Token)
 def register(body: UserCreate, db: Session = Depends(get_db)):
-    """Public registration is disabled. Accounts are managed by admins only."""
-    raise HTTPException(
-        status_code=403,
-        detail="Public registration is disabled. Contact your administrator.",
+    """Register a new user account (public self-registration)."""
+    existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    validate_password_strength(body.password)
+
+    if body.use_case and body.use_case not in USE_CASE_OPTIONS:
+        raise HTTPException(status_code=400, detail="Invalid use case selection")
+
+    user = User(
+        email=body.email,
+        password_hash=hash_password(body.password),
+        full_name=body.full_name,
+        organization=body.organization,
+        use_case=body.use_case,
+        role="viewer",  # public registrations get viewer role by default
     )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info("New user registered: %s (role=viewer)", user.email)
+    token = create_access_token({"sub": user.email, "role": user.role})
+    return Token(access_token=token, user=_user_response(user))
 
 
 @router.post("/login", response_model=Token)

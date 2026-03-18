@@ -1,16 +1,28 @@
 import { useState } from 'react'
-import { ShieldCheck, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { ShieldCheck, LogIn, UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { setAuth, type AuthUser } from '../utils/auth'
 
 const API = import.meta.env.VITE_API_URL || ''
+
+const USE_CASE_OPTIONS = [
+  'Industry Work',
+  'Academic Research',
+  'Evaluation & Assessment',
+  'Government / Defense',
+  'Personal / Self-Study',
+]
 
 interface Props {
   onLogin: () => void
 }
 
 export default function Login({ onLogin }: Props) {
+  const [isRegister, setIsRegister] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [organization, setOrganization] = useState('')
+  const [useCase, setUseCase] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,28 +33,58 @@ export default function Login({ onLogin }: Props) {
     setLoading(true)
 
     try {
-      const form = new URLSearchParams()
-      form.append('username', email)
-      form.append('password', password)
-      const res = await fetch(`${API}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form,
-      })
+      if (isRegister) {
+        // Registration
+        const res = await fetch(`${API}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            password,
+            full_name: fullName,
+            organization,
+            use_case: useCase,
+          }),
+        })
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || `Error ${res.status}`)
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.detail || `Error ${res.status}`)
+        }
+
+        const data = await res.json()
+        setAuth(data.access_token, data.user as AuthUser)
+        onLogin()
+      } else {
+        // Login
+        const form = new URLSearchParams()
+        form.append('username', email)
+        form.append('password', password)
+        const res = await fetch(`${API}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: form,
+        })
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          throw new Error(data.detail || `Error ${res.status}`)
+        }
+
+        const data = await res.json()
+        setAuth(data.access_token, data.user as AuthUser)
+        onLogin()
       }
-
-      const data = await res.json()
-      setAuth(data.access_token, data.user as AuthUser)
-      onLogin()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed')
     } finally {
       setLoading(false)
     }
+  }
+
+  const toggleMode = () => {
+    setIsRegister(!isRegister)
+    setError('')
   }
 
   return (
@@ -64,7 +106,7 @@ export default function Login({ onLogin }: Props) {
         {/* Form Card */}
         <div className="bg-bg-card border border-bg-card rounded-xl p-6 shadow-xl">
           <h2 className="text-lg font-semibold text-text-primary mb-6">
-            Sign In
+            {isRegister ? 'Create Account' : 'Sign In'}
           </h2>
 
           {error && (
@@ -75,6 +117,51 @@ export default function Login({ onLogin }: Props) {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isRegister && (
+              <>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                    placeholder="Your full name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Organization
+                  </label>
+                  <input
+                    type="text"
+                    value={organization}
+                    onChange={(e) => setOrganization(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                    placeholder="University or company (optional)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">
+                    Use Case
+                  </label>
+                  <select
+                    value={useCase}
+                    onChange={(e) => setUseCase(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                  >
+                    <option value="">Select a use case (optional)</option>
+                    {USE_CASE_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
             <div>
               <label className="block text-sm text-text-secondary mb-1">
                 Email
@@ -100,7 +187,7 @@ export default function Login({ onLogin }: Props) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-3 py-2.5 pr-10 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                  placeholder="Enter your password"
+                  placeholder={isRegister ? 'Create a strong password' : 'Enter your password'}
                 />
                 <button
                   type="button"
@@ -110,6 +197,11 @@ export default function Login({ onLogin }: Props) {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {isRegister && (
+                <p className="mt-1 text-[11px] text-text-secondary">
+                  Min 8 chars, uppercase, lowercase, digit, and special character required.
+                </p>
+              )}
             </div>
 
             <button
@@ -119,15 +211,31 @@ export default function Login({ onLogin }: Props) {
             >
               {loading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : isRegister ? (
+                <UserPlus className="w-4 h-4" />
               ) : (
                 <LogIn className="w-4 h-4" />
               )}
-              Sign In
+              {isRegister ? 'Register' : 'Sign In'}
             </button>
           </form>
 
-          <p className="mt-4 text-center text-xs text-text-secondary">
-            Accounts are managed by your administrator.
+          <p className="mt-4 text-center text-sm text-text-secondary">
+            {isRegister ? (
+              <>
+                Already have an account?{' '}
+                <button onClick={toggleMode} className="text-accent-blue hover:underline font-medium">
+                  Sign In
+                </button>
+              </>
+            ) : (
+              <>
+                Don&apos;t have an account?{' '}
+                <button onClick={toggleMode} className="text-accent-blue hover:underline font-medium">
+                  Register
+                </button>
+              </>
+            )}
           </p>
         </div>
 
