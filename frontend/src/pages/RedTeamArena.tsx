@@ -11,6 +11,7 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from 'recharts'
 import FileUpload from '../components/FileUpload'
+import AutoTuneButton from '../components/AutoTuneButton'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
@@ -416,11 +417,22 @@ export default function RedTeamArena() {
             </div>
           </div>
 
-          <button onClick={handleRunSingle}
-            disabled={!file || !fileReady || running || fileLoading || selectedAttacks.length === 0}
-            className="px-5 py-2.5 bg-accent-red text-white rounded-lg text-sm font-medium hover:bg-accent-red/80 transition-colors disabled:opacity-40 flex items-center gap-2">
-            {running ? <><Loader2 className="w-4 h-4 animate-spin" />Running attacks...</> : <><Swords className="w-4 h-4" />Launch Arena</>}
-          </button>
+          <div className="flex items-center gap-3">
+            <AutoTuneButton
+              file={file}
+              context="adversarial"
+              onResult={(r) => {
+                setEpsilon(r.recommendations.adversarial.epsilon)
+                setNSamples(r.recommendations.adversarial.n_samples)
+              }}
+              compact
+            />
+            <button onClick={handleRunSingle}
+              disabled={!file || !fileReady || running || fileLoading || selectedAttacks.length === 0}
+              className="px-5 py-2.5 bg-accent-red text-white rounded-lg text-sm font-medium hover:bg-accent-red/80 transition-colors disabled:opacity-40 flex items-center gap-2">
+              {running ? <><Loader2 className="w-4 h-4 animate-spin" />Running attacks...</> : <><Swords className="w-4 h-4" />Launch Arena</>}
+            </button>
+          </div>
 
           {error && <div className="px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">{error}</div>}
         </div>

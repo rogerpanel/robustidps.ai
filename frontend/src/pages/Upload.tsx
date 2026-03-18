@@ -13,6 +13,7 @@ import { useAnalysis } from '../hooks/useAnalysis'
 import { useAblation } from '../hooks/useAblation'
 import { usePageState } from '../hooks/usePageState'
 import PageGuide from '../components/PageGuide'
+import AutoTuneButton from '../components/AutoTuneButton'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -189,6 +190,7 @@ export default function UploadPage() {
   const [loadingDataset, setLoadingDataset] = useState<string | null>(null)
   const [downloadingPcap, setDownloadingPcap] = useState(false)
   const [pcapError, setPcapError] = useState('')
+  const [currentFile, setCurrentFile] = useState<File | null>(null)
   const { loading, results, error, fileName, jobId, source, runAnalysis, deleteJob } = useAnalysis()
   const { addNotice, updateNotice } = useNoticeBoard()
   const analysisNoticeId = useRef<string | null>(null)
@@ -246,6 +248,7 @@ export default function UploadPage() {
 
   // ── Single-mode handlers ──
   const handleUpload = (file: File) => {
+    setCurrentFile(file)
     runAnalysis(file, mcPasses, selectedModel)
   }
 
@@ -607,6 +610,11 @@ export default function UploadPage() {
                     <span>100 (precise)</span>
                   </div>
                 </div>
+                <AutoTuneButton
+                  file={currentFile}
+                  context="general"
+                  onResult={(r) => setMcPasses(r.recommendations.mc_passes)}
+                />
               </div>
 
               {/* Ablation Configuration Card */}
@@ -896,6 +904,13 @@ export default function UploadPage() {
                     <span>100 (precise)</span>
                   </div>
                 </div>
+
+                <AutoTuneButton
+                  file={slots.find(s => s.file && s.fileReady)?.file || null}
+                  context="general"
+                  onResult={(r) => setMcPasses(r.recommendations.mc_passes)}
+                  compact
+                />
 
                 {/* Summary badge */}
                 <div className="bg-bg-card/50 rounded-lg p-3 space-y-1">

@@ -10,6 +10,7 @@ import {
   fetchCLRLContinualMetrics, checkDrift as checkCLRLDrift,
 } from '../utils/api'
 import ExportMenu from '../components/ExportMenu'
+import AutoTuneButton from '../components/AutoTuneButton'
 import { registerSessionReset } from '../utils/sessionReset'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
@@ -409,6 +410,17 @@ export default function ContinualLearning() {
                   <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5 text-accent-amber" />
                   Higher EWC lambda = more weight preservation (less forgetting, slower adaptation). Lower = faster adaptation but risk of forgetting.
                 </div>
+
+                <AutoTuneButton
+                  file={file}
+                  context="continual"
+                  onResult={(r) => {
+                    setEpochs(r.recommendations.epochs)
+                    setLr(r.recommendations.learning_rate)
+                    setEwcLambda(r.recommendations.ewc_lambda)
+                  }}
+                  compact
+                />
 
                 <button
                   onClick={handleUpdate}

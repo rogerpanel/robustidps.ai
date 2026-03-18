@@ -25,6 +25,7 @@ import {
   Plus,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
 import { exportAsPNG, exportAsPDF, exportAsSlides } from '../utils/exportUtils'
 
@@ -397,6 +398,7 @@ function SingleDatasetMode() {
               onChange={handleHiddenFile}
               className="hidden"
             />
+            <AutoTuneButton file={fileRef.current} context="ablation" compact />
             <button
               onClick={handleRerun}
               disabled={loading}

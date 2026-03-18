@@ -6,6 +6,7 @@ import {
   FlaskConical,
 } from 'lucide-react'
 import { runAdversarialEval, runAdversarialMulti, fetchModels, createExperiment } from '../utils/api'
+import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
 import { registerSessionReset } from '../utils/sessionReset'
 
@@ -378,11 +379,12 @@ export default function AdversarialRobustness() {
                   ))}
                 </select>
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end gap-2">
+                <AutoTuneButton file={file} context="adversarial" compact />
                 <button
                   onClick={handleRun}
                   disabled={!file || running}
-                  className="w-full px-4 py-2 bg-accent-red text-white rounded-lg text-xs font-medium hover:bg-accent-red/80 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 px-4 py-2 bg-accent-red text-white rounded-lg text-xs font-medium hover:bg-accent-red/80 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {running ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Attacking...</>

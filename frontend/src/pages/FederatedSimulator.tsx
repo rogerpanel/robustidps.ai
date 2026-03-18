@@ -12,9 +12,10 @@ import {
   ScatterChart, Scatter, ZAxis,
 } from 'recharts'
 import FileUpload from '../components/FileUpload'
+import AutoTuneButton from '../components/AutoTuneButton'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
-import { runFederated, runFederatedMulti, runTransferAnalysis, fetchSampleData, fetchModels } from '../utils/api'
+import { runFederated, runFederatedMulti, runTransferAnalysis, fetchSampleData, fetchModels, type AutoTuneResult } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
@@ -687,7 +688,22 @@ export default function FederatedSimulator() {
             </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            <AutoTuneButton
+              file={slots.find(s => s.file && s.fileReady)?.file || null}
+              context="federated"
+              onResult={(r: AutoTuneResult) => {
+                const f = r.recommendations.federated
+                setStrategy(f.strategy); setDpSigma(f.dp_sigma); setIid(f.iid)
+                setNNodes(f.n_nodes); setRounds(f.rounds); setLocalEpochs(f.local_epochs)
+                setLr(f.lr)
+                // Also apply per-slot defaults
+                setSlots(prev => prev.map(s => s.fileReady ? {
+                  ...s, nNodes: f.n_nodes, rounds: f.rounds, localEpochs: f.local_epochs, lr: f.lr,
+                } : s))
+              }}
+              compact
+            />
             <button
               onClick={handleRunMulti}
               disabled={!canRunMulti}
@@ -894,23 +910,35 @@ export default function FederatedSimulator() {
             </div>
           </div>
 
-          <button
-            onClick={handleRunSingle}
-            disabled={!file || !fileReady || running || fileLoading}
-            className="px-5 py-2.5 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/80 transition-colors disabled:opacity-40 flex items-center gap-2"
-          >
-            {running ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Running simulation...
-              </>
-            ) : (
-              <>
-                <Network className="w-4 h-4" />
-                Run Simulation
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-3">
+            <AutoTuneButton
+              file={file}
+              context="federated"
+              onResult={(r: AutoTuneResult) => {
+                const f = r.recommendations.federated
+                setNNodes(f.n_nodes); setRounds(f.rounds); setLocalEpochs(f.local_epochs)
+                setLr(f.lr); setStrategy(f.strategy); setDpSigma(f.dp_sigma); setIid(f.iid)
+              }}
+              compact
+            />
+            <button
+              onClick={handleRunSingle}
+              disabled={!file || !fileReady || running || fileLoading}
+              className="px-5 py-2.5 bg-accent-blue text-white rounded-lg text-sm font-medium hover:bg-accent-blue/80 transition-colors disabled:opacity-40 flex items-center gap-2"
+            >
+              {running ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Running simulation...
+                </>
+              ) : (
+                <>
+                  <Network className="w-4 h-4" />
+                  Run Simulation
+                </>
+              )}
+            </button>
+          </div>
 
           {error && (
             <div className="px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">

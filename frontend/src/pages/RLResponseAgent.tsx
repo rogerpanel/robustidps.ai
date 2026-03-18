@@ -6,6 +6,7 @@ import {
   FlaskConical, Save, Wifi, TrendingUp,
 } from 'lucide-react'
 import { runRLSimulation, fetchRLMetrics, fetchCLRLStatus, createExperiment } from '../utils/api'
+import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
 import { registerSessionReset } from '../utils/sessionReset'
 
@@ -181,6 +182,7 @@ export default function RLResponseAgent() {
                 className="w-full px-2 py-1.5 bg-bg-primary border border-bg-card rounded text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-blue/50"
               />
             </div>
+            <AutoTuneButton file={file} context="general" compact />
             <button
               onClick={handleRun}
               disabled={!file || running}

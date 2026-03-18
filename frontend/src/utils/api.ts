@@ -1434,3 +1434,56 @@ export async function fetchAttackConfigs() {
   const res = await fetch(`${API}/api/clrl/attack-configs`);
   return res.json();
 }
+
+// ── Auto-Tune ───────────────────────────────────────────────────────────
+
+export interface AutoTuneRecommendations {
+  mc_passes: number
+  learning_rate: number
+  epochs: number
+  ewc_lambda: number
+  federated: {
+    n_nodes: number
+    rounds: number
+    local_epochs: number
+    lr: number
+    strategy: string
+    dp_sigma: number
+    iid: boolean
+  }
+  adversarial: {
+    epsilon: number
+    n_samples: number
+  }
+}
+
+export interface AutoTuneResult {
+  dataset_analysis: {
+    n_rows: number
+    n_features: number
+    n_classes: number
+    has_labels: boolean
+    class_balance: number
+    low_variance_feature_ratio: number
+    complexity: string
+    format: string
+  }
+  recommendations: AutoTuneRecommendations
+  context: string
+  explanation: Record<string, string>
+}
+
+export async function runAutoTune(file: File, context = 'general'): Promise<AutoTuneResult> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('context', context);
+  const res = await authFetch(`${API}/api/autotune`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(errorMsg(data.detail, `Auto-tune failed (${res.status})`));
+  }
+  return res.json();
+}

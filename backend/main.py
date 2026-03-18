@@ -3,6 +3,7 @@ RobustIDPS FastAPI backend
 ==========================
 
 Endpoints:
+  POST   /api/autotune            Auto-tune: recommend hyperparameters for a dataset
   POST   /api/upload              Upload CSV, return job_id
   GET    /api/results/{job_id}    Get predictions for uploaded file
   POST   /api/predict             Upload + predict in one call
@@ -598,6 +599,148 @@ async def disable_model(
         active_model_id = "surrogate"
     logger.info("Model %s disabled by %s", model_id, user.email)
     return {"enabled_models": list(enabled_models)}
+
+
+@app.post("/api/autotune")
+@limiter.limit(RATE_LIMIT_HEAVY)
+async def autotune(
+    request: Request,
+    file: UploadFile = File(...),
+    context: str = Form(default="general"),
+    user=Depends(require_auth),
+):
+    """Analyse a dataset and recommend optimal hyperparameters.
+
+    Context values: general, federated, continual, ablation, adversarial.
+    Returns recommended mc_passes, learning rate, epochs, federated params, etc.
+    """
+    _validate_upload(file)
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum: {MAX_UPLOAD_SIZE_MB}MB")
+
+    features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
+        extract_features, data, file.filename or "upload.csv"
+    )
+
+    n_rows = len(features)
+    n_features = features.shape[1] if features.dim() > 1 else 1
+
+    # Label analysis
+    n_classes = 0
+    class_balance = 1.0
+    has_labels = labels_encoded is not None
+    if has_labels:
+        unique, counts = torch.unique(labels_encoded, return_counts=True)
+        n_classes = len(unique)
+        class_balance = float(counts.min()) / float(counts.max()) if len(counts) > 1 else 1.0
+
+    # Feature variance analysis (detect low-signal features)
+    feat_std = features.std(dim=0)
+    low_variance_ratio = float((feat_std < 0.01).sum()) / max(n_features, 1)
+
+    # Dataset complexity heuristic
+    complexity = "low"
+    if n_rows > 5000 or n_classes > 5 or class_balance < 0.3:
+        complexity = "high"
+    elif n_rows > 1000 or n_classes > 3 or class_balance < 0.5:
+        complexity = "medium"
+
+    # ── Recommend hyperparameters based on dataset characteristics ──
+    # MC Dropout passes: more for complex/imbalanced data
+    if complexity == "high":
+        rec_mc_passes = min(50, max(30, n_classes * 5))
+    elif complexity == "medium":
+        rec_mc_passes = 20
+    else:
+        rec_mc_passes = 10
+
+    # Learning rate: smaller for larger datasets, larger for small
+    if n_rows > 5000:
+        rec_lr = 0.00005
+    elif n_rows > 1000:
+        rec_lr = 0.0001
+    else:
+        rec_lr = 0.0005
+
+    # Training epochs
+    if n_rows > 5000:
+        rec_epochs = 5
+    elif n_rows > 1000:
+        rec_epochs = 10
+    else:
+        rec_epochs = 20
+
+    # EWC lambda for continual learning
+    if class_balance < 0.3:
+        rec_ewc_lambda = 5000
+    elif class_balance < 0.5:
+        rec_ewc_lambda = 2000
+    else:
+        rec_ewc_lambda = 1000
+
+    # Federated-specific params
+    if n_rows > 5000:
+        rec_n_nodes = 6
+        rec_rounds = min(15, max(5, n_rows // 1000))
+        rec_local_epochs = 2
+    elif n_rows > 1000:
+        rec_n_nodes = 4
+        rec_rounds = 5
+        rec_local_epochs = 3
+    else:
+        rec_n_nodes = 3
+        rec_rounds = 3
+        rec_local_epochs = 5
+
+    rec_dp_sigma = 0.005 if class_balance > 0.5 else 0.01
+    rec_strategy = "fedprox" if class_balance < 0.4 else "fedavg"
+    rec_iid = class_balance > 0.6
+
+    # Adversarial params
+    rec_epsilon = 0.05 if complexity == "high" else 0.1
+    rec_n_samples = min(n_rows, 500)
+
+    recommendations = {
+        "mc_passes": rec_mc_passes,
+        "learning_rate": rec_lr,
+        "epochs": rec_epochs,
+        "ewc_lambda": rec_ewc_lambda,
+        "federated": {
+            "n_nodes": rec_n_nodes,
+            "rounds": rec_rounds,
+            "local_epochs": rec_local_epochs,
+            "lr": rec_lr,
+            "strategy": rec_strategy,
+            "dp_sigma": rec_dp_sigma,
+            "iid": rec_iid,
+        },
+        "adversarial": {
+            "epsilon": rec_epsilon,
+            "n_samples": rec_n_samples,
+        },
+    }
+
+    return {
+        "dataset_analysis": {
+            "n_rows": n_rows,
+            "n_features": n_features,
+            "n_classes": n_classes,
+            "has_labels": has_labels,
+            "class_balance": round(class_balance, 4),
+            "low_variance_feature_ratio": round(low_variance_ratio, 4),
+            "complexity": complexity,
+            "format": fmt,
+        },
+        "recommendations": recommendations,
+        "context": context,
+        "explanation": {
+            "mc_passes": f"{rec_mc_passes} passes — {'higher for complex/imbalanced data' if complexity != 'low' else 'lower for simpler data'} to balance speed vs uncertainty quality",
+            "learning_rate": f"{rec_lr} — {'conservative for large dataset' if n_rows > 5000 else 'moderate' if n_rows > 1000 else 'aggressive for small dataset'}",
+            "epochs": f"{rec_epochs} — {'fewer epochs for large data' if n_rows > 5000 else 'more epochs for smaller data'} to prevent overfitting",
+            "strategy": f"{rec_strategy} — {'FedProx handles imbalanced distributions better' if rec_strategy == 'fedprox' else 'FedAvg sufficient for balanced data'}",
+        },
+    }
 
 
 @app.post("/api/upload")

@@ -13,6 +13,7 @@ import {
   LineChart, Line, Legend, Treemap,
 } from 'recharts'
 import FileUpload from '../components/FileUpload'
+import AutoTuneButton from '../components/AutoTuneButton'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
@@ -434,6 +435,7 @@ export default function ExplainabilityStudio() {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3 flex-wrap">
+          <AutoTuneButton file={file} context="general" compact />
           <button
             onClick={handleRun}
             disabled={!file || !fileReady || running || fileLoading}
