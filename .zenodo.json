@@ -1,0 +1,44 @@
+{
+  "title": "RobustIDPS.ai — Advanced AI-Powered Intrusion Detection & Prevention System",
+  "description": "A research-grade platform demonstrating 7 novel machine learning methods for adversarially robust network intrusion detection. Built as part of a PhD dissertation at MEPhI, Moscow, the system features real-time monitoring, drag-and-drop CSV/PCAP analysis, live traffic streaming, an ablation studio for method comparison, pre-computed research analytics across 6 datasets and 4 adversarial attacks, and support for 5 trained detection models (Surrogate Ensemble, Neural ODE, Optimal Transport, FedGTD, SDE-TGNN).",
+  "creators": [
+    {
+      "name": "Anaedevha, Roger Nick",
+      "affiliation": "National Research Nuclear University MEPhI"
+    }
+  ],
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "MIT",
+  "version": "1.0.0",
+  "publication_date": "2026-03-20",
+  "keywords": [
+    "intrusion detection",
+    "network security",
+    "adversarial robustness",
+    "machine learning",
+    "neural ODEs",
+    "optimal transport",
+    "federated learning",
+    "graph neural networks",
+    "uncertainty quantification",
+    "privacy-preserving ML",
+    "deep learning",
+    "cybersecurity"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/rogerpanel/robustidps.ai",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://robustidps.ai",
+      "relation": "isDocumentedBy",
+      "scheme": "url"
+    }
+  ],
+  "references": [
+    "Anaedevha, R. N. (2024). Advanced AI-Powered Intrusion Detection Systems: Neural ODEs, Optimal Transport, and Federated Learning. PhD thesis, National Research Nuclear University MEPhI."
+  ]
+}
