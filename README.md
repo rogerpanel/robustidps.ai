@@ -21,7 +21,7 @@ The platform provides:
 - **Live Traffic Streaming** — WebSocket-powered row-by-row classification monitor
 - **Ablation Studio** — Toggle any of the 7 dissertation methods and measure accuracy impact
 - **Analytics & Benchmarks** — Pre-computed research metrics across 6 datasets, 4 adversarial attacks, privacy-robustness trade-offs
-- **Multi-Model Support** — 5 trained models (Surrogate Ensemble, Neural ODE, Optimal Transport, FedGTD, SDE-TGNN)
+- **Multi-Model Support** — 7+7 trained models (Surrogate Ensemble (7 models), Neural ODE, Optimal Transport, FedGTD, SDE-TGNN, CyberSecLLM, CL-RL models)
 - **Responsive Design** — Mobile, tablet, desktop, and large-screen layouts
 
 ---
@@ -410,7 +410,7 @@ The system implements **MC Dropout** (Monte Carlo Dropout) for uncertainty decom
 - [x] Uncertainty chart decomposes epistemic vs aleatoric
 - [x] Ablation Studio: each branch toggle shows accuracy drop (6-16%)
 - [x] Analytics: 7 tabs of pre-computed research metrics
-- [x] 5 models switchable from Models page
+- [x] 7 models switchable from Models page
 - [x] Live Monitor streams classifications via WebSocket
 - [x] Mobile-responsive layout (hamburger menu, stacking grids)
 - [x] Page-level usage guides for assessors
@@ -440,8 +440,8 @@ If you use RobustIDPS.ai in your research, please cite:
 
 ```bibtex
 @phdthesis{anaedevha2026robustidps,
-  title={Advanced AI-Powered Intrusion Detection Systems:
-         Neural ODEs, Optimal Transport, and Federated Learning},
+  title={Advanced AI-Powered Intrusion Detection & Prevention Systems:
+         CyberSecLLM, Neural ODEs, Optimal Transport, Stochastic Differential Equations - TGNN, and Federated Learning},
   author={Anaedevha, Roger Nick},
   year={2026},
   school={National Research Nuclear University MEPhI},
@@ -457,4 +457,4 @@ MIT License — See [LICENSE](LICENSE) for details.
 
 ---
 
-Built by **Roger Nick Anaedevha** — MEPhI University | PhD Dissertation Implementation
+Built by **Roger Nick Anaedevha** — NRNU (MEPhI) University | PhD Dissertation Implementation
