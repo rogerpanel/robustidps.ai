@@ -1,5 +1,7 @@
 # RobustIDPS.ai — Production Web Application
 
+[![DOI](https://zenodo.org/badge/1169671356.svg)](https://doi.org/10.5281/zenodo.19129511)
+
 **Advanced AI-Powered Intrusion Detection & Prevention System**
 
 Live deployment at: **https://robustidps.ai**
@@ -442,7 +444,8 @@ If you use RobustIDPS.ai in your research, please cite:
          Neural ODEs, Optimal Transport, and Federated Learning},
   author={Anaedevha, Roger Nick},
   year={2024},
-  school={National Research Nuclear University MEPhI}
+  school={National Research Nuclear University MEPhI},
+  doi={10.5281/zenodo.19129512}
 }
 ```
 
