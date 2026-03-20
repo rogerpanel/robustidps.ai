@@ -439,11 +439,11 @@ This will:
 If you use RobustIDPS.ai in your research, please cite:
 
 ```bibtex
-@phdthesis{anaedevha2024robustidps,
+@phdthesis{anaedevha2026robustidps,
   title={Advanced AI-Powered Intrusion Detection Systems:
          Neural ODEs, Optimal Transport, and Federated Learning},
   author={Anaedevha, Roger Nick},
-  year={2024},
+  year={2026},
   school={National Research Nuclear University MEPhI},
   doi={10.5281/zenodo.19129512}
 }
