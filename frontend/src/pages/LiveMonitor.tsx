@@ -458,6 +458,34 @@ export default function LiveMonitor() {
     _wsRef = ws
   }, [jobId, rate, selectedModel])
 
+  // Download captured traffic file from backend and free server storage
+  const downloadCapture = useCallback(async (cid?: string) => {
+    const id = cid || captureId
+    if (!id) return
+    try {
+      const API = import.meta.env.VITE_API_URL || ''
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${API}/api/live_capture/download/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `robustidps_capture_${id.slice(0, 8)}_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      // Free server storage after download
+      fetch(`${API}/api/live_capture/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {})
+    } catch {
+      // Silent fail — user can still use CSV export
+    }
+  }, [captureId])
+
   const startLiveCapture = useCallback(() => {
     setRunning(true); setDone(false); setEvents([]); setThreatCount(0); setBenignCount(0)
     setCurrentCycle(0); setCaptureStatus('Connecting...'); setWsError('')
@@ -611,34 +639,6 @@ export default function LiveMonitor() {
     a.click()
     URL.revokeObjectURL(url)
   }, [events])
-
-  // Download captured traffic file from backend and free server storage
-  const downloadCapture = useCallback(async (cid?: string) => {
-    const id = cid || captureId
-    if (!id) return
-    try {
-      const API = import.meta.env.VITE_API_URL || ''
-      const token = localStorage.getItem('token')
-      const res = await fetch(`${API}/api/live_capture/download/${id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) return
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `robustidps_capture_${id.slice(0, 8)}_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-      // Free server storage after download
-      fetch(`${API}/api/live_capture/${id}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }).catch(() => {})
-    } catch {
-      // Silent fail — user can still use CSV export
-    }
-  }, [captureId])
 
   // Copy interface command to clipboard
   const copyToClipboard = useCallback((text: string) => {
