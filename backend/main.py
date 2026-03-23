@@ -79,7 +79,7 @@ from slowapi.errors import RateLimitExceeded
 from config import (
     CORS_ORIGINS, DEVICE, MC_PASSES, MAX_ROWS,
     RATE_LIMIT_DEFAULT, RATE_LIMIT_HEAVY, MAX_UPLOAD_SIZE_MB,
-    ALLOWED_EXTENSIONS,
+    MAX_LIVE_CAPTURE_SIZE_MB, ALLOWED_EXTENSIONS,
 )
 from models.surrogate import SurrogateIDS
 from models.model_registry import list_models, load_model as registry_load, MODEL_INFO
@@ -2609,6 +2609,7 @@ _completed_results: dict = {}  # {(user_id, page_type): {"job_id": ..., "result"
 # Live capture session store — keeps latest results from live_capture WebSocket
 # so SOC Copilot can retrieve them. Keyed by session identifier.
 _live_capture_results: dict = {}  # {"latest": {"events": [...], "cycles": N, ...}}
+_live_capture_files: dict = {}   # {capture_id: {"path": str, "size_bytes": int, "timestamp": float}}
 
 
 def _cache_bg_result(user_id: int, page_type: str, job_id: str, result: dict):
@@ -3520,8 +3521,16 @@ async def live_capture(ws: WebSocket):
     Client sends: { "interface": "eth0", "interval": 30, "model_names": ["surrogate", "sde_tgnn"], "capture_only": false }
     Server captures on the interface for interval seconds via NFStream,
     classifies each flow with all selected models, sends results, then repeats until disconnect.
+    Raw captured data is saved to a temporary CSV file (max 500 MB by default).
+    When the limit is reached capture auto-stops and the file is available for download.
     """
     await ws.accept()
+    capture_id = str(uuid.uuid4())
+    capture_file_path: str | None = None
+    capture_file_size: int = 0
+    max_capture_bytes = MAX_LIVE_CAPTURE_SIZE_MB * 1024 * 1024
+    csv_header_written = False
+
     try:
         init = await ws.receive_text()
         msg = json.loads(init)
@@ -3557,12 +3566,30 @@ async def live_capture(ws: WebSocket):
         cycle = 0
         model_list_str = ", ".join(active_models.keys()) if active_models else "none (capture only)"
 
+        # Create temp capture file
+        import tempfile
+        capture_dir = Path(tempfile.gettempdir()) / "robustidps_captures"
+        capture_dir.mkdir(parents=True, exist_ok=True)
+        capture_file_path = str(capture_dir / f"capture_{capture_id}.csv")
+
+        # Store capture file reference for download
+        import time as _time
+        _live_capture_files[capture_id] = {
+            "path": capture_file_path,
+            "size_bytes": 0,
+            "timestamp": _time.time(),
+            "interface": iface,
+            "status": "capturing",
+        }
+
         await ws.send_json({
             "status": "started",
             "interface": iface,
             "interval": interval,
             "models": list(active_models.keys()),
             "capture_only": capture_only,
+            "capture_id": capture_id,
+            "max_capture_mb": MAX_LIVE_CAPTURE_SIZE_MB,
             "message": f"Capturing on {iface} every {interval}s — models: {model_list_str}",
         })
 
@@ -3571,11 +3598,12 @@ async def live_capture(ws: WebSocket):
             await ws.send_json({
                 "status": "capturing",
                 "cycle": cycle,
+                "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
+                "max_capture_mb": MAX_LIVE_CAPTURE_SIZE_MB,
                 "message": f"Cycle {cycle}: capturing {interval}s on {iface}...",
             })
 
             try:
-                import time as _time
                 from nfstream import NFStreamer
                 streamer = NFStreamer(
                     source=iface,
@@ -3595,6 +3623,8 @@ async def live_capture(ws: WebSocket):
                     await ws.send_json({
                         "status": "cycle_done", "cycle": cycle,
                         "flows_captured": 0,
+                        "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
+                        "max_capture_mb": MAX_LIVE_CAPTURE_SIZE_MB,
                         "message": f"Cycle {cycle}: no flows captured",
                     })
                     await asyncio.sleep(2)
@@ -3618,6 +3648,36 @@ async def live_capture(ws: WebSocket):
                 df = pd.DataFrame(records)
                 metadata = df[["src_ip", "dst_ip"]].copy()
 
+                # ── Save raw flow data to capture file ──
+                cycle_df = df.copy()
+                cycle_df.insert(0, "cycle", cycle)
+                cycle_df.insert(1, "timestamp", _time.strftime("%Y-%m-%dT%H:%M:%S"))
+                cycle_csv = cycle_df.to_csv(
+                    index=False,
+                    header=not csv_header_written,
+                )
+                csv_header_written = True
+
+                cycle_bytes = len(cycle_csv.encode("utf-8"))
+                if capture_file_size + cycle_bytes > max_capture_bytes:
+                    # Storage limit reached — auto-stop
+                    _live_capture_files[capture_id]["size_bytes"] = capture_file_size
+                    _live_capture_files[capture_id]["status"] = "limit_reached"
+                    await ws.send_json({
+                        "status": "limit_reached",
+                        "cycle": cycle,
+                        "capture_id": capture_id,
+                        "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
+                        "max_capture_mb": MAX_LIVE_CAPTURE_SIZE_MB,
+                        "message": f"Capture storage limit reached ({MAX_LIVE_CAPTURE_SIZE_MB} MB). Capture stopped automatically. Data ready for download.",
+                    })
+                    break
+
+                with open(capture_file_path, "a", encoding="utf-8") as cf:
+                    cf.write(cycle_csv)
+                capture_file_size += cycle_bytes
+                _live_capture_files[capture_id]["size_bytes"] = capture_file_size
+
                 from features import build_feature_tensor
                 features_t = build_feature_tensor(df).to(DEVICE)
 
@@ -3626,6 +3686,8 @@ async def live_capture(ws: WebSocket):
                     await ws.send_json({
                         "status": "captured", "cycle": cycle,
                         "flows_captured": len(features_t),
+                        "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
+                        "max_capture_mb": MAX_LIVE_CAPTURE_SIZE_MB,
                         "message": f"Cycle {cycle}: captured {len(features_t)} flows (no inference)",
                     })
                     threats_in_cycle = 0
@@ -3644,6 +3706,8 @@ async def live_capture(ws: WebSocket):
                     await ws.send_json({
                         "status": "analysing", "cycle": cycle,
                         "flows_captured": len(features_t),
+                        "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
+                        "max_capture_mb": MAX_LIVE_CAPTURE_SIZE_MB,
                         "message": f"Cycle {cycle}: analysing {len(features_t)} flows with {len(active_models)} model(s) [{model_names_str}]...",
                     })
 
@@ -3718,6 +3782,9 @@ async def live_capture(ws: WebSocket):
                     "threats_found": threats_in_cycle,
                     "models_used": list(active_models.keys()) if active_models else [],
                     "capture_only": capture_only,
+                    "capture_id": capture_id,
+                    "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
+                    "max_capture_mb": MAX_LIVE_CAPTURE_SIZE_MB,
                     "message": f"Cycle {cycle} done: {len(features_t)} flows, {threats_in_cycle} threats" + (f" ({len(active_models)} models)" if len(active_models) > 1 else ""),
                 })
 
@@ -3731,6 +3798,8 @@ async def live_capture(ws: WebSocket):
                     "models_used": list(active_models.keys()) if active_models else [],
                     "timestamp": _time.time(),
                     "status": "running",
+                    "capture_id": capture_id,
+                    "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
                 }
 
             except ImportError:
@@ -3754,3 +3823,38 @@ async def live_capture(ws: WebSocket):
 
     except WebSocketDisconnect:
         pass
+    finally:
+        # Mark capture as completed (file stays available for download)
+        if capture_id in _live_capture_files:
+            _live_capture_files[capture_id]["status"] = "completed"
+            _live_capture_files[capture_id]["size_bytes"] = capture_file_size
+
+
+# ── Download captured traffic data ──────────────────────────────────────────
+
+@app.get("/api/live_capture/download/{capture_id}")
+async def download_live_capture(capture_id: str, _user=Depends(require_auth)):
+    """Download the raw captured traffic CSV for a live capture session."""
+    info = _live_capture_files.get(capture_id)
+    if not info:
+        raise HTTPException(status_code=404, detail="Capture not found or expired")
+    fpath = Path(info["path"])
+    if not fpath.exists():
+        raise HTTPException(status_code=404, detail="Capture file no longer available")
+    return FileResponse(
+        path=str(fpath),
+        media_type="text/csv",
+        filename=f"robustidps_capture_{capture_id[:8]}.csv",
+    )
+
+
+@app.delete("/api/live_capture/{capture_id}")
+async def delete_live_capture(capture_id: str, _user=Depends(require_auth)):
+    """Delete a capture file to free storage."""
+    info = _live_capture_files.pop(capture_id, None)
+    if not info:
+        raise HTTPException(status_code=404, detail="Capture not found")
+    fpath = Path(info["path"])
+    if fpath.exists():
+        fpath.unlink()
+    return {"status": "deleted", "capture_id": capture_id}

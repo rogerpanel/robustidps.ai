@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers, Zap } from 'lucide-react'
+import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers, Zap, HardDrive } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
@@ -103,6 +103,10 @@ const _store: {
   showAdvancedAnalytics: boolean
   severityFilter: string
   autoBlockCount: number
+  captureId: string
+  captureSizeMb: number
+  maxCaptureMb: number
+  captureLimitReached: boolean
 } = {
   jobId: null,
   fileName: '',
@@ -128,6 +132,10 @@ const _store: {
   showAdvancedAnalytics: false,
   severityFilter: 'all',
   autoBlockCount: 0,
+  captureId: '',
+  captureSizeMb: 0,
+  maxCaptureMb: 500,
+  captureLimitReached: false,
 }
 
 // Keep the WebSocket ref at module level so it survives remount
@@ -159,6 +167,10 @@ registerSessionReset(() => {
   _store.showAdvancedAnalytics = false
   _store.severityFilter = 'all'
   _store.autoBlockCount = 0
+  _store.captureId = ''
+  _store.captureSizeMb = 0
+  _store.maxCaptureMb = 500
+  _store.captureLimitReached = false
   if (_wsRef) { try { _wsRef.close() } catch {} }
   _wsRef = null
 })
@@ -195,6 +207,10 @@ export default function LiveMonitor() {
   const [showAdvancedAnalytics, _setShowAdvancedAnalytics] = useState(_store.showAdvancedAnalytics)
   const [severityFilter, _setSeverityFilter] = useState(_store.severityFilter)
   const [autoBlockCount, _setAutoBlockCount] = useState(_store.autoBlockCount)
+  const [captureId, _setCaptureId] = useState(_store.captureId)
+  const [captureSizeMb, _setCaptureSizeMb] = useState(_store.captureSizeMb)
+  const [maxCaptureMb, _setMaxCaptureMb] = useState(_store.maxCaptureMb)
+  const [captureLimitReached, _setCaptureLimitReached] = useState(_store.captureLimitReached)
 
   const { setLiveResults } = useAnalysis()
 
@@ -234,6 +250,10 @@ export default function LiveMonitor() {
   const setShowDongleGuide = (v: boolean) => { _store.showDongleGuide = v; _setShowDongleGuide(v) }
   const setShowAdvancedAnalytics = (v: boolean) => { _store.showAdvancedAnalytics = v; _setShowAdvancedAnalytics(v) }
   const setSeverityFilter = (v: string) => { _store.severityFilter = v; _setSeverityFilter(v) }
+  const setCaptureId = (v: string) => { _store.captureId = v; _setCaptureId(v) }
+  const setCaptureSizeMb = (v: number) => { _store.captureSizeMb = v; _setCaptureSizeMb(v) }
+  const setMaxCaptureMb = (v: number) => { _store.maxCaptureMb = v; _setMaxCaptureMb(v) }
+  const setCaptureLimitReached = (v: boolean) => { _store.captureLimitReached = v; _setCaptureLimitReached(v) }
   const setAutoBlockCount = (v: number | ((c: number) => number)) => {
     if (typeof v === 'function') {
       _setAutoBlockCount(prev => { const next = v(prev); _store.autoBlockCount = next; return next })
@@ -363,6 +383,16 @@ export default function LiveMonitor() {
         const data = JSON.parse(e.data)
         if (_store.captureMode === 'live') {
           if (data.status === 'error') { setCaptureStatus(`Error: ${data.message}`); setRunning(false); return }
+          if (typeof data.capture_size_mb === 'number') setCaptureSizeMb(data.capture_size_mb)
+          if (typeof data.max_capture_mb === 'number') setMaxCaptureMb(data.max_capture_mb)
+          if (data.capture_id) setCaptureId(data.capture_id)
+          if (data.status === 'limit_reached') {
+            setCaptureStatus(data.message || 'Capture limit reached')
+            setCaptureLimitReached(true)
+            setRunning(false)
+            if (data.capture_id) setTimeout(() => downloadCapture(data.capture_id), 500)
+            return
+          }
           if (data.status) { setCaptureStatus(data.message || data.status); if (data.cycle) setCurrentCycle(data.cycle) }
           if (data.type === 'flow') {
             const ev: FlowEvent = { flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip, label_predicted: data.label_predicted, confidence: data.confidence, severity: data.severity, cycle: data.cycle }
@@ -431,6 +461,7 @@ export default function LiveMonitor() {
   const startLiveCapture = useCallback(() => {
     setRunning(true); setDone(false); setEvents([]); setThreatCount(0); setBenignCount(0)
     setCurrentCycle(0); setCaptureStatus('Connecting...'); setWsError('')
+    setCaptureId(''); setCaptureSizeMb(0); setCaptureLimitReached(false)
     const wsUrl = `${wsBaseUrl()}/ws/live_capture`
     const ws = new WebSocket(wsUrl)
     ws.onopen = () => {
@@ -446,6 +477,21 @@ export default function LiveMonitor() {
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data)
       if (data.status === 'error') { setCaptureStatus(`Error: ${data.message}`); setRunning(false); return }
+      // Track capture size from any status message that includes it
+      if (typeof data.capture_size_mb === 'number') setCaptureSizeMb(data.capture_size_mb)
+      if (typeof data.max_capture_mb === 'number') setMaxCaptureMb(data.max_capture_mb)
+      if (data.capture_id) setCaptureId(data.capture_id)
+      // Storage limit reached — auto-stop and trigger download
+      if (data.status === 'limit_reached') {
+        setCaptureStatus(data.message || 'Capture limit reached')
+        setCaptureLimitReached(true)
+        setRunning(false)
+        if (data.capture_id) {
+          // Small delay so the UI updates before download dialog
+          setTimeout(() => downloadCapture(data.capture_id), 500)
+        }
+        return
+      }
       if (data.status) { setCaptureStatus(data.message || data.status); if (data.cycle) setCurrentCycle(data.cycle) }
       if (data.type === 'flow') {
         const ev: FlowEvent = {
@@ -474,21 +520,32 @@ export default function LiveMonitor() {
       }
     }
     ws.onerror = () => { setWsError('WebSocket connection failed'); setRunning(false) }
-    ws.onclose = () => { setRunning(false); setCaptureStatus('Disconnected') }
+    ws.onclose = () => {
+      setRunning(false)
+      setCaptureStatus((prev) => prev || 'Disconnected')
+    }
     _wsRef = ws
-  }, [iface, captureInterval, selectedModels])
+  }, [iface, captureInterval, selectedModels, downloadCapture])
 
-  const stopStream = useCallback(() => { _wsRef?.close(); _wsRef = null; setRunning(false) }, [])
+  const stopStream = useCallback(() => {
+    _wsRef?.close(); _wsRef = null; setRunning(false)
+    // Auto-download captured data when user manually stops live capture
+    if (_store.captureMode === 'live' && _store.captureId && _store.captureSizeMb > 0) {
+      setTimeout(() => downloadCapture(_store.captureId), 500)
+    }
+  }, [downloadCapture])
 
   const resetAll = useCallback(() => {
-    stopStream()
+    // Don't auto-download on reset — user is clearing everything
+    _wsRef?.close(); _wsRef = null; setRunning(false)
     setJobId(null); setFileName(''); setEvents([]); setThreatCount(0); setBenignCount(0)
     setDone(false); setCaptureStatus(''); setCurrentCycle(0); setWsError('')
     setShowAnalytics(false)
     setSentToUpload(false)
     setAutoBlockCount(0)
     setSeverityFilter('all')
-  }, [stopStream])
+    setCaptureId(''); setCaptureSizeMb(0); setCaptureLimitReached(false)
+  }, [])
 
   // Do NOT close the WS on unmount — let it keep running while navigated away
   // Only close on explicit stop/reset
@@ -554,6 +611,34 @@ export default function LiveMonitor() {
     a.click()
     URL.revokeObjectURL(url)
   }, [events])
+
+  // Download captured traffic file from backend and free server storage
+  const downloadCapture = useCallback(async (cid?: string) => {
+    const id = cid || captureId
+    if (!id) return
+    try {
+      const API = import.meta.env.VITE_API_URL || ''
+      const token = localStorage.getItem('token')
+      const res = await fetch(`${API}/api/live_capture/download/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `robustidps_capture_${id.slice(0, 8)}_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      // Free server storage after download
+      fetch(`${API}/api/live_capture/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {})
+    } catch {
+      // Silent fail — user can still use CSV export
+    }
+  }, [captureId])
 
   // Copy interface command to clipboard
   const copyToClipboard = useCallback((text: string) => {
@@ -703,8 +788,13 @@ export default function LiveMonitor() {
             {autoBlockCount > 0 && <span className="text-accent-orange font-mono flex items-center gap-1"><Ban className="w-3 h-3" /> Blocked: {autoBlockCount}</span>}
             <span className="text-text-secondary font-mono">Total: {threatCount + benignCount}</span>
             {events.length > 0 && (
-              <button onClick={exportCSV} className="flex items-center gap-1 px-2 py-1 text-xs text-accent-blue hover:bg-accent-blue/10 rounded transition-colors" title="Export events as CSV">
+              <button onClick={exportCSV} className="flex items-center gap-1 px-2 py-1 text-xs text-accent-blue hover:bg-accent-blue/10 rounded transition-colors" title="Export flow summary as CSV">
                 <Download className="w-3 h-3" /> CSV
+              </button>
+            )}
+            {captureMode === 'live' && captureId && captureSizeMb > 0 && !running && (
+              <button onClick={() => downloadCapture()} className="flex items-center gap-1 px-2 py-1 text-xs text-accent-green hover:bg-accent-green/10 rounded transition-colors" title="Download full raw capture data">
+                <HardDrive className="w-3 h-3" /> Raw
               </button>
             )}
           </div>
@@ -712,6 +802,55 @@ export default function LiveMonitor() {
 
         {done && captureMode === 'file' && (
           <div className="px-4 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">Stream complete — all flows processed.</div>
+        )}
+
+        {/* Live capture storage progress bar */}
+        {captureMode === 'live' && (captureSizeMb > 0 || running) && (
+          <div className="bg-bg-secondary rounded-xl border border-bg-card p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <HardDrive className="w-4 h-4 text-accent-blue" />
+                <span className="text-xs font-medium text-text-primary">Capture Storage</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono text-text-secondary">
+                  {captureSizeMb.toFixed(2)} MB / {maxCaptureMb} MB
+                </span>
+                {!running && captureSizeMb > 0 && captureId && (
+                  <button
+                    onClick={() => downloadCapture()}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-accent-green hover:bg-accent-green/10 rounded transition-colors"
+                    title="Download captured traffic data"
+                  >
+                    <Download className="w-3 h-3" /> Download Capture
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="w-full h-3 bg-bg-card rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  captureSizeMb / maxCaptureMb > 0.9 ? 'bg-accent-red' :
+                  captureSizeMb / maxCaptureMb > 0.7 ? 'bg-accent-orange' :
+                  captureSizeMb / maxCaptureMb > 0.5 ? 'bg-accent-amber' :
+                  'bg-accent-green'
+                }`}
+                style={{ width: `${Math.min(100, (captureSizeMb / maxCaptureMb) * 100)}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] text-text-secondary">
+              <span>{running ? 'Capturing...' : captureLimitReached ? 'Limit reached — capture stopped' : 'Capture complete'}</span>
+              <span>{Math.min(100, (captureSizeMb / maxCaptureMb) * 100).toFixed(1)}% used</span>
+            </div>
+          </div>
+        )}
+
+        {/* Limit reached banner */}
+        {captureLimitReached && (
+          <div className="px-4 py-2 bg-accent-orange/10 border border-accent-orange/30 rounded-lg text-accent-orange text-sm flex items-center gap-2">
+            <HardDrive className="w-4 h-4 shrink-0" />
+            Capture storage limit reached ({maxCaptureMb} MB). Capture stopped automatically. Your captured data has been downloaded.
+          </div>
         )}
 
         {/* Severity filter bar */}
