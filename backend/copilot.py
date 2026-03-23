@@ -501,16 +501,14 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
             is_admin = user and user.role == "admin"
             uid = user.id if user else None
 
-            if page == "upload" or page == "live_monitor":
+            if page == "upload":
                 if job_id and job_id in _main.job_store:
                     job = _main.job_store[job_id]
-                    # Ownership check
                     if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
                         return json.dumps({"page": page, "status": "no_active_result"})
                     return json.dumps({"page": page, "job_id": job_id, "n_flows": len(job["features"]),
                                        "has_labels": job.get("labels_encoded") is not None,
                                        "n_label_classes": len(set(job["label_names"])) if job.get("label_names") else 0})
-                # Fall back to most recent DB job (user-scoped)
                 q = select(Job).order_by(desc(Job.created_at)).limit(1)
                 if not is_admin and uid:
                     q = select(Job).where(Job.user_id == uid).order_by(desc(Job.created_at)).limit(1)
@@ -519,6 +517,37 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                     return json.dumps({"page": page, "job_id": recent.id, "filename": recent.filename,
                                        "n_flows": recent.n_flows, "n_threats": recent.n_threats, "model": recent.model_used})
                 return json.dumps({"page": page, "status": "no_active_result"})
+
+            if page == "live_monitor":
+                # Check in-memory live capture results first
+                live_data = _main._live_capture_results.get("latest")
+                if live_data:
+                    return json.dumps({
+                        "page": "live_monitor",
+                        "status": live_data.get("status", "unknown"),
+                        "interface": live_data.get("interface"),
+                        "cycle": live_data.get("cycle", 0),
+                        "interval": live_data.get("interval"),
+                        "flows_captured": live_data.get("flows_captured", 0),
+                        "threats_found": live_data.get("threats_found", 0),
+                        "timestamp": live_data.get("timestamp"),
+                    })
+                # Fall back to job_store (file replay mode)
+                if job_id and job_id in _main.job_store:
+                    job = _main.job_store[job_id]
+                    if not is_admin and uid and job.get("user_id") and job["user_id"] != uid:
+                        return json.dumps({"page": page, "status": "no_active_result"})
+                    return json.dumps({"page": page, "job_id": job_id, "n_flows": len(job["features"]),
+                                       "has_labels": job.get("labels_encoded") is not None})
+                # Fall back to most recent DB job
+                q = select(Job).order_by(desc(Job.created_at)).limit(1)
+                if not is_admin and uid:
+                    q = select(Job).where(Job.user_id == uid).order_by(desc(Job.created_at)).limit(1)
+                recent = db.execute(q).scalars().first()
+                if recent:
+                    return json.dumps({"page": page, "job_id": recent.id, "filename": recent.filename,
+                                       "n_flows": recent.n_flows, "n_threats": recent.n_threats, "model": recent.model_used})
+                return json.dumps({"page": "live_monitor", "status": "no_active_result"})
 
             if page in ("redteam", "xai", "federated", "ablation", "rl_response", "adversarial"):
                 # Check running/pending background jobs first (user-scoped)

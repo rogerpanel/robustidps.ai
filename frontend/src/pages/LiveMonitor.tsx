@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain } from 'lucide-react'
+import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
@@ -16,6 +16,11 @@ interface FlowEvent {
   confidence: number
   severity: string
   cycle?: number
+  auto_blocked?: boolean
+  block_status?: string
+  src_port?: number
+  dst_port?: number
+  protocol?: number
 }
 
 const SEV_COLOR: Record<string, string> = {
@@ -83,6 +88,10 @@ const _store: {
   showAnalytics: boolean
   sentToUpload: boolean
   selectedModel: string
+  showDongleGuide: boolean
+  showAdvancedAnalytics: boolean
+  severityFilter: string
+  autoBlockCount: number
 } = {
   jobId: null,
   fileName: '',
@@ -103,6 +112,10 @@ const _store: {
   showAnalytics: false,
   sentToUpload: false,
   selectedModel: 'surrogate',
+  showDongleGuide: false,
+  showAdvancedAnalytics: false,
+  severityFilter: 'all',
+  autoBlockCount: 0,
 }
 
 // Keep the WebSocket ref at module level so it survives remount
@@ -129,6 +142,10 @@ registerSessionReset(() => {
   _store.showAnalytics = false
   _store.sentToUpload = false
   _store.selectedModel = 'surrogate'
+  _store.showDongleGuide = false
+  _store.showAdvancedAnalytics = false
+  _store.severityFilter = 'all'
+  _store.autoBlockCount = 0
   if (_wsRef) { try { _wsRef.close() } catch {} }
   _wsRef = null
 })
@@ -160,6 +177,10 @@ export default function LiveMonitor() {
   const [showAnalytics, _setShowAnalytics] = useState(_store.showAnalytics)
   const [sentToUpload, _setSentToUpload] = useState(_store.sentToUpload)
   const [selectedModel, _setSelectedModel] = useState(_store.selectedModel)
+  const [showDongleGuide, _setShowDongleGuide] = useState(_store.showDongleGuide)
+  const [showAdvancedAnalytics, _setShowAdvancedAnalytics] = useState(_store.showAdvancedAnalytics)
+  const [severityFilter, _setSeverityFilter] = useState(_store.severityFilter)
+  const [autoBlockCount, _setAutoBlockCount] = useState(_store.autoBlockCount)
 
   const { setLiveResults } = useAnalysis()
 
@@ -195,6 +216,20 @@ export default function LiveMonitor() {
   const setShowAnalytics = (v: boolean) => { _store.showAnalytics = v; _setShowAnalytics(v) }
   const setSentToUpload = (v: boolean) => { _store.sentToUpload = v; _setSentToUpload(v) }
   const setSelectedModel = (v: string) => { _store.selectedModel = v; _setSelectedModel(v) }
+  const setShowDongleGuide = (v: boolean) => { _store.showDongleGuide = v; _setShowDongleGuide(v) }
+  const setShowAdvancedAnalytics = (v: boolean) => { _store.showAdvancedAnalytics = v; _setShowAdvancedAnalytics(v) }
+  const setSeverityFilter = (v: string) => { _store.severityFilter = v; _setSeverityFilter(v) }
+  const setAutoBlockCount = (v: number | ((c: number) => number)) => {
+    if (typeof v === 'function') {
+      _setAutoBlockCount(prev => { const next = v(prev); _store.autoBlockCount = next; return next })
+    } else { _store.autoBlockCount = v; _setAutoBlockCount(v) }
+  }
+
+  // Filtered events based on severity filter
+  const filteredEvents = useMemo(() => {
+    if (severityFilter === 'all') return events
+    return events.filter(ev => ev.severity === severityFilter)
+  }, [events, severityFilter])
 
   // Computed analytics from events
   const analytics = useMemo(() => {
@@ -389,10 +424,11 @@ export default function LiveMonitor() {
       if (data.status === 'error') { setCaptureStatus(`Error: ${data.message}`); setRunning(false); return }
       if (data.status) { setCaptureStatus(data.message || data.status); if (data.cycle) setCurrentCycle(data.cycle) }
       if (data.type === 'flow') {
-        const ev: FlowEvent = { flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip, label_predicted: data.label_predicted, confidence: data.confidence, severity: data.severity, cycle: data.cycle }
+        const ev: FlowEvent = { flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip, label_predicted: data.label_predicted, confidence: data.confidence, severity: data.severity, cycle: data.cycle, auto_blocked: data.auto_blocked, block_status: data.block_status, src_port: data.src_port, dst_port: data.dst_port, protocol: data.protocol }
         setEvents((prev) => [ev, ...prev].slice(0, 500))
         if (ev.severity === 'benign') setBenignCount((c) => c + 1)
         else setThreatCount((c) => c + 1)
+        if (ev.auto_blocked) setAutoBlockCount((c) => c + 1)
       }
     }
     ws.onerror = () => { setWsError('WebSocket connection failed'); setRunning(false) }
@@ -408,6 +444,8 @@ export default function LiveMonitor() {
     setDone(false); setCaptureStatus(''); setCurrentCycle(0); setWsError('')
     setShowAnalytics(false)
     setSentToUpload(false)
+    setAutoBlockCount(0)
+    setSeverityFilter('all')
   }, [stopStream])
 
   // Do NOT close the WS on unmount — let it keep running while navigated away
@@ -428,6 +466,57 @@ export default function LiveMonitor() {
     { title: 'Enable live capture', desc: 'Once validated, switch to Live Capture mode with the appropriate network interface. Monitor the first few cycles to confirm correct traffic ingestion.' },
     { title: 'Export rules', desc: 'Use the Firewall Rules page to auto-generate iptables/nftables/Suricata/Snort rules from ML detections and integrate with your existing security stack.' },
   ]
+
+  const DONGLE_SETUP = {
+    overview: 'The Alfa AWUS036ACH (AC1200) dual-band USB 3.0 Wi-Fi adapter with 2x 5dBi external antennas can be used as a dedicated wireless capture interface for RobustIDPS.ai Live Monitor — without requiring Wireshark, TShark, or tcpdump. The platform captures traffic directly via NFStream on the adapter interface.',
+    macSteps: [
+      { step: '1. Install the Alfa driver (macOS High Sierra 10.13)', code: '# Download the AWUS036ACH macOS driver from Alfa\'s website:\n# https://alfa.com.tw/pages/download\n# Or use the open-source rtl8812au driver:\nbrew install --cask homebrew/cask-drivers/alfa-awus036ach\n# If using manual driver:\ncd ~/Downloads\nunzip AWUS036ACH_MacOS_*.zip\nsudo installer -pkg AWUS036ACH_*.pkg -target /' },
+      { step: '2. Verify the adapter is detected', code: '# List all network interfaces — look for the Alfa adapter\nifconfig -a\n# It should appear as something like: en5 or wlan1\n# Alternatively:\nsystem_profiler SPUSBDataType | grep -A5 -i "alfa\\|realtek\\|RTL8812"' },
+      { step: '3. Enable monitor mode on the adapter', code: '# Disable the interface first\nsudo ifconfig en5 down\n\n# Create a monitor mode interface\n# Method A — using Apple\'s airport utility:\nsudo /System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport en5 sniff\n\n# Method B — if using the open-source driver with aircrack-ng:\nbrew install aircrack-ng\nsudo airmon-ng start en5\n# This creates en5mon (or similar monitor interface)' },
+      { step: '4. Verify monitor mode is active', code: '# Check interface mode:\nifconfig en5mon 2>/dev/null || ifconfig en5\n# You should see the interface in UP state\n# With aircrack tools:\nsudo airmon-ng | grep -i mon' },
+      { step: '5. Start RobustIDPS.ai Live Capture', code: '# In the Live Monitor page, set the Network Interface to:\n#   en5mon   (if using airmon-ng)\n#   en5      (if using airport sniff)\n# Set capture interval (e.g., 30s) and click "Start Live Capture"\n\n# Or via API/CLI:\ncurl -X POST http://localhost:8000/ws/live_capture \\\n  -H "Authorization: Bearer <your-jwt-token>" \\\n  -d \'{"interface": "en5mon", "interval": 30}\'' },
+      { step: '6. (Optional) Set promiscuous mode on all interfaces', code: '# To capture ALL network traffic on ALL interfaces:\nfor iface in $(ifconfig -l); do\n  sudo ifconfig "$iface" promisc\n  echo "Promiscuous mode enabled on $iface"\ndone\n\n# Verify:\nifconfig en5 | grep -i promisc\n# Should show: PROMISC in the flags' },
+    ],
+    windowsSteps: [
+      { step: '1. Install the Alfa driver (Windows 11, HP Envy)', code: '# Download the AWUS036ACH Windows driver:\n# https://alfa.com.tw/pages/download\n# Choose: AWUS036ACH Windows 10/11 driver\n# Run the installer as Administrator\n\n# Alternatively, use Npcap (required for packet capture):\n# Download from: https://npcap.com/#download\n# During install, CHECK "Install in WinPcap API-compatible mode"\n# and CHECK "Support raw 802.11 traffic for wireless adapters"' },
+      { step: '2. Verify the adapter in Device Manager', code: '# Open PowerShell as Administrator:\nGet-NetAdapter | Format-Table Name, InterfaceDescription, Status\n\n# Or CMD:\nnetsh wlan show interfaces\n\n# Look for "Realtek 8812AU" or "ALFA" in the list\n# Note the interface name (e.g., "Wi-Fi 2" or "Wireless Network Connection 2")' },
+      { step: '3. Enable monitor mode via Npcap', code: '# With Npcap installed (with raw 802.11 support):\n# The adapter automatically supports monitor mode via Npcap\n\n# Verify Npcap is installed:\nwhere npcap 2>nul || echo "Check C:\\Program Files\\Npcap"\n\n# List capture-capable interfaces:\n# PowerShell:\nGet-NetAdapter | Where-Object {$_.Status -eq "Up"} | Select Name, InterfaceIndex' },
+      { step: '4. Set up promiscuous mode', code: '# Enable promiscuous mode via PowerShell (Admin):\n$adapter = Get-NetAdapter | Where-Object {$_.InterfaceDescription -like "*Realtek 8812*"}\nSet-NetAdapterAdvancedProperty -Name $adapter.Name -RegistryKeyword "*ReceiveBuffers" -RegistryValue "2048"\n\n# Or via netsh:\nnetsh wlan set profileparameter name="YourNetwork" nonBroadcast=yes\n\n# For all interfaces promiscuous mode:\nGet-NetAdapter | ForEach-Object {\n  Set-NetAdapterAdvancedProperty -Name $_.Name -AllProperties -RegistryKeyword "PromiscuousMode" -RegistryValue "1" -ErrorAction SilentlyContinue\n}' },
+      { step: '5. Start RobustIDPS.ai (Docker Desktop for Windows)', code: '# Ensure Docker Desktop is running with WSL2 backend\n# In docker-compose.prod.yml, set network_mode and capabilities:\n#   backend:\n#     network_mode: host\n#     cap_add:\n#       - NET_ADMIN\n#       - NET_RAW\n\n# Find the interface name inside WSL2/Docker:\ndocker exec -it robustidps-backend bash -c "ip link show"\n# Look for the Alfa adapter (may appear as wlan1 or wlx...)\n\n# In the Live Monitor page, enter the WSL2 interface name\n# and click "Start Live Capture"' },
+      { step: '6. Alternative: Direct capture without Docker', code: '# If running the backend natively on Windows:\n# Install Python 3.10+ and dependencies:\npip install nfstream\n\n# Find the correct interface name:\npython -c "from nfstream import NFStreamer; print(NFStreamer.interfaces())"\n\n# The Alfa adapter will be listed — use that name in Live Monitor\n# e.g., "\\\\Device\\\\NPF_{GUID}" or the friendly name' },
+    ],
+    tips: [
+      'The Alfa AWUS036ACH supports both 2.4GHz and 5GHz bands — the dual-band capability means it captures traffic on both frequency ranges.',
+      'The 2x 5dBi external antennas provide significantly better range than built-in laptop Wi-Fi — ideal for monitoring larger network areas.',
+      'USB 3.0 connection ensures sufficient bandwidth for high-throughput capture (up to 867 Mbps on 5GHz).',
+      'For enterprise deployments, position the dongle with antennas vertical and perpendicular to each other for optimal spatial diversity.',
+      'In Live Monitor, set the capture interval to 10-15s for quick detection cycles, or 60-120s for deeper flow analysis per cycle.',
+      'The NFStream library used by RobustIDPS.ai extracts flow-level features directly — no need for packet-level tools like Wireshark or tcpdump.',
+      'For WiFi monitoring specifically, monitor mode captures ALL wireless frames in range, not just traffic to/from your machine.',
+      'RobustIDPS.ai analyses flow metadata (IPs, ports, packet counts, byte counts, durations) — it works on encrypted traffic without decryption.',
+    ],
+  }
+
+  // Export events as CSV
+  const exportCSV = useCallback(() => {
+    if (events.length === 0) return
+    const header = 'flow_id,cycle,src_ip,dst_ip,label_predicted,confidence,severity,auto_blocked\n'
+    const rows = events.map(ev =>
+      `${ev.flow_id},${ev.cycle || ''},${ev.src_ip},${ev.dst_ip},${ev.label_predicted},${(ev.confidence * 100).toFixed(2)},${ev.severity},${ev.auto_blocked || false}`
+    ).join('\n')
+    const blob = new Blob([header + rows], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `robustidps_live_monitor_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [events])
+
+  // Copy interface command to clipboard
+  const copyToClipboard = useCallback((text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {})
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -523,15 +612,42 @@ export default function LiveMonitor() {
               <span className="text-text-secondary">Cycle {currentCycle} — {captureStatus}</span>
             </div>
           )}
-          <div className="flex gap-4 sm:gap-6 sm:ml-auto text-sm">
+          <div className="flex gap-4 sm:gap-6 sm:ml-auto text-sm items-center">
             <span className="text-accent-red font-mono">Threats: {threatCount}</span>
             <span className="text-accent-blue font-mono">Benign: {benignCount}</span>
+            {autoBlockCount > 0 && <span className="text-accent-orange font-mono flex items-center gap-1"><Ban className="w-3 h-3" /> Blocked: {autoBlockCount}</span>}
             <span className="text-text-secondary font-mono">Total: {threatCount + benignCount}</span>
+            {events.length > 0 && (
+              <button onClick={exportCSV} className="flex items-center gap-1 px-2 py-1 text-xs text-accent-blue hover:bg-accent-blue/10 rounded transition-colors" title="Export events as CSV">
+                <Download className="w-3 h-3" /> CSV
+              </button>
+            )}
           </div>
         </div>
 
         {done && captureMode === 'file' && (
           <div className="px-4 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">Stream complete — all flows processed.</div>
+        )}
+
+        {/* Severity filter bar */}
+        {events.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-3.5 h-3.5 text-text-secondary" />
+            <span className="text-xs text-text-secondary">Filter:</span>
+            {['all', 'critical', 'high', 'medium', 'low', 'benign'].map(sev => (
+              <button
+                key={sev}
+                onClick={() => setSeverityFilter(sev)}
+                className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                  severityFilter === sev
+                    ? sev === 'all' ? 'bg-accent-blue text-white' : sev === 'critical' ? 'bg-accent-red text-white' : sev === 'high' ? 'bg-accent-orange text-white' : sev === 'medium' ? 'bg-accent-amber text-white' : sev === 'low' ? 'bg-accent-green text-white' : 'bg-accent-blue text-white'
+                    : 'text-text-secondary hover:text-text-primary border border-bg-card'
+                }`}
+              >
+                {sev === 'all' ? `All (${events.length})` : `${sev} (${events.filter(e => e.severity === sev).length})`}
+              </button>
+            ))}
+          </div>
         )}
 
         <div className="bg-bg-secondary rounded-xl border border-bg-card overflow-hidden">
@@ -546,10 +662,11 @@ export default function LiveMonitor() {
                   <th className="px-3 py-2 text-left">Label</th>
                   <th className="px-3 py-2 text-left">Confidence</th>
                   <th className="px-3 py-2 text-left">Severity</th>
+                  <th className="px-3 py-2 text-left">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {events.map((ev, i) => (
+                {filteredEvents.map((ev, i) => (
                   <tr key={`${ev.flow_id}-${ev.cycle || 0}-${i}`} className={`border-t border-bg-card/50 ${i === 0 && running ? 'animate-pulse' : ''}`}>
                     <td className="px-3 py-1.5 font-mono text-text-secondary text-xs">{ev.flow_id}</td>
                     {captureMode === 'live' && <td className="px-3 py-1.5 font-mono text-text-secondary text-xs">{ev.cycle}</td>}
@@ -558,10 +675,19 @@ export default function LiveMonitor() {
                     <td className="px-3 py-1.5 text-xs">{ev.label_predicted}</td>
                     <td className="px-3 py-1.5 font-mono text-xs">{(ev.confidence * 100).toFixed(1)}%</td>
                     <td className="px-3 py-1.5"><span className={`text-xs font-medium ${SEV_COLOR[ev.severity] || ''}`}>{ev.severity}</span></td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {ev.auto_blocked ? (
+                        <span className="flex items-center gap-1 text-accent-orange"><Ban className="w-3 h-3" /> Blocked</span>
+                      ) : ev.severity !== 'benign' ? (
+                        <span className="text-text-secondary">Detected</span>
+                      ) : (
+                        <span className="text-accent-blue/50">Clean</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
-                {events.length === 0 && (
-                  <tr><td colSpan={captureMode === 'live' ? 7 : 6} className="px-3 py-8 text-center text-text-secondary text-sm">{captureMode === 'live' ? 'Waiting for first capture cycle...' : 'Press Start to begin streaming'}</td></tr>
+                {filteredEvents.length === 0 && (
+                  <tr><td colSpan={captureMode === 'live' ? 8 : 7} className="px-3 py-8 text-center text-text-secondary text-sm">{events.length === 0 ? (captureMode === 'live' ? 'Waiting for first capture cycle...' : 'Press Start to begin streaming') : 'No events match the selected filter'}</td></tr>
                 )}
               </tbody>
             </table>
@@ -831,6 +957,167 @@ export default function LiveMonitor() {
             <div className="flex items-start gap-2 p-3 bg-accent-amber/10 border border-accent-amber/20 rounded-lg">
               <AlertTriangle className="w-4 h-4 text-accent-amber shrink-0 mt-0.5" />
               <p className="text-[11px] text-text-secondary leading-relaxed"><strong className="text-text-primary">Enterprise &amp; Commercial Use:</strong> For production deployments, GPU-accelerated inference, custom model training on your organisation's traffic, SLA-backed support, and on-premises installation assistance — contact <strong className="text-accent-blue">roger@robustidps.ai</strong> for licensing and professional services options.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Dongle Setup Guide — Alfa AWUS036ACH */}
+      <div className="bg-bg-secondary rounded-xl border border-bg-card overflow-hidden">
+        <button onClick={() => setShowDongleGuide(!showDongleGuide)} className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-bg-card/30 transition-colors">
+          <div className="flex items-center gap-3">
+            <Usb className="w-5 h-5 text-accent-purple" />
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">Wi-Fi Dongle Setup Guide — Alfa AWUS036ACH (AC1200)</h3>
+              <p className="text-xs text-text-secondary">How to set up the Alfa Long-Range Dual-Band AC1200 USB 3.0 Wi-Fi Adapter for live network monitoring — macOS &amp; Windows</p>
+            </div>
+          </div>
+          {showDongleGuide ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
+        </button>
+        {showDongleGuide && (
+          <div className="px-5 pb-5 space-y-6">
+            {/* Overview */}
+            <div className="flex items-start gap-3 p-4 bg-accent-purple/10 border border-accent-purple/20 rounded-lg">
+              <Wifi className="w-5 h-5 text-accent-purple shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[11px] text-text-primary leading-relaxed font-medium mb-1">Direct Capture — No Wireshark/TShark/tcpdump Required</p>
+                <p className="text-[11px] text-text-secondary leading-relaxed">{DONGLE_SETUP.overview}</p>
+              </div>
+            </div>
+
+            {/* Architecture diagram */}
+            <div className="p-4 bg-bg-card/50 border border-bg-card rounded-lg">
+              <h4 className="text-xs font-semibold text-text-primary mb-3 flex items-center gap-2"><Layers className="w-4 h-4 text-accent-blue" /> Capture Architecture</h4>
+              <div className="flex items-center justify-center gap-2 text-[10px] font-mono text-text-secondary flex-wrap">
+                <span className="px-2 py-1 bg-accent-purple/15 text-accent-purple rounded border border-accent-purple/20">Alfa AWUS036ACH</span>
+                <span>→</span>
+                <span className="px-2 py-1 bg-accent-green/15 text-accent-green rounded border border-accent-green/20">Monitor Mode</span>
+                <span>→</span>
+                <span className="px-2 py-1 bg-accent-blue/15 text-accent-blue rounded border border-accent-blue/20">NFStream</span>
+                <span>→</span>
+                <span className="px-2 py-1 bg-accent-amber/15 text-accent-amber rounded border border-accent-amber/20">Flow Features</span>
+                <span>→</span>
+                <span className="px-2 py-1 bg-accent-red/15 text-accent-red rounded border border-accent-red/20">ML Ensemble (8 models)</span>
+                <span>→</span>
+                <span className="px-2 py-1 bg-accent-green/15 text-accent-green rounded border border-accent-green/20">Live Monitor Dashboard</span>
+              </div>
+              <p className="text-[10px] text-text-secondary text-center mt-2">Two capture methods: <strong>Monitor Mode</strong> (captures all wireless frames in range) and <strong>Promiscuous Mode</strong> (captures all packets on connected network interfaces)</p>
+            </div>
+
+            {/* macOS Section */}
+            <div>
+              <h4 className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-3">
+                <Monitor className="w-4 h-4 text-text-secondary" />
+                macOS (High Sierra 10.13 / MacBook Pro)
+              </h4>
+              <div className="space-y-3">
+                {DONGLE_SETUP.macSteps.map((item, i) => (
+                  <div key={i}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-text-primary">{item.step}</span>
+                      <button onClick={() => copyToClipboard(item.code)} className="text-[10px] text-accent-blue hover:text-accent-blue/80 flex items-center gap-1">
+                        <Copy className="w-3 h-3" /> Copy
+                      </button>
+                    </div>
+                    <pre className="mt-1 p-2.5 bg-bg-primary rounded-lg text-[11px] text-accent-green font-mono overflow-x-auto whitespace-pre">{item.code}</pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Windows Section */}
+            <div>
+              <h4 className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-3">
+                <Monitor className="w-4 h-4 text-accent-blue" />
+                Windows 11 (HP Envy / CMD / PowerShell)
+              </h4>
+              <div className="space-y-3">
+                {DONGLE_SETUP.windowsSteps.map((item, i) => (
+                  <div key={i}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-text-primary">{item.step}</span>
+                      <button onClick={() => copyToClipboard(item.code)} className="text-[10px] text-accent-blue hover:text-accent-blue/80 flex items-center gap-1">
+                        <Copy className="w-3 h-3" /> Copy
+                      </button>
+                    </div>
+                    <pre className="mt-1 p-2.5 bg-bg-primary rounded-lg text-[11px] text-accent-green font-mono overflow-x-auto whitespace-pre">{item.code}</pre>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Method comparison: Monitor Mode vs Promiscuous Mode */}
+            <div>
+              <h4 className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-3">
+                <Shield className="w-4 h-4 text-accent-amber" />
+                Capture Methods: Monitor Mode vs Promiscuous Mode
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-accent-green/5 border border-accent-green/20">
+                  <span className="text-[11px] font-semibold text-accent-green block mb-2">Method A: Monitor Mode (Recommended for Wi-Fi)</span>
+                  <ul className="text-[11px] text-text-secondary space-y-1 list-disc list-inside">
+                    <li>Captures <strong>all wireless frames</strong> in range (not just your network)</li>
+                    <li>Uses <code className="text-accent-green">airmon-ng start &lt;iface&gt;</code> or Apple&apos;s airport utility</li>
+                    <li>Equivalent to the Airodump-ng sniffing approach from your previous research</li>
+                    <li>Ideal for wireless security auditing and rogue AP detection</li>
+                    <li>The Alfa AWUS036ACH&apos;s 5dBi antennas provide 2-3x range vs built-in WiFi</li>
+                    <li>Works with RobustIDPS.ai: enter the monitor interface (e.g., <code className="text-accent-green">wlan1mon</code>) in Live Capture</li>
+                  </ul>
+                </div>
+                <div className="p-3 rounded-lg bg-accent-blue/5 border border-accent-blue/20">
+                  <span className="text-[11px] font-semibold text-accent-blue block mb-2">Method B: Promiscuous Mode (All Interfaces)</span>
+                  <ul className="text-[11px] text-text-secondary space-y-1 list-disc list-inside">
+                    <li>Captures all packets on a connected network (not just addressed to your MAC)</li>
+                    <li>Uses <code className="text-accent-blue">ifconfig &lt;iface&gt; promisc</code> (macOS/Linux) or adapter settings (Windows)</li>
+                    <li>Works on both wired and wireless interfaces</li>
+                    <li>Requires being connected to the target network</li>
+                    <li>Best for monitoring specific LAN segments or switched networks with SPAN ports</li>
+                    <li>Works with RobustIDPS.ai: enter the interface (e.g., <code className="text-accent-blue">en0</code>, <code className="text-accent-blue">eth0</code>) in Live Capture</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick reference table */}
+            <div>
+              <h4 className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-3">
+                <Clock className="w-4 h-4 text-accent-blue" />
+                Quick Reference: Interface Names for Live Monitor
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b border-bg-card"><th className="px-3 py-2 text-left text-text-secondary font-medium">OS</th><th className="px-3 py-2 text-left text-text-secondary font-medium">Capture Method</th><th className="px-3 py-2 text-left text-text-secondary font-medium">Interface to Enter</th><th className="px-3 py-2 text-left text-text-secondary font-medium">Setup Command</th></tr></thead>
+                  <tbody>
+                    <tr className="border-t border-bg-card/50"><td className="px-3 py-2 text-text-primary">macOS</td><td className="px-3 py-2">Monitor (airmon-ng)</td><td className="px-3 py-2 font-mono text-accent-green">en5mon</td><td className="px-3 py-2 font-mono text-accent-green text-[10px]">sudo airmon-ng start en5</td></tr>
+                    <tr className="border-t border-bg-card/50"><td className="px-3 py-2 text-text-primary">macOS</td><td className="px-3 py-2">Monitor (airport)</td><td className="px-3 py-2 font-mono text-accent-green">en5</td><td className="px-3 py-2 font-mono text-accent-green text-[10px]">sudo airport en5 sniff</td></tr>
+                    <tr className="border-t border-bg-card/50"><td className="px-3 py-2 text-text-primary">macOS</td><td className="px-3 py-2">Promiscuous</td><td className="px-3 py-2 font-mono text-accent-blue">en5</td><td className="px-3 py-2 font-mono text-accent-blue text-[10px]">sudo ifconfig en5 promisc</td></tr>
+                    <tr className="border-t border-bg-card/50"><td className="px-3 py-2 text-text-primary">Windows</td><td className="px-3 py-2">Monitor (Npcap)</td><td className="px-3 py-2 font-mono text-accent-green">Wi-Fi 2</td><td className="px-3 py-2 font-mono text-accent-green text-[10px]">Install Npcap with raw 802.11 support</td></tr>
+                    <tr className="border-t border-bg-card/50"><td className="px-3 py-2 text-text-primary">Windows</td><td className="px-3 py-2">Promiscuous</td><td className="px-3 py-2 font-mono text-accent-blue">Wi-Fi 2</td><td className="px-3 py-2 font-mono text-accent-blue text-[10px]">Set-NetAdapterAdvancedProperty</td></tr>
+                    <tr className="border-t border-bg-card/50"><td className="px-3 py-2 text-text-primary">Linux/Docker</td><td className="px-3 py-2">Monitor</td><td className="px-3 py-2 font-mono text-accent-green">wlan1mon</td><td className="px-3 py-2 font-mono text-accent-green text-[10px]">sudo airmon-ng start wlan1</td></tr>
+                    <tr className="border-t border-bg-card/50"><td className="px-3 py-2 text-text-primary">Linux/Docker</td><td className="px-3 py-2">Promiscuous</td><td className="px-3 py-2 font-mono text-accent-blue">wlan1</td><td className="px-3 py-2 font-mono text-accent-blue text-[10px]">sudo ip link set wlan1 promisc on</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div>
+              <h4 className="flex items-center gap-2 text-xs font-semibold text-text-primary mb-3">
+                <Wifi className="w-4 h-4 text-accent-purple" /> Tips &amp; Best Practices
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {DONGLE_SETUP.tips.map((tip, i) => (
+                  <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-bg-card/50">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-accent-purple shrink-0 mt-0.5" />
+                    <span className="text-[11px] text-text-secondary leading-relaxed">{tip}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 p-3 bg-accent-purple/10 border border-accent-purple/20 rounded-lg">
+              <Lock className="w-4 h-4 text-accent-purple shrink-0 mt-0.5" />
+              <p className="text-[11px] text-text-secondary leading-relaxed"><strong className="text-text-primary">Security Note:</strong> Monitor mode captures all wireless frames within range, including frames from other networks. Only use this capability on networks you own or have explicit authorisation to monitor. Unauthorised wireless interception may violate local laws. RobustIDPS.ai analyses flow metadata — it does not decrypt or store payload content.</p>
             </div>
           </div>
         )}

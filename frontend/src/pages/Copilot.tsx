@@ -101,6 +101,7 @@ const PAGE_CONTEXTS = [
   { id: 'threat_resp', label: 'Threat Response', query: 'Get the threat response status. What playbooks are active and what incidents have been handled?', icon: 'zap' },
   { id: 'rl_response', label: 'RL Response Agent', query: 'Get the RL response agent simulation results. What was the threat mitigation rate, false positive blocking rate, action distribution, and constraint violations? Summarise the CPO agent performance.', icon: 'shield' },
   { id: 'adversarial_robustness', label: 'Adversarial Robustness', query: 'Get the adversarial robustness evaluation results. What attacks were tested (FGSM, PGD, C&W, DeepFool, Gaussian, Label masking), what was the clean accuracy, and how robust is the model? Report per-attack accuracy and robustness ratios.', icon: 'target' },
+  { id: 'live_monitor', label: 'Live Monitor', query: 'Get the live monitor results. What threats were detected in the latest capture session? Show attack distribution, severity breakdown, top threat source IPs, confidence statistics, auto-block actions, and any active capture cycles.', icon: 'radio' },
 ] as const
 
 // Safely parse JSON from localStorage

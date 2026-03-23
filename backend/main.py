@@ -2606,6 +2606,10 @@ _bg_jobs: dict = {}
 # Keyed by (user_id, page_type) so each user keeps only the latest result per page.
 _completed_results: dict = {}  # {(user_id, page_type): {"job_id": ..., "result": ..., "timestamp": ...}}
 
+# Live capture session store — keeps latest results from live_capture WebSocket
+# so SOC Copilot can retrieve them. Keyed by session identifier.
+_live_capture_results: dict = {}  # {"latest": {"events": [...], "cycles": N, ...}}
+
 
 def _cache_bg_result(user_id: int, page_type: str, job_id: str, result: dict):
     """Cache a completed background job result for later Copilot access."""
@@ -3621,6 +3625,9 @@ async def live_capture(ws: WebSocket):
                             "type": "flow", "cycle": cycle, "flow_id": i,
                             "src_ip": flow_src_ip,
                             "dst_ip": str(metadata.iloc[i]["dst_ip"]),
+                            "src_port": int(records[i].get("src_port", 0)) if i < len(records) else 0,
+                            "dst_port": int(records[i].get("dst_port", 0)) if i < len(records) else 0,
+                            "protocol": int(records[i].get("protocol", 0)) if i < len(records) else 0,
                             "label_predicted": label,
                             "confidence": round(conf, 4),
                             "severity": sev,
@@ -3641,6 +3648,17 @@ async def live_capture(ws: WebSocket):
                     "threats_found": threats_in_cycle,
                     "message": f"Cycle {cycle} done: {len(features_t)} flows, {threats_in_cycle} threats",
                 })
+
+                # Persist latest cycle results for SOC Copilot access
+                _live_capture_results["latest"] = {
+                    "interface": iface,
+                    "cycle": cycle,
+                    "interval": interval,
+                    "flows_captured": len(features_t),
+                    "threats_found": threats_in_cycle,
+                    "timestamp": _time.time(),
+                    "status": "running",
+                }
 
             except ImportError:
                 await ws.send_json({
