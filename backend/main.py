@@ -3516,10 +3516,10 @@ async def stream(ws: WebSocket):
 @app.websocket("/ws/live_capture")
 async def live_capture(ws: WebSocket):
     """
-    Continuous live network capture mode.
-    Client sends: { "interface": "eth0", "interval": 30, "model_name": "" }
+    Continuous live network capture mode with multi-model support.
+    Client sends: { "interface": "eth0", "interval": 30, "model_names": ["surrogate", "sde_tgnn"], "capture_only": false }
     Server captures on the interface for interval seconds via NFStream,
-    classifies each flow, sends results, then repeats until disconnect.
+    classifies each flow with all selected models, sends results, then repeats until disconnect.
     """
     await ws.accept()
     try:
@@ -3527,23 +3527,43 @@ async def live_capture(ws: WebSocket):
         msg = json.loads(init)
         iface = msg.get("interface", "eth0")
         interval = min(max(int(msg.get("interval", 30)), 5), 300)
-        model_name = msg.get("model_name", "")
+        capture_only = msg.get("capture_only", False)
 
-        active_model = model
-        if model_name:
-            try:
-                active_model = registry_load(model_name, DEVICE)
-            except Exception:
-                active_model = model
+        # Multi-model support: accept model_names array or legacy model_name string
+        model_names = msg.get("model_names", [])
+        if not model_names:
+            legacy_name = msg.get("model_name", "")
+            if legacy_name:
+                model_names = [legacy_name]
 
-        active_model.eval()
+        # Load all requested models
+        active_models = {}
+        if not capture_only and model_names:
+            for mname in model_names:
+                try:
+                    loaded = registry_load(mname, DEVICE)
+                    loaded.eval()
+                    active_models[mname] = loaded
+                except Exception:
+                    pass  # Skip models that fail to load
+            # Fallback to default if no models loaded successfully
+            if not active_models and not capture_only:
+                model.eval()
+                active_models["surrogate"] = model
+        elif not capture_only:
+            model.eval()
+            active_models["surrogate"] = model
+
         cycle = 0
+        model_list_str = ", ".join(active_models.keys()) if active_models else "none (capture only)"
 
         await ws.send_json({
             "status": "started",
             "interface": iface,
             "interval": interval,
-            "message": f"Capturing on {iface} every {interval}s",
+            "models": list(active_models.keys()),
+            "capture_only": capture_only,
+            "message": f"Capturing on {iface} every {interval}s — models: {model_list_str}",
         })
 
         while True:
@@ -3601,52 +3621,104 @@ async def live_capture(ws: WebSocket):
                 from features import build_feature_tensor
                 features_t = build_feature_tensor(df).to(DEVICE)
 
-                await ws.send_json({
-                    "status": "analysing", "cycle": cycle,
-                    "flows_captured": len(features_t),
-                    "message": f"Cycle {cycle}: analysing {len(features_t)} flows...",
-                })
-
-                threats_in_cycle = 0
-                with torch.no_grad():
+                if capture_only or not active_models:
+                    # Capture-only mode: send raw flow data without inference
+                    await ws.send_json({
+                        "status": "captured", "cycle": cycle,
+                        "flows_captured": len(features_t),
+                        "message": f"Cycle {cycle}: captured {len(features_t)} flows (no inference)",
+                    })
+                    threats_in_cycle = 0
                     for i in range(len(features_t)):
-                        row = features_t[i:i+1]
-                        logits = active_model(row)
-                        probs = torch.softmax(logits, dim=-1)
-                        cls_idx = probs.argmax(-1).item()
-                        conf = probs.max(-1).values.item()
-                        label = SurrogateIDS.CLASS_NAMES[cls_idx] if cls_idx < len(SurrogateIDS.CLASS_NAMES) else f"class_{cls_idx}"
-                        sev = SurrogateIDS.severity_for(label)
-                        if sev != "benign":
-                            threats_in_cycle += 1
-
-                        flow_src_ip = str(metadata.iloc[i]["src_ip"])
                         flow_msg = {
-                            "type": "flow", "cycle": cycle, "flow_id": i,
-                            "src_ip": flow_src_ip,
+                            "type": "raw_flow", "cycle": cycle, "flow_id": i,
+                            "src_ip": str(metadata.iloc[i]["src_ip"]),
                             "dst_ip": str(metadata.iloc[i]["dst_ip"]),
                             "src_port": int(records[i].get("src_port", 0)) if i < len(records) else 0,
                             "dst_port": int(records[i].get("dst_port", 0)) if i < len(records) else 0,
                             "protocol": int(records[i].get("protocol", 0)) if i < len(records) else 0,
-                            "label_predicted": label,
-                            "confidence": round(conf, 4),
-                            "severity": sev,
                         }
-
-                        # Tier 1: Auto-block high-severity threats
-                        from prevention import auto_block_check
-                        block_result = auto_block_check(flow_src_ip, label, conf, sev)
-                        if block_result:
-                            flow_msg["auto_blocked"] = True
-                            flow_msg["block_status"] = block_result.get("status")
-
                         await ws.send_json(flow_msg)
+                else:
+                    model_names_str = ", ".join(active_models.keys())
+                    await ws.send_json({
+                        "status": "analysing", "cycle": cycle,
+                        "flows_captured": len(features_t),
+                        "message": f"Cycle {cycle}: analysing {len(features_t)} flows with {len(active_models)} model(s) [{model_names_str}]...",
+                    })
+
+                    threats_in_cycle = 0
+                    primary_model_id = list(active_models.keys())[0]
+
+                    with torch.no_grad():
+                        for i in range(len(features_t)):
+                            row = features_t[i:i+1]
+
+                            # Run inference on all selected models
+                            model_predictions = []
+                            for mid, mobj in active_models.items():
+                                try:
+                                    logits = mobj(row)
+                                    probs = torch.softmax(logits, dim=-1)
+                                    cls_idx = probs.argmax(-1).item()
+                                    conf = probs.max(-1).values.item()
+                                    label = SurrogateIDS.CLASS_NAMES[cls_idx] if cls_idx < len(SurrogateIDS.CLASS_NAMES) else f"class_{cls_idx}"
+                                    sev = SurrogateIDS.severity_for(label)
+                                    model_predictions.append({
+                                        "model_id": mid,
+                                        "label_predicted": label,
+                                        "confidence": round(conf, 4),
+                                        "severity": sev,
+                                    })
+                                except Exception:
+                                    model_predictions.append({
+                                        "model_id": mid,
+                                        "label_predicted": "error",
+                                        "confidence": 0.0,
+                                        "severity": "benign",
+                                    })
+
+                            # Primary prediction comes from the first model (highest priority)
+                            primary = model_predictions[0] if model_predictions else {
+                                "label_predicted": "unknown", "confidence": 0.0, "severity": "benign"
+                            }
+                            if primary["severity"] != "benign":
+                                threats_in_cycle += 1
+
+                            flow_src_ip = str(metadata.iloc[i]["src_ip"])
+                            flow_msg = {
+                                "type": "flow", "cycle": cycle, "flow_id": i,
+                                "src_ip": flow_src_ip,
+                                "dst_ip": str(metadata.iloc[i]["dst_ip"]),
+                                "src_port": int(records[i].get("src_port", 0)) if i < len(records) else 0,
+                                "dst_port": int(records[i].get("dst_port", 0)) if i < len(records) else 0,
+                                "protocol": int(records[i].get("protocol", 0)) if i < len(records) else 0,
+                                "label_predicted": primary["label_predicted"],
+                                "confidence": primary["confidence"],
+                                "severity": primary["severity"],
+                                "primary_model": primary_model_id,
+                            }
+
+                            # Include per-model predictions when multiple models are active
+                            if len(model_predictions) > 1:
+                                flow_msg["model_predictions"] = model_predictions
+
+                            # Tier 1: Auto-block high-severity threats (based on primary model)
+                            from prevention import auto_block_check
+                            block_result = auto_block_check(flow_src_ip, primary["label_predicted"], primary["confidence"], primary["severity"])
+                            if block_result:
+                                flow_msg["auto_blocked"] = True
+                                flow_msg["block_status"] = block_result.get("status")
+
+                            await ws.send_json(flow_msg)
 
                 await ws.send_json({
                     "status": "cycle_done", "cycle": cycle,
                     "flows_captured": len(features_t),
                     "threats_found": threats_in_cycle,
-                    "message": f"Cycle {cycle} done: {len(features_t)} flows, {threats_in_cycle} threats",
+                    "models_used": list(active_models.keys()) if active_models else [],
+                    "capture_only": capture_only,
+                    "message": f"Cycle {cycle} done: {len(features_t)} flows, {threats_in_cycle} threats" + (f" ({len(active_models)} models)" if len(active_models) > 1 else ""),
                 })
 
                 # Persist latest cycle results for SOC Copilot access
@@ -3656,6 +3728,7 @@ async def live_capture(ws: WebSocket):
                     "interval": interval,
                     "flows_captured": len(features_t),
                     "threats_found": threats_in_cycle,
+                    "models_used": list(active_models.keys()) if active_models else [],
                     "timestamp": _time.time(),
                     "status": "running",
                 }

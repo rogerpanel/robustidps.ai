@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers } from 'lucide-react'
+import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers, Zap } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
+import LiveCaptureModelSelector from '../components/LiveCaptureModelSelector'
 import PageGuide from '../components/PageGuide'
 import { uploadFile, connectStream } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
 import { registerSessionReset } from '../utils/sessionReset'
+
+interface ModelPrediction {
+  model_id: string
+  label_predicted: string
+  confidence: number
+  severity: string
+}
 
 interface FlowEvent {
   flow_id: number
@@ -21,6 +29,8 @@ interface FlowEvent {
   src_port?: number
   dst_port?: number
   protocol?: number
+  model_predictions?: ModelPrediction[]
+  primary_model?: string
 }
 
 const SEV_COLOR: Record<string, string> = {
@@ -88,6 +98,7 @@ const _store: {
   showAnalytics: boolean
   sentToUpload: boolean
   selectedModel: string
+  selectedModels: string[]
   showDongleGuide: boolean
   showAdvancedAnalytics: boolean
   severityFilter: string
@@ -112,6 +123,7 @@ const _store: {
   showAnalytics: false,
   sentToUpload: false,
   selectedModel: 'surrogate',
+  selectedModels: ['surrogate'],
   showDongleGuide: false,
   showAdvancedAnalytics: false,
   severityFilter: 'all',
@@ -142,6 +154,7 @@ registerSessionReset(() => {
   _store.showAnalytics = false
   _store.sentToUpload = false
   _store.selectedModel = 'surrogate'
+  _store.selectedModels = ['surrogate']
   _store.showDongleGuide = false
   _store.showAdvancedAnalytics = false
   _store.severityFilter = 'all'
@@ -177,6 +190,7 @@ export default function LiveMonitor() {
   const [showAnalytics, _setShowAnalytics] = useState(_store.showAnalytics)
   const [sentToUpload, _setSentToUpload] = useState(_store.sentToUpload)
   const [selectedModel, _setSelectedModel] = useState(_store.selectedModel)
+  const [selectedModels, _setSelectedModels] = useState<string[]>(_store.selectedModels)
   const [showDongleGuide, _setShowDongleGuide] = useState(_store.showDongleGuide)
   const [showAdvancedAnalytics, _setShowAdvancedAnalytics] = useState(_store.showAdvancedAnalytics)
   const [severityFilter, _setSeverityFilter] = useState(_store.severityFilter)
@@ -216,6 +230,7 @@ export default function LiveMonitor() {
   const setShowAnalytics = (v: boolean) => { _store.showAnalytics = v; _setShowAnalytics(v) }
   const setSentToUpload = (v: boolean) => { _store.sentToUpload = v; _setSentToUpload(v) }
   const setSelectedModel = (v: string) => { _store.selectedModel = v; _setSelectedModel(v) }
+  const setSelectedModels = (v: string[]) => { _store.selectedModels = v; _setSelectedModels(v) }
   const setShowDongleGuide = (v: boolean) => { _store.showDongleGuide = v; _setShowDongleGuide(v) }
   const setShowAdvancedAnalytics = (v: boolean) => { _store.showAdvancedAnalytics = v; _setShowAdvancedAnalytics(v) }
   const setSeverityFilter = (v: string) => { _store.severityFilter = v; _setSeverityFilter(v) }
@@ -418,23 +433,50 @@ export default function LiveMonitor() {
     setCurrentCycle(0); setCaptureStatus('Connecting...'); setWsError('')
     const wsUrl = `${wsBaseUrl()}/ws/live_capture`
     const ws = new WebSocket(wsUrl)
-    ws.onopen = () => { ws.send(JSON.stringify({ interface: iface, interval: captureInterval, model_name: selectedModel })) }
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        interface: iface,
+        interval: captureInterval,
+        model_names: selectedModels,
+        // Legacy fallback for single model
+        model_name: selectedModels.length > 0 ? selectedModels[0] : '',
+        capture_only: selectedModels.length === 0,
+      }))
+    }
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data)
       if (data.status === 'error') { setCaptureStatus(`Error: ${data.message}`); setRunning(false); return }
       if (data.status) { setCaptureStatus(data.message || data.status); if (data.cycle) setCurrentCycle(data.cycle) }
       if (data.type === 'flow') {
-        const ev: FlowEvent = { flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip, label_predicted: data.label_predicted, confidence: data.confidence, severity: data.severity, cycle: data.cycle, auto_blocked: data.auto_blocked, block_status: data.block_status, src_port: data.src_port, dst_port: data.dst_port, protocol: data.protocol }
+        const ev: FlowEvent = {
+          flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip,
+          label_predicted: data.label_predicted, confidence: data.confidence,
+          severity: data.severity, cycle: data.cycle, auto_blocked: data.auto_blocked,
+          block_status: data.block_status, src_port: data.src_port, dst_port: data.dst_port,
+          protocol: data.protocol, model_predictions: data.model_predictions,
+          primary_model: data.primary_model,
+        }
         setEvents((prev) => [ev, ...prev].slice(0, 500))
         if (ev.severity === 'benign') setBenignCount((c) => c + 1)
         else setThreatCount((c) => c + 1)
         if (ev.auto_blocked) setAutoBlockCount((c) => c + 1)
       }
+      // Capture-only mode: raw flow data without model predictions
+      if (data.type === 'raw_flow') {
+        const ev: FlowEvent = {
+          flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip,
+          label_predicted: 'N/A (capture only)', confidence: 0,
+          severity: 'benign', cycle: data.cycle,
+          src_port: data.src_port, dst_port: data.dst_port, protocol: data.protocol,
+        }
+        setEvents((prev) => [ev, ...prev].slice(0, 500))
+        setBenignCount((c) => c + 1)
+      }
     }
     ws.onerror = () => { setWsError('WebSocket connection failed'); setRunning(false) }
     ws.onclose = () => { setRunning(false); setCaptureStatus('Disconnected') }
     _wsRef = ws
-  }, [iface, captureInterval])
+  }, [iface, captureInterval, selectedModels])
 
   const stopStream = useCallback(() => { _wsRef?.close(); _wsRef = null; setRunning(false) }, [])
 
@@ -561,24 +603,52 @@ export default function LiveMonitor() {
       )}
 
       {captureMode === 'live' && !running && (
-        <div className="bg-bg-secondary rounded-xl border border-bg-card p-5 max-w-lg space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Network className="w-5 h-5 text-accent-green" />
-            <h3 className="text-sm font-semibold text-text-primary">Continuous Network Capture</h3>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Left: Capture Settings (3 cols) */}
+          <div className="lg:col-span-3 bg-bg-secondary rounded-xl border border-bg-card p-5 space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Network className="w-5 h-5 text-accent-green" />
+              <h3 className="text-sm font-semibold text-text-primary">Continuous Network Capture</h3>
+            </div>
+            <p className="text-xs text-text-secondary">Captures live traffic on a network interface, analyses flows with the ML ensemble, then repeats — providing continuous real-time intrusion detection and prevention.</p>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Network Interface</label>
+              <input type="text" value={iface} onChange={(e) => setIface(e.target.value)} className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-green/50" placeholder="eth0" />
+            </div>
+            <div>
+              <label className="block text-xs text-text-secondary mb-1">Capture Interval: {captureInterval}s</label>
+              <input type="range" min={5} max={120} step={5} value={captureInterval} onChange={(e) => setCaptureInterval(+e.target.value)} className="w-full accent-accent-green" />
+              <div className="flex justify-between text-[10px] text-text-secondary"><span>5s (fast)</span><span>120s (thorough)</span></div>
+            </div>
+
+            {/* Active models summary before start */}
+            {selectedModels.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Brain className="w-3.5 h-3.5 text-accent-blue" />
+                <span className="text-[10px] text-text-secondary">Active:</span>
+                {selectedModels.map((mid) => (
+                  <span key={mid} className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-blue/10 text-accent-blue font-medium">
+                    {mid}
+                  </span>
+                ))}
+              </div>
+            )}
+            {selectedModels.length === 0 && (
+              <div className="flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5 text-accent-amber" />
+                <span className="text-[10px] text-accent-amber font-medium">Capture-only mode — no real-time inference</span>
+              </div>
+            )}
+
+            <button onClick={startLiveCapture} className="flex items-center gap-2 px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80">
+              <Radio className="w-4 h-4 animate-pulse" /> {selectedModels.length > 0 ? 'Start Live Capture & Detection' : 'Start Live Capture'}
+            </button>
           </div>
-          <p className="text-xs text-text-secondary">Captures live traffic on a network interface, analyses flows with the ML ensemble, then repeats — providing continuous real-time intrusion detection and prevention.</p>
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">Network Interface</label>
-            <input type="text" value={iface} onChange={(e) => setIface(e.target.value)} className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-green/50" placeholder="eth0" />
+
+          {/* Right: Model Selection Panel (2 cols) */}
+          <div className="lg:col-span-2 bg-bg-secondary rounded-xl border border-bg-card p-4">
+            <LiveCaptureModelSelector value={selectedModels} onChange={setSelectedModels} />
           </div>
-          <div>
-            <label className="block text-xs text-text-secondary mb-1">Capture Interval: {captureInterval}s</label>
-            <input type="range" min={5} max={120} step={5} value={captureInterval} onChange={(e) => setCaptureInterval(+e.target.value)} className="w-full accent-accent-green" />
-            <div className="flex justify-between text-[10px] text-text-secondary"><span>5s (fast)</span><span>120s (thorough)</span></div>
-          </div>
-          <button onClick={startLiveCapture} className="flex items-center gap-2 px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80">
-            <Radio className="w-4 h-4 animate-pulse" /> Start Live Capture
-          </button>
         </div>
       )}
 
@@ -601,7 +671,22 @@ export default function LiveMonitor() {
           {captureMode === 'file' && fileName && (
             <span className="text-xs text-text-secondary truncate max-w-[200px]" title={fileName}>{fileName}</span>
           )}
-          {selectedModel && selectedModel !== 'surrogate' && (
+          {captureMode === 'live' && selectedModels.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              <Brain className="w-3 h-3 text-accent-blue" />
+              {selectedModels.map((mid) => (
+                <span key={mid} className="text-[10px] text-accent-purple bg-accent-purple/10 px-1.5 py-0.5 rounded-full">
+                  {mid}
+                </span>
+              ))}
+            </div>
+          )}
+          {captureMode === 'live' && selectedModels.length === 0 && (
+            <span className="flex items-center gap-1 text-[10px] text-accent-amber bg-accent-amber/10 px-2 py-0.5 rounded-full">
+              <Zap className="w-3 h-3" /> Capture Only
+            </span>
+          )}
+          {captureMode === 'file' && selectedModel && selectedModel !== 'surrogate' && (
             <span className="flex items-center gap-1 text-[10px] text-accent-purple bg-accent-purple/10 px-2 py-0.5 rounded-full">
               <Brain className="w-3 h-3" /> {selectedModel}
             </span>
@@ -659,6 +744,7 @@ export default function LiveMonitor() {
                   {captureMode === 'live' && <th className="px-3 py-2 text-left">Cycle</th>}
                   <th className="px-3 py-2 text-left">Src IP</th>
                   <th className="px-3 py-2 text-left">Dst IP</th>
+                  {captureMode === 'live' && selectedModels.length > 1 && <th className="px-3 py-2 text-left">Model</th>}
                   <th className="px-3 py-2 text-left">Label</th>
                   <th className="px-3 py-2 text-left">Confidence</th>
                   <th className="px-3 py-2 text-left">Severity</th>
@@ -672,9 +758,56 @@ export default function LiveMonitor() {
                     {captureMode === 'live' && <td className="px-3 py-1.5 font-mono text-text-secondary text-xs">{ev.cycle}</td>}
                     <td className="px-3 py-1.5 font-mono text-xs">{ev.src_ip}</td>
                     <td className="px-3 py-1.5 font-mono text-xs">{ev.dst_ip}</td>
-                    <td className="px-3 py-1.5 text-xs">{ev.label_predicted}</td>
-                    <td className="px-3 py-1.5 font-mono text-xs">{(ev.confidence * 100).toFixed(1)}%</td>
-                    <td className="px-3 py-1.5"><span className={`text-xs font-medium ${SEV_COLOR[ev.severity] || ''}`}>{ev.severity}</span></td>
+                    {captureMode === 'live' && selectedModels.length > 1 && (
+                      <td className="px-3 py-1.5 text-xs">
+                        {ev.model_predictions && ev.model_predictions.length > 1 ? (
+                          <div className="flex flex-col gap-0.5">
+                            {ev.model_predictions.map((mp) => (
+                              <span key={mp.model_id} className={`text-[9px] px-1 py-0.5 rounded ${
+                                mp.model_id === ev.primary_model ? 'bg-accent-blue/10 text-accent-blue font-semibold' : 'text-text-secondary'
+                              }`}>
+                                {mp.model_id}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-text-secondary">{ev.primary_model || selectedModels[0] || '—'}</span>
+                        )}
+                      </td>
+                    )}
+                    <td className="px-3 py-1.5 text-xs">
+                      {ev.model_predictions && ev.model_predictions.length > 1 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {ev.model_predictions.map((mp) => (
+                            <span key={mp.model_id} className={mp.model_id === ev.primary_model ? 'font-semibold' : 'text-text-secondary'}>
+                              {mp.label_predicted}
+                            </span>
+                          ))}
+                        </div>
+                      ) : ev.label_predicted}
+                    </td>
+                    <td className="px-3 py-1.5 font-mono text-xs">
+                      {ev.model_predictions && ev.model_predictions.length > 1 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {ev.model_predictions.map((mp) => (
+                            <span key={mp.model_id} className={mp.model_id === ev.primary_model ? 'font-semibold' : 'text-text-secondary'}>
+                              {(mp.confidence * 100).toFixed(1)}%
+                            </span>
+                          ))}
+                        </div>
+                      ) : `${(ev.confidence * 100).toFixed(1)}%`}
+                    </td>
+                    <td className="px-3 py-1.5">
+                      {ev.model_predictions && ev.model_predictions.length > 1 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {ev.model_predictions.map((mp) => (
+                            <span key={mp.model_id} className={`text-xs font-medium ${SEV_COLOR[mp.severity] || ''}`}>{mp.severity}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className={`text-xs font-medium ${SEV_COLOR[ev.severity] || ''}`}>{ev.severity}</span>
+                      )}
+                    </td>
                     <td className="px-3 py-1.5 text-xs">
                       {ev.auto_blocked ? (
                         <span className="flex items-center gap-1 text-accent-orange"><Ban className="w-3 h-3" /> Blocked</span>
@@ -687,7 +820,7 @@ export default function LiveMonitor() {
                   </tr>
                 ))}
                 {filteredEvents.length === 0 && (
-                  <tr><td colSpan={captureMode === 'live' ? 8 : 7} className="px-3 py-8 text-center text-text-secondary text-sm">{events.length === 0 ? (captureMode === 'live' ? 'Waiting for first capture cycle...' : 'Press Start to begin streaming') : 'No events match the selected filter'}</td></tr>
+                  <tr><td colSpan={captureMode === 'live' ? (selectedModels.length > 1 ? 9 : 8) : 7} className="px-3 py-8 text-center text-text-secondary text-sm">{events.length === 0 ? (captureMode === 'live' ? 'Waiting for first capture cycle...' : 'Press Start to begin streaming') : 'No events match the selected filter'}</td></tr>
                 )}
               </tbody>
             </table>
