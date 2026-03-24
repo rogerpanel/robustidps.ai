@@ -3596,6 +3596,10 @@ async def live_capture(ws: WebSocket):
 
             cycle = 0
             offset = 0
+            total_threats = 0
+            attack_distribution: dict[str, int] = {}
+            severity_counts: dict[str, int] = {"benign": 0, "low": 0, "medium": 0, "high": 0, "critical": 0}
+            threat_source_ips: dict[str, int] = {}
             while offset < total_flows:
                 cycle += 1
                 end = min(offset + batch_size, total_flows)
@@ -3656,8 +3660,18 @@ async def live_capture(ws: WebSocket):
                             primary = model_predictions[0] if model_predictions else {
                                 "label_predicted": "unknown", "confidence": 0.0, "severity": "benign"
                             }
-                            if primary["severity"] != "benign":
+                            pred_label = primary["label_predicted"]
+                            pred_sev = primary["severity"]
+
+                            # Track attack distribution and severity counts
+                            attack_distribution[pred_label] = attack_distribution.get(pred_label, 0) + 1
+                            severity_counts[pred_sev] = severity_counts.get(pred_sev, 0) + 1
+
+                            if pred_sev != "benign":
                                 threats_in_cycle += 1
+                                flow_src_ip = str(batch_meta.iloc[i]["src_ip"]) if "src_ip" in batch_meta.columns else ""
+                                if flow_src_ip:
+                                    threat_source_ips[flow_src_ip] = threat_source_ips.get(flow_src_ip, 0) + 1
 
                             true_label = batch_labels[i] if batch_labels else None
                             flow_src_ip = str(batch_meta.iloc[i]["src_ip"]) if "src_ip" in batch_meta.columns else ""
@@ -3665,10 +3679,10 @@ async def live_capture(ws: WebSocket):
                                 "type": "flow", "cycle": cycle, "flow_id": row_idx,
                                 "src_ip": flow_src_ip,
                                 "dst_ip": str(batch_meta.iloc[i]["dst_ip"]) if "dst_ip" in batch_meta.columns else "",
-                                "label_predicted": primary["label_predicted"],
+                                "label_predicted": pred_label,
                                 "label_true": true_label,
                                 "confidence": primary["confidence"],
-                                "severity": primary["severity"],
+                                "severity": pred_sev,
                                 "primary_model": primary_model_id,
                             }
 
@@ -3676,12 +3690,14 @@ async def live_capture(ws: WebSocket):
                                 flow_msg["model_predictions"] = model_predictions
 
                             from prevention import auto_block_check
-                            block_result = auto_block_check(flow_src_ip, primary["label_predicted"], primary["confidence"], primary["severity"])
+                            block_result = auto_block_check(flow_src_ip, pred_label, primary["confidence"], pred_sev)
                             if block_result:
                                 flow_msg["auto_blocked"] = True
                                 flow_msg["block_status"] = block_result.get("status")
 
                             await ws.send_json(flow_msg)
+
+                total_threats += threats_in_cycle
 
                 await ws.send_json({
                     "status": "cycle_done", "cycle": cycle,
@@ -3697,12 +3713,40 @@ async def live_capture(ws: WebSocket):
                 offset = end
                 await asyncio.sleep(0.05)  # Small pause between cycles
 
-            await ws.send_json({"done": True, "total_flows": total_flows, "total_cycles": cycle})
+            # Persist file replay results for SOC Copilot access
+            # Sort attack distribution by count descending
+            sorted_attacks = dict(sorted(attack_distribution.items(), key=lambda x: x[1], reverse=True))
+            # Top threat source IPs
+            top_sources = dict(sorted(threat_source_ips.items(), key=lambda x: x[1], reverse=True)[:10])
+            _live_capture_results["latest"] = {
+                "interface": "file-replay",
+                "cycle": cycle,
+                "interval": None,
+                "flows_captured": total_flows,
+                "threats_found": total_threats,
+                "models_used": list(active_models.keys()) if active_models else [],
+                "timestamp": _time.time(),
+                "status": "completed",
+                "capture_id": capture_id,
+                "source": "file",
+                "job_id": file_job_id,
+                "attack_distribution": sorted_attacks,
+                "severity_counts": severity_counts,
+                "top_threat_sources": top_sources,
+            }
+
+            await ws.send_json({"done": True, "total_flows": total_flows, "total_cycles": cycle,
+                                "total_threats": total_threats, "attack_distribution": sorted_attacks})
             return
 
         # ── Live network capture mode (original) ───────────────────────────
 
         cycle = 0
+        live_total_flows = 0
+        live_total_threats = 0
+        live_attack_distribution: dict[str, int] = {}
+        live_severity_counts: dict[str, int] = {"benign": 0, "low": 0, "medium": 0, "high": 0, "critical": 0}
+        live_threat_source_ips: dict[str, int] = {}
         model_list_str = ", ".join(active_models.keys()) if active_models else "none (capture only)"
 
         # Create temp capture file
@@ -3884,10 +3928,21 @@ async def live_capture(ws: WebSocket):
                             primary = model_predictions[0] if model_predictions else {
                                 "label_predicted": "unknown", "confidence": 0.0, "severity": "benign"
                             }
-                            if primary["severity"] != "benign":
+                            pred_label = primary["label_predicted"]
+                            pred_sev = primary["severity"]
+
+                            # Track attack distribution and severity counts
+                            live_attack_distribution[pred_label] = live_attack_distribution.get(pred_label, 0) + 1
+                            live_severity_counts[pred_sev] = live_severity_counts.get(pred_sev, 0) + 1
+
+                            if pred_sev != "benign":
                                 threats_in_cycle += 1
 
                             flow_src_ip = str(metadata.iloc[i]["src_ip"])
+
+                            if pred_sev != "benign" and flow_src_ip:
+                                live_threat_source_ips[flow_src_ip] = live_threat_source_ips.get(flow_src_ip, 0) + 1
+
                             flow_msg = {
                                 "type": "flow", "cycle": cycle, "flow_id": i,
                                 "src_ip": flow_src_ip,
@@ -3895,9 +3950,9 @@ async def live_capture(ws: WebSocket):
                                 "src_port": int(records[i].get("src_port", 0)) if i < len(records) else 0,
                                 "dst_port": int(records[i].get("dst_port", 0)) if i < len(records) else 0,
                                 "protocol": int(records[i].get("protocol", 0)) if i < len(records) else 0,
-                                "label_predicted": primary["label_predicted"],
+                                "label_predicted": pred_label,
                                 "confidence": primary["confidence"],
-                                "severity": primary["severity"],
+                                "severity": pred_sev,
                                 "primary_model": primary_model_id,
                             }
 
@@ -3907,12 +3962,15 @@ async def live_capture(ws: WebSocket):
 
                             # Tier 1: Auto-block high-severity threats (based on primary model)
                             from prevention import auto_block_check
-                            block_result = auto_block_check(flow_src_ip, primary["label_predicted"], primary["confidence"], primary["severity"])
+                            block_result = auto_block_check(flow_src_ip, pred_label, primary["confidence"], pred_sev)
                             if block_result:
                                 flow_msg["auto_blocked"] = True
                                 flow_msg["block_status"] = block_result.get("status")
 
                             await ws.send_json(flow_msg)
+
+                live_total_flows += len(features_t)
+                live_total_threats += threats_in_cycle
 
                 await ws.send_json({
                     "status": "cycle_done", "cycle": cycle,
@@ -3926,18 +3984,24 @@ async def live_capture(ws: WebSocket):
                     "message": f"Cycle {cycle} done: {len(features_t)} flows, {threats_in_cycle} threats" + (f" ({len(active_models)} models)" if len(active_models) > 1 else ""),
                 })
 
-                # Persist latest cycle results for SOC Copilot access
+                # Persist cumulative results for SOC Copilot access
+                sorted_attacks = dict(sorted(live_attack_distribution.items(), key=lambda x: x[1], reverse=True))
+                top_sources = dict(sorted(live_threat_source_ips.items(), key=lambda x: x[1], reverse=True)[:10])
                 _live_capture_results["latest"] = {
                     "interface": iface,
                     "cycle": cycle,
                     "interval": interval,
-                    "flows_captured": len(features_t),
-                    "threats_found": threats_in_cycle,
+                    "flows_captured": live_total_flows,
+                    "threats_found": live_total_threats,
                     "models_used": list(active_models.keys()) if active_models else [],
                     "timestamp": _time.time(),
                     "status": "running",
                     "capture_id": capture_id,
                     "capture_size_mb": round(capture_file_size / (1024 * 1024), 2),
+                    "source": "interface",
+                    "attack_distribution": sorted_attacks,
+                    "severity_counts": dict(live_severity_counts),
+                    "top_threat_sources": top_sources,
                 }
 
             except ImportError:

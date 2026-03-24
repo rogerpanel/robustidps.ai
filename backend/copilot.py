@@ -522,7 +522,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 # Check in-memory live capture results first
                 live_data = _main._live_capture_results.get("latest")
                 if live_data:
-                    return json.dumps({
+                    result = {
                         "page": "live_monitor",
                         "status": live_data.get("status", "unknown"),
                         "interface": live_data.get("interface"),
@@ -530,8 +530,27 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                         "interval": live_data.get("interval"),
                         "flows_captured": live_data.get("flows_captured", 0),
                         "threats_found": live_data.get("threats_found", 0),
+                        "models_used": live_data.get("models_used", []),
                         "timestamp": live_data.get("timestamp"),
-                    })
+                        "capture_id": live_data.get("capture_id"),
+                        "source": live_data.get("source", "interface"),
+                    }
+                    # Include attack distribution and severity breakdown if available
+                    if live_data.get("attack_distribution"):
+                        result["attack_distribution"] = live_data["attack_distribution"]
+                    if live_data.get("severity_counts"):
+                        result["severity_counts"] = live_data["severity_counts"]
+                    if live_data.get("top_threat_sources"):
+                        result["top_threat_sources"] = live_data["top_threat_sources"]
+                    # Include job_id for file replay sessions
+                    if live_data.get("job_id"):
+                        result["job_id"] = live_data["job_id"]
+                        # Enrich with filename from DB Job record
+                        db_job = db.execute(select(Job).where(Job.id == live_data["job_id"])).scalars().first()
+                        if db_job and db_job.filename:
+                            result["capture_file"] = db_job.filename
+                            result["data_format"] = db_job.format_detected
+                    return json.dumps(result)
                 # Fall back to job_store (file replay mode)
                 if job_id and job_id in _main.job_store:
                     job = _main.job_store[job_id]
