@@ -115,6 +115,7 @@ from ingestion import router as ingestion_router
 from drift_detection import router as drift_router
 from workspaces import router as workspaces_router
 from prevention import router as prevention_router
+from sessions import router as sessions_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -154,7 +155,7 @@ app.add_middleware(
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-Session-ID"],
 )
 
 # ── Request ID Middleware (security tracing) ────────────────────────────
@@ -226,6 +227,7 @@ app.include_router(ingestion_router)
 app.include_router(drift_router)
 app.include_router(workspaces_router)
 app.include_router(prevention_router)
+app.include_router(sessions_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
@@ -301,6 +303,11 @@ async def startup():
         db = SessionLocal()
         try:
             ensure_default_admin(db)
+            # Clean up expired sessions from previous runs
+            from sessions import cleanup_expired_sessions
+            cleaned = cleanup_expired_sessions(db)
+            if cleaned:
+                logger.info("Cleaned %d expired sessions", cleaned)
         finally:
             db.close()
         logger.info("Database initialised")

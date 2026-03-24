@@ -26,6 +26,7 @@ const USER_SCOPED_BASE_KEYS = [
   'robustidps_source',
   'robustidps_ablation',
   'robustidps_notices',
+  'robustidps_session_id',
 ]
 
 /** sessionStorage keys that hold sensitive data and must be cleared on logout. */

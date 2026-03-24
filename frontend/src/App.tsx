@@ -73,6 +73,13 @@ import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
 import { isAuthenticated, getUser, clearAuth, type AuthUser } from './utils/auth'
 import { resetAllSessions } from './utils/sessionReset'
+import {
+  startSession,
+  stopSession,
+  serverLogout,
+  broadcastLogout,
+  clearSessionId,
+} from './utils/sessionManager'
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; adminOnly?: boolean }
 type NavGroup = { heading: string; items: NavItem[] }
@@ -213,27 +220,51 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const handleLogin = () => {
+  const handleLogin = useCallback(() => {
     setAuthed(true)
     setUser(getUser())
     setEthicalAccepted(false) // require acceptance on every login
-  }
+  }, [])
 
   const handleEnterDemo = () => {
     setDemoMode(true)
     setEthicalAccepted(true) // skip ethical agreement in demo mode
   }
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
+    // Invalidate server-side session + notify other tabs
+    serverLogout(false)
+    broadcastLogout()
+    stopSession()
+
     resetAllSessions()   // wipe all module-level stores + user-scoped localStorage
     clearResults()        // flush AnalysisProvider context
     clearAuth()           // remove token + user from localStorage
+    clearSessionId()      // remove session_id from localStorage
     setAuthed(false)
     setUser(null)
     setDemoMode(false)
     setShowLogin(false)
     setEthicalAccepted(false)
-  }
+  }, [clearResults])
+
+  // ── Session lifecycle: heartbeat, cross-tab sync, auto-logout ─────────
+  useEffect(() => {
+    if (!authed) return
+    startSession(() => {
+      // Called when session expires or another tab logs out
+      resetAllSessions()
+      clearResults()
+      clearAuth()
+      clearSessionId()
+      setAuthed(false)
+      setUser(null)
+      setDemoMode(false)
+      setShowLogin(false)
+      setEthicalAccepted(false)
+    })
+    return () => stopSession()
+  }, [authed])
 
   // Close mobile sidebars on navigation
   useEffect(() => {

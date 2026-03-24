@@ -16,7 +16,7 @@ from typing import Optional
 
 import bcrypt
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -228,9 +228,20 @@ def register(body: UserCreate, db: Session = Depends(get_db)):
     return Token(access_token=token, user=_user_response(user))
 
 
-@router.post("/login", response_model=Token)
-def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Login with email + password, returns JWT."""
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+    session_id: str = ""
+
+
+@router.post("/login", response_model=LoginResponse)
+def login(
+    request: Request,
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Login with email + password, returns JWT + server-side session."""
     _check_lockout(form.username)
 
     user = db.execute(select(User).where(User.email == form.username)).scalar_one_or_none()
@@ -245,9 +256,19 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     user.last_login = datetime.datetime.utcnow()
     db.commit()
 
-    logger.info("User logged in: %s", user.email)
+    # Create server-side session for cross-tab/device state sharing
+    from sessions import create_session
+    ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "")
+    ua = request.headers.get("User-Agent", "")[:255]
+    session = create_session(user, db, ip_address=ip, device_label=ua)
+
+    logger.info("User logged in: %s (session=%s)", user.email, session.session_id[:12])
     token = create_access_token({"sub": user.email, "role": user.role})
-    return Token(access_token=token, user=_user_response(user))
+    return LoginResponse(
+        access_token=token,
+        user=_user_response(user),
+        session_id=session.session_id,
+    )
 
 
 @router.get("/me", response_model=UserResponse)

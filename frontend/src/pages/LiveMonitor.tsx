@@ -8,6 +8,7 @@ import PageGuide from '../components/PageGuide'
 import { uploadFile, connectStream } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
 import { registerSessionReset } from '../utils/sessionReset'
+import { useSessionState } from '../hooks/useSessionState'
 
 interface ModelPrediction {
   model_id: string
@@ -274,6 +275,51 @@ export default function LiveMonitor() {
   const setLiveFileJobId = (v: string | null) => { _store.liveFileJobId = v; _setLiveFileJobId(v) }
   const setLiveFileName = (v: string) => { _store.liveFileName = v; _setLiveFileName(v) }
   const setLiveFileLoading = (v: boolean) => { _store.liveFileLoading = v; _setLiveFileLoading(v) }
+
+  // ── Server-side session state sync ────────────────────────────────────
+  const { serverState, saveState: saveServerState, loaded: serverLoaded } = useSessionState('live-monitor')
+
+  // Restore state from server on mount (cross-device resume)
+  const restoredRef = useRef(false)
+  useEffect(() => {
+    if (!serverLoaded || restoredRef.current || !serverState) return
+    restoredRef.current = true
+
+    // Restore key operational state from server session
+    const s = serverState as Record<string, any>
+    if (s.jobId) setJobId(s.jobId)
+    if (s.fileName) setFileName(s.fileName)
+    if (s.captureMode) setCaptureMode(s.captureMode)
+    if (s.selectedModel) setSelectedModel(s.selectedModel)
+    if (s.selectedModels) setSelectedModels(s.selectedModels)
+    if (typeof s.threatCount === 'number') setThreatCount(s.threatCount)
+    if (typeof s.benignCount === 'number') setBenignCount(s.benignCount)
+    if (s.iface) setIface(s.iface)
+    if (typeof s.captureInterval === 'number') setCaptureInterval(s.captureInterval)
+    if (typeof s.done === 'boolean') setDone(s.done)
+    if (s.captureId) setCaptureId(s.captureId)
+    if (s.liveSource) setLiveSource(s.liveSource)
+    if (s.severityFilter) setSeverityFilter(s.severityFilter)
+  }, [serverLoaded, serverState])
+
+  // Persist key state to server when it changes (debounced)
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!serverLoaded) return
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = setTimeout(() => {
+      saveServerState({
+        jobId, fileName, captureMode, selectedModel, selectedModels,
+        threatCount, benignCount, iface, captureInterval, done,
+        running, captureId, liveSource, severityFilter,
+        currentCycle, captureStatus, autoBlockCount,
+        eventsCount: events.length,
+      })
+    }, 3000)
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current) }
+  }, [jobId, fileName, captureMode, selectedModel, JSON.stringify(selectedModels),
+      threatCount, benignCount, done, running, captureId, liveSource, severityFilter,
+      currentCycle, captureStatus, autoBlockCount, events.length])
   const setAutoBlockCount = (v: number | ((c: number) => number)) => {
     if (typeof v === 'function') {
       _setAutoBlockCount(prev => { const next = v(prev); _store.autoBlockCount = next; return next })

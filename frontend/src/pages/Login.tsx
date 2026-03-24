@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ShieldCheck, LogIn, UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { setAuth, type AuthUser } from '../utils/auth'
+import { setSessionId, broadcastLogin } from '../utils/sessionManager'
 
 const API = import.meta.env.VITE_API_URL || ''
 
@@ -54,6 +55,10 @@ export default function Login({ onLogin }: Props) {
 
         const data = await res.json()
         setAuth(data.access_token, data.user as AuthUser)
+        if (data.session_id) {
+          setSessionId(data.session_id)
+          broadcastLogin(data.access_token, data.user as AuthUser, data.session_id)
+        }
         onLogin()
       } else {
         // Login
@@ -73,6 +78,10 @@ export default function Login({ onLogin }: Props) {
 
         const data = await res.json()
         setAuth(data.access_token, data.user as AuthUser)
+        if (data.session_id) {
+          setSessionId(data.session_id)
+          broadcastLogin(data.access_token, data.user as AuthUser, data.session_id)
+        }
         onLogin()
       }
     } catch (err) {

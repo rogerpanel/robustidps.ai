@@ -161,6 +161,22 @@ class Experiment(Base):
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
+class UserSession(Base):
+    """Server-side session tracking — enables cross-tab/device state sharing."""
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(64), unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    device_label = Column(String(255), default="")  # browser user-agent fingerprint
+    ip_address = Column(String(45), default="")
+    is_active = Column(Boolean, default=True)
+    page_state = Column(JSON, default=dict)  # persisted UI state (live monitor, etc.)
+    last_heartbeat = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+
 class CustomPlaybook(Base):
     __tablename__ = "custom_playbooks"
 
