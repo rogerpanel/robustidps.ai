@@ -3735,6 +3735,17 @@ async def live_capture(ws: WebSocket):
                 "top_threat_sources": top_sources,
             }
 
+            # Update the DB Job record with threat count so copilot DB fallback also works
+            try:
+                _db = SessionLocal()
+                db_job = _db.query(Job).filter(Job.id == file_job_id).first()
+                if db_job:
+                    db_job.n_threats = total_threats
+                    _db.commit()
+                _db.close()
+            except Exception:
+                pass
+
             await ws.send_json({"done": True, "total_flows": total_flows, "total_cycles": cycle,
                                 "total_threats": total_threats, "attack_distribution": sorted_attacks})
             return
