@@ -3534,9 +3534,11 @@ async def live_capture(ws: WebSocket):
     try:
         init = await ws.receive_text()
         msg = json.loads(init)
+        source = msg.get("source", "interface")  # "interface" or "file"
         iface = msg.get("interface", "eth0")
         interval = min(max(int(msg.get("interval", 30)), 5), 300)
         capture_only = msg.get("capture_only", False)
+        batch_size = min(max(int(msg.get("batch_size", 50)), 10), 500)
 
         # Multi-model support: accept model_names array or legacy model_name string
         model_names = msg.get("model_names", [])
@@ -3563,6 +3565,143 @@ async def live_capture(ws: WebSocket):
             model.eval()
             active_models["surrogate"] = model
 
+        import time as _time
+
+        # ── File-based replay mode ──────────────────────────────────────
+        if source == "file":
+            file_job_id = msg.get("job_id", "")
+            if file_job_id not in job_store:
+                await ws.send_json({"status": "error", "message": "Job not found. Upload a file first."})
+                await ws.close()
+                return
+
+            job = job_store[file_job_id]
+            features_all = job["features"].to(DEVICE)
+            metadata_all = job["metadata"]
+            label_names_all = job.get("label_names")
+            total_flows = len(features_all)
+            model_list_str = ", ".join(active_models.keys()) if active_models else "none (capture only)"
+
+            await ws.send_json({
+                "status": "started",
+                "source": "file",
+                "interface": "file-replay",
+                "models": list(active_models.keys()),
+                "capture_only": capture_only,
+                "capture_id": capture_id,
+                "total_flows": total_flows,
+                "batch_size": batch_size,
+                "message": f"File replay: {total_flows} flows, batch size {batch_size} — models: {model_list_str}",
+            })
+
+            cycle = 0
+            offset = 0
+            while offset < total_flows:
+                cycle += 1
+                end = min(offset + batch_size, total_flows)
+                batch_features = features_all[offset:end]
+                batch_meta = metadata_all.iloc[offset:end]
+                batch_labels = label_names_all[offset:end] if label_names_all else None
+                n_batch = len(batch_features)
+
+                await ws.send_json({
+                    "status": "analysing", "cycle": cycle,
+                    "flows_captured": n_batch,
+                    "progress": round(end / total_flows * 100, 1),
+                    "message": f"Cycle {cycle}: analysing flows {offset+1}-{end} of {total_flows} with {len(active_models)} model(s) [{model_list_str}]...",
+                })
+
+                threats_in_cycle = 0
+
+                if capture_only or not active_models:
+                    for i in range(n_batch):
+                        row_idx = offset + i
+                        flow_msg = {
+                            "type": "raw_flow", "cycle": cycle, "flow_id": row_idx,
+                            "src_ip": str(batch_meta.iloc[i]["src_ip"]) if "src_ip" in batch_meta.columns else "",
+                            "dst_ip": str(batch_meta.iloc[i]["dst_ip"]) if "dst_ip" in batch_meta.columns else "",
+                        }
+                        await ws.send_json(flow_msg)
+                else:
+                    primary_model_id = list(active_models.keys())[0]
+
+                    with torch.no_grad():
+                        for i in range(n_batch):
+                            row = batch_features[i:i+1]
+                            row_idx = offset + i
+
+                            model_predictions = []
+                            for mid, mobj in active_models.items():
+                                try:
+                                    logits = mobj(row)
+                                    probs = torch.softmax(logits, dim=-1)
+                                    cls_idx = probs.argmax(-1).item()
+                                    conf = probs.max(-1).values.item()
+                                    label = SurrogateIDS.CLASS_NAMES[cls_idx] if cls_idx < len(SurrogateIDS.CLASS_NAMES) else f"class_{cls_idx}"
+                                    sev = SurrogateIDS.severity_for(label)
+                                    model_predictions.append({
+                                        "model_id": mid,
+                                        "label_predicted": label,
+                                        "confidence": round(conf, 4),
+                                        "severity": sev,
+                                    })
+                                except Exception:
+                                    model_predictions.append({
+                                        "model_id": mid,
+                                        "label_predicted": "error",
+                                        "confidence": 0.0,
+                                        "severity": "benign",
+                                    })
+
+                            primary = model_predictions[0] if model_predictions else {
+                                "label_predicted": "unknown", "confidence": 0.0, "severity": "benign"
+                            }
+                            if primary["severity"] != "benign":
+                                threats_in_cycle += 1
+
+                            true_label = batch_labels[i] if batch_labels else None
+                            flow_src_ip = str(batch_meta.iloc[i]["src_ip"]) if "src_ip" in batch_meta.columns else ""
+                            flow_msg = {
+                                "type": "flow", "cycle": cycle, "flow_id": row_idx,
+                                "src_ip": flow_src_ip,
+                                "dst_ip": str(batch_meta.iloc[i]["dst_ip"]) if "dst_ip" in batch_meta.columns else "",
+                                "label_predicted": primary["label_predicted"],
+                                "label_true": true_label,
+                                "confidence": primary["confidence"],
+                                "severity": primary["severity"],
+                                "primary_model": primary_model_id,
+                            }
+
+                            if len(model_predictions) > 1:
+                                flow_msg["model_predictions"] = model_predictions
+
+                            from prevention import auto_block_check
+                            block_result = auto_block_check(flow_src_ip, primary["label_predicted"], primary["confidence"], primary["severity"])
+                            if block_result:
+                                flow_msg["auto_blocked"] = True
+                                flow_msg["block_status"] = block_result.get("status")
+
+                            await ws.send_json(flow_msg)
+
+                await ws.send_json({
+                    "status": "cycle_done", "cycle": cycle,
+                    "flows_captured": n_batch,
+                    "threats_found": threats_in_cycle,
+                    "models_used": list(active_models.keys()) if active_models else [],
+                    "capture_only": capture_only,
+                    "capture_id": capture_id,
+                    "progress": round(end / total_flows * 100, 1),
+                    "message": f"Cycle {cycle} done: {n_batch} flows, {threats_in_cycle} threats" + (f" ({len(active_models)} models)" if len(active_models) > 1 else ""),
+                })
+
+                offset = end
+                await asyncio.sleep(0.05)  # Small pause between cycles
+
+            await ws.send_json({"done": True, "total_flows": total_flows, "total_cycles": cycle})
+            return
+
+        # ── Live network capture mode (original) ───────────────────────────
+
         cycle = 0
         model_list_str = ", ".join(active_models.keys()) if active_models else "none (capture only)"
 
@@ -3573,7 +3712,6 @@ async def live_capture(ws: WebSocket):
         capture_file_path = str(capture_dir / f"capture_{capture_id}.csv")
 
         # Store capture file reference for download
-        import time as _time
         _live_capture_files[capture_id] = {
             "path": capture_file_path,
             "size_bytes": 0,

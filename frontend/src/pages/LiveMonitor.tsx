@@ -107,6 +107,10 @@ const _store: {
   captureSizeMb: number
   maxCaptureMb: number
   captureLimitReached: boolean
+  liveSource: 'interface' | 'file'
+  liveFileJobId: string | null
+  liveFileName: string
+  liveFileLoading: boolean
 } = {
   jobId: null,
   fileName: '',
@@ -136,6 +140,10 @@ const _store: {
   captureSizeMb: 0,
   maxCaptureMb: 500,
   captureLimitReached: false,
+  liveSource: 'interface',
+  liveFileJobId: null,
+  liveFileName: '',
+  liveFileLoading: false,
 }
 
 // Keep the WebSocket ref at module level so it survives remount
@@ -171,6 +179,10 @@ registerSessionReset(() => {
   _store.captureSizeMb = 0
   _store.maxCaptureMb = 500
   _store.captureLimitReached = false
+  _store.liveSource = 'interface'
+  _store.liveFileJobId = null
+  _store.liveFileName = ''
+  _store.liveFileLoading = false
   if (_wsRef) { try { _wsRef.close() } catch {} }
   _wsRef = null
 })
@@ -211,6 +223,10 @@ export default function LiveMonitor() {
   const [captureSizeMb, _setCaptureSizeMb] = useState(_store.captureSizeMb)
   const [maxCaptureMb, _setMaxCaptureMb] = useState(_store.maxCaptureMb)
   const [captureLimitReached, _setCaptureLimitReached] = useState(_store.captureLimitReached)
+  const [liveSource, _setLiveSource] = useState<'interface' | 'file'>(_store.liveSource)
+  const [liveFileJobId, _setLiveFileJobId] = useState<string | null>(_store.liveFileJobId)
+  const [liveFileName, _setLiveFileName] = useState(_store.liveFileName)
+  const [liveFileLoading, _setLiveFileLoading] = useState(_store.liveFileLoading)
 
   const { setLiveResults } = useAnalysis()
 
@@ -254,6 +270,10 @@ export default function LiveMonitor() {
   const setCaptureSizeMb = (v: number) => { _store.captureSizeMb = v; _setCaptureSizeMb(v) }
   const setMaxCaptureMb = (v: number) => { _store.maxCaptureMb = v; _setMaxCaptureMb(v) }
   const setCaptureLimitReached = (v: boolean) => { _store.captureLimitReached = v; _setCaptureLimitReached(v) }
+  const setLiveSource = (v: 'interface' | 'file') => { _store.liveSource = v; _setLiveSource(v) }
+  const setLiveFileJobId = (v: string | null) => { _store.liveFileJobId = v; _setLiveFileJobId(v) }
+  const setLiveFileName = (v: string) => { _store.liveFileName = v; _setLiveFileName(v) }
+  const setLiveFileLoading = (v: boolean) => { _store.liveFileLoading = v; _setLiveFileLoading(v) }
   const setAutoBlockCount = (v: number | ((c: number) => number)) => {
     if (typeof v === 'function') {
       _setAutoBlockCount(prev => { const next = v(prev); _store.autoBlockCount = next; return next })
@@ -486,6 +506,20 @@ export default function LiveMonitor() {
     }
   }, [captureId])
 
+  const handleLiveFileUpload = async (file: File) => {
+    try {
+      setWsError('')
+      setLiveFileLoading(true)
+      setLiveFileName(file.name)
+      const res = await uploadFile(file)
+      setLiveFileJobId(res.job_id)
+      setLiveFileLoading(false)
+    } catch (e: any) {
+      setWsError(e.message || 'Upload failed')
+      setLiveFileLoading(false)
+    }
+  }
+
   const startLiveCapture = useCallback(() => {
     setRunning(true); setDone(false); setEvents([]); setThreatCount(0); setBenignCount(0)
     setCurrentCycle(0); setCaptureStatus('Connecting...'); setWsError('')
@@ -493,11 +527,13 @@ export default function LiveMonitor() {
     const wsUrl = `${wsBaseUrl()}/ws/live_capture`
     const ws = new WebSocket(wsUrl)
     ws.onopen = () => {
+      const isFileSource = _store.liveSource === 'file'
       ws.send(JSON.stringify({
+        source: isFileSource ? 'file' : 'interface',
+        job_id: isFileSource ? _store.liveFileJobId : undefined,
         interface: iface,
         interval: captureInterval,
         model_names: selectedModels,
-        // Legacy fallback for single model
         model_name: selectedModels.length > 0 ? selectedModels[0] : '',
         capture_only: selectedModels.length === 0,
       }))
@@ -509,13 +545,18 @@ export default function LiveMonitor() {
       if (typeof data.capture_size_mb === 'number') setCaptureSizeMb(data.capture_size_mb)
       if (typeof data.max_capture_mb === 'number') setMaxCaptureMb(data.max_capture_mb)
       if (data.capture_id) setCaptureId(data.capture_id)
+      // File replay done
+      if (data.done) {
+        setCaptureStatus(`Complete: ${data.total_flows || 0} flows processed in ${data.total_cycles || 0} cycles`)
+        setRunning(false); setDone(true)
+        return
+      }
       // Storage limit reached — auto-stop and trigger download
       if (data.status === 'limit_reached') {
         setCaptureStatus(data.message || 'Capture limit reached')
         setCaptureLimitReached(true)
         setRunning(false)
         if (data.capture_id) {
-          // Small delay so the UI updates before download dialog
           setTimeout(() => downloadCapture(data.capture_id), 500)
         }
         return
@@ -573,6 +614,7 @@ export default function LiveMonitor() {
     setAutoBlockCount(0)
     setSeverityFilter('all')
     setCaptureId(''); setCaptureSizeMb(0); setCaptureLimitReached(false)
+    setLiveFileJobId(null); setLiveFileName(''); setLiveFileLoading(false)
   }, [])
 
   // Do NOT close the WS on unmount — let it keep running while navigated away
@@ -693,18 +735,49 @@ export default function LiveMonitor() {
           <div className="lg:col-span-3 bg-bg-secondary rounded-xl border border-bg-card p-5 space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <Network className="w-5 h-5 text-accent-green" />
-              <h3 className="text-sm font-semibold text-text-primary">Continuous Network Capture</h3>
+              <h3 className="text-sm font-semibold text-text-primary">Multi-Model Capture & Detection</h3>
             </div>
-            <p className="text-xs text-text-secondary">Captures live traffic on a network interface, analyses flows with the ML ensemble, then repeats — providing continuous real-time intrusion detection and prevention.</p>
+            <p className="text-xs text-text-secondary">Analyse traffic with the full ML ensemble. Choose a live network interface or upload a CSV/PCAP file for multi-model replay.</p>
+
+            {/* Source selector */}
             <div>
-              <label className="block text-xs text-text-secondary mb-1">Network Interface</label>
-              <input type="text" value={iface} onChange={(e) => setIface(e.target.value)} className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-green/50" placeholder="eth0" />
+              <label className="block text-xs text-text-secondary mb-1.5">Capture Source</label>
+              <div className="flex gap-2">
+                <button onClick={() => setLiveSource('interface')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${liveSource === 'interface' ? 'bg-accent-green/20 text-accent-green border border-accent-green/40' : 'border border-bg-card text-text-secondary hover:text-text-primary'}`}>
+                  <Wifi className="w-3.5 h-3.5" /> Network Interface
+                </button>
+                <button onClick={() => setLiveSource('file')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${liveSource === 'file' ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/40' : 'border border-bg-card text-text-secondary hover:text-text-primary'}`}>
+                  <HardDrive className="w-3.5 h-3.5" /> CSV / PCAP File
+                </button>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs text-text-secondary mb-1">Capture Interval: {captureInterval}s</label>
-              <input type="range" min={5} max={120} step={5} value={captureInterval} onChange={(e) => setCaptureInterval(+e.target.value)} className="w-full accent-accent-green" />
-              <div className="flex justify-between text-[10px] text-text-secondary"><span>5s (fast)</span><span>120s (thorough)</span></div>
-            </div>
+
+            {/* Network interface settings */}
+            {liveSource === 'interface' && (
+              <>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Network Interface</label>
+                  <input type="text" value={iface} onChange={(e) => setIface(e.target.value)} className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-green/50" placeholder="eth0" />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Capture Interval: {captureInterval}s</label>
+                  <input type="range" min={5} max={120} step={5} value={captureInterval} onChange={(e) => setCaptureInterval(+e.target.value)} className="w-full accent-accent-green" />
+                  <div className="flex justify-between text-[10px] text-text-secondary"><span>5s (fast)</span><span>120s (thorough)</span></div>
+                </div>
+              </>
+            )}
+
+            {/* File upload for live capture */}
+            {liveSource === 'file' && (
+              <div className="space-y-2">
+                <FileUpload onFileSelect={handleLiveFileUpload} fileLoading={liveFileLoading} fileName={liveFileName || undefined} />
+                {liveFileJobId && (
+                  <div className="flex items-center gap-2 text-xs text-accent-green">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> File ready for multi-model analysis
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Active models summary before start */}
             {selectedModels.length > 0 && (
@@ -725,8 +798,16 @@ export default function LiveMonitor() {
               </div>
             )}
 
-            <button onClick={startLiveCapture} className="flex items-center gap-2 px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80">
-              <Radio className="w-4 h-4 animate-pulse" /> {selectedModels.length > 0 ? 'Start Live Capture & Detection' : 'Start Live Capture'}
+            <button
+              onClick={startLiveCapture}
+              disabled={liveSource === 'file' && !liveFileJobId}
+              className="flex items-center gap-2 px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Radio className="w-4 h-4 animate-pulse" />
+              {liveSource === 'file'
+                ? (selectedModels.length > 0 ? 'Start Multi-Model File Analysis' : 'Start File Replay')
+                : (selectedModels.length > 0 ? 'Start Live Capture & Detection' : 'Start Live Capture')
+              }
             </button>
           </div>
 
@@ -755,6 +836,9 @@ export default function LiveMonitor() {
           )}
           {captureMode === 'file' && fileName && (
             <span className="text-xs text-text-secondary truncate max-w-[200px]" title={fileName}>{fileName}</span>
+          )}
+          {captureMode === 'live' && liveSource === 'file' && liveFileName && (
+            <span className="text-xs text-text-secondary truncate max-w-[200px]" title={liveFileName}>{liveFileName}</span>
           )}
           {captureMode === 'live' && selectedModels.length > 0 && (
             <div className="flex items-center gap-1 flex-wrap">
