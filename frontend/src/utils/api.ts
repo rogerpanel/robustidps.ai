@@ -1487,3 +1487,19 @@ export async function runAutoTune(file: File, context = 'general'): Promise<Auto
   }
   return res.json();
 }
+
+/**
+ * Sync LLM Attack Surface results to the backend for copilot access.
+ * Called when user navigates to SOC Copilot or clicks an LLM attack context chip.
+ */
+export async function syncLLMAttackResults(summary: Record<string, unknown>) {
+  try {
+    await authFetch(`${API}/api/copilot/llm-attack-results`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ summary }),
+    });
+  } catch {
+    // Silently fail — copilot will still work via local mode
+  }
+}

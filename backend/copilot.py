@@ -160,7 +160,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial"},
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent"},
                 "job_id": {"type": "string", "description": "Optional specific job_id"},
             },
             "required": ["page"],
@@ -208,6 +208,21 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_llm_attack_results",
+        "description": "Get LLM Attack Surface testing results: prompt injection evaluations, jailbreak taxonomy findings, RAG poisoning simulations, and multi-agent chain attack results. These are client-side simulation results stored when users interact with the LLM Attack Surfaces pages.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "string",
+                    "description": "Specific LLM attack page: prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, or 'all' for combined summary",
+                    "enum": ["prompt_injection", "jailbreak_taxonomy", "rag_poisoning", "multi_agent", "all"],
+                },
+            },
             "required": [],
         },
     },
@@ -601,6 +616,21 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
 
                 return json.dumps({"page": page, "status": "no_active_result"})
 
+            if page in ("prompt_injection", "jailbreak_taxonomy", "rag_poisoning", "multi_agent"):
+                # LLM attack surface results are stored client-side and synced to _completed_results
+                cache_key = (uid, f"llm_{page}")
+                cached = _main._completed_results.get(cache_key)
+                if cached:
+                    result = cached.get("result", {})
+                    return json.dumps({"page": page, "status": "done", "timestamp": cached.get("timestamp"), **result})
+                # Admin fallback
+                if is_admin:
+                    for (cache_uid, cache_page), c in _main._completed_results.items():
+                        if cache_page == f"llm_{page}":
+                            return json.dumps({"page": page, "status": "done", "timestamp": c.get("timestamp"), **c.get("result", {})})
+                return json.dumps({"page": page, "status": "no_active_result",
+                                   "hint": "User should run simulations on the LLM Attack Surfaces pages first."})
+
             return json.dumps({"page": page, "status": "no_data_available"})
 
         elif name == "get_model_performance":
@@ -647,6 +677,34 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                                    "metrics": metrics})
             except Exception:
                 return json.dumps({"status": "threat_response_module_not_available"})
+
+        elif name == "get_llm_attack_results":
+            # LLM attack results are stored client-side in localStorage.
+            # The frontend sends them via the chat message context.
+            # Return a helpful description so the LLM can guide the user.
+            page_filter = args.get("page", "all")
+            import main as _main
+            uid = user.id if user else None
+
+            # Check for client-submitted LLM attack results in _completed_results cache
+            llm_pages = ["prompt_injection", "jailbreak_taxonomy", "rag_poisoning", "multi_agent"]
+            results = {}
+            for lp in llm_pages:
+                if page_filter not in ("all", lp):
+                    continue
+                cache_key = (uid, f"llm_{lp}")
+                cached = _main._completed_results.get(cache_key)
+                if cached:
+                    results[lp] = cached.get("result", {})
+
+            if results:
+                return json.dumps({"llm_attack_results": results, "pages_with_data": list(results.keys())})
+
+            return json.dumps({
+                "status": "no_llm_attack_results",
+                "message": "No LLM attack surface results found. The user needs to run simulations on the Prompt Injection, Jailbreak Taxonomy, RAG Poisoning, or Multi-Agent Chain pages first. Results are automatically saved when users interact with these pages.",
+                "available_pages": llm_pages if page_filter == "all" else [page_filter],
+            })
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
@@ -707,6 +765,10 @@ Attack types detected (34 classes): DDoS (TCP/UDP/ICMP/HTTP/SYN flood, SlowLoris
 - **RL Response Agent**: CPO-based autonomous threat response simulation, action distribution, mitigation rates (page="rl_response")
 - **Adversarial Robustness**: 6-attack robustness evaluation (FGSM, PGD, C&W, DeepFool, Gaussian, Label masking), multi-dataset comparison (page="adversarial")
 - **Continual Learning**: Model drift detection, incremental updates
+- **Prompt Injection Playground**: Test LLM resilience against 8 injection attack types with 6 defence strategies — block rates, confidence, defence effectiveness matrix (page="prompt_injection")
+- **Jailbreak Taxonomy**: Comprehensive catalogue of 8 jailbreak techniques across 6 categories — effectiveness vs detection difficulty, mitigations, vulnerable models (page="jailbreak_taxonomy")
+- **RAG Poisoning Simulator**: Knowledge base poisoning attacks on RAG pipelines — 6 poison types, 6 defence mechanisms, risk assessment (page="rag_poisoning")
+- **Multi-Agent Chain Simulation**: Attack propagation through 5-agent LLM systems — 5 chain attack scenarios, agent compromise tracking, defence evaluation (page="multi_agent")
 
 IMPORTANT: Always use the available tools to look up actual data before answering. NEVER give generic descriptions of what a page "can do" — instead, call `get_active_operations` first to see the user's completed operations, then `get_page_result` with the specific page name (e.g. page="redteam", page="federated") to get the actual results. Completed results are cached and available even after the user has navigated away from the page. Be specific and data-driven — report actual numbers, attack success rates, accuracy scores, and model names from the results. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""
 
@@ -942,6 +1004,7 @@ def _local_response(messages: list[ChatMessage], db: Session, user: Optional["Us
             "- **Zero-Trust**: Governance scores and policy compliance\n"
             "- **Supply Chain**: Model security scans and vulnerabilities\n"
             "- **Threat Response**: Playbook status and incident metrics\n"
+            "- **LLM Attack Surfaces**: Prompt injection test results, jailbreak taxonomy, RAG poisoning, multi-agent chain attacks\n"
             "- **Remediation**: Get recommended actions for detected attacks\n"
             "- **Firewall rules**: Review auto-generated rules for any job\n"
             "- **Audit logs**: View recent system activity\n\n"
@@ -1091,3 +1154,34 @@ def copilot_models(user: User = Depends(require_auth)):
         })
 
     return {"models": models}
+
+
+@router.post("/llm-attack-results")
+async def store_llm_attack_results(req: dict, user: User = Depends(require_auth)):
+    """Store condensed LLM attack surface results from the frontend for copilot access."""
+    import main as _main
+    from datetime import datetime
+
+    uid = user.id if user else None
+    summary = req.get("summary", {})
+
+    # Store each page's results in the shared _completed_results cache
+    page_map = {
+        "prompt_injection": summary.get("prompt_injection"),
+        "jailbreak_taxonomy": summary.get("jailbreak_taxonomy"),
+        "rag_poisoning": summary.get("rag_poisoning"),
+        "multi_agent": summary.get("multi_agent"),
+    }
+
+    stored = []
+    for page_key, page_data in page_map.items():
+        if page_data:
+            cache_key = (uid, f"llm_{page_key}")
+            _main._completed_results[cache_key] = {
+                "job_id": f"llm_{page_key}_{uid or 'anon'}",
+                "result": page_data,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            stored.append(page_key)
+
+    return {"status": "ok", "stored_pages": stored}

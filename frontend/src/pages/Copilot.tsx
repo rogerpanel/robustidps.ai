@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import { authHeaders } from '../utils/auth'
+import { syncLLMAttackResults } from '../utils/api'
+import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -102,6 +104,10 @@ const PAGE_CONTEXTS = [
   { id: 'rl_response', label: 'RL Response Agent', query: 'Get the RL response agent simulation results. What was the threat mitigation rate, false positive blocking rate, action distribution, and constraint violations? Summarise the CPO agent performance.', icon: 'shield' },
   { id: 'adversarial_robustness', label: 'Adversarial Robustness', query: 'Get the adversarial robustness evaluation results. What attacks were tested (FGSM, PGD, C&W, DeepFool, Gaussian, Label masking), what was the clean accuracy, and how robust is the model? Report per-attack accuracy and robustness ratios.', icon: 'target' },
   { id: 'live_monitor', label: 'Live Monitor', query: 'Get the live monitor results. What threats were detected in the latest capture session? Show attack distribution, severity breakdown, top threat source IPs, confidence statistics, auto-block actions, and any active capture cycles.', icon: 'radio' },
+  { id: 'prompt_injection', label: 'Prompt Injection', query: 'Get the LLM prompt injection testing results. How many injection attacks were tested, what was the block rate, which defenses were most effective, and were any critical attacks able to bypass defenses? Show the defense effectiveness breakdown.', icon: 'syringe' },
+  { id: 'jailbreak_taxonomy', label: 'Jailbreak Taxonomy', query: 'Get the jailbreak taxonomy analysis results. What jailbreak techniques have been catalogued, what is the severity distribution, average effectiveness vs detection difficulty, and which categories pose the highest risk?', icon: 'book-open' },
+  { id: 'rag_poisoning', label: 'RAG Poisoning', query: 'Get the RAG poisoning simulation results. How many poisoning scenarios were tested, what was the risk level distribution, which attack types were most dangerous, and which defenses were active during testing?', icon: 'database' },
+  { id: 'multi_agent', label: 'Multi-Agent Chain', query: 'Get the multi-agent chain attack simulation results. How many attack scenarios were tested, what was the agent compromise rate, which scenarios were critical, and how effective were the defenses at containing propagation?', icon: 'git-merge' },
 ] as const
 
 // Safely parse JSON from localStorage
@@ -116,6 +122,17 @@ function safeJsonParse<T>(key: string, fallback: T): T {
 }
 
 export default function Copilot() {
+  const { getCondensedSummary, lastUpdated: llmAttackLastUpdated } = useLLMAttackResults()
+
+  // Sync LLM attack results to backend on mount and when results change
+  const syncedRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (llmAttackLastUpdated && llmAttackLastUpdated !== syncedRef.current) {
+      syncedRef.current = llmAttackLastUpdated
+      syncLLMAttackResults(getCondensedSummary())
+    }
+  }, [llmAttackLastUpdated, getCondensedSummary])
+
   // Persist messages across navigation
   const [messages, setMessages] = useState<Message[]>(() => safeJsonParse(STORAGE_KEYS.messages, []))
   const [input, setInput] = useState('')

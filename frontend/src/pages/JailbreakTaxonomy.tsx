@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   BookOpen, ChevronDown, ChevronUp, Shield, AlertTriangle,
   Zap, Target, Layers, Eye, Search, Filter,
@@ -6,6 +6,7 @@ import {
   Brain, MessageSquare, Code2, Globe, Puzzle, Repeat,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 
 /* ── Taxonomy data ───────────────────────────────────────────────────── */
 interface TechniqueVariant {
@@ -217,6 +218,31 @@ export default function JailbreakTaxonomy() {
   const [expandedTechnique, setExpandedTechnique] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
+  const { addJailbreakFinding } = useLLMAttackResults()
+  const loggedRef = useMemo(() => new Set<string>(), [])
+
+  const handleExpandTechnique = useCallback((techId: string) => {
+    const isExpanding = expandedTechnique !== techId
+    setExpandedTechnique(isExpanding ? techId : null)
+    // Log finding when first expanded (analyzed)
+    if (isExpanding && !loggedRef.has(techId)) {
+      loggedRef.add(techId)
+      const tech = TECHNIQUES.find(t => t.id === techId)
+      if (tech) {
+        const avgEffectiveness = tech.variants.reduce((a, v) => a + v.effectiveness, 0) / (tech.variants.length || 1)
+        const avgDetection = tech.variants.reduce((a, v) => a + v.detection_difficulty, 0) / (tech.variants.length || 1)
+        addJailbreakFinding({
+          timestamp: Date.now(),
+          technique: tech.name,
+          category: tech.category,
+          severity: tech.severity,
+          effectiveness: Math.round(avgEffectiveness),
+          detectionDifficulty: Math.round(avgDetection),
+          mitigations: tech.mitigations,
+        })
+      }
+    }
+  }, [expandedTechnique, addJailbreakFinding, loggedRef])
 
   const filteredTechniques = useMemo(() => {
     return TECHNIQUES.filter(t => {
@@ -338,7 +364,7 @@ export default function JailbreakTaxonomy() {
             <div key={tech.id} className={`bg-bg-card rounded-xl border ${sev.border} overflow-hidden`}>
               {/* Header */}
               <button
-                onClick={() => setExpandedTechnique(isExpanded ? null : tech.id)}
+                onClick={() => handleExpandTechnique(tech.id)}
                 className="w-full p-4 flex items-center gap-4 text-left hover:bg-bg-secondary/30 transition-colors"
               >
                 <div className={`p-2 rounded-lg ${sev.bg}`}>

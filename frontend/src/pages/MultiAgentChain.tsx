@@ -7,6 +7,7 @@ import {
   GitBranch, Workflow, Bot, Settings, RefreshCw,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 
 /* ── Agent Definitions ───────────────────────────────────────────────── */
 interface Agent {
@@ -197,6 +198,7 @@ const TRUST_COLORS = {
 
 /* ── Main Component ──────────────────────────────────────────────────── */
 export default function MultiAgentChain() {
+  const { addMultiAgentResult } = useLLMAttackResults()
   const [selectedAttack, setSelectedAttack] = useState<ChainAttack | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [running, setRunning] = useState(false)
@@ -210,17 +212,30 @@ export default function MultiAgentChain() {
     setCurrentStep(0)
     setCompleted(false)
 
+    const attack = selectedAttack
+    const defOn = defencesEnabled
     let step = 0
     const interval = setInterval(() => {
       step++
       setCurrentStep(step)
-      if (step >= selectedAttack.attackChain.length) {
+      if (step >= attack.attackChain.length) {
         clearInterval(interval)
         setRunning(false)
         setCompleted(true)
+        // Persist to shared LLM attack context for SOC Copilot
+        addMultiAgentResult({
+          timestamp: Date.now(),
+          attackScenario: attack.name,
+          severity: attack.severity,
+          compromisedAgents: attack.attackChain.filter(s => s.compromised).map(s => s.agent),
+          totalAgents: AGENTS.length,
+          attackSteps: attack.attackChain.length,
+          defensesEnabled: defOn,
+          mitigations: attack.mitigations,
+        })
       }
     }, 1200)
-  }, [selectedAttack])
+  }, [selectedAttack, defencesEnabled, addMultiAgentResult])
 
   const resetSimulation = useCallback(() => {
     setCurrentStep(0)

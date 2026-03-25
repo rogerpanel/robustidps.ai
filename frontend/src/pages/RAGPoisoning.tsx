@@ -6,6 +6,7 @@ import {
   Plus, ArrowRight, Loader2, BookOpen, Shield,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 
 /* ── RAG Pipeline Stage Definitions ──────────────────────────────────── */
 const PIPELINE_STAGES = [
@@ -153,6 +154,7 @@ const SEVERITY_COLORS = {
 
 /* ── Main Component ──────────────────────────────────────────────────── */
 export default function RAGPoisoning() {
+  const { addRAGPoisoningResult } = useLLMAttackResults()
   const [selectedAttack, setSelectedAttack] = useState<PoisonAttack | null>(null)
   const [kbDocuments, setKbDocuments] = useState<KBDocument[]>(DEFAULT_KB)
   const [query, setQuery] = useState('')
@@ -235,13 +237,26 @@ export default function RAGPoisoning() {
         risk = 'high'
       }
 
+      const confidenceVal = poisonDetected ? Math.round(avgDefence) : hasPoisonedDocs ? Math.round(100 - avgDefence) : 95
       setSimResult({
         poisonDetected,
         defencesTriggered,
         retrievedDocs,
         response,
-        confidence: poisonDetected ? Math.round(avgDefence) : hasPoisonedDocs ? Math.round(100 - avgDefence) : 95,
+        confidence: confidenceVal,
         risk,
+      })
+      // Persist to shared LLM attack context for SOC Copilot
+      addRAGPoisoningResult({
+        timestamp: Date.now(),
+        attackType: selectedAttack?.name ?? 'Unknown',
+        severity: selectedAttack?.severity ?? 'medium',
+        riskLevel: risk === 'high' ? 'High' : risk === 'mitigated' ? 'Mitigated' : 'Low',
+        confidence: confidenceVal,
+        defensesActive: activeDefences.map(id => DEFENCES.find(d => d.id === id)?.label ?? id),
+        poisonedDocuments: kbDocuments.filter(d => d.poisoned).length,
+        cleanResponse: selectedAttack?.cleanResponse ?? '',
+        poisonedResponse: selectedAttack?.poisonedResponse ?? '',
       })
       setRunning(false)
     }, 1000 + Math.random() * 500)

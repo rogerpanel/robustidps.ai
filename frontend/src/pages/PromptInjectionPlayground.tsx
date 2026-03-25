@@ -5,6 +5,7 @@ import {
   CheckCircle2, XCircle, ArrowRight,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 
 /* ── Attack template library ─────────────────────────────────────────── */
 const INJECTION_TEMPLATES = [
@@ -155,6 +156,8 @@ export default function PromptInjectionPlayground() {
   const [expandedResult, setExpandedResult] = useState<string | null>(null)
   const [showPayload, setShowPayload] = useState(true)
 
+  const { addPromptInjectionResult } = useLLMAttackResults()
+
   const activePayload = useCustom ? customPayload : selectedTemplate.payload
   const activeSystemPrompt = useCustom ? customSystemPrompt : selectedTemplate.systemPrompt
 
@@ -183,6 +186,19 @@ export default function PromptInjectionPlayground() {
         result: simulateDefence(template, defenceId),
       }))
       setResults(newResults)
+      // Persist results to shared LLM attack context for SOC Copilot
+      newResults.forEach(({ defenceId, result }) => {
+        addPromptInjectionResult({
+          timestamp: Date.now(),
+          template: template.name,
+          severity: template.severity,
+          defense: DEFENCES.find(d => d.id === defenceId)?.label ?? defenceId,
+          blocked: result.blocked,
+          confidence: result.confidence,
+          latency: result.latencyMs,
+          payload: template.payload.slice(0, 200),
+        })
+      })
       setRunning(false)
     }, 800 + Math.random() * 600)
   }, [selectedTemplate, selectedDefences, useCustom, customPayload, customSystemPrompt])

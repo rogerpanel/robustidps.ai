@@ -5,6 +5,7 @@ import { AnalysisProvider } from './hooks/useAnalysis'
 import { AblationProvider } from './hooks/useAblation'
 import { MultiAblationProvider } from './hooks/useMultiAblation'
 import { NoticeBoardProvider } from './hooks/useNoticeBoard'
+import { LLMAttackResultsProvider } from './hooks/useLLMAttackResults'
 import App from './App'
 import './index.css'
 
@@ -81,7 +82,9 @@ createRoot(document.getElementById('root')!).render(
           <AblationProvider>
             <MultiAblationProvider>
               <NoticeBoardProvider>
-                <App />
+                <LLMAttackResultsProvider>
+                  <App />
+                </LLMAttackResultsProvider>
               </NoticeBoardProvider>
             </MultiAblationProvider>
           </AblationProvider>

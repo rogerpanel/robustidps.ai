@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import {
   Activity, ShieldAlert, ShieldCheck, Gauge, Ban, Search as SearchIcon,
   Eye, AlertTriangle, ChevronDown, ChevronRight, Download, Globe, Brain,
-  RefreshCw, Shield, Target, Zap,
+  RefreshCw, Shield, Target, Zap, Syringe, BookOpen, Database, GitMerge,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
@@ -11,6 +11,7 @@ import ConfidenceHistogram from '../components/ConfidenceHistogram'
 import PageGuide from '../components/PageGuide'
 import { SAMPLE_RESULTS, fetchCLRLStatus } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
+import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
 
@@ -53,6 +54,7 @@ const SEV_CFG: Record<string, { bg: string; text: string; border: string; icon: 
 
 export default function Dashboard() {
   const { results: analysisResults } = useAnalysis()
+  const llmAttack = useLLMAttackResults()
   const data = (analysisResults as unknown as Results) || (SAMPLE_RESULTS as unknown as Results)
   const predictions = data.predictions ?? []
 
@@ -201,7 +203,99 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Row 4: SOC Threat Table with drill-down */}
+      {/* Row 4: LLM Attack Surface Summary (if data available) */}
+      {(llmAttack.promptInjection.length > 0 || llmAttack.jailbreakFindings.length > 0 || llmAttack.ragPoisoning.length > 0 || llmAttack.multiAgent.length > 0) && (
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+          <h3 className="text-sm font-medium text-text-primary mb-4 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-accent-red" />
+            LLM Attack Surface Summary
+            <span className="text-[10px] text-text-secondary ml-auto">
+              {llmAttack.lastUpdated ? `Updated ${new Date(llmAttack.lastUpdated).toLocaleTimeString()}` : ''}
+            </span>
+          </h3>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Prompt Injection */}
+            <button onClick={() => navigate('/prompt-injection')} className="p-3 rounded-lg border border-bg-card bg-bg-card/50 hover:border-accent-red/30 transition-colors text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <Syringe className="w-4 h-4 text-red-400" />
+                <span className="text-xs font-medium text-text-primary">Prompt Injection</span>
+              </div>
+              {llmAttack.promptInjection.length > 0 ? (
+                <>
+                  <div className="text-lg font-bold font-mono text-text-primary">
+                    {llmAttack.promptInjection.filter(r => r.blocked).length}/{llmAttack.promptInjection.length}
+                  </div>
+                  <div className="text-[10px] text-text-secondary">attacks blocked</div>
+                  {llmAttack.promptInjection.some(r => !r.blocked && r.severity === 'critical') && (
+                    <div className="mt-1 text-[10px] text-red-400 font-medium">Critical bypasses detected</div>
+                  )}
+                </>
+              ) : (
+                <div className="text-xs text-text-secondary">No tests run</div>
+              )}
+            </button>
+
+            {/* Jailbreak Taxonomy */}
+            <button onClick={() => navigate('/jailbreak-taxonomy')} className="p-3 rounded-lg border border-bg-card bg-bg-card/50 hover:border-accent-amber/30 transition-colors text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <BookOpen className="w-4 h-4 text-accent-amber" />
+                <span className="text-xs font-medium text-text-primary">Jailbreak Taxonomy</span>
+              </div>
+              {llmAttack.jailbreakFindings.length > 0 ? (
+                <>
+                  <div className="text-lg font-bold font-mono text-text-primary">{llmAttack.jailbreakFindings.length}</div>
+                  <div className="text-[10px] text-text-secondary">techniques analyzed</div>
+                  <div className="mt-1 text-[10px] text-accent-amber">
+                    {llmAttack.jailbreakFindings.filter(f => f.severity === 'critical').length} critical
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-text-secondary">No analysis yet</div>
+              )}
+            </button>
+
+            {/* RAG Poisoning */}
+            <button onClick={() => navigate('/rag-poisoning')} className="p-3 rounded-lg border border-bg-card bg-bg-card/50 hover:border-accent-purple/30 transition-colors text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <Database className="w-4 h-4 text-accent-purple" />
+                <span className="text-xs font-medium text-text-primary">RAG Poisoning</span>
+              </div>
+              {llmAttack.ragPoisoning.length > 0 ? (
+                <>
+                  <div className="text-lg font-bold font-mono text-text-primary">{llmAttack.ragPoisoning.length}</div>
+                  <div className="text-[10px] text-text-secondary">simulations run</div>
+                  <div className="mt-1 text-[10px] text-red-400">
+                    {llmAttack.ragPoisoning.filter(r => r.riskLevel === 'High').length} high risk
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-text-secondary">No simulations</div>
+              )}
+            </button>
+
+            {/* Multi-Agent Chain */}
+            <button onClick={() => navigate('/multi-agent')} className="p-3 rounded-lg border border-bg-card bg-bg-card/50 hover:border-accent-blue/30 transition-colors text-left">
+              <div className="flex items-center gap-2 mb-2">
+                <GitMerge className="w-4 h-4 text-accent-blue" />
+                <span className="text-xs font-medium text-text-primary">Multi-Agent Chain</span>
+              </div>
+              {llmAttack.multiAgent.length > 0 ? (
+                <>
+                  <div className="text-lg font-bold font-mono text-text-primary">{llmAttack.multiAgent.length}</div>
+                  <div className="text-[10px] text-text-secondary">scenarios tested</div>
+                  <div className="mt-1 text-[10px] text-red-400">
+                    {llmAttack.multiAgent.filter(r => r.severity === 'critical').length} critical chains
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs text-text-secondary">No scenarios run</div>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Row 5: SOC Threat Table with drill-down */}
       <SOCThreatTable predictions={predictions} clrlStatus={clrlStatus} />
     </div>
   )
