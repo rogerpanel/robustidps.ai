@@ -1,0 +1,690 @@
+import { useState, useEffect, useCallback } from 'react'
+import {
+  FlaskConical, Clock, CheckCircle2, XCircle, Loader2, Trash2,
+  Tag, Search, Download, FileText, Copy, ChevronDown, ChevronRight,
+  GitCompare, Plus, RefreshCw, AlertTriangle, BarChart3, FileCode,
+  Shield,
+} from 'lucide-react'
+import {
+  fetchTasks, fetchTask, deleteTask,
+  fetchExperiments, createExperiment, deleteExperiment, updateExperiment,
+  compareExperiments, exportExperimentManifest, fetchExperimentTags,
+  generateLatexComparison, generateLatexExperiment, generateCsvReport,
+  fetchMitreMapping, generateLatexMitre,
+  type ExperimentData,
+} from '../utils/api'
+
+// ── Tab navigation ──────────────────────────────────────────────────────
+
+type Tab = 'tasks' | 'experiments' | 'reports'
+
+const TABS: { key: Tab; label: string; icon: typeof Clock }[] = [
+  { key: 'tasks', label: 'Job Queue', icon: Clock },
+  { key: 'experiments', label: 'Experiments', icon: FlaskConical },
+  { key: 'reports', label: 'Reports & Export', icon: FileText },
+]
+
+// ── Status badge ────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    queued: 'bg-text-secondary/10 text-text-secondary',
+    running: 'bg-accent-blue/15 text-accent-blue',
+    completed: 'bg-accent-green/15 text-accent-green',
+    failed: 'bg-accent-red/15 text-accent-red',
+  }
+  const icons: Record<string, typeof Clock> = {
+    queued: Clock,
+    running: Loader2,
+    completed: CheckCircle2,
+    failed: XCircle,
+  }
+  const Icon = icons[status] || Clock
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${styles[status] || styles.queued}`}>
+      <Icon className={`w-3 h-3 ${status === 'running' ? 'animate-spin' : ''}`} />
+      {status}
+    </span>
+  )
+}
+
+// ── Task Queue Tab ──────────────────────────────────────────────────────
+
+function TaskQueueTab() {
+  const [tasks, setTasks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<string>('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expandedResult, setExpandedResult] = useState<any>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await fetchTasks(filter || undefined)
+      setTasks(data.tasks || [])
+    } catch { setTasks([]) }
+    setLoading(false)
+  }, [filter])
+
+  useEffect(() => { load() }, [load])
+
+  // Auto-refresh if any tasks are running
+  useEffect(() => {
+    const hasActive = tasks.some(t => t.status === 'running' || t.status === 'queued')
+    if (!hasActive) return
+    const id = setInterval(load, 4000)
+    return () => clearInterval(id)
+  }, [tasks, load])
+
+  const handleExpand = async (taskId: string) => {
+    if (expanded === taskId) { setExpanded(null); setExpandedResult(null); return }
+    setExpanded(taskId)
+    try {
+      const detail = await fetchTask(taskId)
+      setExpandedResult(detail)
+    } catch { setExpandedResult(null) }
+  }
+
+  const handleDelete = async (taskId: string) => {
+    await deleteTask(taskId)
+    load()
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap">
+        <h3 className="text-text-primary font-semibold text-sm">Background Tasks</h3>
+        <div className="flex gap-1">
+          {['', 'running', 'completed', 'failed'].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                filter === f
+                  ? 'bg-accent-blue/15 text-accent-blue'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
+              }`}
+            >
+              {f || 'All'}
+            </button>
+          ))}
+        </div>
+        <button onClick={load} className="ml-auto p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-card/50">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {loading && tasks.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-text-secondary text-sm">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading tasks...
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="text-center py-12 text-text-secondary text-sm">
+          <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          No background tasks yet. Tasks are created when you run operations like Red Team, Ablation, or Federated simulations.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {tasks.map(task => (
+            <div key={task.task_id} className="bg-bg-card border border-bg-card rounded-lg overflow-hidden">
+              <div
+                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-bg-primary/30 transition-colors"
+                onClick={() => handleExpand(task.task_id)}
+              >
+                {expanded === task.task_id
+                  ? <ChevronDown className="w-3.5 h-3.5 text-text-secondary shrink-0" />
+                  : <ChevronRight className="w-3.5 h-3.5 text-text-secondary shrink-0" />}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-text-primary font-medium truncate">{task.name}</span>
+                    <span className="text-xs text-text-secondary/60 px-1.5 py-0.5 bg-bg-primary rounded">{task.task_type}</span>
+                  </div>
+                  <div className="text-xs text-text-secondary mt-0.5">
+                    {task.task_id} &middot; {new Date(task.created_at).toLocaleString()}
+                  </div>
+                </div>
+                <StatusBadge status={task.status} />
+                {task.status === 'running' && (
+                  <div className="w-16">
+                    <div className="h-1.5 bg-bg-primary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-accent-blue rounded-full transition-all duration-500"
+                        style={{ width: `${task.progress}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-text-secondary">{task.progress}%</span>
+                  </div>
+                )}
+                {(task.status === 'completed' || task.status === 'failed') && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(task.task_id) }}
+                    className="p-1 text-text-secondary/40 hover:text-accent-red transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {expanded === task.task_id && expandedResult && (
+                <div className="border-t border-bg-primary px-4 py-3 text-xs space-y-2">
+                  {expandedResult.error && (
+                    <div className="flex items-start gap-2 text-accent-red">
+                      <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>{expandedResult.error}</span>
+                    </div>
+                  )}
+                  {expandedResult.params && Object.keys(expandedResult.params).length > 0 && (
+                    <div>
+                      <span className="text-text-secondary font-medium">Parameters: </span>
+                      <code className="text-text-primary/80 bg-bg-primary px-1.5 py-0.5 rounded text-[11px]">
+                        {JSON.stringify(expandedResult.params, null, 0).slice(0, 200)}
+                      </code>
+                    </div>
+                  )}
+                  {expandedResult.progress_message && (
+                    <div className="text-text-secondary italic">{expandedResult.progress_message}</div>
+                  )}
+                  {expandedResult.started_at && (
+                    <div className="text-text-secondary">
+                      Started: {new Date(expandedResult.started_at).toLocaleString()}
+                      {expandedResult.completed_at && (
+                        <> &middot; Completed: {new Date(expandedResult.completed_at).toLocaleString()}</>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Experiments Tab ─────────────────────────────────────────────────────
+
+function ExperimentsTab() {
+  const [experiments, setExperiments] = useState<ExperimentData[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [tagFilter, setTagFilter] = useState('')
+  const [allTags, setAllTags] = useState<string[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [comparison, setComparison] = useState<any>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newTags, setNewTags] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [expData, tagData] = await Promise.all([
+        fetchExperiments(undefined, tagFilter || undefined, search || undefined),
+        fetchExperimentTags(),
+      ])
+      setExperiments(expData.experiments || [])
+      setAllTags(tagData.tags || [])
+    } catch { setExperiments([]) }
+    setLoading(false)
+  }, [search, tagFilter])
+
+  useEffect(() => { load() }, [load])
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleCompare = async () => {
+    if (selected.size < 2) return
+    try {
+      const data = await compareExperiments(Array.from(selected))
+      setComparison(data)
+    } catch (e: any) {
+      alert(e.message)
+    }
+  }
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return
+    await createExperiment({
+      name: newName.trim(),
+      tags: newTags.split(',').map(t => t.trim()).filter(Boolean),
+    })
+    setNewName(''); setNewTags(''); setShowCreate(false)
+    load()
+  }
+
+  const handleDelete = async (id: string) => {
+    await deleteExperiment(id)
+    selected.delete(id)
+    setSelected(new Set(selected))
+    load()
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Controls */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary/50" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search experiments..."
+            className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-bg-primary border border-bg-card text-sm text-text-primary placeholder:text-text-secondary/40 focus:border-accent-blue/50 focus:outline-none"
+          />
+        </div>
+
+        {allTags.length > 0 && (
+          <select
+            value={tagFilter}
+            onChange={e => setTagFilter(e.target.value)}
+            className="px-2.5 py-1.5 rounded-lg bg-bg-primary border border-bg-card text-sm text-text-primary focus:border-accent-blue/50 focus:outline-none"
+          >
+            <option value="">All tags</option>
+            {allTags.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
+
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-blue/15 text-accent-blue text-xs font-medium hover:bg-accent-blue/25 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> New
+        </button>
+
+        {selected.size >= 2 && (
+          <button
+            onClick={handleCompare}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-amber/15 text-accent-amber text-xs font-medium hover:bg-accent-amber/25 transition-colors"
+          >
+            <GitCompare className="w-3.5 h-3.5" /> Compare ({selected.size})
+          </button>
+        )}
+
+        <button onClick={load} className="ml-auto p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-bg-card/50">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {/* Quick create form */}
+      {showCreate && (
+        <div className="bg-bg-card border border-bg-card rounded-lg p-4 space-y-3">
+          <input
+            type="text" value={newName} onChange={e => setNewName(e.target.value)}
+            placeholder="Experiment name"
+            className="w-full px-3 py-1.5 rounded-lg bg-bg-primary border border-bg-card text-sm text-text-primary placeholder:text-text-secondary/40 focus:outline-none focus:border-accent-blue/50"
+          />
+          <input
+            type="text" value={newTags} onChange={e => setNewTags(e.target.value)}
+            placeholder="Tags (comma-separated)"
+            className="w-full px-3 py-1.5 rounded-lg bg-bg-primary border border-bg-card text-sm text-text-primary placeholder:text-text-secondary/40 focus:outline-none focus:border-accent-blue/50"
+          />
+          <div className="flex gap-2">
+            <button onClick={handleCreate} className="px-3 py-1.5 rounded-lg bg-accent-blue text-white text-xs font-medium hover:bg-accent-blue/90">
+              Create
+            </button>
+            <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 rounded-lg text-text-secondary text-xs hover:text-text-primary">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Comparison view */}
+      {comparison && (
+        <div className="bg-bg-card border border-accent-amber/30 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-text-primary font-semibold text-sm flex items-center gap-2">
+              <GitCompare className="w-4 h-4 text-accent-amber" /> Experiment Comparison
+            </h4>
+            <button onClick={() => setComparison(null)} className="text-text-secondary/40 hover:text-text-primary text-xs">
+              Close
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-bg-primary">
+                  <th className="text-left py-2 pr-3 text-text-secondary font-medium">Metric</th>
+                  {comparison.experiments.map((exp: any) => (
+                    <th key={exp.experiment_id} className="text-right py-2 px-2 text-text-primary font-medium">
+                      {exp.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {(comparison.metric_keys || []).map((key: string) => {
+                  const row = comparison.metric_table[key] || {}
+                  const vals = Object.values(row).filter((v): v is number => typeof v === 'number')
+                  const best = vals.length > 0 ? Math.max(...vals) : null
+                  return (
+                    <tr key={key} className="border-b border-bg-primary/50">
+                      <td className="py-1.5 pr-3 text-text-secondary">{key.replace(/_/g, ' ')}</td>
+                      {comparison.experiments.map((exp: any) => {
+                        const val = row[exp.experiment_id]
+                        const isBest = typeof val === 'number' && val === best
+                        return (
+                          <td key={exp.experiment_id} className={`text-right py-1.5 px-2 ${isBest ? 'text-accent-green font-semibold' : 'text-text-primary'}`}>
+                            {val === null || val === undefined ? '--' : typeof val === 'number' ? val.toFixed(4) : String(val)}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Experiments list */}
+      {loading && experiments.length === 0 ? (
+        <div className="flex items-center justify-center py-12 text-text-secondary text-sm">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading experiments...
+        </div>
+      ) : experiments.length === 0 ? (
+        <div className="text-center py-12 text-text-secondary text-sm">
+          <FlaskConical className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          No experiments saved yet. Save results from Upload, Red Team, Ablation, or other modules as experiments.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {experiments.map(exp => (
+            <div key={exp.experiment_id} className="bg-bg-card border border-bg-card rounded-lg overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={selected.has(exp.experiment_id)}
+                  onChange={() => toggleSelect(exp.experiment_id)}
+                  className="w-3.5 h-3.5 rounded border-text-secondary/30 bg-bg-primary accent-[#3b82f6] cursor-pointer"
+                />
+                <div
+                  className="flex-1 min-w-0 cursor-pointer"
+                  onClick={() => setExpanded(expanded === exp.experiment_id ? null : exp.experiment_id)}
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-text-primary font-medium">{exp.name}</span>
+                    {exp.task_type && (
+                      <span className="text-xs text-text-secondary/60 px-1.5 py-0.5 bg-bg-primary rounded">{exp.task_type}</span>
+                    )}
+                    {exp.model_used && (
+                      <span className="text-xs text-accent-blue/70 px-1.5 py-0.5 bg-accent-blue/10 rounded">{exp.model_used}</span>
+                    )}
+                    {(exp.tags || []).map(tag => (
+                      <span key={tag} className="text-xs text-accent-amber/70 px-1.5 py-0.5 bg-accent-amber/10 rounded flex items-center gap-0.5">
+                        <Tag className="w-2.5 h-2.5" /> {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="text-xs text-text-secondary mt-0.5">
+                    {exp.experiment_id}
+                    {exp.dataset_name && <> &middot; {exp.dataset_name}</>}
+                    {' '}&middot; {new Date(exp.created_at).toLocaleString()}
+                  </div>
+                </div>
+
+                {/* Quick metrics */}
+                {exp.metrics && Object.keys(exp.metrics).length > 0 && (
+                  <div className="hidden md:flex items-center gap-3 text-xs">
+                    {exp.metrics.accuracy !== undefined && (
+                      <span className="text-accent-green">Acc: {Number(exp.metrics.accuracy).toFixed(2)}</span>
+                    )}
+                    {exp.metrics.f1 !== undefined && (
+                      <span className="text-accent-blue">F1: {Number(exp.metrics.f1).toFixed(2)}</span>
+                    )}
+                    {exp.metrics.macro_f1 !== undefined && (
+                      <span className="text-accent-blue">F1μ: {Number(exp.metrics.macro_f1).toFixed(2)}</span>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => exportExperimentManifest(exp.experiment_id)}
+                    className="p-1 text-text-secondary/40 hover:text-accent-blue transition-colors"
+                    title="Download manifest"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(exp.experiment_id)}
+                    className="p-1 text-text-secondary/40 hover:text-accent-red transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {expanded === exp.experiment_id && (
+                <div className="border-t border-bg-primary px-4 py-3 text-xs space-y-2">
+                  {exp.description && (
+                    <p className="text-text-secondary">{exp.description}</p>
+                  )}
+                  {exp.metrics && Object.keys(exp.metrics).length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {Object.entries(exp.metrics).map(([k, v]) => (
+                        <div key={k} className="bg-bg-primary rounded px-2 py-1">
+                          <span className="text-text-secondary">{k.replace(/_/g, ' ')}: </span>
+                          <span className="text-text-primary font-medium">
+                            {typeof v === 'number' ? v.toFixed(4) : String(v)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {exp.params && Object.keys(exp.params).length > 0 && (
+                    <div>
+                      <span className="text-text-secondary font-medium">Parameters: </span>
+                      <code className="text-text-primary/80 bg-bg-primary px-1.5 py-0.5 rounded text-[11px]">
+                        {JSON.stringify(exp.params)}
+                      </code>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Reports Tab ─────────────────────────────────────────────────────────
+
+function ReportsTab() {
+  const [experiments, setExperiments] = useState<ExperimentData[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [latex, setLatex] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    fetchExperiments().then(d => setExperiments(d.experiments || [])).catch(() => {})
+  }, [])
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const handleLatexComparison = async () => {
+    if (selected.size < 2) return
+    setLoading(true)
+    try {
+      const text = await generateLatexComparison(Array.from(selected))
+      setLatex(text)
+    } catch (e: any) { alert(e.message) }
+    setLoading(false)
+  }
+
+  const handleLatexSingle = async () => {
+    const id = Array.from(selected)[0]
+    if (!id) return
+    setLoading(true)
+    try {
+      const text = await generateLatexExperiment(id)
+      setLatex(text)
+    } catch (e: any) { alert(e.message) }
+    setLoading(false)
+  }
+
+  const handleLatexMitre = async () => {
+    const id = Array.from(selected)[0]
+    if (!id) return
+    setLoading(true)
+    try {
+      const text = await generateLatexMitre(id)
+      setLatex(text)
+    } catch (e: any) { alert(e.message) }
+    setLoading(false)
+  }
+
+  const handleCsvExport = async () => {
+    if (selected.size === 0) return
+    await generateCsvReport(Array.from(selected))
+  }
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(latex)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-text-secondary text-xs">
+        Select experiments below, then generate publication-ready LaTeX tables, CSV reports, or MITRE ATT&CK mappings.
+      </p>
+
+      {/* Experiment selector */}
+      <div className="max-h-48 overflow-y-auto space-y-1 border border-bg-card rounded-lg p-2 bg-bg-primary">
+        {experiments.length === 0 ? (
+          <div className="text-center py-4 text-text-secondary text-xs">No experiments to export</div>
+        ) : experiments.map(exp => (
+          <label key={exp.experiment_id} className="flex items-center gap-2.5 px-2 py-1.5 rounded hover:bg-bg-card/50 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selected.has(exp.experiment_id)}
+              onChange={() => toggleSelect(exp.experiment_id)}
+              className="w-3.5 h-3.5 rounded border-text-secondary/30 bg-bg-primary accent-[#3b82f6]"
+            />
+            <span className="text-sm text-text-primary flex-1 truncate">{exp.name}</span>
+            <span className="text-xs text-text-secondary/50">{exp.task_type}</span>
+          </label>
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={handleLatexComparison}
+          disabled={selected.size < 2 || loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-blue/15 text-accent-blue text-xs font-medium hover:bg-accent-blue/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <FileCode className="w-3.5 h-3.5" />
+          LaTeX Comparison
+        </button>
+        <button
+          onClick={handleLatexSingle}
+          disabled={selected.size !== 1 || loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-blue/15 text-accent-blue text-xs font-medium hover:bg-accent-blue/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          LaTeX Tables
+        </button>
+        <button
+          onClick={handleLatexMitre}
+          disabled={selected.size !== 1 || loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-amber/15 text-accent-amber text-xs font-medium hover:bg-accent-amber/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Shield className="w-3.5 h-3.5" />
+          MITRE ATT&CK LaTeX
+        </button>
+        <button
+          onClick={handleCsvExport}
+          disabled={selected.size === 0 || loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent-green/15 text-accent-green text-xs font-medium hover:bg-accent-green/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Download className="w-3.5 h-3.5" />
+          CSV Report
+        </button>
+        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-accent-blue" />}
+      </div>
+
+      {/* LaTeX output */}
+      {latex && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-secondary font-medium">Generated LaTeX</span>
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1 text-xs text-accent-blue hover:text-accent-blue/80 transition-colors"
+            >
+              <Copy className="w-3 h-3" />
+              {copied ? 'Copied!' : 'Copy to clipboard'}
+            </button>
+          </div>
+          <pre className="bg-bg-primary border border-bg-card rounded-lg p-4 text-xs text-text-primary/80 overflow-x-auto max-h-96 font-mono leading-relaxed">
+            {latex}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Page Component ─────────────────────────────────────────────────
+
+export default function ResearchHub() {
+  const [tab, setTab] = useState<Tab>('experiments')
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-xl font-display font-bold text-text-primary">Research Hub</h1>
+        <p className="text-sm text-text-secondary mt-1">
+          Track experiments, manage background jobs, and generate publication-ready exports.
+        </p>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 border-b border-bg-card">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.key
+                ? 'border-accent-blue text-accent-blue'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <t.icon className="w-4 h-4" />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {tab === 'tasks' && <TaskQueueTab />}
+      {tab === 'experiments' && <ExperimentsTab />}
+      {tab === 'reports' && <ReportsTab />}
+    </div>
+  )
+}

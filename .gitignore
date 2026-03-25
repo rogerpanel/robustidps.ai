@@ -16,6 +16,9 @@ dist/
 *.swp
 *.swo
 
+# SSL certificates (generated per-server)
+deploy/ssl/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -24,3 +27,12 @@ deploy/ssl/
 
 # Weights are tracked (small enough for demo)
 # backend/weights/
+
+# Scaler pickles are auto-generated per sklearn version — never commit
+backend/weights/scaler_*.pkl
+
+# Runtime SQLite database
+backend/*.db
+
+# Large generated datasets (regenerate with sample_data/generate_pqc_dataset.py)
+sample_data/pqc_test_dataset.csv

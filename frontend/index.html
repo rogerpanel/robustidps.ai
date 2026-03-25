@@ -5,12 +5,75 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RobustIDPS.ai — Adversarially Robust Network Intrusion Detection</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="RobustIDPS.ai is an AI-powered intrusion detection and prevention system combining 7 novel deep learning architectures — including adversarial training, stochastic transformers, and federated learning — for real-time network security with 96.8% detection accuracy." />
+    <meta name="keywords" content="intrusion detection system, IDS, IDPS, adversarial machine learning, network security, deep learning, cybersecurity AI, robust AI, stochastic transformers, federated learning, MambaShield, anomaly detection" />
+    <meta name="author" content="Roger Nick Anaedevha" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://robustidps.ai/" />
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://robustidps.ai/" />
+    <meta property="og:title" content="RobustIDPS.ai — Adversarially Robust Network Intrusion Detection" />
+    <meta property="og:description" content="AI-powered intrusion detection combining 7 novel deep learning architectures for real-time network security with 96.8% detection accuracy." />
+    <meta property="og:site_name" content="RobustIDPS.ai" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://robustidps.ai/" />
+    <meta name="twitter:title" content="RobustIDPS.ai — Adversarially Robust Network Intrusion Detection" />
+    <meta name="twitter:description" content="AI-powered intrusion detection combining 7 novel deep learning architectures for real-time network security with 96.8% detection accuracy." />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "RobustIDPS.ai",
+      "url": "https://robustidps.ai",
+      "description": "Adversarially robust AI-powered intrusion detection and prevention system combining 7 novel deep learning architectures for real-time network security.",
+      "applicationCategory": "SecurityApplication",
+      "operatingSystem": "Web",
+      "author": {
+        "@type": "Person",
+        "name": "Roger Nick Anaedevha",
+        "affiliation": {
+          "@type": "EducationalOrganization",
+          "name": "National Research Nuclear University MEPhI"
+        }
+      },
+      "about": {
+        "@type": "ResearchProject",
+        "name": "Adversarially Robust AI Models in Hybrid Intrusion Detection & Prevention Systems",
+        "description": "PhD research combining adversarial machine learning, stochastic deep learning, and federated learning for robust network intrusion detection.",
+        "keywords": ["adversarial machine learning", "intrusion detection", "stochastic transformers", "federated learning", "MambaShield", "network security"]
+      }
+    }
+    </script>
+
+    <!-- Fonts self-hosted via @fontsource (bundled in CSS, no external requests) -->
+
+    <!-- Critical CSS — eliminates flash of unstyled content on slow connections -->
+    <style>
+      body { margin: 0; background: #0f172a; color: #f8fafc; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+      #root { min-height: 100vh; }
+      /* Minimal loading state shown before JS hydrates */
+      .initial-loader { display: flex; align-items: center; justify-content: center; height: 100vh; }
+      .initial-loader svg { width: 24px; height: 24px; animation: spin 1s linear infinite; color: #3b82f6; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Inline loading indicator — replaced once React mounts (improves perceived load time) -->
+      <div class="initial-loader" aria-label="Loading application">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
