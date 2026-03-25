@@ -35,6 +35,10 @@ import {
   GraduationCap,
   ClipboardCheck,
   Trophy,
+  Syringe,
+  BookOpenCheck,
+  DatabaseBackup,
+  GitMerge,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -68,6 +72,10 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 const Architecture = lazy(() => import('./pages/Architecture'))
 const Login = lazy(() => import('./pages/Login'))
+const PromptInjectionPlayground = lazy(() => import('./pages/PromptInjectionPlayground'))
+const JailbreakTaxonomy = lazy(() => import('./pages/JailbreakTaxonomy'))
+const RAGPoisoning = lazy(() => import('./pages/RAGPoisoning'))
+const MultiAgentChain = lazy(() => import('./pages/MultiAgentChain'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -121,6 +129,15 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    heading: 'LLM Attack Surfaces',
+    items: [
+      { to: '/prompt-injection', label: 'Prompt Injection', icon: Syringe },
+      { to: '/jailbreak-taxonomy', label: 'Jailbreak Taxonomy', icon: BookOpenCheck },
+      { to: '/rag-poisoning', label: 'RAG Poisoning', icon: DatabaseBackup },
+      { to: '/multi-agent', label: 'Multi-Agent Chain', icon: GitMerge },
+    ],
+  },
+  {
     heading: 'AI Security & Gov',
     items: [
       { to: '/pq-crypto', label: 'PQ Cryptography', icon: KeySquare },
@@ -151,7 +168,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 // Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
 const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'System']
-const RIGHT_GROUPS = ['AI Novel Methods', 'AI Security & Gov', 'Industry & Research']
+const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'AI Security & Gov', 'Industry & Research']
 
 export default function App() {
   const [online, setOnline] = useState<boolean | null>(null)
@@ -624,6 +641,10 @@ export default function App() {
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/architecture" element={<Architecture />} />
               <Route path="/api-docs" element={<ApiDocs />} />
+              <Route path="/prompt-injection" element={<PromptInjectionPlayground />} />
+              <Route path="/jailbreak-taxonomy" element={<JailbreakTaxonomy />} />
+              <Route path="/rag-poisoning" element={<RAGPoisoning />} />
+              <Route path="/multi-agent" element={<MultiAgentChain />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
