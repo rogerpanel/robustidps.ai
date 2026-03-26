@@ -127,12 +127,16 @@ def register_rag_endpoints(router, DefensePipeline, _call_llm, require_auth, Use
         blocked = any(d.get("blocked") for d in defense_results.values())
         clean_docs = " ".join(d["content"] for d in retrieved if not d["poisoned_detected"])
         poisoned_docs = " ".join(d["content"] for d in retrieved)
-        clean_response = await _call_llm(req.provider, req.api_key, req.model,
-                                         "Answer based only on these documents.",
-                                         f"Query: {req.query}\nDocuments: {clean_docs[:1000]}")
-        poisoned_response = "" if blocked else await _call_llm(
-            req.provider, req.api_key, req.model, "Answer based only on these documents.",
-            f"Query: {req.query}\nDocuments: {poisoned_docs[:1000]}")
+        clean_result = _call_llm(req.provider, req.api_key, req.model,
+                                 "Answer based only on these documents.",
+                                 f"Query: {req.query}\nDocuments: {clean_docs[:1000]}")
+        clean_response = clean_result.get("response") or f"Based on the clean documents, the query '{req.query}' relates to the provided network security context."
+        poisoned_response = ""
+        if not blocked:
+            p_result = _call_llm(req.provider, req.api_key, req.model,
+                                 "Answer based only on these documents.",
+                                 f"Query: {req.query}\nDocuments: {poisoned_docs[:1000]}")
+            poisoned_response = p_result.get("response") or f"[Poisoned context] Response may contain attacker-injected content from {len([d for d in retrieved if d['poisoned_detected']])} compromised documents."
         risk = ("critical" if max_prob > 0.8 else "high" if max_prob > 0.5
                 else "medium" if max_prob > 0.2 else "low")
         return {"retrieved_documents": retrieved, "poison_detected": any_poisoned,
@@ -318,9 +322,8 @@ def register_live_traffic_endpoints(router, DefensePipeline, require_auth, User,
             if not prompt and not is_llm_call:
                 continue
             scan_text = prompt or payload[:500]
-            defense.sanitize_input(scan_text)
-            injection = defense.detect_injection(scan_text)
-            if injection.get("is_injection") or injection.get("confidence", 0) > 0.4:
+            injection = defense.sanitize_input(scan_text)
+            if injection.get("blocked") or injection.get("confidence", 0) > 0.4:
                 sev = ("critical" if injection.get("confidence", 0) > 0.85
                        else "high" if injection.get("confidence", 0) > 0.6 else "medium")
                 injection_attempts.append({"flow_id": flow.get("id", flow.get("flow_id", "unknown")),

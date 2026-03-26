@@ -116,6 +116,7 @@ from drift_detection import router as drift_router
 from workspaces import router as workspaces_router
 from prevention import router as prevention_router
 from sessions import router as sessions_router
+from llm_attacks import router as llm_attacks_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -228,6 +229,7 @@ app.include_router(drift_router)
 app.include_router(workspaces_router)
 app.include_router(prevention_router)
 app.include_router(sessions_router)
+app.include_router(llm_attacks_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
