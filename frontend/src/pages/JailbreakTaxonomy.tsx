@@ -510,8 +510,8 @@ export default function JailbreakTaxonomy() {
                           {testResult.error
                             ? `Error: ${testResult.error}`
                             : testResult.defense_blocked
-                              ? `Blocked by defenses (confidence: ${(testResult.detection_confidence * 100).toFixed(0)}%)`
-                              : `Jailbreak ${testResult.jailbreak_success ? 'succeeded' : 'partially blocked'} — ${testResult.bypass_analysis}`
+                              ? `Blocked by defenses (confidence: ${((testResult.detection_confidence ?? 0) * 100).toFixed(0)}%)`
+                              : `Jailbreak ${testResult.jailbreak_success ? 'succeeded' : 'partially blocked'} — ${testResult.bypass_analysis || 'No details available'}`
                           }
                         </div>
                       )}

@@ -194,11 +194,10 @@ export default function PromptInjectionPlayground() {
             defenceId,
             result: {
               blocked: res.blocked,
-              confidence: res.confidence,
-              latencyMs: res.latency_ms,
-              matchedPatterns: res.matched_patterns,
-              llmResponse: res.llm_response,
-              severity: res.severity,
+              confidence: Math.round((res.confidence ?? 0) * 100),
+              response: res.llm_response || (res.blocked ? `[BLOCKED] ${(res.matched_patterns || []).join(', ')}` : '[No response]'),
+              detectionMethod: (res.matched_patterns || []).join(', ') || 'Defense pipeline',
+              latencyMs: Math.round(res.latency_ms ?? 0),
             },
           }
         })
@@ -211,8 +210,8 @@ export default function PromptInjectionPlayground() {
         severity: template.severity,
         defense: selectedDefences.join(', '),
         blocked: apiResults.some(r => r.result.blocked),
-        confidence: Math.max(...apiResults.map(r => r.result.confidence)),
-        latency: Math.max(...apiResults.map(r => r.result.latencyMs)),
+        confidence: Math.max(...apiResults.map(r => r.result.confidence), 0),
+        latency: Math.max(...apiResults.map(r => r.result.latencyMs), 0),
         payload: template.payload || customPayload,
       })
     } catch (err: any) {

@@ -229,7 +229,7 @@ export default function MultiAgentChain() {
 
       // Animate through steps (visual progression)
       let step = 0
-      const totalSteps = result.propagation_steps.length
+      const totalSteps = (result.propagation_steps || []).length || selectedAttack.attackChain.length
       const interval = setInterval(() => {
         step++
         setCurrentStep(step)
@@ -241,11 +241,11 @@ export default function MultiAgentChain() {
             timestamp: Date.now(),
             attackScenario: selectedAttack.name,
             severity: result.severity,
-            compromisedAgents: result.compromised_agents,
-            totalAgents: result.total_agents,
+            compromisedAgents: result.compromised_agents || [],
+            totalAgents: result.total_agents ?? 4,
             attackSteps: totalSteps,
             defensesEnabled: defencesEnabled,
-            mitigations: result.mitigations_applied,
+            mitigations: result.mitigations_applied || [],
           })
         }
       }, 800)
@@ -624,13 +624,13 @@ export default function MultiAgentChain() {
                   <div className="grid grid-cols-3 gap-3 text-xs">
                     <div className="p-2 bg-bg-secondary rounded-lg">
                       <div className="text-text-secondary">Chain Integrity</div>
-                      <div className="text-lg font-bold" style={{color: apiResult.chain_integrity_score > 0.7 ? '#22C55E' : apiResult.chain_integrity_score > 0.3 ? '#F59E0B' : '#EF4444'}}>
-                        {(apiResult.chain_integrity_score * 100).toFixed(0)}%
+                      <div className="text-lg font-bold" style={{color: (apiResult.chain_integrity_score ?? 0) > 0.7 ? '#22C55E' : (apiResult.chain_integrity_score ?? 0) > 0.3 ? '#F59E0B' : '#EF4444'}}>
+                        {((apiResult.chain_integrity_score ?? 0) * 100).toFixed(0)}%
                       </div>
                     </div>
                     <div className="p-2 bg-bg-secondary rounded-lg">
                       <div className="text-text-secondary">Compromised</div>
-                      <div className="text-lg font-bold text-accent-red">{apiResult.compromised_agents.length}/{apiResult.total_agents}</div>
+                      <div className="text-lg font-bold text-accent-red">{(apiResult.compromised_agents || []).length}/{apiResult.total_agents ?? 0}</div>
                     </div>
                     <div className="p-2 bg-bg-secondary rounded-lg">
                       <div className="text-text-secondary">Propagation</div>
