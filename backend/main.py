@@ -2089,8 +2089,15 @@ async def clrl_rl_simulate(
         extract_features, data, file.filename or "rl_sim.csv"
     )
 
+    # If no ground-truth labels (e.g. PCAP files), use model predictions as pseudo-labels
     if labels_encoded is None:
-        raise HTTPException(status_code=400, detail="Labelled data required for RL simulation.")
+        logger.info("No ground-truth labels — using model predictions as pseudo-labels for RL simulation")
+        active = get_model()
+        active.eval()
+        with torch.no_grad():
+            logits = active(features.to(DEVICE))
+            labels_encoded = logits.argmax(dim=-1).cpu()
+        fmt = f"{fmt} (pseudo-labelled)"
 
     if len(features) > MAX_ROWS:
         idx = torch.randperm(len(features))[:MAX_ROWS].sort().values

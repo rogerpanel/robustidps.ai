@@ -480,7 +480,7 @@ export default function RLResponseAgent() {
                 disabled={multiSlots.every(s => !s.file) || multiRunning}
                 className="flex-1 px-4 py-2.5 bg-accent-purple text-white rounded-lg text-xs font-medium hover:bg-accent-purple/80 disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                {multiRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Running {multiSlots.filter(s => s.file).length} datasets...</> : <><GitCompare className="w-4 h-4" /> Run Comparison</>}
+                {multiRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Running RL Agent on {multiSlots.filter(s => s.file).length} datasets...</> : <><GitCompare className="w-4 h-4" /> Run RL Agent &amp; Compare</>}
               </button>
             </div>
           </div>
