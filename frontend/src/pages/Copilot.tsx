@@ -554,57 +554,29 @@ export default function Copilot() {
         </div>
       )}
 
-      {/* Page Context Selector — horizontally scrollable */}
-      <div className="mb-3 relative group">
-        {/* Left scroll arrow */}
-        <button
-          onClick={() => {
-            const el = document.getElementById('copilot-ctx-bar')
-            if (el) el.scrollBy({ left: -200, behavior: 'smooth' })
-          }}
-          className="absolute left-0 top-0 bottom-0 z-10 w-7 flex items-center justify-center bg-gradient-to-r from-bg-primary via-bg-primary/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-          aria-label="Scroll left"
-        >
-          <ChevronLeft className="w-4 h-4 text-text-secondary" />
-        </button>
-
-        <div
-          id="copilot-ctx-bar"
-          className="flex gap-2 overflow-x-auto pb-1"
-          style={{ scrollbarWidth: 'thin', WebkitOverflowScrolling: 'touch' }}
-        >
+      {/* Page Context Selector — two-row wrapped grid */}
+      <div className="mb-3">
+        <div className="flex flex-wrap gap-1.5">
           {PAGE_CONTEXTS.map((ctx) => (
             <button
               key={ctx.id}
               onClick={() => sendMessage(ctx.query)}
               disabled={loading}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] border border-bg-card bg-bg-secondary hover:border-accent-blue/40 hover:bg-accent-blue/5 text-text-secondary hover:text-accent-blue transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] border border-bg-card bg-bg-secondary hover:border-accent-blue/40 hover:bg-accent-blue/5 text-text-secondary hover:text-accent-blue transition-colors disabled:opacity-50"
             >
               {ctx.label}
             </button>
           ))}
           {llmSyncStatus === 'syncing' && (
-            <span className="text-[9px] text-accent-blue animate-pulse">syncing results...</span>
+            <span className="flex items-center text-[9px] text-accent-blue animate-pulse px-2">syncing results...</span>
           )}
           {llmSyncStatus === 'synced' && (
-            <span className="text-[9px] text-accent-green">results synced</span>
+            <span className="flex items-center text-[9px] text-accent-green px-2">results synced</span>
           )}
           {llmSyncStatus === 'error' && (
-            <span className="text-[9px] text-accent-red">sync failed</span>
+            <span className="flex items-center text-[9px] text-accent-red px-2">sync failed</span>
           )}
         </div>
-
-        {/* Right scroll arrow */}
-        <button
-          onClick={() => {
-            const el = document.getElementById('copilot-ctx-bar')
-            if (el) el.scrollBy({ left: 200, behavior: 'smooth' })
-          }}
-          className="absolute right-0 top-0 bottom-0 z-10 w-7 flex items-center justify-center bg-gradient-to-l from-bg-primary via-bg-primary/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"
-          aria-label="Scroll right"
-        >
-          <ChevronRight className="w-4 h-4 text-text-secondary" />
-        </button>
       </div>
 
       {/* Messages */}
