@@ -6,6 +6,7 @@ import {
   Plus, ArrowRight, Loader2, BookOpen, Shield,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 import { simulateRAGPoisoning } from '../utils/api'
 
@@ -171,6 +172,8 @@ export default function RAGPoisoning() {
   const [running, setRunning] = useState(false)
   const [expandedAttack, setExpandedAttack] = useState<string | null>(null)
   const [showPipeline, setShowPipeline] = useState(true)
+  const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
+  const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
 
   const injectPoison = useCallback((attack: PoisonAttack) => {
     setSelectedAttack(attack)
@@ -219,7 +222,8 @@ export default function RAGPoisoning() {
         poison_payload: selectedAttack?.poisonedDocument || '',
         attack_type: selectedAttack?.id || 'document_injection',
         defenses: activeDefences,
-        provider: 'local',
+        provider: llmProvider,
+        ...(llmApiKey ? { api_key: llmApiKey } : {}),
       })
 
       setSimResult({
@@ -324,10 +328,11 @@ export default function RAGPoisoning() {
             { title: 'Review the RAG pipeline', desc: 'Expand the pipeline visualisation to understand each stage: document ingestion, embedding, retrieval, and LLM generation — and where attacks can be injected.' },
             { title: 'Select a poisoning attack', desc: 'Choose from 4 attack vectors: document injection, query manipulation, embedding space perturbation, or cross-contamination between clean and poisoned documents.' },
             { title: 'Configure defences', desc: 'Enable defence mechanisms — document provenance verification, embedding similarity thresholds, retrieval diversity enforcement — to test detection capability.' },
+            { title: 'Choose LLM provider', desc: 'Select Local (defense-only analysis) or connect an LLM provider with an API key to generate real clean vs. poisoned responses. Defaults to your SOC Copilot API key.' },
             { title: 'Run the simulation', desc: 'Execute the attack against the RAG pipeline. Compare clean vs. poisoned LLM responses side-by-side to see how poisoning corrupts security analysis.' },
             { title: 'Review findings', desc: 'Check risk levels, confidence scores, and which defences were effective. Results persist and surface on the SOC Dashboard for analyst review.' },
           ]}
-          tip="Tip: Document injection is the most common real-world RAG attack. Always verify document provenance before adding to knowledge bases."
+          tip="Tip: Document injection is the most common real-world RAG attack. Use a real LLM provider to see how poisoned context changes actual model responses."
         />
       </div>
 
@@ -497,6 +502,13 @@ export default function RAGPoisoning() {
                 </button>
               ))}
             </div>
+
+            <LLMProviderConfig
+              provider={llmProvider}
+              apiKey={llmApiKey}
+              onProviderChange={setLlmProvider}
+              onApiKeyChange={setLlmApiKey}
+            />
 
             <button
               onClick={runSimulation}

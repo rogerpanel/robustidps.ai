@@ -7,6 +7,7 @@ import {
   GitBranch, Workflow, Bot, Settings, RefreshCw,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 import { simulateMultiAgent } from '../utils/api'
 
@@ -207,6 +208,8 @@ export default function MultiAgentChain() {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [defencesEnabled, setDefencesEnabled] = useState(false)
   const [apiResult, setApiResult] = useState<any>(null)
+  const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
+  const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
 
   const runSimulation = useCallback(async () => {
     if (!selectedAttack) return
@@ -218,10 +221,12 @@ export default function MultiAgentChain() {
     try {
       // Call real backend for actual agent chain analysis
       const result = await simulateMultiAgent({
-        attack_payload: selectedAttack.attackChain?.[0]?.message || selectedAttack.name,
+        attack_payload: selectedAttack.attackChain?.[0]?.payload || selectedAttack.name,
         attack_type: selectedAttack.id || 'injection_propagation',
         target_agent: selectedAttack.attackChain?.[0]?.agent || 'coordinator',
         defenses_enabled: defencesEnabled,
+        provider: llmProvider,
+        ...(llmApiKey ? { api_key: llmApiKey } : {}),
       })
 
       // Store the real results
@@ -305,11 +310,12 @@ export default function MultiAgentChain() {
           steps={[
             { title: 'Review agent topology', desc: 'Study the 4-agent architecture (Coordinator, Analyst, Responder, Reporter) — their roles, trust scores, and communication channels.' },
             { title: 'Select an attack scenario', desc: 'Choose from 5 patterns: agent-to-agent injection propagation, trust boundary violation, capability escalation, information leakage, or coordinated manipulation.' },
+            { title: 'Configure LLM provider', desc: 'Choose Local (pattern-based analysis) or connect Claude/GPT-4o/Gemini/DeepSeek to have real LLMs process agent messages. Uses your Copilot API key by default.' },
             { title: 'Run the simulation', desc: 'Watch the attack propagate step-by-step through the agent chain. Each step shows which agent is targeted, the attack payload, and whether defences hold.' },
             { title: 'Analyse compromised agents', desc: 'Review which agents were compromised, how many steps the attack took, and which trust boundaries were violated. Toggle defences on/off to compare outcomes.' },
             { title: 'Review mitigations', desc: 'Each scenario includes recommended mitigations (message verification, trust score decay, capability isolation). Results sync to the SOC Copilot for investigation.' },
           ]}
-          tip="Tip: Enable the inter-agent trust architecture defence to see how HMAC message verification and trust score decay prevent cascade attacks."
+          tip="Tip: With a real LLM provider, each agent uses the model to process messages — showing genuine compromise behavior rather than pattern-based simulation."
         />
       </div>
 
@@ -510,6 +516,13 @@ export default function MultiAgentChain() {
                     )
                   })}
                 </div>
+
+                <LLMProviderConfig
+                  provider={llmProvider}
+                  apiKey={llmApiKey}
+                  onProviderChange={setLlmProvider}
+                  onApiKeyChange={setLlmApiKey}
+                />
 
                 {/* Run / Reset buttons */}
                 <div className="flex gap-2 mt-4">

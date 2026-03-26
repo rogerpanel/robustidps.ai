@@ -267,7 +267,7 @@ export default function JailbreakTaxonomy() {
     } finally {
       setTestingTech(null)
     }
-  }, [])
+  }, [llmProvider, llmApiKey])
 
   const filteredTechniques = useMemo(() => {
     return TECHNIQUES.filter(t => {
@@ -309,12 +309,20 @@ export default function JailbreakTaxonomy() {
           steps={[
             { title: 'Browse technique families', desc: 'Select a category (DAN variants, character roleplay, hypothetical framing, token smuggling, multi-language, prompt leaking) to filter the taxonomy.' },
             { title: 'Explore individual techniques', desc: 'Click any technique card to expand its detailed mechanism, known variants, severity rating, and detection difficulty score.' },
+            { title: 'Configure LLM provider', desc: 'Select a provider (Claude, GPT-4o, Gemini, DeepSeek) and API key for live testing. Local mode tests defense patterns only. Uses your Copilot API key by default.' },
             { title: 'Search and filter', desc: 'Use the search bar and severity filters to find specific jailbreak types. Filter by detection difficulty to prioritise hardest-to-detect attacks.' },
             { title: 'Review mitigations', desc: 'Each technique includes recommended mitigations. Cross-reference with the effectiveness matrix to understand which defences cover which attack families.' },
           ]}
           tip="Tip: Techniques with high effectiveness and high detection difficulty are your top priority for defence hardening."
         />
       </div>
+
+      <LLMProviderConfig
+        provider={llmProvider}
+        apiKey={llmApiKey}
+        onProviderChange={setLlmProvider}
+        onApiKeyChange={setLlmApiKey}
+      />
 
       {/* Category Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
