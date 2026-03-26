@@ -1,0 +1,152 @@
+% ============================================================
+% Paper 2, Segment 1 — IEEE TNNLS Format
+% Securing LLM-Integrated Network Defense
+% ============================================================
+\documentclass[journal,twoside]{IEEEtran}
+
+% --- Packages ---
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[ruled,vlined,linesnumbered]{algorithm2e}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage[colorlinks=true,citecolor=blue,linkcolor=blue,urlcolor=blue]{hyperref}
+\usepackage{cite}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{balance}
+\usepackage{listings}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible
+}
+
+% --- Title ---
+\title{Securing LLM-Integrated Network Defense: A Comprehensive Framework for Detecting and Mitigating Prompt Injection, RAG Poisoning, and Multi-Agent Chain Attacks in SOC Copilot Systems}
+
+% --- Author ---
+\author{
+  \IEEEauthorblockN{Roger Nick Anaedevha}
+  \IEEEauthorblockA{
+    National Research Nuclear University MEPhI\\
+    Moscow, Russia\\
+    roger@robustidps.ai
+  }
+}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+%  ABSTRACT
+% ============================================================
+\begin{abstract}
+Large language models (LLMs) are increasingly integrated into Security Operations Center (SOC) workflows as interactive copilots, enabling natural-language querying of alerts, automated triage, and orchestrated incident response. However, this integration introduces novel attack surfaces that conventional network defense architectures were never designed to address. This paper presents a comprehensive framework for securing LLM-integrated network defense systems against three critical threat classes: prompt injection encompassing eight distinct categories (direct override, indirect injection via log fields, context window manipulation, few-shot poisoning, encoding-based bypass, role-play escalation, multi-turn progressive compromise, and tool-invocation hijacking), Retrieval-Augmented Generation (RAG) poisoning across four vectors (document injection, embedding space perturbation, metadata manipulation, and chunk boundary exploitation), and multi-agent chain attacks spanning five patterns (trust delegation abuse, capability escalation chains, consensus manipulation, memory poisoning propagation, and orchestrator compromise). Our framework is implemented and evaluated within RobustIDPS.ai, a production SOC platform supporting Claude, GPT-4o, Gemini, and DeepSeek as backend reasoning engines. The defense architecture comprises four interdependent layers: input sanitization with adversarial token detection, prompt boundary enforcement using cryptographic delimiters, RAG pipeline hardening with document provenance verification and semantic consistency checks, and a multi-agent trust architecture employing inter-agent verification protocols with capability-bounded execution. Evaluated against a curated corpus of over 500 attack scenarios derived from real-world SOC deployments and red-team engagements, our framework achieves a 96.3\% detection rate across all attack classes while maintaining sub-200\,ms median latency overhead, demonstrating practical viability for production SOC environments.
+\end{abstract}
+
+\begin{IEEEkeywords}
+LLM security, prompt injection, RAG poisoning, multi-agent systems, SOC copilot, adversarial machine learning, intrusion detection
+\end{IEEEkeywords}
+
+% ============================================================
+%  I. INTRODUCTION
+% ============================================================
+\section{Introduction}
+\label{sec:introduction}
+
+The integration of large language models into cybersecurity operations represents a paradigm shift in how security analysts interact with defensive infrastructure. Modern SOC copilots powered by models such as GPT-4o~\cite{openai2024gpt4o}, Claude~\cite{anthropic2024claude}, Gemini~\cite{google2024gemini}, and DeepSeek~\cite{deepseek2024v2} now assist analysts with alert triage, log analysis, threat hunting query generation, and semi-automated incident response~\cite{ferrag2024llmcyber,xu2024llmsec}. Industry adoption has accelerated rapidly: Microsoft Security Copilot, Google Chronicle AI, and CrowdStrike Charlotte AI exemplify a broader trend toward LLM-augmented security workflows~\cite{microsoft2024copilot,crowdstrike2024charlotte}.
+
+However, this integration fundamentally alters the threat model of network defense systems. Traditional intrusion detection and prevention systems (IDPS) operate on deterministic or statistically bounded decision logic, where the attack surface is confined to evasion of detection signatures or learned classifiers~\cite{mirsky2023threat}. When an LLM becomes a decision-making or decision-influencing component within the defense pipeline, adversaries gain a qualitatively new attack vector: the ability to manipulate the reasoning process itself through carefully crafted natural-language inputs~\cite{greshake2023indirect,perez2022ignore}.
+
+The severity of this threat cannot be overstated. A prompt injection attack against a SOC copilot does not merely produce incorrect text---it can suppress genuine alerts, fabricate benign explanations for malicious activity, exfiltrate sensitive network topology through crafted tool calls, or escalate an attacker's privileges within the orchestration layer~\cite{liu2024prompt,yi2024jailbreak}. When the copilot interfaces with RAG systems drawing on threat intelligence feeds, vulnerability databases, and internal runbooks, the poisoning of these knowledge sources creates persistent backdoors in the analytical reasoning chain~\cite{zou2024poisonedrag,chaudhari2024rag}. Furthermore, the emerging pattern of multi-agent architectures---where specialized LLM agents for triage, analysis, and response coordinate through shared memory and message passing---introduces trust propagation vulnerabilities that can cascade a single compromised agent into full system compromise~\cite{cohen2024multiagent,wu2024autogen}.
+
+Despite the criticality of these threats, existing defenses remain fragmented and insufficient. Prompt injection research has largely focused on standalone chatbot scenarios rather than security-critical agentic systems~\cite{liu2024formalizing}. RAG security work has addressed retrieval accuracy but not adversarial robustness in high-stakes domains~\cite{gao2024rag}. Multi-agent security frameworks exist in preliminary form but lack the specificity required for SOC deployment~\cite{talebirad2023multiagent}. No prior work provides a unified framework addressing all three attack classes within a production network defense context.
+
+This paper bridges that gap with the following contributions:
+
+\begin{enumerate}
+\item A systematic \textbf{threat taxonomy} classifying prompt injection into eight categories, RAG poisoning into four vectors, and multi-agent chain attacks into five patterns, each grounded in real-world SOC attack scenarios.
+
+\item A \textbf{layered defense architecture} comprising input sanitization, prompt boundary enforcement, RAG pipeline hardening, and multi-agent trust verification, designed for composability across heterogeneous LLM backends.
+
+\item The \textbf{RobustIDPS.ai implementation}, a production SOC platform instantiating the proposed framework with support for four major LLM providers and real-time network defense integration.
+
+\item A \textbf{comprehensive evaluation} against 500+ attack scenarios spanning all identified threat classes, demonstrating 96.3\% detection with under 200\,ms median latency overhead.
+
+\item An \textbf{open benchmark suite} for LLM security in SOC contexts, including adversarial prompt datasets, poisoned RAG corpora, and multi-agent attack playbooks to facilitate reproducible research.
+\end{enumerate}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:background} surveys background and related work. Section~III formalizes the threat model. Section~IV details the defense architecture. Section~V describes the RobustIDPS.ai implementation. Section~VI presents the experimental evaluation. Section~VII discusses limitations and future directions. Section~VIII concludes.
+
+% ============================================================
+%  II. BACKGROUND AND RELATED WORK
+% ============================================================
+\section{Background and Related Work}
+\label{sec:background}
+
+\subsection{LLMs in Security Operations Centers}
+\label{sec:bg_soc}
+
+The application of LLMs to cybersecurity operations has evolved through three distinct phases. The first phase (2022--2023) involved using LLMs as natural-language interfaces to existing security tools, enabling analysts to query SIEM systems and generate detection rules through conversational interaction~\cite{ferrag2024llmcyber}. The second phase (2023--2024) introduced agentic capabilities, where LLMs were granted tool-use privileges to execute queries, invoke APIs, and modify configurations autonomously within bounded scopes~\cite{fang2024llmagents}. The third and current phase involves multi-agent architectures where specialized LLM agents collaborate on complex tasks such as end-to-end incident response~\cite{wu2024autogen,hong2024metagpt}.
+
+SOC copilots in their contemporary form typically operate within an architecture comprising several key components: a \emph{conversational interface} for analyst interaction, a \emph{tool-use layer} providing access to SIEM, SOAR, and threat intelligence platforms, a \emph{RAG pipeline} grounding responses in organizational knowledge bases, and an \emph{orchestration layer} managing multi-step reasoning workflows~\cite{microsoft2024copilot}. The tool-use capability is particularly consequential for security: copilots may execute Kusto queries against log stores, invoke sandbox detonation of suspicious files, modify firewall rules, or initiate containment actions~\cite{xu2024llmsec}. Each of these capabilities represents a potential exploitation target if the LLM's reasoning can be subverted.
+
+Recent empirical studies have documented the performance benefits of LLM-assisted SOC workflows. Fang et al.~\cite{fang2024llmagents} demonstrated that GPT-4-based agents could autonomously exploit known vulnerabilities, suggesting both the capability and the risk profile of agentic security systems. Ferrag et al.~\cite{ferrag2024llmcyber} surveyed 127 papers on LLMs for cybersecurity, identifying threat intelligence, vulnerability analysis, and incident response as the three dominant application areas. However, their survey noted a conspicuous absence of work addressing the security of the LLM components themselves within these pipelines---a gap our work directly addresses.
+
+\subsection{Prompt Injection and Jailbreak Attacks}
+\label{sec:bg_prompt_injection}
+
+Prompt injection attacks exploit the fundamental inability of current LLM architectures to maintain a robust separation between instructions (system prompts) and data (user inputs)~\cite{greshake2023indirect,perez2022ignore}. This conflation arises because both instructions and data are encoded into the same token sequence processed by the transformer's attention mechanism, lacking any hardware- or architecture-level privilege boundary analogous to kernel/user mode separation in operating systems~\cite{liu2024formalizing}.
+
+\textbf{Direct injection} attacks supply adversarial instructions within the user's input that attempt to override the system prompt. Early demonstrations by Perez and Ribeiro~\cite{perez2022ignore} showed that simple prefixes such as ``Ignore previous instructions'' could redirect model behavior. Subsequent work identified increasingly sophisticated variants: role-play attacks that instruct the model to adopt an unrestricted persona (the ``DAN'' family of jailbreaks)~\cite{shen2024dan}, encoding-based bypasses that obscure malicious instructions through Base64, ROT13, or Unicode transformations~\cite{wei2024jailbroken}, and multi-turn progressive attacks that incrementally shift the model's compliance boundary across a conversation~\cite{russinovich2024great}.
+
+\textbf{Indirect injection} attacks embed adversarial instructions within data sources that the LLM processes during its workflow~\cite{greshake2023indirect}. In a SOC context, this is particularly dangerous: an attacker who controls a log entry, an email body, a DNS TXT record, or a web page retrieved during threat analysis can inject instructions that the copilot processes as authoritative input. Greshake et al.~\cite{greshake2023indirect} demonstrated indirect injection through web content retrieved by Bing Chat, while subsequent work extended this to plugin ecosystems~\cite{liu2024prompt} and API responses~\cite{yi2024jailbreak}.
+
+The SOC attack surface amplifies both categories. Direct injection may arrive through analyst chat interfaces compromised via social engineering, while indirect injection vectors include crafted log entries from attacker-controlled hosts, phishing emails under analysis, malicious network packet payloads rendered as text, and threat intelligence feeds sourced from adversary-manipulated repositories~\cite{mirsky2023threat}. Our taxonomy in Section~III formalizes eight distinct categories relevant to SOC deployments, extending beyond the direct/indirect dichotomy that dominates current literature.
+
+\subsection{RAG Security and Knowledge Base Poisoning}
+\label{sec:bg_rag}
+
+Retrieval-Augmented Generation enhances LLM responses by retrieving relevant documents from external knowledge bases and incorporating them into the generation context~\cite{lewis2020rag}. In SOC deployments, RAG pipelines typically index threat intelligence reports, internal incident playbooks, vulnerability advisories, network topology documentation, and historical alert analyses~\cite{gao2024rag}. This grounding is essential for accurate, organization-specific responses but introduces a new attack surface: the poisoning of retrieved documents to manipulate the LLM's reasoning.
+
+Zou et al.~\cite{zou2024poisonedrag} demonstrated PoisonedRAG, showing that injecting a small number of adversarial documents into a knowledge base can cause the LLM to generate targeted incorrect outputs with high reliability. Their attack operates by crafting documents that are semantically similar to anticipated queries but contain adversarial content designed to override the model's prior knowledge. Chaudhari et al.~\cite{chaudhari2024rag} extended this analysis to demonstrate that RAG poisoning could be achieved through manipulation of document embeddings, exploiting the approximate nearest-neighbor search used in vector databases to ensure adversarial documents are preferentially retrieved.
+
+In the SOC context, RAG poisoning takes on heightened significance. Consider a threat intelligence feed that has been subtly modified to reclassify a known command-and-control (C2) domain as benign, or an incident playbook that has been altered to omit critical containment steps for a specific attack pattern. The copilot, trusting its retrieved context, would confidently provide incorrect guidance to the analyst---potentially with catastrophic consequences for incident response~\cite{mirsky2023threat}.
+
+Four distinct poisoning vectors are relevant to SOC RAG deployments. \emph{Document injection} introduces wholly fabricated documents into the knowledge base through compromised feeds or insider threats. \emph{Embedding space perturbation} manipulates the vector representations of existing documents to alter retrieval behavior without changing document content. \emph{Metadata manipulation} targets the provenance, timestamps, or classification labels attached to documents to influence retrieval ranking and trust scoring. \emph{Chunk boundary exploitation} manipulates how documents are segmented during indexing, causing adversarial content to be co-located with legitimate context in ways that amplify its influence on generation~\cite{zou2024poisonedrag,chaudhari2024rag}.
+
+Existing defenses for RAG security focus primarily on retrieval accuracy rather than adversarial robustness. Techniques such as query rewriting, passage reranking, and faithfulness verification address noise and relevance but do not explicitly model an adversary who controls a subset of the knowledge base~\cite{gao2024rag}. Our framework introduces document provenance chains, semantic consistency verification, and cross-reference validation as defense layers specifically designed for adversarial RAG environments.
+
+\subsection{Multi-Agent System Security}
+\label{sec:bg_multiagent}
+
+The multi-agent paradigm in LLM systems involves multiple specialized agents collaborating through shared memory, message passing, or hierarchical orchestration to accomplish complex tasks~\cite{wu2024autogen,hong2024metagpt,talebirad2023multiagent}. In SOC architectures, a typical multi-agent deployment might include a triage agent that classifies incoming alerts, an analysis agent that performs deep investigation, a correlation agent that identifies attack patterns across multiple events, and a response agent that executes containment and remediation actions~\cite{cohen2024multiagent}.
+
+The security implications of multi-agent architectures extend significantly beyond those of single-agent systems. \emph{Trust delegation} between agents creates transitive vulnerability: if a triage agent is compromised through prompt injection, its outputs---now treated as trusted inputs by downstream agents---can propagate the compromise through the entire chain~\cite{cohen2024multiagent}. \emph{Capability escalation} occurs when a lower-privileged agent manipulates a higher-privileged agent into executing actions beyond the originator's authorization scope. \emph{Consensus manipulation} targets voting or verification mechanisms designed to provide redundancy, exploiting the fact that agents sharing similar architectures and training may exhibit correlated failure modes~\cite{talebirad2023multiagent}.
+
+Prior work on multi-agent security has addressed the problem primarily in abstract or simulation contexts. Cohen et al.~\cite{cohen2024multiagent} formalized agent-to-agent attacks in conversational multi-agent systems, demonstrating that a single adversarial agent could steer group consensus. Wu et al.~\cite{wu2024autogen} proposed AutoGen's conversation-based programming framework but acknowledged the need for ``guard rails and human-in-the-loop'' without providing concrete security mechanisms. Hong et al.~\cite{hong2024metagpt} introduced role-based agent specialization in MetaGPT but did not model adversarial scenarios where agent roles are exploited for privilege escalation.
+
+Our framework addresses these gaps by introducing a multi-agent trust architecture specifically designed for SOC deployments. This architecture includes capability-bounded execution contexts for each agent, cryptographic attestation of inter-agent messages, behavioral anomaly detection for agent-level drift, and a hierarchical trust model that limits the blast radius of any single agent compromise.
+
+\subsection{LLM Defense Mechanisms}
+\label{sec:bg_defenses}
+
+Existing defense mechanisms for LLM security span several categories, each addressing a subset of the threat landscape. \textbf{Input filtering} approaches attempt to detect and neutralize adversarial prompts before they reach the model. Perplexity-based detection identifies anomalous token sequences~\cite{jain2023baseline}, while classifier-based approaches train dedicated models to distinguish benign from adversarial inputs~\cite{alon2023detecting}. However, these methods exhibit high false-positive rates in SOC contexts where legitimate analyst queries frequently contain technical jargon, code snippets, and log fragments that resemble adversarial payloads~\cite{liu2024formalizing}.
+
+\textbf{Prompt engineering defenses} use carefully constructed system prompts with explicit instruction hierarchies, delimiters, and behavioral constraints~\cite{openai2024system}. While effective against unsophisticated attacks, these defenses are fundamentally limited by the lack of architectural privilege separation: the model must voluntarily respect instruction boundaries that it has the technical capability to violate~\cite{wei2024jailbroken}. Sandwich defenses, XML-tagged instruction blocks, and random token delimiters provide incremental improvements but remain bypassable by adaptive adversaries~\cite{yi2024jailbreak}.
+
+\textbf{Output filtering} inspects generated responses for policy violations, sensitive data leakage, or indicators of successful injection~\cite{inan2023llama}. Llama Guard~\cite{inan2023llama} and similar classifiers evaluate output safety post-generation, enabling blocking or modification of problematic responses. This approach is complementary to input filtering but introduces latency and cannot prevent side effects from tool-use actions that occur during generation.
+
+\textbf{Constitutional AI and RLHF-based alignment} train models to internalize safety constraints through reinforcement learning from human feedback~\cite{bai2022constitutional}. While these approaches improve baseline robustness, they represent a best-effort alignment that degrades under adversarial pressure, particularly from optimization-based attacks such as GCG~\cite{zou2023universal} that search the discrete token space for universal jailbreak suffixes.
+
+\textbf{Architectural defenses} represent the most principled approach, introducing structural changes to enforce privilege separation. Proposals include dual-LLM architectures where a privileged model processes instructions and an unprivileged model processes data~\cite{chen2024struq}, capability-based access control limiting tool invocations~\cite{wu2024autogen}, and execution sandboxing that constrains the effects of compromised reasoning~\cite{cohen2024multiagent}. Our framework builds on this architectural philosophy, extending it with SOC-specific threat models and practical implementation within a production network defense platform.
+
+The critical gap across all existing defense categories is the absence of a unified framework that simultaneously addresses prompt injection, RAG poisoning, and multi-agent attacks within the specific context of security operations. Individual defenses address individual threats; our work provides the comprehensive, layered architecture necessary for production SOC deployment.
+
+% === END SEGMENT 1 ===
