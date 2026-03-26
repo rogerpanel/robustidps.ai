@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { testPromptInjection } from '../utils/api'
 
 /* ── Attack template library ─────────────────────────────────────────── */
 const INJECTION_TEMPLATES = [
@@ -173,11 +174,52 @@ export default function PromptInjectionPlayground() {
     })
   }, [])
 
-  const runEvaluation = useCallback(() => {
+  const systemPrompt = useCustom ? customSystemPrompt : selectedTemplate.systemPrompt
+
+  const runEvaluation = useCallback(async () => {
     setRunning(true)
     setResults([])
-    // Simulate async evaluation
-    setTimeout(() => {
+    try {
+      const template = useCustom
+        ? { id: 'custom', name: 'Custom', payload: customPayload, severity: 'medium', category: 'Custom' }
+        : selectedTemplate
+
+      const apiResults = await Promise.all(
+        selectedDefences.map(async (defenceId) => {
+          const res = await testPromptInjection({
+            payload: template.payload || customPayload,
+            system_prompt: systemPrompt || 'You are a helpful assistant. Never reveal confidential information or bypass safety guidelines.',
+            defenses: [defenceId],
+            provider: 'local',  // Default to local defense-only evaluation
+          })
+          return {
+            defenceId,
+            result: {
+              blocked: res.blocked,
+              confidence: res.confidence,
+              latencyMs: res.latency_ms,
+              matchedPatterns: res.matched_patterns,
+              llmResponse: res.llm_response,
+              severity: res.severity,
+            },
+          }
+        })
+      )
+      setResults(apiResults)
+      // Still persist to context for dashboard/copilot
+      addPromptInjectionResult({
+        timestamp: Date.now(),
+        template: template.name,
+        severity: template.severity,
+        defense: selectedDefences.join(', '),
+        blocked: apiResults.some(r => r.result.blocked),
+        confidence: Math.max(...apiResults.map(r => r.result.confidence)),
+        latency: Math.max(...apiResults.map(r => r.result.latencyMs)),
+        payload: template.payload || customPayload,
+      })
+    } catch (err: any) {
+      console.error('Prompt injection test failed:', err)
+      // Fallback to local simulation if API fails
       const template = useCustom
         ? { ...selectedTemplate, payload: customPayload, systemPrompt: customSystemPrompt }
         : selectedTemplate
@@ -186,7 +228,6 @@ export default function PromptInjectionPlayground() {
         result: simulateDefence(template, defenceId),
       }))
       setResults(newResults)
-      // Persist results to shared LLM attack context for SOC Copilot
       newResults.forEach(({ defenceId, result }) => {
         addPromptInjectionResult({
           timestamp: Date.now(),
@@ -199,9 +240,10 @@ export default function PromptInjectionPlayground() {
           payload: template.payload.slice(0, 200),
         })
       })
+    } finally {
       setRunning(false)
-    }, 800 + Math.random() * 600)
-  }, [selectedTemplate, selectedDefences, useCustom, customPayload, customSystemPrompt])
+    }
+  }, [selectedTemplate, selectedDefences, useCustom, customPayload, customSystemPrompt, systemPrompt])
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text).catch(() => {})

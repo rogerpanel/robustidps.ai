@@ -1503,3 +1503,160 @@ export async function syncLLMAttackResults(summary: Record<string, unknown>) {
     // Silently fail — copilot will still work via local mode
   }
 }
+
+// ── LLM Attack Surface APIs ──────────────────────────────────────────
+
+export interface PromptInjectionTestRequest {
+  payload: string
+  system_prompt?: string
+  defenses: string[]
+  provider?: string
+  api_key?: string
+  model?: string
+  conversation_history?: { role: string; content: string }[]
+}
+
+export interface PromptInjectionResult {
+  blocked: boolean
+  defense_results: Record<string, any>
+  llm_response: string | null
+  confidence: number
+  latency_ms: number
+  provider: string
+  severity: string
+  matched_patterns: string[]
+}
+
+export async function testPromptInjection(req: PromptInjectionTestRequest): Promise<PromptInjectionResult> {
+  const resp = await authFetch(`${API}/api/llm-attacks/prompt-injection/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!resp.ok) throw new Error(`Prompt injection test failed: ${resp.status}`)
+  return resp.json()
+}
+
+export async function batchTestPromptInjection(payloads: string[], defenses: string[], provider = 'local', api_key = '', model = ''): Promise<PromptInjectionResult[]> {
+  const resp = await authFetch(`${API}/api/llm-attacks/prompt-injection/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payloads, defenses, provider, api_key, model }),
+  })
+  if (!resp.ok) throw new Error(`Batch test failed: ${resp.status}`)
+  return resp.json().then(d => d.results)
+}
+
+export interface JailbreakTestRequest {
+  technique_id: string
+  payload: string
+  target_action?: string
+  provider?: string
+  api_key?: string
+  model?: string
+}
+
+export interface JailbreakTestResult {
+  jailbreak_success: boolean
+  defense_blocked: boolean
+  llm_response: string | null
+  detection_confidence: number
+  bypass_analysis: string
+  severity: string
+  latency_ms: number
+}
+
+export async function testJailbreak(req: JailbreakTestRequest): Promise<JailbreakTestResult> {
+  const resp = await authFetch(`${API}/api/llm-attacks/jailbreak/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!resp.ok) throw new Error(`Jailbreak test failed: ${resp.status}`)
+  return resp.json()
+}
+
+export interface RAGPoisoningRequest {
+  query: string
+  documents?: { id: string; content: string; metadata?: Record<string, any>; poisoned?: boolean }[]
+  poison_payload?: string
+  attack_type?: string
+  defenses?: string[]
+  provider?: string
+  api_key?: string
+  model?: string
+}
+
+export interface RAGPoisoningResult {
+  retrieved_documents: { id: string; content: string; similarity_score: number; poisoned_detected: boolean; poisoning_indicators: string[] }[]
+  poison_detected: boolean
+  detection_confidence: number
+  defense_results: Record<string, any>
+  clean_response: string
+  poisoned_response: string
+  risk_level: string
+  latency_ms: number
+}
+
+export async function simulateRAGPoisoning(req: RAGPoisoningRequest): Promise<RAGPoisoningResult> {
+  const resp = await authFetch(`${API}/api/llm-attacks/rag-poisoning/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!resp.ok) throw new Error(`RAG poisoning simulation failed: ${resp.status}`)
+  return resp.json()
+}
+
+export async function scanDatasetForPoisoning(jobId: string): Promise<{ scanned_flows: number; suspicious_flows: any[]; risk_summary: string }> {
+  const resp = await authFetch(`${API}/api/llm-attacks/rag-poisoning/scan-dataset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: jobId }),
+  })
+  if (!resp.ok) throw new Error(`Dataset scan failed: ${resp.status}`)
+  return resp.json()
+}
+
+export interface MultiAgentRequest {
+  attack_payload: string
+  attack_type?: string
+  target_agent?: string
+  defenses_enabled?: boolean
+  agents?: { id: string; role: string; trust_level: number; capabilities: string[] }[]
+  provider?: string
+  api_key?: string
+  model?: string
+}
+
+export interface MultiAgentResult {
+  propagation_steps: { agent_id: string; received: string; compromised: boolean; output: string; trust_score: number; defense_action: string }[]
+  total_agents: number
+  compromised_agents: string[]
+  propagation_blocked: boolean
+  blocked_at_agent: string | null
+  chain_integrity_score: number
+  mitigations_applied: string[]
+  latency_ms: number
+  severity: string
+}
+
+export async function simulateMultiAgent(req: MultiAgentRequest): Promise<MultiAgentResult> {
+  const resp = await authFetch(`${API}/api/llm-attacks/multi-agent/simulate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!resp.ok) throw new Error(`Multi-agent simulation failed: ${resp.status}`)
+  return resp.json()
+}
+
+export async function scanLiveTraffic(flows: any[], scanType = 'all'): Promise<{ scanned_flows: number; llm_api_calls_detected: number; injection_attempts: any[]; summary: string }> {
+  const resp = await authFetch(`${API}/api/llm-attacks/scan-live-traffic`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flows, scan_type: scanType }),
+  })
+  if (!resp.ok) throw new Error(`Live traffic scan failed: ${resp.status}`)
+  return resp.json()
+}

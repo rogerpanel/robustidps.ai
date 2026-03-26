@@ -3,10 +3,11 @@ import {
   BookOpen, ChevronDown, ChevronUp, Shield, AlertTriangle,
   Zap, Target, Layers, Eye, Search, Filter,
   CheckCircle2, XCircle, ArrowRight, Lock, Unlock,
-  Brain, MessageSquare, Code2, Globe, Puzzle, Repeat,
+  Brain, MessageSquare, Code2, Globe, Puzzle, Repeat, Loader2,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { testJailbreak } from '../utils/api'
 
 /* ── Taxonomy data ───────────────────────────────────────────────────── */
 interface TechniqueVariant {
@@ -218,6 +219,8 @@ export default function JailbreakTaxonomy() {
   const [expandedTechnique, setExpandedTechnique] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
+  const [testingTech, setTestingTech] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<any>(null)
   const { addJailbreakFinding } = useLLMAttackResults()
   const loggedRef = useMemo(() => new Set<string>(), [])
 
