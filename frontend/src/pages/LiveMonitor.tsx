@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers, Zap, HardDrive, Search, Loader2 } from 'lucide-react'
+import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers, Zap, HardDrive, Search, Loader2, X } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
@@ -903,8 +903,8 @@ export default function LiveMonitor() {
       {(jobId || running) && (<>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
           <div className="flex items-center gap-3">
-            {captureMode === 'file' && !running ? (
-              <button onClick={startStream} disabled={done} className="flex items-center gap-2 px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80 disabled:opacity-50"><Play className="w-4 h-4" /> Start</button>
+            {captureMode === 'file' && !running && !done ? (
+              <button onClick={startStream} className="flex items-center gap-2 px-4 py-2 bg-accent-green text-white rounded-lg text-sm font-medium hover:bg-accent-green/80"><Play className="w-4 h-4" /> Start</button>
             ) : running ? (
               <button onClick={stopStream} className="flex items-center gap-2 px-4 py-2 bg-accent-red text-white rounded-lg text-sm font-medium hover:bg-accent-red/80"><Pause className="w-4 h-4" /> Stop</button>
             ) : null}
@@ -966,8 +966,49 @@ export default function LiveMonitor() {
           </div>
         </div>
 
-        {done && captureMode === 'file' && (
-          <div className="px-4 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">Stream complete — all flows processed.</div>
+        {done && events.length > 0 && (
+          <div className="bg-accent-green/5 border border-accent-green/30 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-accent-green" />
+                <span className="text-sm font-semibold text-accent-green">
+                  {captureMode === 'file' ? 'File Replay Complete' : 'Capture Complete'} — {events.length.toLocaleString()} flows processed
+                </span>
+              </div>
+              <span className="text-xs text-text-secondary">
+                {threatCount.toLocaleString()} threats · {benignCount.toLocaleString()} benign
+              </span>
+            </div>
+            <p className="text-xs text-text-secondary mb-3">
+              Results are retained for investigation. Scroll down to view the flow table, detection analytics, and LLM attack scan. Use the actions below or click Reset when done.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {!sentToUpload ? (
+                <button
+                  onClick={sendToUploadAnalyse}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue/15 text-accent-blue rounded-lg text-xs font-medium hover:bg-accent-blue/25 transition-colors"
+                >
+                  <Send className="w-3 h-3" /> Send to Upload &amp; Analyse
+                </button>
+              ) : (
+                <span className="text-xs text-accent-green flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Sent to Upload &amp; Analyse
+                </span>
+              )}
+              <button
+                onClick={() => setShowAnalytics(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-purple/15 text-accent-purple rounded-lg text-xs font-medium hover:bg-accent-purple/25 transition-colors"
+              >
+                <BarChart3 className="w-3 h-3" /> View Analytics
+              </button>
+              <button
+                onClick={resetAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-bg-card text-text-secondary rounded-lg text-xs hover:text-text-primary hover:border-accent-red/30 transition-colors ml-auto"
+              >
+                <X className="w-3 h-3" /> Clear &amp; Reset
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Live capture storage progress bar */}
