@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { simulateMultiAgent } from '../utils/api'
 
 /* ── Agent Definitions ───────────────────────────────────────────────── */
 interface Agent {
@@ -205,36 +206,74 @@ export default function MultiAgentChain() {
   const [completed, setCompleted] = useState(false)
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [defencesEnabled, setDefencesEnabled] = useState(false)
+  const [apiResult, setApiResult] = useState<any>(null)
 
-  const runSimulation = useCallback(() => {
+  const runSimulation = useCallback(async () => {
     if (!selectedAttack) return
     setRunning(true)
     setCurrentStep(0)
     setCompleted(false)
+    setApiResult(null)
 
-    const attack = selectedAttack
-    const defOn = defencesEnabled
-    let step = 0
-    const interval = setInterval(() => {
-      step++
-      setCurrentStep(step)
-      if (step >= attack.attackChain.length) {
-        clearInterval(interval)
-        setRunning(false)
-        setCompleted(true)
-        // Persist to shared LLM attack context for SOC Copilot
-        addMultiAgentResult({
-          timestamp: Date.now(),
-          attackScenario: attack.name,
-          severity: attack.severity,
-          compromisedAgents: attack.attackChain.filter(s => s.compromised).map(s => s.agent),
-          totalAgents: AGENTS.length,
-          attackSteps: attack.attackChain.length,
-          defensesEnabled: defOn,
-          mitigations: attack.mitigations,
-        })
-      }
-    }, 1200)
+    try {
+      // Call real backend for actual agent chain analysis
+      const result = await simulateMultiAgent({
+        attack_payload: selectedAttack.attackChain?.[0]?.message || selectedAttack.name,
+        attack_type: selectedAttack.id || 'injection_propagation',
+        target_agent: selectedAttack.attackChain?.[0]?.agent || 'coordinator',
+        defenses_enabled: defencesEnabled,
+      })
+
+      // Store the real results
+      setApiResult(result)
+
+      // Animate through steps (visual progression)
+      let step = 0
+      const totalSteps = result.propagation_steps.length
+      const interval = setInterval(() => {
+        step++
+        setCurrentStep(step)
+        if (step >= totalSteps) {
+          clearInterval(interval)
+          setRunning(false)
+          setCompleted(true)
+          addMultiAgentResult({
+            timestamp: Date.now(),
+            attackScenario: selectedAttack.name,
+            severity: result.severity,
+            compromisedAgents: result.compromised_agents,
+            totalAgents: result.total_agents,
+            attackSteps: totalSteps,
+            defensesEnabled: defencesEnabled,
+            mitigations: result.mitigations_applied,
+          })
+        }
+      }, 800)
+    } catch (err: any) {
+      console.error('Multi-agent simulation failed:', err)
+      // FALLBACK to existing animation logic
+      let step = 0
+      const attack = selectedAttack
+      const interval = setInterval(() => {
+        step++
+        setCurrentStep(step)
+        if (step >= attack.attackChain.length) {
+          clearInterval(interval)
+          setRunning(false)
+          setCompleted(true)
+          addMultiAgentResult({
+            timestamp: Date.now(),
+            attackScenario: attack.name,
+            severity: attack.severity,
+            compromisedAgents: attack.attackChain.filter((s: any) => s.compromised).map((s: any) => s.agent),
+            totalAgents: AGENTS.length,
+            attackSteps: attack.attackChain.length,
+            defensesEnabled: defencesEnabled,
+            mitigations: attack.mitigations || [],
+          })
+        }
+      }, 1200)
+    }
   }, [selectedAttack, defencesEnabled, addMultiAgentResult])
 
   const resetSimulation = useCallback(() => {
@@ -575,6 +614,33 @@ export default function MultiAgentChain() {
                       <Shield className="w-4 h-4 text-accent-green shrink-0" />
                       <span className="text-xs text-accent-green">Defence mechanisms would block compromised steps in a protected system</span>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {completed && apiResult && (
+                <div className="bg-bg-card rounded-xl border border-bg-card p-4 mt-4">
+                  <h3 className="text-sm font-semibold text-text-primary mb-3">Backend Analysis Results</h3>
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div className="p-2 bg-bg-secondary rounded-lg">
+                      <div className="text-text-secondary">Chain Integrity</div>
+                      <div className="text-lg font-bold" style={{color: apiResult.chain_integrity_score > 0.7 ? '#22C55E' : apiResult.chain_integrity_score > 0.3 ? '#F59E0B' : '#EF4444'}}>
+                        {(apiResult.chain_integrity_score * 100).toFixed(0)}%
+                      </div>
+                    </div>
+                    <div className="p-2 bg-bg-secondary rounded-lg">
+                      <div className="text-text-secondary">Compromised</div>
+                      <div className="text-lg font-bold text-accent-red">{apiResult.compromised_agents.length}/{apiResult.total_agents}</div>
+                    </div>
+                    <div className="p-2 bg-bg-secondary rounded-lg">
+                      <div className="text-text-secondary">Propagation</div>
+                      <div className="text-lg font-bold" style={{color: apiResult.propagation_blocked ? '#22C55E' : '#EF4444'}}>
+                        {apiResult.propagation_blocked ? 'Blocked' : 'Spread'}
+                      </div>
+                    </div>
+                  </div>
+                  {apiResult.propagation_blocked && apiResult.blocked_at_agent && (
+                    <div className="mt-2 text-xs text-accent-green">Attack contained at: {apiResult.blocked_at_agent}</div>
                   )}
                 </div>
               )}

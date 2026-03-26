@@ -200,10 +200,52 @@ export default function RAGPoisoning() {
     )
   }, [])
 
-  const runSimulation = useCallback(() => {
+  const runSimulation = useCallback(async () => {
     if (!query.trim()) return
     setRunning(true)
-    setTimeout(() => {
+    setSimResult(null)
+    const t0 = Date.now()
+    try {
+      const docs = kbDocuments.map((d: any) => ({
+        id: d.id,
+        content: d.content,
+        metadata: d.metadata || {},
+        poisoned: d.poisoned || false,
+      }))
+
+      const result = await simulateRAGPoisoning({
+        query,
+        documents: docs,
+        poison_payload: selectedAttack?.poisonedDocument || '',
+        attack_type: selectedAttack?.id || 'document_injection',
+        defenses: activeDefences,
+        provider: 'local',
+      })
+
+      setSimResult({
+        poisonDetected: result.poison_detected,
+        defencesTriggered: result.defense_results,
+        retrievedDocs: result.retrieved_documents,
+        response: result.poisoned_response || result.clean_response,
+        confidence: result.detection_confidence,
+        risk: result.risk_level,
+      })
+
+      // Persist to shared context
+      addRAGPoisoningResult({
+        timestamp: Date.now(),
+        attackType: selectedAttack?.name || 'Unknown',
+        severity: selectedAttack?.severity || 'medium',
+        riskLevel: result.risk_level,
+        confidence: result.detection_confidence,
+        defensesActive: activeDefences,
+        poisonedDocuments: docs.filter((d: any) => d.poisoned).length,
+        cleanResponse: result.clean_response,
+        poisonedResponse: result.poisoned_response,
+      })
+    } catch (err: any) {
+      console.error('RAG simulation failed:', err)
+      // FALLBACK: keep existing local simulation logic so page works without backend
       const hasPoisonedDocs = kbDocuments.some(d => d.poisoned)
       const totalDefenceScore = activeDefences.reduce((sum, id) => {
         const def = DEFENCES.find(d => d.id === id)
@@ -247,7 +289,6 @@ export default function RAGPoisoning() {
         confidence: confidenceVal,
         risk,
       })
-      // Persist to shared LLM attack context for SOC Copilot
       addRAGPoisoningResult({
         timestamp: Date.now(),
         attackType: selectedAttack?.name ?? 'Unknown',
@@ -259,9 +300,10 @@ export default function RAGPoisoning() {
         cleanResponse: selectedAttack?.cleanResponse ?? '',
         poisonedResponse: selectedAttack?.poisonedResponse ?? '',
       })
+    } finally {
       setRunning(false)
-    }, 1000 + Math.random() * 500)
-  }, [query, kbDocuments, activeDefences, selectedAttack])
+    }
+  }, [query, kbDocuments, activeDefences, selectedAttack, addRAGPoisoningResult])
 
   return (
     <div className="space-y-6">
