@@ -126,10 +126,20 @@ export default function Copilot() {
 
   // Sync LLM attack results to backend on mount and when results change
   const syncedRef = useRef<number | null>(null)
+  const [llmSyncStatus, setLlmSyncStatus] = useState<'idle' | 'syncing' | 'synced' | 'error'>('idle')
   useEffect(() => {
     if (llmAttackLastUpdated && llmAttackLastUpdated !== syncedRef.current) {
       syncedRef.current = llmAttackLastUpdated
+      setLlmSyncStatus('syncing')
       syncLLMAttackResults(getCondensedSummary())
+        .then(() => {
+          setLlmSyncStatus('synced')
+          setTimeout(() => setLlmSyncStatus('idle'), 3000)
+        })
+        .catch(() => {
+          setLlmSyncStatus('error')
+          setTimeout(() => setLlmSyncStatus('idle'), 5000)
+        })
     }
   }, [llmAttackLastUpdated, getCondensedSummary])
 
@@ -573,6 +583,15 @@ export default function Copilot() {
               {ctx.label}
             </button>
           ))}
+          {llmSyncStatus === 'syncing' && (
+            <span className="text-[9px] text-accent-blue animate-pulse">syncing results...</span>
+          )}
+          {llmSyncStatus === 'synced' && (
+            <span className="text-[9px] text-accent-green">results synced</span>
+          )}
+          {llmSyncStatus === 'error' && (
+            <span className="text-[9px] text-accent-red">sync failed</span>
+          )}
         </div>
 
         {/* Right scroll arrow */}

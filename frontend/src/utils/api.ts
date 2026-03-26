@@ -1499,8 +1499,9 @@ export async function syncLLMAttackResults(summary: Record<string, unknown>) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ summary }),
     });
-  } catch {
-    // Silently fail — copilot will still work via local mode
+  } catch (err) {
+    console.warn('[LLM Attack Sync] Failed to sync results to backend:', err)
+    throw err
   }
 }
 

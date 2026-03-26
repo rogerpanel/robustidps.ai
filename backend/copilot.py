@@ -1175,7 +1175,7 @@ async def store_llm_attack_results(req: dict, user: User = Depends(require_auth)
 
     stored = []
     for page_key, page_data in page_map.items():
-        if page_data:
+        if page_data is not None:
             cache_key = (uid, f"llm_{page_key}")
             _main._completed_results[cache_key] = {
                 "job_id": f"llm_{page_key}_{uid or 'anon'}",
