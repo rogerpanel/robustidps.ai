@@ -5,6 +5,7 @@ import {
   GitCompare, Plus, RefreshCw, AlertTriangle, BarChart3, FileCode,
   Shield,
 } from 'lucide-react'
+import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 import {
   fetchTasks, fetchTask, deleteTask,
   fetchExperiments, createExperiment, deleteExperiment, updateExperiment,
@@ -16,12 +17,14 @@ import {
 
 // ── Tab navigation ──────────────────────────────────────────────────────
 
-type Tab = 'tasks' | 'experiments' | 'reports'
+type Tab = 'tasks' | 'experiments' | 'reports' | 'llm_security' | 'publications'
 
 const TABS: { key: Tab; label: string; icon: typeof Clock }[] = [
   { key: 'tasks', label: 'Job Queue', icon: Clock },
   { key: 'experiments', label: 'Experiments', icon: FlaskConical },
   { key: 'reports', label: 'Reports & Export', icon: FileText },
+  { key: 'llm_security', label: 'LLM Security Lab', icon: Shield },
+  { key: 'publications', label: 'Publications', icon: FileText },
 ]
 
 // ── Status badge ────────────────────────────────────────────────────────
@@ -649,6 +652,129 @@ function ReportsTab() {
   )
 }
 
+// ── LLM Security Lab Tab ────────────────────────────────────────────────
+
+function LLMSecurityLabTab() {
+  const {
+    promptInjection, jailbreakFindings, ragPoisoning, multiAgent,
+    getCondensedSummary, lastUpdated,
+  } = useLLMAttackResults()
+
+  const summary = getCondensedSummary()
+  const pi = summary.prompt_injection || {}
+  const jb = summary.jailbreak_taxonomy || {}
+  const rp = summary.rag_poisoning || {}
+  const ma = summary.multi_agent || {}
+
+  const hasData = (pi.total_tests || 0) + (jb.techniques_analyzed || 0) + (rp.total_simulations || 0) + (ma.total_scenarios || 0) > 0
+
+  return (
+    <div className="space-y-4">
+      <p className="text-text-secondary text-xs">
+        Aggregated security posture from all 4 LLM Attack Surface testing modules. Run tests on the individual pages to populate this dashboard.
+      </p>
+
+      {!hasData ? (
+        <div className="text-center py-12 text-text-secondary text-sm">
+          <Shield className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          No LLM security test results yet. Run tests on Prompt Injection, Jailbreak Taxonomy, RAG Poisoning, or Multi-Agent Chain pages first.
+        </div>
+      ) : (
+        <>
+          {/* Overview Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-bg-card border border-bg-card rounded-lg p-3">
+              <div className="text-[10px] text-text-secondary uppercase tracking-wider">Prompt Injection</div>
+              <div className="text-xl font-display font-bold text-accent-orange mt-1">{pi.total_tests || 0}</div>
+              <div className="text-[10px] text-text-secondary">
+                {pi.blocked || 0} blocked · {pi.bypassed || 0} bypassed
+              </div>
+              {(pi.block_rate ?? 0) > 0 && (
+                <div className="mt-1 h-1.5 bg-bg-primary rounded-full overflow-hidden">
+                  <div className="h-full bg-accent-green rounded-full" style={{ width: `${(pi.block_rate * 100).toFixed(0)}%` }} />
+                </div>
+              )}
+            </div>
+            <div className="bg-bg-card border border-bg-card rounded-lg p-3">
+              <div className="text-[10px] text-text-secondary uppercase tracking-wider">Jailbreak Techniques</div>
+              <div className="text-xl font-display font-bold text-accent-amber mt-1">{jb.techniques_analyzed || 0}</div>
+              <div className="text-[10px] text-text-secondary">
+                {(jb.categories || []).length} categories analyzed
+              </div>
+            </div>
+            <div className="bg-bg-card border border-bg-card rounded-lg p-3">
+              <div className="text-[10px] text-text-secondary uppercase tracking-wider">RAG Poisoning</div>
+              <div className="text-xl font-display font-bold text-accent-red mt-1">{rp.total_simulations || 0}</div>
+              <div className="text-[10px] text-text-secondary">
+                {rp.high_risk || 0} high risk · {rp.mitigated || 0} mitigated
+              </div>
+            </div>
+            <div className="bg-bg-card border border-bg-card rounded-lg p-3">
+              <div className="text-[10px] text-text-secondary uppercase tracking-wider">Multi-Agent Chain</div>
+              <div className="text-xl font-display font-bold text-accent-purple mt-1">{ma.total_scenarios || 0}</div>
+              <div className="text-[10px] text-text-secondary">
+                {ma.agents_compromised || 0}/{ma.agents_total || 0} agents compromised
+              </div>
+            </div>
+          </div>
+
+          {/* Defense Effectiveness Summary */}
+          {(pi.total_tests || 0) > 0 && (
+            <div className="bg-bg-card border border-bg-card rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                <Shield className="w-4 h-4 text-accent-green" />
+                Defense Effectiveness — Prompt Injection
+              </h3>
+              <div className="grid grid-cols-3 gap-3 text-xs">
+                <div className="p-2 bg-bg-secondary rounded-lg text-center">
+                  <div className="text-lg font-bold text-accent-green">{((pi.block_rate || 0) * 100).toFixed(0)}%</div>
+                  <div className="text-text-secondary">Block Rate</div>
+                </div>
+                <div className="p-2 bg-bg-secondary rounded-lg text-center">
+                  <div className="text-lg font-bold text-text-primary">{((pi.avg_confidence || 0) * 100).toFixed(0)}%</div>
+                  <div className="text-text-secondary">Avg Confidence</div>
+                </div>
+                <div className="p-2 bg-bg-secondary rounded-lg text-center">
+                  <div className="text-lg font-bold text-accent-red">{pi.critical_bypasses || 0}</div>
+                  <div className="text-text-secondary">Critical Bypasses</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Recent Test Results */}
+          {promptInjection.length > 0 && (
+            <div className="bg-bg-card border border-bg-card rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-text-primary mb-3">Recent Prompt Injection Tests</h3>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {promptInjection.slice(-10).reverse().map((r, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 bg-bg-secondary rounded-lg text-xs">
+                    <span className={`w-2 h-2 rounded-full ${r.blocked ? 'bg-accent-green' : 'bg-accent-red'}`} />
+                    <span className="text-text-primary font-medium flex-1 truncate">{r.template}</span>
+                    <span className="text-text-secondary">{r.defense}</span>
+                    <span className="text-text-secondary">{r.confidence}%</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                      r.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
+                      r.severity === 'high' ? 'bg-accent-amber/20 text-accent-amber' :
+                      'bg-accent-blue/20 text-accent-blue'
+                    }`}>{r.severity}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {lastUpdated && (
+            <p className="text-[10px] text-text-secondary text-right">
+              Last updated: {new Date(lastUpdated).toLocaleString()}
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page Component ─────────────────────────────────────────────────
 
 export default function ResearchHub() {
@@ -685,6 +811,7 @@ export default function ResearchHub() {
       {tab === 'tasks' && <TaskQueueTab />}
       {tab === 'experiments' && <ExperimentsTab />}
       {tab === 'reports' && <ReportsTab />}
+      {tab === 'llm_security' && <LLMSecurityLabTab />}
     </div>
   )
 }
