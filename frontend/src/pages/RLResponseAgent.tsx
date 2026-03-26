@@ -10,6 +10,7 @@ import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
 import PageGuide from '../components/PageGuide'
 import { registerSessionReset } from '../utils/sessionReset'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 const ACTION_ICONS = [Eye, Activity, Zap, Ban, Lock]
 const ACTION_COLORS = ['#22C55E', '#3B82F6', '#F59E0B', '#EF4444', '#A855F7']
@@ -53,6 +54,7 @@ export default function RLResponseAgent() {
   const [savedExperiment, _setSavedExperiment] = useState(_store.savedExperiment)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const { addNotice, updateNotice } = useNoticeBoard()
 
   const setFile = (f: File | null) => { _store.file = f; _setFile(f) }
   const setNumEpisodes = (v: number) => { _store.numEpisodes = v; _setNumEpisodes(v) }

@@ -7,6 +7,7 @@ import {
 import PageGuide from '../components/PageGuide'
 import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { testPromptInjection } from '../utils/api'
 
 /* ── Attack template library ─────────────────────────────────────────── */
@@ -161,6 +162,7 @@ export default function PromptInjectionPlayground() {
   const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
 
   const { addPromptInjectionResult } = useLLMAttackResults()
+  const { addNotice, updateNotice } = useNoticeBoard()
 
   const activePayload = useCustom ? customPayload : selectedTemplate.payload
   const activeSystemPrompt = useCustom ? customSystemPrompt : selectedTemplate.systemPrompt
@@ -180,6 +182,7 @@ export default function PromptInjectionPlayground() {
   const runEvaluation = useCallback(async () => {
     setRunning(true)
     setResults([])
+    const nid = addNotice({ title: 'Prompt Injection Test', description: `Testing ${selectedDefences.length} defences...`, status: 'running', page: '/prompt-injection' })
     try {
       const template = useCustom
         ? { id: 'custom', name: 'Custom', payload: customPayload, severity: 'medium', category: 'Custom' }
@@ -207,6 +210,7 @@ export default function PromptInjectionPlayground() {
         })
       )
       setResults(apiResults)
+      updateNotice(nid, { status: 'completed', description: `${apiResults.filter(r => r.result.blocked).length}/${apiResults.length} attacks blocked` })
       // Still persist to context for dashboard/copilot
       addPromptInjectionResult({
         timestamp: Date.now(),
@@ -229,6 +233,7 @@ export default function PromptInjectionPlayground() {
         result: simulateDefence(template, defenceId),
       }))
       setResults(newResults)
+      updateNotice(nid, { status: 'completed', description: 'Completed (fallback mode)' })
       newResults.forEach(({ defenceId, result }) => {
         addPromptInjectionResult({
           timestamp: Date.now(),
@@ -244,7 +249,7 @@ export default function PromptInjectionPlayground() {
     } finally {
       setRunning(false)
     }
-  }, [selectedTemplate, selectedDefences, useCustom, customPayload, customSystemPrompt, activeSystemPrompt, addPromptInjectionResult, llmProvider, llmApiKey])
+  }, [selectedTemplate, selectedDefences, useCustom, customPayload, customSystemPrompt, activeSystemPrompt, addPromptInjectionResult, llmProvider, llmApiKey, addNotice, updateNotice])
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text).catch(() => {})
