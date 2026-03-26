@@ -369,16 +369,42 @@ export default function AdversarialRobustness() {
               <Zap className="w-5 h-5 text-accent-amber" />
               Robustness Evaluation
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              {/* Drag & Drop File Upload */}
               <div>
-                <label className="text-xs text-text-secondary block mb-1">Traffic Data (.csv)</label>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".csv,.pcap,.pcapng"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="w-full text-sm text-text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-accent-blue/15 file:text-accent-blue hover:file:bg-accent-blue/25 cursor-pointer"
-                />
+                {file ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-green/30 bg-accent-green/5">
+                    <FileText className="w-4 h-4 text-accent-green shrink-0" />
+                    <span className="text-xs font-mono truncate flex-1">{file.name}</span>
+                    <button onClick={() => setFile(null)} className="text-text-secondary hover:text-text-primary">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-accent-blue', 'bg-accent-blue/10'); e.currentTarget.classList.remove('border-bg-card') }}
+                    onDragLeave={(e) => { e.currentTarget.classList.remove('border-accent-blue', 'bg-accent-blue/10'); e.currentTarget.classList.add('border-bg-card') }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.currentTarget.classList.remove('border-accent-blue', 'bg-accent-blue/10')
+                      e.currentTarget.classList.add('border-bg-card')
+                      const f = e.dataTransfer.files[0]
+                      if (f) setFile(f)
+                    }}
+                    className="flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-lg border-2 border-dashed border-bg-card hover:border-text-secondary cursor-pointer transition-colors"
+                  >
+                    <Upload className="w-5 h-5 text-text-secondary" />
+                    <span className="text-[10px] text-text-secondary">Drop or click to upload</span>
+                    <span className="text-[9px] text-text-secondary/60">.csv .pcap .pcapng</span>
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept=".csv,.pcap,.pcapng"
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
               <div>
                 <label className="text-xs text-text-secondary block mb-1">Target Model</label>
