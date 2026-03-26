@@ -487,6 +487,37 @@ export default function RLResponseAgent() {
 
           {/* Multi-dataset comparison results */}
           {multiResults.length > 0 && (
+            <>
+            {/* CMDP Action Space — Multi-Dataset */}
+            <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+              <h2 className="text-lg font-display font-semibold mb-3">CMDP Action Space — Multi-Dataset</h2>
+              <div className="grid grid-cols-5 gap-2">
+                {ACTION_NAMES.map((name, i) => {
+                  const Icon = ACTION_ICONS[i]
+                  return (
+                    <div key={name} className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                      <Icon className="w-5 h-5 mx-auto mb-1" style={{ color: ACTION_COLORS[i] }} />
+                      <div className="text-xs font-medium">{name}</div>
+                      <div className="text-[10px] text-text-secondary">Severity: {[0, 0.5, 1, 2, 5][i]}</div>
+                      <div className="mt-1.5 space-y-0.5">
+                        {multiResults.map((r, ri) => {
+                          const count = r.action_distribution?.[name] ?? 0
+                          const total = r.total_steps ?? 1
+                          return (
+                            <div key={ri} className="flex items-center gap-1 justify-center text-[10px]">
+                              <div className="w-1.5 h-1.5 rounded-full" style={{ background: ['#3B82F6', '#A855F7', '#22C55E'][ri] }} />
+                              <span className="font-mono" style={{ color: ACTION_COLORS[i] }}>{count}</span>
+                              <span className="text-text-secondary">({((count / total) * 100).toFixed(0)}%)</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
             <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
               <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
                 <BarChart3 className="w-5 h-5 text-accent-green" />
@@ -546,6 +577,7 @@ export default function RLResponseAgent() {
                 </div>
               </div>
             </div>
+            </>
           )}
         </div>
       )}
