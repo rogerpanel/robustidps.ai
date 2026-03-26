@@ -224,10 +224,10 @@ export default function RAGPoisoning() {
 
       setSimResult({
         poisonDetected: result.poison_detected,
-        defencesTriggered: result.defense_results,
-        retrievedDocs: result.retrieved_documents,
+        defencesTriggered: Object.keys(result.defense_results || {}).filter(k => result.defense_results[k]?.blocked),
+        retrievedDocs: (result.retrieved_documents || []).map((d: any) => typeof d === 'string' ? d : (d.id || d.content || JSON.stringify(d))),
         response: result.poisoned_response || result.clean_response,
-        confidence: result.detection_confidence,
+        confidence: Math.round((result.detection_confidence ?? 0) * 100),
         risk: result.risk_level,
       })
 
