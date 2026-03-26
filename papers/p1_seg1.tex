@@ -1,0 +1,279 @@
+% === BEGIN SEGMENT 1 ===
+\documentclass[journal,twoside]{IEEEtran}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{balance}
+
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+
+\begin{document}
+
+\title{RobustIDPS: An Adversarially Robust Intrusion Detection System with Continual Learning and Constrained Reinforcement Learning for Autonomous Response}
+
+\author{
+  \IEEEauthorblockN{Roger Nick Anaedevha}
+  \IEEEauthorblockA{National Research Nuclear University MEPhI\\
+  Moscow, Russia\\
+  roger@robustidps.ai}
+}
+
+\maketitle
+
+% ---------------------------------------------------------------
+% ABSTRACT
+% ---------------------------------------------------------------
+\begin{abstract}
+Modern network intrusion detection and prevention systems (IDPS) face compounding
+challenges: rapidly evolving attack landscapes, adversarial evasion of
+machine-learning classifiers, distributional drift in production traffic, and the
+need for timely autonomous response without excessive false-positive disruption.
+We present \textsc{RobustIDPS}, a unified framework that addresses all four
+challenges simultaneously. At its core, a seven-branch surrogate ensemble
+augmented with Monte Carlo dropout uncertainty estimation ($T{=}20$ stochastic
+forward passes) classifies 83 engineered features into 34 attack classes.
+Continual learning is achieved through Elastic Weight Consolidation (EWC)
+combined with experience replay, sharing a unified Fisher information framework
+with adversarial robustness via a balancing coefficient $\beta{=}0.7$.
+A Constrained Policy Optimization (CPO) agent maps detector outputs to five
+graduated response actions---Monitor, Rate-Limit, Reset, Block, and
+Quarantine---while satisfying user-specified safety constraints on
+false-positive-induced service disruption. Adversarial robustness is
+systematically evaluated against six attack families: FGSM, PGD, C\&W,
+DeepFool, Gaussian noise, and label-masking poisoning. For distributed
+deployment, we introduce FedGTD, a Byzantine-resilient federated learning
+protocol based on geometric trimmed deviation that tolerates up to 30\%
+malicious participants. Temporal traffic dynamics are captured by a
+Stochastic Differential Equation--Temporal Graph Neural Network (SDE-TGNN).
+Comprehensive experiments on CICIDS2017, NSL-KDD, CIC-IoT-2023, and
+UNSW-NB15 demonstrate that \textsc{RobustIDPS} achieves a macro-averaged
+F1 score of 0.967 under clean conditions, degrades by less than 3.1\% under
+the strongest PGD-40 attack ($\epsilon{=}0.03$), and maintains above 0.94 F1
+after five sequential concept-drift episodes without catastrophic forgetting.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Intrusion detection, adversarial robustness, continual learning, constrained
+reinforcement learning, federated learning, graph neural networks
+\end{IEEEkeywords}
+
+% ---------------------------------------------------------------
+% I. INTRODUCTION
+% ---------------------------------------------------------------
+\section{Introduction}
+\label{sec:introduction}
+
+The proliferation of sophisticated cyber threats has rendered signature-based
+intrusion detection systems (IDS) increasingly inadequate for protecting
+enterprise and critical-infrastructure networks~\cite{khraisat2019survey}.
+Machine learning (ML) approaches have demonstrated considerable promise in
+detecting both known and zero-day attacks by learning discriminative
+representations from network telemetry~\cite{buczak2016survey,
+aldweesh2020deep}. Yet, the deployment of ML-based network intrusion detection
+systems (NIDS) in adversarial environments exposes fundamental vulnerabilities
+that remain largely unresolved.
+
+First, ML classifiers are susceptible to adversarial examples---small,
+deliberately crafted perturbations that cause misclassification while remaining
+within the feasible feature space of network
+traffic~\cite{goodfellow2015explaining, carlini2017towards}. An attacker who
+understands the feature extraction pipeline can evade detection with
+perturbations imperceptible to rule-based audit~\cite{hashemi2019towards}.
+Second, network traffic distributions are inherently non-stationary: new
+applications, protocols, and attack toolkits continuously shift the data
+manifold, causing concept drift that degrades deployed
+models~\cite{jordaney2017transcend}. Periodic retraining from scratch is
+expensive and discards previously learned structure. Third, even an accurate
+detector is of limited operational value without a principled response
+mechanism; manual incident response cannot scale to the volume and velocity
+of modern attacks~\cite{nguyen2021deep}. Fourth, privacy regulations and
+organizational boundaries demand that detection models be trainable across
+distributed sites without centralizing raw traffic, yet na\"ive federated
+learning is vulnerable to Byzantine participants submitting poisoned
+gradients~\cite{blanchard2017machine}.
+
+Despite a rich literature on individual aspects---adversarial ML for
+security~\cite{apruzzese2023real}, continual
+learning~\cite{delange2021continual}, reinforcement learning (RL) for cyber
+defense~\cite{nguyen2021deep}, and federated
+learning~\cite{mcmahan2017communication}---no existing system integrates all
+four capabilities within a coherent, theoretically grounded framework. This
+fragmentation forces practitioners to assemble ad-hoc pipelines whose
+component interactions are neither analyzed nor optimized.
+
+\textsc{RobustIDPS} fills this gap. Our key insight is that the Fisher
+information matrix, central to both EWC-based continual
+learning~\cite{kirkpatrick2017overcoming} and curvature-aware adversarial
+training~\cite{wu2020adversarial}, can serve as a \emph{unified} regularization
+backbone. By sharing Fisher estimates across the continual-learning and
+adversarial-robustness objectives through a single balancing coefficient
+$\beta$, we eliminate redundant computation and expose a principled
+accuracy--robustness--plasticity trade-off.
+
+The principal contributions of this work are:
+
+\begin{enumerate}
+  \item A \textbf{seven-branch surrogate ensemble} architecture with MC dropout
+        uncertainty quantification ($T{=}20$), providing calibrated confidence
+        estimates that inform both the RL response agent and the federated
+        aggregation protocol.
+
+  \item A \textbf{unified Fisher information framework} ($\beta{=}0.7$) that
+        jointly governs EWC continual learning with experience replay and
+        curvature-aware adversarial training, enabling graceful
+        accuracy--robustness--plasticity trade-offs without catastrophic
+        forgetting.
+
+  \item A \textbf{Constrained Policy Optimization (CPO)} response agent that
+        maps detector outputs to five graduated actions (Monitor, Rate-Limit,
+        Reset, Block, Quarantine) while satisfying hard safety constraints on
+        service disruption from false positives.
+
+  \item Systematic \textbf{adversarial robustness} evaluation against six
+        attack families (FGSM, PGD, C\&W, DeepFool, Gaussian noise,
+        label-masking poisoning), demonstrating less than 3.1\% F1 degradation
+        under PGD-40 at $\epsilon{=}0.03$.
+
+  \item \textbf{FedGTD}, a Byzantine-resilient federated aggregation protocol
+        based on geometric trimmed deviation that tolerates up to 30\% malicious
+        participants while preserving convergence guarantees.
+
+  \item An \textbf{SDE-TGNN} module that captures temporal traffic dynamics
+        through stochastic differential equations over a temporal graph,
+        improving detection of slow-probe and multi-stage attacks.
+\end{enumerate}
+
+We evaluate \textsc{RobustIDPS} on four widely used benchmarks---CICIDS2017,
+NSL-KDD, CIC-IoT-2023, and UNSW-NB15---spanning 83 engineered features and 34
+attack classes, and demonstrate state-of-the-art results across clean accuracy,
+adversarial robustness, continual-learning stability, and response optimality.
+
+% ---------------------------------------------------------------
+% II. RELATED WORK
+% ---------------------------------------------------------------
+\section{Related Work}
+\label{sec:related_work}
+
+\subsection{ML-Based Intrusion Detection Systems}
+\label{sec:rw_ml_ids}
+
+Classical ML approaches to network intrusion detection include random
+forests~\cite{zhang2008random}, support vector
+machines~\cite{mukkamala2002intrusion}, and gradient-boosted
+trees~\cite{dhaliwal2018effective}. While effective on stationary benchmarks,
+these methods rely on hand-crafted features and exhibit limited capacity to
+model complex inter-feature dependencies. Deep learning architectures---CNNs
+applied to flow images~\cite{wang2017malware}, LSTMs over packet
+sequences~\cite{yin2017deep}, and autoencoders for anomaly
+detection~\cite{mirsky2018kitsune}---have progressively improved detection
+performance. More recently, transformer-based models have shown strong results
+on CICIDS2017 and UNSW-NB15~\cite{wu2022rtids, ferriyan2022deep}. Ensemble
+strategies that combine heterogeneous base learners further improve robustness
+to feature noise~\cite{gao2019adaptive}. However, none of these works
+systematically address adversarial evasion, concept drift, or autonomous
+response selection within a single framework.
+
+Graph neural networks (GNNs) have gained attention for host-level and
+network-level intrusion detection by representing communication patterns as
+graphs~\cite{lo2022graphsage, chang2021graph}. Temporal extensions such as
+EvolveGCN~\cite{pareja2020evolvegcn} and TGAT~\cite{xu2020inductive} model
+time-varying topologies. Our SDE-TGNN advances this line by incorporating
+stochastic differential equations to capture the continuous-time evolution of
+traffic graphs under uncertainty.
+
+\subsection{Continual Learning for Non-Stationary Environments}
+\label{sec:rw_cl}
+
+Continual learning aims to acquire new knowledge without catastrophic
+forgetting of previous tasks~\cite{delange2021continual}. Three dominant
+strategies exist: regularization-based methods such as EWC~\cite{kirkpatrick2017overcoming}
+and Synaptic Intelligence~\cite{zenke2017continual}, replay-based methods
+including experience replay~\cite{rolnick2019experience} and generative
+replay~\cite{shin2017continual}, and architecture-based methods like
+Progressive Neural Networks~\cite{rusu2016progressive}. In the cybersecurity
+domain, Andresini et al.~\cite{andresini2021insomnia} applied class-incremental
+learning to malware detection, and Barbero et al.~\cite{barbero2022transcending}
+demonstrated that EWC mitigates drift-induced degradation in NIDS. However,
+existing works treat continual learning in isolation from adversarial robustness.
+\textsc{RobustIDPS} unifies these objectives by sharing Fisher information
+between the EWC penalty and curvature-aware adversarial training, eliminating
+the need for independent regularization hyperparameters.
+
+\subsection{RL for Autonomous Cyber Defense}
+\label{sec:rw_rl}
+
+Reinforcement learning has been explored for automated network defense in
+simulated environments such as CyberBattleSim~\cite{msft2021cyberbattlesim}
+and CAGE Challenge~\cite{cage2022}. Nguyen et al.~\cite{nguyen2021deep}
+surveyed deep RL applications in cybersecurity, noting the gap between
+simulated success and real-world deployment. Existing approaches typically use
+unconstrained policy gradient methods~\cite{elderman2017adversarial,
+foley2023autonomous}, which may select aggressive responses (e.g., full
+quarantine) that cause unacceptable service disruption. Constrained Markov
+Decision Processes (CMDPs)~\cite{altman1999constrained} provide a principled
+framework for bounding such costs. Achiam et al.~\cite{achiam2017constrained}
+proposed CPO, which guarantees near-constraint satisfaction at every policy
+update. We adapt CPO to the IDPS response domain, defining cost functions over
+false-positive-induced disruption and demonstrating that constraint enforcement
+yields superior operational trade-offs compared to unconstrained baselines
+and reward-shaping heuristics.
+
+\subsection{Adversarial Robustness in NIDS}
+\label{sec:rw_adv}
+
+Adversarial attacks on NIDS have been demonstrated across both feature-space
+and problem-space threat models~\cite{hashemi2019towards, apruzzese2023real}.
+Goodfellow et al.~\cite{goodfellow2015explaining} introduced FGSM, and
+Madry et al.~\cite{madry2018towards} proposed PGD as a stronger iterative
+variant. Carlini and Wagner~\cite{carlini2017towards} developed optimization-based
+attacks that minimize perturbation magnitude. In the IDS context,
+Peng et al.~\cite{peng2019adversarial} showed that adversarial training
+improves robustness on NSL-KDD, while Debicha et al.~\cite{debicha2023adv}
+evaluated GAN-based evasion on CICIDS2017. A persistent limitation is that
+adversarial training degrades clean accuracy~\cite{tsipras2019robustness}
+and interacts poorly with continual-learning regularization. Our unified Fisher
+framework addresses this by modulating the curvature penalty jointly across
+both objectives, achieving Pareto-superior accuracy--robustness trade-offs
+(Section~\ref{sec:fisher_framework}).
+
+Label-flipping and data poisoning attacks represent a complementary threat
+axis~\cite{biggio2012poisoning, shafahi2018poison}. We evaluate
+\textsc{RobustIDPS} against label-masking poisoning, in which an adversary
+corrupts a fraction of training labels during federated rounds, and show that
+FedGTD's geometric trimming neutralizes up to 30\% poisoned participants
+without significant accuracy loss.
+
+\subsection{Federated Learning for Distributed IDS}
+\label{sec:rw_fl}
+
+Federated learning enables collaborative model training without sharing raw
+data~\cite{mcmahan2017communication}. In the IDS domain, Nguyen et al.~\cite{nguyen2019diot}
+applied federated learning to IoT anomaly detection, and
+Popoola et al.~\cite{popoola2021federated} evaluated FedAvg on CICIDS2017
+partitions. Byzantine robustness remains a critical concern: Blanchard
+et al.~\cite{blanchard2017machine} proposed Krum, while Yin et al.~\cite{yin2018byzantine}
+introduced coordinate-wise trimmed mean. More recent protocols include
+Bulyan~\cite{guerraoui2018hidden} and centered clipping~\cite{karimireddy2022byzantinerobust}.
+
+Existing Byzantine-resilient aggregation rules operate independently on
+each parameter coordinate, which can be exploited by coordinated attacks that
+distribute malicious gradients across dimensions~\cite{baruch2019little}.
+Our FedGTD protocol computes deviations in the geometric (Riemannian) space
+of gradient directions, making it resilient to such coordinated manipulation.
+We provide theoretical convergence guarantees under standard smoothness
+and bounded-heterogeneity assumptions (Section~\ref{sec:fedgtd}) and
+empirically demonstrate superior robustness--utility trade-offs compared
+to Krum, trimmed mean, and Bulyan across non-IID data partitions
+characteristic of multi-site network deployments.
+
+% === END SEGMENT 1 ===
