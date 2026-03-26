@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { simulateRAGPoisoning } from '../utils/api'
 
 /* ── RAG Pipeline Stage Definitions ──────────────────────────────────── */
 const PIPELINE_STAGES = [

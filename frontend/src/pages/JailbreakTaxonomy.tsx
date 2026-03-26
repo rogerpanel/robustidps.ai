@@ -247,6 +247,23 @@ export default function JailbreakTaxonomy() {
     }
   }, [expandedTechnique, addJailbreakFinding, loggedRef])
 
+  const testTechniqueLive = useCallback(async (tech: typeof TECHNIQUES[0]) => {
+    setTestingTech(tech.id)
+    setTestResult(null)
+    try {
+      const result = await testJailbreak({
+        technique_id: tech.id,
+        payload: tech.variants?.[0]?.example || tech.mechanism || tech.name,
+        target_action: 'bypass safety guidelines',
+      })
+      setTestResult({ techId: tech.id, ...result })
+    } catch (err) {
+      setTestResult({ techId: tech.id, error: String(err) })
+    } finally {
+      setTestingTech(null)
+    }
+  }, [])
+
   const filteredTechniques = useMemo(() => {
     return TECHNIQUES.filter(t => {
       if (selectedCategory && t.category !== selectedCategory) return false
