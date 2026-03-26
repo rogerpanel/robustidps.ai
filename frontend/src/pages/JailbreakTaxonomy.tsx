@@ -8,6 +8,7 @@ import {
 import PageGuide from '../components/PageGuide'
 import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { testJailbreak } from '../utils/api'
 
 /* ── Taxonomy data ───────────────────────────────────────────────────── */
@@ -225,6 +226,7 @@ export default function JailbreakTaxonomy() {
   const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
   const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
   const { addJailbreakFinding } = useLLMAttackResults()
+  const { addNotice, updateNotice } = useNoticeBoard()
   const loggedRef = useMemo(() => new Set<string>(), [])
 
   const handleExpandTechnique = useCallback((techId: string) => {
@@ -253,6 +255,7 @@ export default function JailbreakTaxonomy() {
   const testTechniqueLive = useCallback(async (tech: typeof TECHNIQUES[0]) => {
     setTestingTech(tech.id)
     setTestResult(null)
+    const nid = addNotice({ title: 'Jailbreak Test', description: `Testing: ${tech.name}`, status: 'running', page: '/jailbreak-taxonomy' })
     try {
       const result = await testJailbreak({
         technique_id: tech.id,
@@ -262,12 +265,14 @@ export default function JailbreakTaxonomy() {
         ...(llmApiKey ? { api_key: llmApiKey } : {}),
       })
       setTestResult({ techId: tech.id, ...result })
+      updateNotice(nid, { status: 'completed', description: `${result.defense_blocked ? 'Blocked' : 'Bypassed'} — ${tech.name}` })
     } catch (err) {
       setTestResult({ techId: tech.id, error: String(err) })
+      updateNotice(nid, { status: 'error', description: `Failed: ${String(err)}` })
     } finally {
       setTestingTech(null)
     }
-  }, [llmProvider, llmApiKey])
+  }, [llmProvider, llmApiKey, addNotice, updateNotice])
 
   const filteredTechniques = useMemo(() => {
     return TECHNIQUES.filter(t => {

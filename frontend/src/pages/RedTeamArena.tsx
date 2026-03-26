@@ -17,6 +17,7 @@ import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
 import { runRedteam, runRedteamMulti, fetchSampleData, fetchModels } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 const PAGE = 'redteam'
 const TT = { background: '#1E293B', border: '1px solid #334155', borderRadius: '8px', color: '#F8FAFC', fontSize: 12 }
@@ -133,6 +134,8 @@ const defaultSlot = (): SlotState => ({
 })
 
 export default function RedTeamArena() {
+  const { addNotice, updateNotice } = useNoticeBoard()
+
   const [mode, setMode] = usePageState<'single' | 'multi'>(PAGE, 'mode', 'multi')
 
   // ── Single mode state ──
@@ -198,11 +201,14 @@ export default function RedTeamArena() {
   const handleRunSingle = async () => {
     if (!file) return
     setRunning(true); setError(''); setResult(null); setMultiResult(null)
+    const nid = addNotice({ title: 'Red Team Attack', description: `Running adversarial attack...`, status: 'running', page: '/redteam' })
     try {
       const data = await runRedteam(file, selectedAttacks, epsilon, nSamples, selectedModel)
       setResult(data)
+      updateNotice(nid, { status: 'completed', description: 'Attack simulation complete' })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Arena failed')
+      updateNotice(nid, { status: 'error', description: e instanceof Error ? e.message : 'Attack failed' })
     } finally { setRunning(false) }
   }
 
@@ -211,13 +217,16 @@ export default function RedTeamArena() {
     const activeFiles = slots.filter(s => s.file && s.fileReady)
     if (activeFiles.length === 0 || selectedModels.length === 0) return
     setRunning(true); setError(''); setResult(null); setMultiResult(null)
+    const nid = addNotice({ title: 'Red Team Multi-Attack', description: `${selectedModels.length} models × ${activeFiles.length} datasets`, status: 'running', page: '/redteam' })
     try {
       const files = slots.map(s => s.file)
       const data = await runRedteamMulti(files, selectedModels, selectedAttacks, epsilon, nSamples)
       setMultiResult(data)
       setActiveView('overview')
+      updateNotice(nid, { status: 'completed', description: 'Multi-arena attack complete' })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Multi-arena failed')
+      updateNotice(nid, { status: 'error', description: e instanceof Error ? e.message : 'Multi-arena failed' })
     } finally { setRunning(false) }
   }
 

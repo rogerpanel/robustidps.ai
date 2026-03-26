@@ -72,12 +72,15 @@ export default function RLResponseAgent() {
     if (!file) return
     setRunning(true)
     setError('')
+    const nid = addNotice({ title: 'RL Response Simulation', description: `${numEpisodes} episodes`, status: 'running', page: '/rl-agent' })
     try {
       const data = await runRLSimulation(file, numEpisodes)
       setResult(data)
       fetchRLMetrics().then(setRlMetrics).catch(() => {})
+      updateNotice(nid, { status: 'completed', description: `${numEpisodes} episodes completed` })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Simulation failed')
+      updateNotice(nid, { status: 'error', description: `Failed: ${err instanceof Error ? err.message : err}` })
     }
     setRunning(false)
   }

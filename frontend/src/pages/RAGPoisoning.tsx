@@ -8,6 +8,7 @@ import {
 import PageGuide from '../components/PageGuide'
 import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { simulateRAGPoisoning } from '../utils/api'
 
 /* ── RAG Pipeline Stage Definitions ──────────────────────────────────── */
@@ -157,6 +158,7 @@ const SEVERITY_COLORS = {
 /* ── Main Component ──────────────────────────────────────────────────── */
 export default function RAGPoisoning() {
   const { addRAGPoisoningResult } = useLLMAttackResults()
+  const { addNotice, updateNotice } = useNoticeBoard()
   const [selectedAttack, setSelectedAttack] = useState<PoisonAttack | null>(null)
   const [kbDocuments, setKbDocuments] = useState<KBDocument[]>(DEFAULT_KB)
   const [query, setQuery] = useState('')
@@ -208,6 +210,7 @@ export default function RAGPoisoning() {
     setRunning(true)
     setSimResult(null)
     const t0 = Date.now()
+    const nid = addNotice({ title: 'RAG Poisoning Simulation', description: `Attack: ${selectedAttack?.name || 'Unknown'}`, status: 'running', page: '/rag-poisoning' })
     try {
       const docs = kbDocuments.map((d: any) => ({
         id: d.id,
@@ -234,6 +237,8 @@ export default function RAGPoisoning() {
         confidence: Math.round((result.detection_confidence ?? 0) * 100),
         risk: result.risk_level,
       })
+
+      updateNotice(nid, { status: 'completed', description: `Risk: ${result.risk_level} — ${result.poison_detected ? 'Poison detected' : 'Undetected'}` })
 
       // Persist to shared context
       addRAGPoisoningResult({
@@ -293,6 +298,7 @@ export default function RAGPoisoning() {
         confidence: confidenceVal,
         risk,
       })
+      updateNotice(nid, { status: 'completed', description: 'Completed (local fallback)' })
       addRAGPoisoningResult({
         timestamp: Date.now(),
         attackType: selectedAttack?.name ?? 'Unknown',
@@ -307,7 +313,7 @@ export default function RAGPoisoning() {
     } finally {
       setRunning(false)
     }
-  }, [query, kbDocuments, activeDefences, selectedAttack, addRAGPoisoningResult])
+  }, [query, kbDocuments, activeDefences, selectedAttack, addRAGPoisoningResult, addNotice, updateNotice])
 
   return (
     <div className="space-y-6">

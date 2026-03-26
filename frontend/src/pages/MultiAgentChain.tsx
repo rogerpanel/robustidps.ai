@@ -9,6 +9,7 @@ import {
 import PageGuide from '../components/PageGuide'
 import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { simulateMultiAgent } from '../utils/api'
 
 /* ── Agent Definitions ───────────────────────────────────────────────── */
@@ -201,6 +202,7 @@ const TRUST_COLORS = {
 /* ── Main Component ──────────────────────────────────────────────────── */
 export default function MultiAgentChain() {
   const { addMultiAgentResult } = useLLMAttackResults()
+  const { addNotice, updateNotice } = useNoticeBoard()
   const [selectedAttack, setSelectedAttack] = useState<ChainAttack | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [running, setRunning] = useState(false)
@@ -217,6 +219,7 @@ export default function MultiAgentChain() {
     setCurrentStep(0)
     setCompleted(false)
     setApiResult(null)
+    const nidRef = addNotice({ title: 'Multi-Agent Attack', description: `Scenario: ${selectedAttack.name}`, status: 'running', page: '/multi-agent' })
 
     try {
       // Call real backend for actual agent chain analysis
@@ -252,6 +255,7 @@ export default function MultiAgentChain() {
             defensesEnabled: defencesEnabled,
             mitigations: result.mitigations_applied || [],
           })
+          updateNotice(nidRef, { status: 'completed', description: `${result.compromised_agents?.length || 0} agents compromised` })
         }
       }, 800)
     } catch (err: any) {
@@ -276,10 +280,11 @@ export default function MultiAgentChain() {
             defensesEnabled: defencesEnabled,
             mitigations: attack.mitigations || [],
           })
+          updateNotice(nidRef, { status: 'completed', description: 'Completed (local fallback)' })
         }
       }, 1200)
     }
-  }, [selectedAttack, defencesEnabled, addMultiAgentResult])
+  }, [selectedAttack, defencesEnabled, addMultiAgentResult, addNotice, updateNotice])
 
   const resetSimulation = useCallback(() => {
     setCurrentStep(0)

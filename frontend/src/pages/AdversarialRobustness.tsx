@@ -10,6 +10,7 @@ import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
 import PageGuide from '../components/PageGuide'
 import { registerSessionReset } from '../utils/sessionReset'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 const ATTACK_COLORS: Record<string, string> = {
   fgsm: '#EF4444',
@@ -157,6 +158,8 @@ function AttackCard({ name, data }: { name: string; data: any }) {
 
 // ── Main Component ───────────────────────────────────────────────────────
 export default function AdversarialRobustness() {
+  const { addNotice, updateNotice } = useNoticeBoard()
+
   // Mode
   const [mode, _setMode] = useState<Mode>(_store.mode)
   const setMode = (v: Mode) => { _store.mode = v; _setMode(v) }
@@ -205,11 +208,14 @@ export default function AdversarialRobustness() {
     if (!file) return
     setRunning(true)
     setError('')
+    const nid = addNotice({ title: 'Adversarial Evaluation', description: `Model: ${modelId}`, status: 'running', page: '/adversarial' })
     try {
       const data = await runAdversarialEval(file, modelId)
       setResult(data)
+      updateNotice(nid, { status: 'completed', description: `Clean: ${data.clean_accuracy?.toFixed(1)}% — 6 attacks evaluated` })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Evaluation failed')
+      updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Evaluation failed' })
     }
     setRunning(false)
   }
@@ -249,12 +255,15 @@ export default function AdversarialRobustness() {
     if (activeFiles.length === 0 || selectedModels.length === 0) return
     setMultiRunning(true)
     setMultiError('')
+    const nid = addNotice({ title: 'Multi-Dataset Adversarial Eval', description: `${selectedModels.length} models × ${slots.filter(s => s.fileReady).length} datasets`, status: 'running', page: '/adversarial' })
     try {
       const data = await runAdversarialMulti(filesRef.current, selectedModels)
       setMultiResult(data)
       setSelectedCell(null)
+      updateNotice(nid, { status: 'completed', description: 'Multi-dataset comparison complete' })
     } catch (err) {
       setMultiError(err instanceof Error ? err.message : 'Multi evaluation failed')
+      updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Multi-eval failed' })
     }
     setMultiRunning(false)
   }
