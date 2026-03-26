@@ -262,13 +262,15 @@ export default function MultiAgentChain() {
           </p>
         </div>
         <PageGuide
-          title="Multi-Agent Chain Simulation"
+          title="How to use the Multi-Agent Chain Simulation"
           steps={[
-            'Review the agent topology to understand the system architecture',
-            'Select an attack scenario to simulate against the agent chain',
-            'Run the simulation to watch the attack propagate step-by-step',
-            'Analyze which agents are compromised and review mitigations',
+            { title: 'Review agent topology', desc: 'Study the 4-agent architecture (Coordinator, Analyst, Responder, Reporter) — their roles, trust scores, and communication channels.' },
+            { title: 'Select an attack scenario', desc: 'Choose from 5 patterns: agent-to-agent injection propagation, trust boundary violation, capability escalation, information leakage, or coordinated manipulation.' },
+            { title: 'Run the simulation', desc: 'Watch the attack propagate step-by-step through the agent chain. Each step shows which agent is targeted, the attack payload, and whether defences hold.' },
+            { title: 'Analyse compromised agents', desc: 'Review which agents were compromised, how many steps the attack took, and which trust boundaries were violated. Toggle defences on/off to compare outcomes.' },
+            { title: 'Review mitigations', desc: 'Each scenario includes recommended mitigations (message verification, trust score decay, capability isolation). Results sync to the SOC Copilot for investigation.' },
           ]}
+          tip="Tip: Enable the inter-agent trust architecture defence to see how HMAC message verification and trust score decay prevent cascade attacks."
         />
       </div>
 

@@ -276,13 +276,15 @@ export default function RAGPoisoning() {
           </p>
         </div>
         <PageGuide
-          title="RAG Poisoning Simulator"
+          title="How to use the RAG Poisoning Simulator"
           steps={[
-            'Review the RAG pipeline stages to understand attack surfaces',
-            'Select a poisoning attack to inject into the knowledge base',
-            'Enable defence mechanisms to test detection capabilities',
-            'Run the simulation to see how poisoned content affects LLM responses',
+            { title: 'Review the RAG pipeline', desc: 'Expand the pipeline visualisation to understand each stage: document ingestion, embedding, retrieval, and LLM generation — and where attacks can be injected.' },
+            { title: 'Select a poisoning attack', desc: 'Choose from 4 attack vectors: document injection, query manipulation, embedding space perturbation, or cross-contamination between clean and poisoned documents.' },
+            { title: 'Configure defences', desc: 'Enable defence mechanisms — document provenance verification, embedding similarity thresholds, retrieval diversity enforcement — to test detection capability.' },
+            { title: 'Run the simulation', desc: 'Execute the attack against the RAG pipeline. Compare clean vs. poisoned LLM responses side-by-side to see how poisoning corrupts security analysis.' },
+            { title: 'Review findings', desc: 'Check risk levels, confidence scores, and which defences were effective. Results persist and surface on the SOC Dashboard for analyst review.' },
           ]}
+          tip="Tip: Document injection is the most common real-world RAG attack. Always verify document provenance before adding to knowledge bases."
         />
       </div>
 

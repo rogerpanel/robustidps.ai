@@ -8,6 +8,7 @@ import {
 import { runAdversarialEval, runAdversarialMulti, fetchModels, createExperiment } from '../utils/api'
 import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
+import PageGuide from '../components/PageGuide'
 import { registerSessionReset } from '../utils/sessionReset'
 
 const ATTACK_COLORS: Record<string, string> = {
@@ -314,6 +315,18 @@ export default function AdversarialRobustness() {
         </div>
         <ExportMenu filename="adversarial-robustness" />
       </div>
+
+      <PageGuide
+        title="How to use Adversarial Robustness"
+        steps={[
+          { title: 'Choose evaluation mode', desc: 'Select Single Dataset for quick analysis of one file, or Multi-Dataset to compare robustness across up to 3 datasets simultaneously.' },
+          { title: 'Upload traffic data', desc: 'Provide a CSV/PCAP with labelled network flows. The system extracts 83 features for adversarial perturbation.' },
+          { title: 'Select model and attacks', desc: 'Pick the IDS model to evaluate and which of the 6 attacks to run: FGSM, PGD, C&W, DeepFool, Gaussian noise, and Label masking.' },
+          { title: 'Run evaluation', desc: 'The system computes clean accuracy, then applies each attack with configured parameters (epsilon, steps, etc.) and measures accuracy degradation.' },
+          { title: 'Analyse results', desc: 'Compare clean vs. attacked accuracy per attack type. Identify which attacks the model is most vulnerable to and by how much robustness drops.' },
+        ]}
+        tip="Tip: PGD is the strongest gradient-based attack (40 iterative steps). If your model survives PGD at epsilon=0.1, it has strong adversarial robustness."
+      />
 
       {/* Mode Toggle */}
       <div className="flex gap-2">

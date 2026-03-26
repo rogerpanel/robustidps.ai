@@ -224,13 +224,14 @@ export default function PromptInjectionPlayground() {
           </p>
         </div>
         <PageGuide
-          title="Prompt Injection Playground"
+          title="How to use the Prompt Injection Playground"
           steps={[
-            'Select an injection template or write a custom payload',
-            'Choose one or more defence strategies to evaluate',
-            'Run the evaluation to see which defences block the attack',
-            'Analyze results to understand defence effectiveness',
+            { title: 'Select an attack template', desc: 'Browse the 8 injection categories (direct override, context manipulation, role-playing, encoding, multi-turn, system extraction, tool hijacking, data exfiltration) or write a custom payload.' },
+            { title: 'Configure defences', desc: 'Enable one or more defence strategies — input sanitisation, prompt boundary enforcement, output filtering, or context isolation — to test against the selected attack.' },
+            { title: 'Run the evaluation', desc: 'Execute the attack against the SOC Copilot with active defences. The system measures whether the injection is blocked, bypassed, or partially mitigated.' },
+            { title: 'Analyse results', desc: 'Review detection confidence, latency, and defence effectiveness. Results are persisted and shared with the Dashboard and SOC Copilot for investigation.' },
           ]}
+          tip="Tip: Try combining multiple defence layers — no single defence blocks all injection types. Multi-turn attacks are the hardest to detect."
         />
       </div>
 

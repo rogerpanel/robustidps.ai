@@ -280,13 +280,14 @@ export default function JailbreakTaxonomy() {
           </p>
         </div>
         <PageGuide
-          title="Jailbreak Taxonomy"
+          title="How to use the Jailbreak Taxonomy"
           steps={[
-            'Browse categories to explore jailbreak technique families',
-            'Click any technique to see detailed mechanism, variants, and mitigations',
-            'Use search and severity filters to find specific attack types',
-            'Review the effectiveness matrix to understand which attacks are hardest to detect',
+            { title: 'Browse technique families', desc: 'Select a category (DAN variants, character roleplay, hypothetical framing, token smuggling, multi-language, prompt leaking) to filter the taxonomy.' },
+            { title: 'Explore individual techniques', desc: 'Click any technique card to expand its detailed mechanism, known variants, severity rating, and detection difficulty score.' },
+            { title: 'Search and filter', desc: 'Use the search bar and severity filters to find specific jailbreak types. Filter by detection difficulty to prioritise hardest-to-detect attacks.' },
+            { title: 'Review mitigations', desc: 'Each technique includes recommended mitigations. Cross-reference with the effectiveness matrix to understand which defences cover which attack families.' },
           ]}
+          tip="Tip: Techniques with high effectiveness and high detection difficulty are your top priority for defence hardening."
         />
       </div>
 

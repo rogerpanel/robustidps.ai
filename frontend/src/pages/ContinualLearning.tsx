@@ -10,6 +10,7 @@ import {
   fetchCLRLContinualMetrics, checkDrift as checkCLRLDrift,
 } from '../utils/api'
 import ExportMenu from '../components/ExportMenu'
+import PageGuide from '../components/PageGuide'
 import AutoTuneButton from '../components/AutoTuneButton'
 import { registerSessionReset } from '../utils/sessionReset'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
@@ -238,6 +239,18 @@ export default function ContinualLearning() {
         </div>
         <ExportMenu filename="continual-learning" />
       </div>
+
+      <PageGuide
+        title="How to use Continual Learning"
+        steps={[
+          { title: 'Review model status', desc: 'Check the current EWC version, Fisher matrix state, replay buffer size, and total samples seen across all updates.' },
+          { title: 'Upload new traffic data', desc: 'Provide a CSV or PCAP file with new labelled network traffic. This becomes the next "task" for incremental training.' },
+          { title: 'Configure EWC parameters', desc: 'Set the EWC lambda (forgetting penalty), learning rate, epochs, and replay buffer mix. Higher lambda preserves old knowledge more.' },
+          { title: 'Run the update', desc: 'Trigger the continual learning update. The model fine-tunes with EWC regularisation and experience replay, then reports accuracy before/after.' },
+          { title: 'Monitor drift', desc: 'Use the drift detection panel to compare your new data distribution against the model\'s training baseline via KS-test and PSI metrics.' },
+        ]}
+        tip="Tip: If accuracy drops after an update, use the Rollback button to restore the previous model checkpoint. The Fisher matrix and replay buffer are preserved."
+      />
 
       {error && (
         <div className="px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm flex items-center gap-2">

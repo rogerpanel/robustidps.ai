@@ -8,6 +8,7 @@ import {
 import { runRLSimulation, fetchRLMetrics, fetchCLRLStatus, createExperiment } from '../utils/api'
 import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
+import PageGuide from '../components/PageGuide'
 import { registerSessionReset } from '../utils/sessionReset'
 
 const ACTION_ICONS = [Eye, Activity, Zap, Ban, Lock]
@@ -121,6 +122,18 @@ export default function RLResponseAgent() {
         </div>
         <ExportMenu filename="rl-response-agent" />
       </div>
+
+      <PageGuide
+        title="How to use the RL Response Agent"
+        steps={[
+          { title: 'Upload traffic data', desc: 'Provide a CSV/PCAP file with network flows. The agent uses detection outputs as its state observations.' },
+          { title: 'Set simulation parameters', desc: 'Configure the number of episodes for the CPO agent to run. More episodes yield more stable policy estimates.' },
+          { title: 'Run the simulation', desc: 'The agent processes each flow and selects from 5 actions: Monitor, RateLimit, Reset, Block, or Quarantine — subject to safety constraints.' },
+          { title: 'Review action distribution', desc: 'Analyse which actions the policy selected and at what frequency. Check the false-positive rate stays below the 0.1% safety threshold.' },
+          { title: 'Inspect per-episode metrics', desc: 'Expand the episode details to see reward curves, cost violations, action severity breakdown, and convergence trends.' },
+        ]}
+        tip="Tip: The agent uses Constrained Policy Optimisation (CPO) — it maximises threat mitigation while respecting the false-positive blocking constraint."
+      />
 
       {error && (
         <div className="px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm flex items-center gap-2">
