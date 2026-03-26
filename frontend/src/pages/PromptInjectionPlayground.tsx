@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import {
   Syringe, Play, RotateCcw, ShieldAlert, ShieldCheck, AlertTriangle,
   ChevronDown, ChevronUp, Copy, Zap, Target, Eye, Layers,
-  CheckCircle2, XCircle, ArrowRight,
+  CheckCircle2, XCircle, ArrowRight, Loader2,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
