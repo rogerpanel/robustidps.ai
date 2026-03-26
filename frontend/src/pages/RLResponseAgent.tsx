@@ -4,6 +4,7 @@ import {
   Zap, Target, BarChart3, ChevronDown, ChevronUp,
   CheckCircle2, XCircle, Eye, Ban, Lock,
   FlaskConical, Save, Wifi, TrendingUp,
+  Upload, FileText, X, GitCompare,
 } from 'lucide-react'
 import { runRLSimulation, fetchRLMetrics, fetchCLRLStatus, createExperiment } from '../utils/api'
 import AutoTuneButton from '../components/AutoTuneButton'
@@ -23,6 +24,7 @@ const _store: {
   rlMetrics: any
   clrlStatus: any
   savedExperiment: boolean
+  multiResults: any[]
 } = {
   file: null,
   numEpisodes: 50,
@@ -30,6 +32,7 @@ const _store: {
   rlMetrics: null,
   clrlStatus: null,
   savedExperiment: false,
+  multiResults: [] as any[],
 }
 
 registerSessionReset(() => {
@@ -39,6 +42,7 @@ registerSessionReset(() => {
   _store.rlMetrics = null
   _store.clrlStatus = null
   _store.savedExperiment = false
+  _store.multiResults = []
 })
 
 export default function RLResponseAgent() {
@@ -54,6 +58,14 @@ export default function RLResponseAgent() {
   const [savedExperiment, _setSavedExperiment] = useState(_store.savedExperiment)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const [mode, setMode] = useState<'single' | 'multi'>('single')
+  const [multiSlots, setMultiSlots] = useState<{ file: File | null; fileName: string | null }[]>([
+    { file: null, fileName: null },
+    { file: null, fileName: null },
+    { file: null, fileName: null },
+  ])
+  const [multiResults, setMultiResults] = useState<any[]>(_store.multiResults)
+  const [multiRunning, setMultiRunning] = useState(false)
   const { addNotice, updateNotice } = useNoticeBoard()
 
   const setFile = (f: File | null) => { _store.file = f; _setFile(f) }
@@ -83,6 +95,30 @@ export default function RLResponseAgent() {
       updateNotice(nid, { status: 'error', description: `Failed: ${err instanceof Error ? err.message : err}` })
     }
     setRunning(false)
+  }
+
+  const handleMultiRun = async () => {
+    const activeSlots = multiSlots.filter(s => s.file)
+    if (activeSlots.length === 0) return
+    setMultiRunning(true)
+    setError('')
+    setMultiResults([])
+    const nid = addNotice({ title: 'RL Multi-Dataset Comparison', description: `${activeSlots.length} datasets × ${numEpisodes} episodes`, status: 'running', page: '/rl-agent' })
+    try {
+      const results = await Promise.all(
+        activeSlots.map(async (slot) => {
+          const data = await runRLSimulation(slot.file!, numEpisodes)
+          return { fileName: slot.fileName, ...data }
+        })
+      )
+      setMultiResults(results)
+      _store.multiResults = results
+      updateNotice(nid, { status: 'completed', description: `${results.length} datasets compared` })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Multi-dataset simulation failed')
+      updateNotice(nid, { status: 'error', description: `Failed: ${err instanceof Error ? err.message : err}` })
+    }
+    setMultiRunning(false)
   }
 
   const handleSaveExperiment = async () => {
@@ -136,6 +172,7 @@ export default function RLResponseAgent() {
           { title: 'Run the simulation', desc: 'The agent processes each flow and selects from 5 actions: Monitor, RateLimit, Reset, Block, or Quarantine — subject to safety constraints.' },
           { title: 'Review action distribution', desc: 'Analyse which actions the policy selected and at what frequency. Check the false-positive rate stays below the 0.1% safety threshold.' },
           { title: 'Inspect per-episode metrics', desc: 'Expand the episode details to see reward curves, cost violations, action severity breakdown, and convergence trends.' },
+          { title: 'Compare across datasets', desc: 'Switch to Multi-Dataset Comparison mode to run the RL agent on up to 3 different traffic files and compare mitigation rates, FP rates, and action distributions side-by-side.' },
         ]}
         tip="Tip: The agent uses Constrained Policy Optimisation (CPO) — it maximises threat mitigation while respecting the false-positive blocking constraint."
       />
@@ -148,6 +185,32 @@ export default function RLResponseAgent() {
         </div>
       )}
 
+      {/* Mode Toggle */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setMode('single')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+            mode === 'single'
+              ? 'bg-accent-red text-white'
+              : 'bg-bg-secondary border border-bg-card text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          <Target className="w-4 h-4" /> Single Dataset
+        </button>
+        <button
+          onClick={() => setMode('multi')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+            mode === 'multi'
+              ? 'bg-accent-purple text-white'
+              : 'bg-bg-secondary border border-bg-card text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          <GitCompare className="w-4 h-4" /> Multi-Dataset Comparison
+        </button>
+      </div>
+
+      {mode === 'single' && (
+      <>
       {/* Action Space Overview */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h2 className="text-lg font-display font-semibold mb-3">CMDP Action Space</h2>
@@ -182,13 +245,33 @@ export default function RLResponseAgent() {
           <div className="space-y-3">
             <div>
               <label className="text-xs text-text-secondary block mb-1">Traffic Data (.csv)</label>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv,.pcap,.pcapng"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="w-full text-sm text-text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-accent-blue/15 file:text-accent-blue hover:file:bg-accent-blue/25 cursor-pointer"
-              />
+              {file ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-green/30 bg-accent-green/5">
+                  <FileText className="w-4 h-4 text-accent-green shrink-0" />
+                  <span className="text-xs font-mono truncate flex-1">{file.name}</span>
+                  <button onClick={() => setFile(null)} className="text-text-secondary hover:text-text-primary">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-accent-blue', 'bg-accent-blue/10'); e.currentTarget.classList.remove('border-bg-card') }}
+                  onDragLeave={(e) => { e.currentTarget.classList.remove('border-accent-blue', 'bg-accent-blue/10'); e.currentTarget.classList.add('border-bg-card') }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.currentTarget.classList.remove('border-accent-blue', 'bg-accent-blue/10')
+                    e.currentTarget.classList.add('border-bg-card')
+                    const f = e.dataTransfer.files[0]
+                    if (f) setFile(f)
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 px-3 py-3 rounded-lg border-2 border-dashed border-bg-card hover:border-text-secondary cursor-pointer transition-colors"
+                >
+                  <Upload className="w-5 h-5 text-text-secondary" />
+                  <span className="text-[10px] text-text-secondary">Drop or click to upload</span>
+                  <span className="text-[9px] text-text-secondary/60">.csv .pcap .pcapng</span>
+                  <input ref={fileRef} type="file" accept=".csv,.pcap,.pcapng" onChange={(e) => setFile(e.target.files?.[0] || null)} className="hidden" />
+                </label>
+              )}
             </div>
             <div>
               <label className="text-[10px] text-text-secondary block mb-1">Episodes</label>
@@ -323,6 +406,149 @@ export default function RLResponseAgent() {
           </div>
         </>
       )}
+      </>
+      )}
+
+      {mode === 'multi' && (
+        <div className="space-y-4">
+          {/* Multi-dataset file slots */}
+          <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+            <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
+              <GitCompare className="w-5 h-5 text-accent-purple" />
+              Multi-Dataset RL Comparison
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              {multiSlots.map((slot, i) => (
+                <div key={i}>
+                  <div className="text-[10px] text-text-secondary mb-1 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ background: ['#3B82F6', '#A855F7', '#22C55E'][i] }} />
+                    Dataset {String.fromCharCode(65 + i)}
+                  </div>
+                  {slot.file ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-green/30 bg-accent-green/5">
+                      <FileText className="w-4 h-4 text-accent-green shrink-0" />
+                      <span className="text-xs font-mono truncate flex-1">{slot.fileName}</span>
+                      <button onClick={() => {
+                        const next = [...multiSlots]
+                        next[i] = { file: null, fileName: null }
+                        setMultiSlots(next)
+                      }} className="text-text-secondary hover:text-text-primary">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-accent-blue', 'bg-accent-blue/10') }}
+                      onDragLeave={(e) => { e.currentTarget.classList.remove('border-accent-blue', 'bg-accent-blue/10') }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.currentTarget.classList.remove('border-accent-blue', 'bg-accent-blue/10')
+                        const f = e.dataTransfer.files[0]
+                        if (f) {
+                          const next = [...multiSlots]
+                          next[i] = { file: f, fileName: f.name }
+                          setMultiSlots(next)
+                        }
+                      }}
+                      className="flex flex-col items-center justify-center gap-1 px-3 py-4 rounded-lg border-2 border-dashed border-bg-card hover:border-text-secondary cursor-pointer transition-colors"
+                    >
+                      <Upload className="w-5 h-5 text-text-secondary" />
+                      <span className="text-[10px] text-text-secondary">Drop or click</span>
+                      <span className="text-[9px] text-text-secondary/60">.csv .pcap .pcapng</span>
+                      <input type="file" accept=".csv,.pcap,.pcapng" className="hidden" onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) {
+                          const next = [...multiSlots]
+                          next[i] = { file: f, fileName: f.name }
+                          setMultiSlots(next)
+                        }
+                      }} />
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div>
+                <label className="text-[10px] text-text-secondary block mb-1">Episodes per dataset</label>
+                <input type="number" value={numEpisodes} onChange={(e) => setNumEpisodes(Number(e.target.value))} min={10} max={500}
+                  className="w-24 px-2 py-1.5 bg-bg-primary border border-bg-card rounded text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-blue/50" />
+              </div>
+              <button
+                onClick={handleMultiRun}
+                disabled={multiSlots.every(s => !s.file) || multiRunning}
+                className="flex-1 px-4 py-2.5 bg-accent-purple text-white rounded-lg text-xs font-medium hover:bg-accent-purple/80 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {multiRunning ? <><Loader2 className="w-4 h-4 animate-spin" /> Running {multiSlots.filter(s => s.file).length} datasets...</> : <><GitCompare className="w-4 h-4" /> Run Comparison</>}
+              </button>
+            </div>
+          </div>
+
+          {/* Multi-dataset comparison results */}
+          {multiResults.length > 0 && (
+            <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+              <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
+                <BarChart3 className="w-5 h-5 text-accent-green" />
+                Comparison Results
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-text-secondary border-b border-bg-card">
+                      <th className="px-3 py-2 text-left">Dataset</th>
+                      <th className="px-3 py-2 text-right">Mitigation Rate</th>
+                      <th className="px-3 py-2 text-right">FP Rate</th>
+                      <th className="px-3 py-2 text-right">Mean Reward</th>
+                      <th className="px-3 py-2 text-right">Violations</th>
+                      <th className="px-3 py-2 text-right">Total Steps</th>
+                      <th className="px-3 py-2 text-right">Threats</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {multiResults.map((r, i) => (
+                      <tr key={i} className="border-b border-bg-card/50">
+                        <td className="px-3 py-2 font-medium flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ background: ['#3B82F6', '#A855F7', '#22C55E'][i] }} />
+                          <span className="truncate max-w-[150px]">{r.fileName || `Dataset ${String.fromCharCode(65 + i)}`}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-accent-green">{(r.threat_mitigation_rate * 100).toFixed(1)}%</td>
+                        <td className="px-3 py-2 text-right font-mono text-accent-red">{(r.fp_blocking_rate * 100).toFixed(3)}%</td>
+                        <td className="px-3 py-2 text-right font-mono">{r.mean_episode_reward?.toFixed(1)}</td>
+                        <td className="px-3 py-2 text-right">{r.constraint_violations === 0 ? <CheckCircle2 className="w-3 h-3 text-accent-green inline" /> : <span className="text-accent-red">{r.constraint_violations}</span>}</td>
+                        <td className="px-3 py-2 text-right font-mono">{r.total_steps?.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right font-mono">{r.total_attacks?.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Action distribution comparison */}
+              <div className="mt-4">
+                <h3 className="text-xs font-semibold text-text-primary mb-2">Action Distribution Comparison</h3>
+                <div className="grid grid-cols-5 gap-2 text-center text-[10px]">
+                  {ACTION_NAMES.map((name, ai) => (
+                    <div key={name} className="bg-bg-primary rounded-lg p-2 border border-bg-card">
+                      <div className="font-medium mb-1" style={{ color: ACTION_COLORS[ai] }}>{name}</div>
+                      {multiResults.map((r, ri) => {
+                        const count = r.action_distribution?.[name] ?? 0
+                        const total = r.total_steps ?? 1
+                        return (
+                          <div key={ri} className="flex items-center gap-1 justify-center">
+                            <div className="w-1.5 h-1.5 rounded-full" style={{ background: ['#3B82F6', '#A855F7', '#22C55E'][ri] }} />
+                            <span className="font-mono">{((count / total) * 100).toFixed(0)}%</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* CL-RL Framework Status */}
       {clrlStatus && (
@@ -427,7 +653,7 @@ export default function RLResponseAgent() {
       )}
 
       {/* Episode Details */}
-      {result?.episodes && result.episodes.length > 0 && (
+      {mode === 'single' && result?.episodes && result.episodes.length > 0 && (
         <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
           <button
             onClick={() => setShowEpisodes(!showEpisodes)}
