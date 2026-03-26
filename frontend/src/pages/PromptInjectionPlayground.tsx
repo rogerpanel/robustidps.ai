@@ -271,6 +271,7 @@ export default function PromptInjectionPlayground() {
           steps={[
             { title: 'Select an attack template', desc: 'Browse the 8 injection categories (direct override, context manipulation, role-playing, encoding, multi-turn, system extraction, tool hijacking, data exfiltration) or write a custom payload.' },
             { title: 'Configure defences', desc: 'Enable one or more defence strategies — input sanitisation, prompt boundary enforcement, output filtering, or context isolation — to test against the selected attack.' },
+            { title: 'Choose LLM provider', desc: 'Select Local (defense-only) or connect Claude/GPT-4o/Gemini/DeepSeek with an API key to test payloads against real models. Uses your Copilot API key by default.' },
             { title: 'Run the evaluation', desc: 'Execute the attack against the SOC Copilot with active defences. The system measures whether the injection is blocked, bypassed, or partially mitigated.' },
             { title: 'Analyse results', desc: 'Review detection confidence, latency, and defence effectiveness. Results are persisted and shared with the Dashboard and SOC Copilot for investigation.' },
           ]}

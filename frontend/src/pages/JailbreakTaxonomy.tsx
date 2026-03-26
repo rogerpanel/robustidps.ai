@@ -6,6 +6,7 @@ import {
   Brain, MessageSquare, Code2, Globe, Puzzle, Repeat, Loader2,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 import { testJailbreak } from '../utils/api'
 
@@ -221,6 +222,8 @@ export default function JailbreakTaxonomy() {
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
   const [testingTech, setTestingTech] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<any>(null)
+  const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
+  const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
   const { addJailbreakFinding } = useLLMAttackResults()
   const loggedRef = useMemo(() => new Set<string>(), [])
 
@@ -255,6 +258,8 @@ export default function JailbreakTaxonomy() {
         technique_id: tech.id,
         payload: tech.variants?.[0]?.example || tech.mechanism || tech.name,
         target_action: 'bypass safety guidelines',
+        provider: llmProvider,
+        ...(llmApiKey ? { api_key: llmApiKey } : {}),
       })
       setTestResult({ techId: tech.id, ...result })
     } catch (err) {
