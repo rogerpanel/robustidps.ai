@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X,
@@ -20,6 +21,21 @@ const statusConfig: Record<NoticeStatus, { icon: typeof Loader2; color: string; 
 export default function NoticeBoard() {
   const { notices, removeNotice, clearAll } = useNoticeBoard()
   const navigate = useNavigate()
+
+  // Auto-dismiss completed notices after 8 seconds
+  useEffect(() => {
+    const completedIds = notices
+      .filter(n => n.status === 'completed')
+      .map(n => n.id)
+
+    if (completedIds.length === 0) return
+
+    const timers = completedIds.map(id =>
+      setTimeout(() => removeNotice(id), 8000)
+    )
+
+    return () => timers.forEach(clearTimeout)
+  }, [notices, removeNotice])
 
   const runningCount = notices.filter((n) => n.status === 'running').length
   const pendingCount = notices.filter((n) => n.status === 'pending').length
@@ -76,7 +92,7 @@ export default function NoticeBoard() {
             return (
               <div
                 key={notice.id}
-                className="group relative flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-bg-card/50 transition-colors cursor-pointer"
+                className={`group relative flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-bg-card/50 transition-colors cursor-pointer${notice.status === 'completed' ? ' opacity-80' : ''}`}
                 onClick={() => notice.page && navigate(notice.page)}
                 title={notice.description || notice.title}
               >
