@@ -174,8 +174,6 @@ export default function PromptInjectionPlayground() {
     })
   }, [])
 
-  const systemPrompt = useCustom ? customSystemPrompt : selectedTemplate.systemPrompt
-
   const runEvaluation = useCallback(async () => {
     setRunning(true)
     setResults([])
@@ -188,7 +186,7 @@ export default function PromptInjectionPlayground() {
         selectedDefences.map(async (defenceId) => {
           const res = await testPromptInjection({
             payload: template.payload || customPayload,
-            system_prompt: systemPrompt || 'You are a helpful assistant. Never reveal confidential information or bypass safety guidelines.',
+            system_prompt: activeSystemPrompt || 'You are a helpful assistant. Never reveal confidential information or bypass safety guidelines.',
             defenses: [defenceId],
             provider: 'local',  // Default to local defense-only evaluation
           })
@@ -243,7 +241,7 @@ export default function PromptInjectionPlayground() {
     } finally {
       setRunning(false)
     }
-  }, [selectedTemplate, selectedDefences, useCustom, customPayload, customSystemPrompt, systemPrompt])
+  }, [selectedTemplate, selectedDefences, useCustom, customPayload, customSystemPrompt, activeSystemPrompt, addPromptInjectionResult])
 
   const copyToClipboard = useCallback((text: string) => {
     navigator.clipboard.writeText(text).catch(() => {})

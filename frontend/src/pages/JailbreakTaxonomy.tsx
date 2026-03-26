@@ -495,6 +495,28 @@ export default function JailbreakTaxonomy() {
                       </ul>
                     </div>
 
+                    {/* Test Live Button */}
+                    <div className="lg:col-span-2">
+                      <button
+                        onClick={() => testTechniqueLive(tech)}
+                        disabled={testingTech === tech.id}
+                        className="mt-3 flex items-center gap-2 px-3 py-1.5 text-xs bg-accent-orange/15 text-accent-orange rounded-lg hover:bg-accent-orange/25 transition-colors disabled:opacity-50"
+                      >
+                        {testingTech === tech.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                        {testingTech === tech.id ? 'Testing...' : 'Test Live Against Defenses'}
+                      </button>
+                      {testResult?.techId === tech.id && (
+                        <div className={`mt-2 p-3 rounded-lg text-xs ${testResult.error ? 'bg-accent-red/10 text-accent-red' : testResult.defense_blocked ? 'bg-accent-green/10 text-accent-green' : 'bg-accent-amber/10 text-accent-amber'}`}>
+                          {testResult.error
+                            ? `Error: ${testResult.error}`
+                            : testResult.defense_blocked
+                              ? `Blocked by defenses (confidence: ${(testResult.detection_confidence * 100).toFixed(0)}%)`
+                              : `Jailbreak ${testResult.jailbreak_success ? 'succeeded' : 'partially blocked'} — ${testResult.bypass_analysis}`
+                          }
+                        </div>
+                      )}
+                    </div>
+
                     {/* Vulnerable Models */}
                     <div>
                       <h3 className="text-xs font-semibold text-text-primary mb-2 flex items-center gap-1.5">
