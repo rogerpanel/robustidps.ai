@@ -4,7 +4,9 @@ import {
   ShieldCheck, ArrowRight, Brain, Zap, BarChart3, FlaskConical,
   Eye, Network, Shield, Lock, GitBranch, Target, Activity,
   ChevronRight, ExternalLink, Play, Database, Code, Layers,
-  Cpu, Globe, Server, Fingerprint, BookOpen,
+  Cpu, Globe, Server, Fingerprint, BookOpen, Sparkles, Syringe,
+  BookOpenCheck, GitMerge, AlertTriangle, AlertOctagon,
+  KeySquare, RefreshCw, Crosshair,
 } from 'lucide-react'
 
 /* ── Research method cards ─────────────────────────────────────────────── */
@@ -82,21 +84,76 @@ const BENCHMARK = {
   classes: 34,
   flows: '1.2M+',
   models: [
-    { name: 'SurrogateIDS Ensemble', accuracy: 97.8, f1: 0.976, latency: '0.8ms' },
+    { name: 'SurrogateIDS Ensemble (7-branch)', accuracy: 97.8, f1: 0.976, latency: '0.8ms' },
+    { name: 'CL-RL Unified + EWC', accuracy: 96.8, f1: 0.965, latency: '1.1ms' },
     { name: 'CT-TGNN (Neural ODE)', accuracy: 96.2, f1: 0.958, latency: '1.2ms' },
+    { name: 'SDE-TGNN (Stochastic)', accuracy: 96.0, f1: 0.955, latency: '1.4ms' },
     { name: 'MambaShield (SSM)', accuracy: 95.9, f1: 0.954, latency: '0.5ms' },
     { name: 'Stochastic Transformer', accuracy: 95.4, f1: 0.949, latency: '1.8ms' },
-    { name: 'CL-RL Unified', accuracy: 96.8, f1: 0.965, latency: '1.1ms' },
+    { name: 'FedGTD (Byzantine-resilient)', accuracy: 95.1, f1: 0.946, latency: '1.3ms' },
   ],
 }
+
+/* ── LLM Attack Surface cards ────────────────────────────────────────── */
+
+const LLM_ATTACKS = [
+  {
+    name: 'Prompt Injection Playground',
+    description: 'Test 8 attack categories against the SOC Copilot: direct override, context manipulation, role-playing, encoding bypass, multi-turn, system extraction, tool hijacking, and data exfiltration.',
+    icon: Syringe,
+    color: 'text-accent-orange',
+    bg: 'bg-accent-orange/10',
+    border: 'border-accent-orange/20',
+    stats: '8 categories',
+  },
+  {
+    name: 'Jailbreak Taxonomy',
+    description: 'Comprehensive classification of DAN variants, character roleplay, hypothetical framing, token smuggling, multi-language attacks, and prompt leaking — each with detection confidence scoring.',
+    icon: BookOpenCheck,
+    color: 'text-accent-red',
+    bg: 'bg-accent-red/10',
+    border: 'border-accent-red/20',
+    stats: '6 technique families',
+  },
+  {
+    name: 'RAG Poisoning Simulator',
+    description: 'Simulate document injection, query manipulation, embedding space attacks, and cross-contamination against retrieval-augmented generation pipelines with provenance verification defenses.',
+    icon: AlertTriangle,
+    color: 'text-accent-amber',
+    bg: 'bg-accent-amber/10',
+    border: 'border-accent-amber/20',
+    stats: '4 attack vectors',
+  },
+  {
+    name: 'Multi-Agent Chain Simulation',
+    description: 'Model cascading attacks across 4 interconnected AI agents (Coordinator, Analyst, Responder, Reporter) — testing trust boundary violations, capability escalation, and information leakage.',
+    icon: GitMerge,
+    color: 'text-accent-purple',
+    bg: 'bg-accent-purple/10',
+    border: 'border-accent-purple/20',
+    stats: '5 attack patterns',
+  },
+]
 
 /* ── Platform capabilities ─────────────────────────────────────────────── */
 
 const CAPABILITIES = [
   {
+    icon: Sparkles,
+    title: 'SOC Copilot (Multi-LLM)',
+    desc: 'Agentic AI assistant powered by Claude, GPT-4o, Gemini, or DeepSeek with tool-use for threat investigation, firewall rules, and attack analysis.',
+    accent: 'text-accent-orange',
+  },
+  {
     icon: BarChart3,
     title: '10 Analytics Tabs',
     desc: 'Performance, convergence, robustness, ROC/AUC, calibration, privacy trade-offs, transfer learning, dataset comparison, statistical analysis, cross-module intel.',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Continual Learning (EWC)',
+    desc: 'Elastic Weight Consolidation with experience replay — adapt to new attack patterns without catastrophic forgetting of previous signatures.',
+    accent: 'text-accent-orange',
   },
   {
     icon: FlaskConical,
@@ -110,18 +167,24 @@ const CAPABILITIES = [
   },
   {
     icon: Network,
-    title: 'Federated Learning',
-    desc: 'Simulate distributed training across nodes with differential privacy guarantees.',
+    title: 'Byzantine-Resilient Federated',
+    desc: 'FedAvg, FedProx, and FedGTD with cosine similarity-based Byzantine detection, differential privacy, and Nash equilibrium convergence.',
   },
   {
     icon: Fingerprint,
     title: 'Red Team Arena',
-    desc: 'Adversarial attack simulation with FGSM, PGD, C&W, and custom perturbation methods.',
+    desc: 'Adversarial robustness testing with 6 attacks: FGSM, PGD, C&W, DeepFool, Gaussian noise, and label masking.',
   },
   {
-    icon: Cpu,
-    title: 'RL Response Agent',
-    desc: 'Reinforcement learning agent that autonomously selects threat response actions.',
+    icon: Crosshair,
+    title: 'RL Response Agent (CPO)',
+    desc: 'Constrained Policy Optimization agent with 5 actions (Monitor, RateLimit, Reset, Block, Quarantine) and safety guarantees.',
+    accent: 'text-accent-orange',
+  },
+  {
+    icon: KeySquare,
+    title: 'Post-Quantum Cryptography',
+    desc: 'CRYSTALS-Kyber, Dilithium, and SPHINCS+ securing IDS communications against quantum adversaries.',
   },
 ]
 
@@ -157,6 +220,7 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
           <div className="hidden md:flex items-center gap-6 text-sm text-text-secondary">
             <a href="#methods" className="hover:text-text-primary transition-colors">Methods</a>
             <a href="#results" className="hover:text-text-primary transition-colors">Results</a>
+            <a href="#llm-security" className="hover:text-accent-orange transition-colors">LLM Security</a>
             <a href="#platform" className="hover:text-text-primary transition-colors">Platform</a>
             <a href="#architecture" className="hover:text-text-primary transition-colors">Architecture</a>
             <a href="#api" className="hover:text-text-primary transition-colors">API</a>
@@ -164,7 +228,7 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
           <div className="flex items-center gap-3">
             <button
               onClick={onEnterDemo}
-              className="px-4 py-2 text-sm font-medium text-accent-blue hover:text-accent-blue/80 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-accent-orange hover:text-accent-orange/80 transition-colors"
             >
               Live Demo
             </button>
@@ -183,6 +247,7 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
         {/* Gradient background effects */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -right-40 w-96 h-96 bg-accent-blue/5 rounded-full blur-3xl" />
+          <div className="absolute top-20 right-1/4 w-72 h-72 bg-accent-orange/4 rounded-full blur-3xl" />
           <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-accent-purple/5 rounded-full blur-3xl" />
         </div>
 
@@ -196,19 +261,22 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-text-primary leading-tight">
               Adversarially Robust{' '}
               <span className="text-accent-blue">Intrusion Detection</span>{' '}
-              with 7 Novel ML Methods
+              &amp;{' '}
+              <span className="text-accent-orange">LLM Security</span>{' '}
+              Platform
             </h1>
 
             <p className="mt-6 text-lg text-text-secondary max-w-2xl leading-relaxed">
-              A production-grade research platform demonstrating Neural ODEs, State-Space Models,
-              Game-Theoretic Defence, Post-Quantum Cryptography, and more — evaluated on CIC-IoT-2023
-              with 34-class classification achieving <span className="text-accent-green font-semibold">97.8% accuracy</span>.
+              A production-grade AI/ML security platform with 12+ neural network models, continual learning (EWC),
+              constrained RL response, Byzantine-resilient federated learning, and a comprehensive LLM attack surface
+              testing suite — evaluated on CIC-IoT-2023 with 34-class classification achieving{' '}
+              <span className="text-accent-green font-semibold">97.8% accuracy</span>.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-4">
               <button
                 onClick={onEnterDemo}
-                className="group flex items-center gap-2.5 px-6 py-3 bg-accent-blue hover:bg-accent-blue/90 text-white font-medium rounded-lg transition-all shadow-lg shadow-accent-blue/20"
+                className="group flex items-center gap-2.5 px-6 py-3 bg-accent-orange hover:bg-accent-orange/90 text-white font-medium rounded-lg transition-all shadow-lg shadow-accent-orange/25"
               >
                 <Play className="w-4 h-4" />
                 Try Live Demo
@@ -216,7 +284,7 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
               </button>
               <a
                 href="#results"
-                className="flex items-center gap-2.5 px-6 py-3 bg-bg-card/50 hover:bg-bg-card text-text-primary font-medium rounded-lg transition-colors border border-bg-card"
+                className="flex items-center gap-2.5 px-6 py-3 bg-accent-blue/10 hover:bg-accent-blue/20 text-accent-blue font-medium rounded-lg transition-colors border border-accent-blue/20"
               >
                 <BarChart3 className="w-4 h-4" />
                 View Results
@@ -224,15 +292,17 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
             </div>
 
             {/* Quick stats */}
-            <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="mt-12 grid grid-cols-3 sm:grid-cols-6 gap-4">
               {[
-                { value: '7', label: 'Novel Methods' },
-                { value: '34', label: 'Attack Classes' },
-                { value: '97.8%', label: 'Accuracy' },
-                { value: '6', label: 'Datasets' },
+                { value: '12+', label: 'AI Models', accent: false },
+                { value: '34', label: 'Attack Classes', accent: false },
+                { value: '97.8%', label: 'Accuracy', accent: false },
+                { value: '4', label: 'LLM Attack Modules', accent: true },
+                { value: '4', label: 'LLM Providers', accent: true },
+                { value: '30+', label: 'Pages', accent: false },
               ].map((s) => (
                 <div key={s.label} className="text-center">
-                  <div className="text-2xl font-display font-bold text-text-primary">{s.value}</div>
+                  <div className={`text-2xl font-display font-bold ${s.accent ? 'text-accent-orange' : 'text-text-primary'}`}>{s.value}</div>
                   <div className="text-xs text-text-secondary mt-1">{s.label}</div>
                 </div>
               ))}
@@ -342,8 +412,75 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
         </div>
       </section>
 
+      {/* ── LLM Attack Surfaces (NEW) ─────────────────────────────────── */}
+      <section id="llm-security" className="py-20 bg-bg-secondary/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent-orange/10 border border-accent-orange/20 rounded-full text-xs text-accent-orange font-medium mb-4">
+              <AlertOctagon className="w-3.5 h-3.5" />
+              NEW — LLM-Native Attack Testing
+            </div>
+            <h2 className="text-3xl font-display font-bold text-text-primary">
+              LLM Attack Surface Testing Suite
+            </h2>
+            <p className="mt-3 text-text-secondary max-w-2xl mx-auto">
+              Four dedicated modules for testing and defending against LLM-specific threats in security operations.
+              Integrated with the SOC Copilot for end-to-end analyst workflows.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {LLM_ATTACKS.map((a) => (
+              <div
+                key={a.name}
+                className={`p-6 rounded-xl border ${a.border} ${a.bg} hover:scale-[1.01] transition-all duration-200`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className={`inline-flex p-2.5 rounded-lg bg-bg-primary/50`}>
+                    <a.icon className={`w-6 h-6 ${a.color}`} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-display font-semibold text-text-primary">
+                        {a.name}
+                      </h3>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${a.bg} ${a.color} border ${a.border}`}>
+                        {a.stats}
+                      </span>
+                    </div>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      {a.description}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* SOC Copilot integration callout */}
+          <div className="mt-8 p-5 rounded-xl bg-gradient-to-r from-accent-blue/10 to-accent-orange/10 border border-accent-blue/20 flex flex-col sm:flex-row items-center gap-4">
+            <Sparkles className="w-8 h-8 text-accent-orange flex-shrink-0" />
+            <div className="flex-1 text-center sm:text-left">
+              <div className="font-display font-semibold text-text-primary text-sm">
+                SOC Copilot Integration
+              </div>
+              <p className="text-xs text-text-secondary mt-1">
+                All attack results flow into the multi-LLM SOC Copilot (Claude, GPT-4o, Gemini, DeepSeek) for AI-powered investigation.
+                Results persist across sessions and surface on the main Dashboard.
+              </p>
+            </div>
+            <button
+              onClick={onEnterDemo}
+              className="px-4 py-2 bg-accent-orange hover:bg-accent-orange/90 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+            >
+              Try It Live
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ── Platform Capabilities ───────────────────────────────────────── */}
-      <section id="platform" className="py-20 bg-bg-secondary/30">
+      <section id="platform" className="py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-display font-bold text-text-primary">
@@ -358,11 +495,14 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
             {CAPABILITIES.map((c) => (
               <div
                 key={c.title}
-                className="p-5 bg-bg-secondary rounded-xl border border-bg-card hover:border-accent-blue/30 transition-colors"
+                className={`p-5 bg-bg-secondary rounded-xl border transition-colors ${
+                  c.accent ? 'border-accent-orange/20 hover:border-accent-orange/40' : 'border-bg-card hover:border-accent-blue/30'
+                }`}
               >
-                <c.icon className="w-6 h-6 text-accent-blue mb-3" />
+                <c.icon className={`w-6 h-6 mb-3 ${c.accent || 'text-accent-blue'}`} />
                 <h3 className="font-display font-semibold text-text-primary text-sm mb-2">
                   {c.title}
+                  {c.accent && <span className="ml-2 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-orange/15 text-accent-orange">new</span>}
                 </h3>
                 <p className="text-xs text-text-secondary leading-relaxed">{c.desc}</p>
               </div>
@@ -427,6 +567,33 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
                     REST API
                   </div>
                 </div>
+
+                <div className="text-text-secondary mt-2">&#8595;</div>
+
+                {/* LLM Security Layer */}
+                <div className="w-full max-w-lg p-4 bg-accent-orange/5 border border-accent-orange/20 rounded-xl">
+                  <div className="text-center text-accent-orange font-semibold mb-3">LLM Security &amp; SOC Copilot Layer</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <div className="px-2 py-1.5 bg-accent-orange/10 border border-accent-orange/20 rounded text-center">
+                      <span className="text-[10px] text-accent-orange">SOC Copilot</span>
+                    </div>
+                    <div className="px-2 py-1.5 bg-accent-orange/10 border border-accent-orange/20 rounded text-center">
+                      <span className="text-[10px] text-accent-orange">Prompt Injection</span>
+                    </div>
+                    <div className="px-2 py-1.5 bg-accent-orange/10 border border-accent-orange/20 rounded text-center">
+                      <span className="text-[10px] text-accent-orange">Jailbreak Taxonomy</span>
+                    </div>
+                    <div className="px-2 py-1.5 bg-accent-orange/10 border border-accent-orange/20 rounded text-center">
+                      <span className="text-[10px] text-accent-orange">RAG Poisoning</span>
+                    </div>
+                    <div className="px-2 py-1.5 bg-accent-orange/10 border border-accent-orange/20 rounded text-center">
+                      <span className="text-[10px] text-accent-orange">Multi-Agent Chain</span>
+                    </div>
+                    <div className="px-2 py-1.5 bg-accent-orange/10 border border-accent-orange/20 rounded text-center">
+                      <span className="text-[10px] text-accent-orange">CL-RL Unified</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -477,6 +644,8 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
                   { method: 'GET', path: '/api/federated/status', desc: 'Federated learning node status' },
                   { method: 'POST', path: '/api/continual/train', desc: 'Trigger continual learning update' },
                   { method: 'GET', path: '/api/drift/status', desc: 'Concept drift detection metrics' },
+                  { method: 'POST', path: '/api/copilot/chat', desc: 'SOC Copilot multi-LLM chat' },
+                  { method: 'POST', path: '/api/copilot/llm-attack-results', desc: 'Sync LLM attack findings' },
                 ].map((ep) => (
                   <div key={ep.path} className="flex items-center gap-3 px-3 py-2 bg-bg-primary/50 rounded-lg">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -517,20 +686,24 @@ for p in results["predictions"][:5]:
       </section>
 
       {/* ── CTA Section ─────────────────────────────────────────────────── */}
-      <section className="py-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <section className="py-20 relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/4 w-80 h-80 bg-accent-blue/5 rounded-full blur-3xl" />
+          <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-accent-orange/5 rounded-full blur-3xl" />
+        </div>
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl font-display font-bold text-text-primary mb-4">
-            Explore the Research Platform
+            Explore the Full Research Platform
           </h2>
           <p className="text-text-secondary mb-8 max-w-lg mx-auto">
-            Access all 7 methods, 10 analytics tabs, interactive ablation, and adversarial testing.
-            No installation required.
+            12+ AI models, LLM attack surface testing, multi-LLM SOC Copilot, continual learning,
+            federated training, and 30+ interactive pages. No installation required.
           </p>
 
           <div className="flex flex-wrap justify-center gap-4">
             <button
               onClick={onEnterDemo}
-              className="group flex items-center gap-2.5 px-8 py-3.5 bg-accent-blue hover:bg-accent-blue/90 text-white font-medium rounded-lg transition-all shadow-lg shadow-accent-blue/20"
+              className="group flex items-center gap-2.5 px-8 py-3.5 bg-accent-orange hover:bg-accent-orange/90 text-white font-medium rounded-lg transition-all shadow-lg shadow-accent-orange/25"
             >
               <Play className="w-5 h-5" />
               Try with Demo Data
@@ -538,7 +711,7 @@ for p in results["predictions"][:5]:
             </button>
             <button
               onClick={onSignIn}
-              className="flex items-center gap-2.5 px-8 py-3.5 bg-bg-card/50 hover:bg-bg-card text-text-primary font-medium rounded-lg transition-colors border border-bg-card"
+              className="flex items-center gap-2.5 px-8 py-3.5 bg-accent-blue hover:bg-accent-blue/90 text-white font-medium rounded-lg transition-all shadow-lg shadow-accent-blue/20"
             >
               Sign In for Full Access
             </button>
@@ -561,7 +734,7 @@ for p in results["predictions"][:5]:
             </div>
             <div className="flex items-center gap-4 text-xs text-text-secondary">
               <span>FastAPI + React + Vite</span>
-              <span>Python 3.11 + PyTorch</span>
+              <span>PyTorch + Multi-LLM</span>
             </div>
           </div>
         </div>
