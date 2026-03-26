@@ -730,7 +730,15 @@ for p in results["predictions"][:5]:
               </span>
             </div>
             <div className="text-xs text-text-secondary text-center">
-              MEPhI University — PhD Dissertation Implementation — Roger Nick Anaedevha
+              <div>MEPhI University — PhD Dissertation — Roger Nick Anaedevha</div>
+              <a
+                href="https://doi.org/10.5281/zenodo.19129512"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-blue hover:underline text-[10px]"
+              >
+                DOI: 10.5281/zenodo.19129512
+              </a>
             </div>
             <div className="flex items-center gap-4 text-xs text-text-secondary">
               <span>FastAPI + React + Vite</span>

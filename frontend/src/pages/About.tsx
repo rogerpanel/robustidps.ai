@@ -58,9 +58,8 @@ export default function About() {
       <div>
         <h1 className="text-2xl font-display font-bold">About RobustIDPS.ai</h1>
         <p className="text-sm text-text-secondary mt-2 max-w-3xl">
-          This web application demonstrates 7 novel machine learning methods for adversarially
-          robust network intrusion detection, developed as part of a PhD dissertation at MEPhI.
-          Each method addresses a specific gap in existing intrusion detection systems.
+          AI/ML-powered intrusion detection &amp; prevention with 12+ neural network models, LLM security testing, continual learning, and autonomous response.
+          Developed as part of a PhD dissertation at MEPhI — each method addresses a specific gap in existing intrusion detection systems.
         </p>
       </div>
 
@@ -198,6 +197,40 @@ export default function About() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Citation & DOI */}
+      <div className="bg-accent-blue/5 border border-accent-blue/20 rounded-xl p-5 mt-8">
+        <h2 className="text-lg font-display font-bold text-text-primary mb-3">Cite This Work</h2>
+        <div className="bg-bg-primary rounded-lg p-4 font-mono text-xs text-text-primary/90 leading-relaxed mb-3">
+          Anaedevha, R. N. and Trofimov A. G. (2026). RobustIDPS.ai: Advanced AI-powered intrusion detection &amp; prevention system (Version 1.1.0) [Computer software]. Zenodo. <a href="https://doi.org/10.5281/zenodo.19129512" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">https://doi.org/10.5281/zenodo.19129512</a>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => navigator.clipboard.writeText('Anaedevha, R. N. and Trofimov A. G. (2026). RobustIDPS.ai: Advanced AI-powered intrusion detection & prevention system (Version 1.1.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.19129512')}
+            className="text-xs text-accent-blue hover:text-accent-blue/80 flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue/10 rounded-lg"
+          >
+            Copy APA Citation
+          </button>
+          <button
+            onClick={() => navigator.clipboard.writeText('@software{anaedevha2026robustidps,\n  author = {Anaedevha, Roger Nick and Trofimov, Alexander G.},\n  title = {RobustIDPS.ai: Advanced AI-powered intrusion detection \\& prevention system},\n  year = {2026},\n  version = {1.1.0},\n  publisher = {Zenodo},\n  doi = {10.5281/zenodo.19129512},\n  url = {https://doi.org/10.5281/zenodo.19129512}\n}')}
+            className="text-xs text-accent-blue hover:text-accent-blue/80 flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue/10 rounded-lg"
+          >
+            Copy BibTeX
+          </button>
+          <a
+            href="https://doi.org/10.5281/zenodo.19129512"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-accent-green hover:text-accent-green/80 flex items-center gap-1.5 px-3 py-1.5 bg-accent-green/10 rounded-lg"
+          >
+            View on Zenodo
+          </a>
+        </div>
+        <p className="text-[10px] text-text-secondary mt-3">
+          Roger Nick Anaedevha — MSc/PhD Candidate, Institute of Cyber-Intelligent Systems (ICIS), National Research Nuclear University MEPhI, Moscow, Russia.
+          Supervised by Alexander Gennadievich Trofimov, Associate Professor.
+        </p>
       </div>
     </div>
   )

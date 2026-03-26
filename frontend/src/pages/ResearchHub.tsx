@@ -775,6 +775,155 @@ function LLMSecurityLabTab() {
   )
 }
 
+// ── Publications Tab ────────────────────────────────────────────────────
+
+function PublicationsTab() {
+  const [expandedPaper, setExpandedPaper] = useState<string | null>(null)
+
+  const PAPERS = [
+    {
+      id: 'tnnls_1',
+      title: 'RobustIDPS: An Adversarially Robust IDS with Continual Learning and Constrained RL for Autonomous Response',
+      authors: 'Roger Nick Anaedevha, Alexander G. Trofimov',
+      target: 'IEEE Transactions on Neural Networks and Learning Systems (TNNLS)',
+      status: 'draft',
+      statusLabel: 'Working Draft',
+      statusColor: 'bg-accent-amber/15 text-accent-amber',
+      abstract: 'Presents a 7-branch surrogate ensemble with MC dropout uncertainty (T=20), EWC continual learning with experience replay, CPO-based RL response agent, unified Fisher information framework (\u03B2=0.7), adversarial robustness against 6 attacks, and Byzantine-resilient federated learning (FedGTD). Evaluated on CICIDS2017, NSL-KDD, CIC-IoT-2023, UNSW-NB15 with 34 attack classes achieving 97.8% accuracy.',
+      file: 'papers/paper1_robust_ids_clrl.tex',
+      pages: '~12 pages (1066 lines LaTeX)',
+      keywords: ['Intrusion Detection', 'Continual Learning', 'Constrained RL', 'Adversarial Robustness', 'Federated Learning'],
+    },
+    {
+      id: 'tnnls_2',
+      title: 'Securing LLM-Integrated Network Defense: Detecting and Mitigating Prompt Injection, RAG Poisoning, and Multi-Agent Chain Attacks in SOC Copilot Systems',
+      authors: 'Roger Nick Anaedevha, Alexander G. Trofimov',
+      target: 'IEEE Transactions on Neural Networks and Learning Systems (TNNLS)',
+      status: 'draft',
+      statusLabel: 'Working Draft',
+      statusColor: 'bg-accent-amber/15 text-accent-amber',
+      abstract: 'Presents a comprehensive framework for securing LLM-integrated SOC systems against prompt injection (8 categories), RAG poisoning (4 vectors), and multi-agent chain attacks (5 patterns). Implements real defense pipelines with input sanitization, boundary enforcement, RAG hardening, and inter-agent trust architecture. Tested across Claude, GPT-4o, Gemini, and DeepSeek.',
+      file: 'papers/paper2_llm_security_nids.tex',
+      pages: '~10 pages (899 lines LaTeX)',
+      keywords: ['LLM Security', 'Prompt Injection', 'RAG Poisoning', 'Multi-Agent Systems', 'SOC Copilot'],
+    },
+  ]
+
+  const FOUNDATION_PAPERS = [
+    { title: 'SDE-TGNN: Stochastic Differential Equation Temporal Graph Neural Network for NIDS', model: 'SDE-TGNN', status: 'Implemented' },
+    { title: 'Byzantine-Resilient Stochastic Games for Federated Multi-Cloud Intrusion Detection', model: 'FedGTD', status: 'Implemented' },
+    { title: 'CyberSecLLM: Mamba-CrossAttention-MoE Cybersecurity Foundation Model', model: 'CyberSecLLM', status: 'Implemented' },
+    { title: 'Neural ODE Temporal Adaptive IDS with Point Processes', model: 'CT-TGNN', status: 'Implemented' },
+    { title: 'Optimal Transport for Federated Domain Adaptation in Multi-Cloud IDS', model: 'PPFOT-IDS', status: 'Implemented' },
+    { title: 'Continual Learning and RL-Driven Autonomous Response for Adversarially Robust NIDS', model: 'CL-RL Unified', status: 'Proposal' },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Zenodo Citation */}
+      <div className="bg-accent-blue/5 border border-accent-blue/20 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-accent-blue mb-2 flex items-center gap-2">
+          <FileText className="w-4 h-4" />
+          Cite This Software
+        </h3>
+        <div className="bg-bg-primary rounded-lg p-3 font-mono text-xs text-text-primary leading-relaxed">
+          Anaedevha, R. N. and Trofimov A. G. (2026). RobustIDPS.ai: Advanced AI-powered intrusion detection &amp; prevention system (Version 1.1.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.19129512
+        </div>
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={() => { navigator.clipboard.writeText('Anaedevha, R. N. and Trofimov A. G. (2026). RobustIDPS.ai: Advanced AI-powered intrusion detection & prevention system (Version 1.1.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.19129512') }}
+            className="text-xs text-accent-blue hover:text-accent-blue/80 flex items-center gap-1"
+          >
+            <Copy className="w-3 h-3" /> Copy APA
+          </button>
+          <button
+            onClick={() => { navigator.clipboard.writeText('@software{anaedevha2026robustidps,\n  author = {Anaedevha, Roger Nick and Trofimov, Alexander G.},\n  title = {RobustIDPS.ai: Advanced AI-powered intrusion detection \\& prevention system},\n  year = {2026},\n  version = {1.1.0},\n  publisher = {Zenodo},\n  doi = {10.5281/zenodo.19129512},\n  url = {https://doi.org/10.5281/zenodo.19129512}\n}') }}
+            className="text-xs text-accent-blue hover:text-accent-blue/80 flex items-center gap-1"
+          >
+            <Copy className="w-3 h-3" /> Copy BibTeX
+          </button>
+          <a
+            href="https://doi.org/10.5281/zenodo.19129512"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-accent-green hover:text-accent-green/80 flex items-center gap-1"
+          >
+            <Download className="w-3 h-3" /> Zenodo DOI
+          </a>
+        </div>
+      </div>
+
+      {/* IEEE TNNLS Draft Papers */}
+      <div>
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Target Journal Papers</h3>
+        <div className="space-y-3">
+          {PAPERS.map(paper => (
+            <div key={paper.id} className="bg-bg-card border border-bg-card rounded-lg overflow-hidden">
+              <div
+                className="px-4 py-3 cursor-pointer hover:bg-bg-primary/30 transition-colors"
+                onClick={() => setExpandedPaper(expandedPaper === paper.id ? null : paper.id)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${paper.statusColor}`}>
+                        {paper.statusLabel}
+                      </span>
+                      <span className="text-[10px] text-text-secondary">{paper.target}</span>
+                    </div>
+                    <h4 className="text-sm font-medium text-text-primary leading-snug">{paper.title}</h4>
+                    <p className="text-xs text-text-secondary mt-1">{paper.authors} · {paper.pages}</p>
+                  </div>
+                  {expandedPaper === paper.id
+                    ? <ChevronDown className="w-4 h-4 text-text-secondary shrink-0 mt-1" />
+                    : <ChevronRight className="w-4 h-4 text-text-secondary shrink-0 mt-1" />
+                  }
+                </div>
+              </div>
+              {expandedPaper === paper.id && (
+                <div className="border-t border-bg-primary px-4 py-3 space-y-3 text-xs">
+                  <div>
+                    <span className="text-text-secondary font-medium">Abstract: </span>
+                    <span className="text-text-primary/80">{paper.abstract}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {paper.keywords.map(kw => (
+                      <span key={kw} className="px-2 py-0.5 rounded bg-accent-blue/10 text-accent-blue text-[10px]">{kw}</span>
+                    ))}
+                  </div>
+                  <div className="text-text-secondary">
+                    Source: <code className="bg-bg-primary px-1.5 py-0.5 rounded">{paper.file}</code>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Foundation / Model Papers */}
+      <div>
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Foundation &amp; Model Papers</h3>
+        <p className="text-xs text-text-secondary mb-3">
+          Research papers that informed the model implementations in RobustIDPS.ai. Each model in the platform traces back to a specific paper.
+        </p>
+        <div className="space-y-1.5">
+          {FOUNDATION_PAPERS.map((fp, i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2 bg-bg-card rounded-lg text-xs">
+              <FileText className="w-3.5 h-3.5 text-text-secondary shrink-0" />
+              <span className="text-text-primary flex-1">{fp.title}</span>
+              <span className="text-accent-blue text-[10px] px-1.5 py-0.5 bg-accent-blue/10 rounded">{fp.model}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                fp.status === 'Implemented' ? 'bg-accent-green/10 text-accent-green' : 'bg-accent-amber/10 text-accent-amber'
+              }`}>{fp.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page Component ─────────────────────────────────────────────────
 
 export default function ResearchHub() {
@@ -812,6 +961,7 @@ export default function ResearchHub() {
       {tab === 'experiments' && <ExperimentsTab />}
       {tab === 'reports' && <ReportsTab />}
       {tab === 'llm_security' && <LLMSecurityLabTab />}
+      {tab === 'publications' && <PublicationsTab />}
     </div>
   )
 }
