@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers, Zap, HardDrive } from 'lucide-react'
+import { Play, Pause, Upload, Radio, Shield, ShieldAlert, Cpu, Eye, Server, Terminal, ChevronDown, ChevronUp, Network, CheckCircle2, AlertTriangle, BarChart3, PieChart as PieChartIcon, Send, TrendingUp, Brain, Download, Filter, Wifi, Usb, Monitor, Clock, Ban, Lock, Copy, ExternalLink, Layers, Zap, HardDrive, Search, Loader2 } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import FileUpload from '../components/FileUpload'
 import ModelSelector from '../components/ModelSelector'
 import LiveCaptureModelSelector from '../components/LiveCaptureModelSelector'
 import PageGuide from '../components/PageGuide'
-import { uploadFile, connectStream } from '../utils/api'
+import { uploadFile, connectStream, scanLiveTraffic } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
 import { registerSessionReset } from '../utils/sessionReset'
 import { useSessionState } from '../hooks/useSessionState'
@@ -228,6 +228,15 @@ export default function LiveMonitor() {
   const [liveFileJobId, _setLiveFileJobId] = useState<string | null>(_store.liveFileJobId)
   const [liveFileName, _setLiveFileName] = useState(_store.liveFileName)
   const [liveFileLoading, _setLiveFileLoading] = useState(_store.liveFileLoading)
+
+  const [llmScanEnabled, setLlmScanEnabled] = useState(false)
+  const [llmScanResults, setLlmScanResults] = useState<{
+    scanned_flows: number
+    llm_api_calls_detected: number
+    injection_attempts: { flow_id: string; payload_excerpt: string; confidence: number; severity: string }[]
+    summary: string
+  } | null>(null)
+  const [llmScanning, setLlmScanning] = useState(false)
 
   const { setLiveResults } = useAnalysis()
 
@@ -733,6 +742,33 @@ export default function LiveMonitor() {
     navigator.clipboard.writeText(text).catch(() => {})
   }, [])
 
+  // LLM Attack Surface Scan
+  const runLLMScan = useCallback(async () => {
+    const flowData = events || []
+    if (flowData.length === 0) return
+
+    setLlmScanning(true)
+    try {
+      const result = await scanLiveTraffic(
+        flowData.slice(0, 200).map((f: FlowEvent) => ({
+          flow_id: f.flow_id != null ? String(f.flow_id) : String(Math.random()),
+          src_ip: f.src_ip,
+          dst_ip: f.dst_ip,
+          dst_port: f.dst_port,
+          protocol: f.protocol,
+          payload: f.label_predicted || '',
+          metadata: { label: f.label_predicted, severity: f.severity },
+        })),
+        'all'
+      )
+      setLlmScanResults(result)
+    } catch (err) {
+      console.error('LLM scan failed:', err)
+    } finally {
+      setLlmScanning(false)
+    }
+  }, [events])
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl md:text-2xl font-display font-bold">Live Monitor</h1>
@@ -1001,6 +1037,91 @@ export default function LiveMonitor() {
                 {sev === 'all' ? `All (${events.length})` : `${sev} (${events.filter(e => e.severity === sev).length})`}
               </button>
             ))}
+          </div>
+        )}
+
+        {/* LLM Attack Surface Scan */}
+        {events.length > 0 && (
+          <div className="bg-bg-card rounded-xl border border-bg-card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                <Shield className="w-4 h-4 text-accent-orange" />
+                LLM Attack Surface Scan
+              </h3>
+              <div className="flex items-center gap-3">
+                {llmScanResults && (
+                  <span className="text-[10px] text-text-secondary">
+                    {llmScanResults.llm_api_calls_detected} LLM API calls &middot; {llmScanResults.injection_attempts.length} injection attempts
+                  </span>
+                )}
+                <button
+                  onClick={runLLMScan}
+                  disabled={llmScanning}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-accent-orange/15 text-accent-orange rounded-lg hover:bg-accent-orange/25 transition-colors disabled:opacity-50"
+                >
+                  {llmScanning ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Scanning...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-3 h-3" />
+                      Scan Traffic for LLM Attacks
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {llmScanResults && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="p-2 bg-bg-secondary rounded-lg">
+                    <div className="text-text-secondary">Flows Scanned</div>
+                    <div className="text-lg font-bold text-text-primary">{llmScanResults.scanned_flows}</div>
+                  </div>
+                  <div className="p-2 bg-bg-secondary rounded-lg">
+                    <div className="text-text-secondary">LLM API Calls</div>
+                    <div className="text-lg font-bold text-accent-blue">{llmScanResults.llm_api_calls_detected}</div>
+                  </div>
+                  <div className="p-2 bg-bg-secondary rounded-lg">
+                    <div className="text-text-secondary">Injection Attempts</div>
+                    <div className="text-lg font-bold text-accent-red">{llmScanResults.injection_attempts.length}</div>
+                  </div>
+                </div>
+
+                {llmScanResults.injection_attempts.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-medium text-accent-red flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Detected Injection Attempts
+                    </h4>
+                    {llmScanResults.injection_attempts.map((attempt, i) => (
+                      <div key={i} className="p-2 bg-accent-red/5 border border-accent-red/20 rounded-lg text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-text-primary font-mono">{attempt.flow_id}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            attempt.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
+                            attempt.severity === 'high' ? 'bg-accent-amber/20 text-accent-amber' :
+                            'bg-accent-blue/20 text-accent-blue'
+                          }`}>
+                            {attempt.severity.toUpperCase()} ({(attempt.confidence * 100).toFixed(0)}%)
+                          </span>
+                        </div>
+                        <pre className="text-text-secondary whitespace-pre-wrap break-all font-mono text-[10px]">
+                          {attempt.payload_excerpt}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {llmScanResults.summary && (
+                  <p className="text-[10px] text-text-secondary italic">{llmScanResults.summary}</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
