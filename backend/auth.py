@@ -202,6 +202,9 @@ def _user_response(u: User) -> UserResponse:
 @router.post("/register", response_model=Token)
 def register(body: UserCreate, db: Session = Depends(get_db)):
     """Register a new user account (public self-registration)."""
+    # Registration is disabled in production — admin creates accounts directly
+    raise HTTPException(status_code=403, detail="Registration is disabled. Contact your administrator for access.")
+
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")

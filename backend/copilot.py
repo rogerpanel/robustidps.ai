@@ -708,7 +708,8 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        logger.exception("Tool %s failed", name)
+        return json.dumps({"error": "Tool execution failed. Please try again."})
 
 
 # ---------------------------------------------------------------------------
@@ -1043,8 +1044,10 @@ async def chat(req: ChatRequest, user: User = Depends(require_auth), db: Session
     api_key = req.api_key
     provider = req.provider
 
-    # If no client key, try server-side keys
+    # If no client key, try server-side keys (only for authenticated users)
     if not api_key:
+        if user is None:
+            raise HTTPException(status_code=401, detail="API key required")
         server_keys = {
             "anthropic": ANTHROPIC_API_KEY,
             "openai": OPENAI_API_KEY,
@@ -1097,8 +1100,8 @@ async def chat(req: ChatRequest, user: User = Depends(require_auth), db: Session
                 yield f"data: {json.dumps({'content': chunk, 'provider': provider})}\n\n"
             yield f"data: {json.dumps({'done': True, 'provider': provider})}\n\n"
         except Exception as e:
-            logger.exception(f"{provider} API error")
-            yield f"data: {json.dumps({'error': str(e), 'provider': provider})}\n\n"
+            logger.exception("Chat error for provider %s", provider)
+            yield f"data: {json.dumps({'error': 'LLM provider request failed. Check your API key or try a different provider.', 'provider': provider})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -1115,9 +1118,7 @@ def copilot_status(user: User = Depends(require_auth)):
     if DEEPSEEK_API_KEY:
         configured["deepseek"] = True
     return {
-        # backward-compatible field
-        "claude_configured": bool(ANTHROPIC_API_KEY),
-        "providers_configured": configured,
+        "providers_available": any(configured.values()) if configured else False,
         "local_available": True,
     }
 

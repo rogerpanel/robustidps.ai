@@ -15,6 +15,9 @@ try:
 except ImportError:
     pass  # python-dotenv not installed — use env vars directly
 
+# ── Environment ───────────────────────────────────────────────────────────
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
 # ── Database ──────────────────────────────────────────────────────────────
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./robustidps.db")
 
@@ -22,6 +25,10 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./robustidps.db")
 _DEFAULT_SECRET = "dev-only-change-in-production"
 SECRET_KEY = os.getenv("SECRET_KEY", _DEFAULT_SECRET)
 if SECRET_KEY == _DEFAULT_SECRET:
+    if ENVIRONMENT == "production":
+        raise RuntimeError(
+            "SECRET_KEY must be set in production. Set the SECRET_KEY environment variable."
+        )
     _cfg_logger.critical(
         "SECRET_KEY is using the default value! "
         "Set a strong SECRET_KEY environment variable in production. "
