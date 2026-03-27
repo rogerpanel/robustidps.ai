@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   GitBranch, AlertTriangle, Shield, ChevronDown, ChevronRight,
   Clock, ArrowRight, Zap, Search, Activity,
-  Upload, FileText, X, Loader2,
+  Upload, FileText, X, Loader2, Radio,
 } from 'lucide-react'
+import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import PageGuide from '../components/PageGuide'
 import ModelSelector from '../components/ModelSelector'
 import { analyseFile } from '../utils/api'
@@ -143,7 +144,20 @@ export default function AlertCausalityGraph() {
   const [modelId, setModelId] = useState('surrogate')
   const [analysisResult, setAnalysisResult] = useState<any>(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [liveDataLoaded, setLiveDataLoaded] = useState(false)
   const { addNotice, updateNotice } = useNoticeBoard()
+
+  const loadLiveData = useCallback(() => {
+    const live = getLiveData()
+    if (!live) return
+    setAnalysisResult({
+      predictions: live.predictions,
+      n_flows: live.totalFlows,
+      n_threats: live.threatCount,
+      n_benign: live.benignCount,
+    })
+    setLiveDataLoaded(true)
+  }, [])
 
   const runAnalysis = async () => {
     if (!file) return
@@ -262,6 +276,23 @@ export default function AlertCausalityGraph() {
           </p>
         )}
       </div>
+
+      {/* Live Monitor Data Banner */}
+      {hasLiveData() && !liveDataLoaded && !analysisResult && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-accent-orange/10 border border-accent-orange/20 rounded-xl">
+          <Radio className="w-4 h-4 text-accent-orange" />
+          <div className="flex-1">
+            <span className="text-xs font-medium text-accent-orange">Live Monitor data available</span>
+            <span className="text-[10px] text-text-secondary ml-2">{getLiveData()?.totalFlows} flows from {getLiveData()?.source}</span>
+          </div>
+          <button
+            onClick={loadLiveData}
+            className="px-3 py-1 bg-accent-orange hover:bg-accent-orange/80 text-white text-[10px] font-medium rounded-lg transition-colors"
+          >
+            Use Live Data
+          </button>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

@@ -2,8 +2,9 @@ import { useState, useCallback } from 'react'
 import {
   Shuffle, KeySquare, TrendingDown, Eye, Play, RotateCcw,
   ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Shield,
-  Activity, Beaker, Upload, FileText, X, Loader2,
+  Activity, Beaker, Upload, FileText, X, Loader2, Radio,
 } from 'lucide-react'
+import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
 import ModelSelector from '../components/ModelSelector'
@@ -128,7 +129,25 @@ export default function DataPoisoningSim() {
   const [baselineResult, setBaselineResult] = useState<any>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [cleanAccuracy, setCleanAccuracy] = useState(97.8) // default demo value
+  const [liveDataLoaded, setLiveDataLoaded] = useState(false)
   const { addNotice, updateNotice } = useNoticeBoard()
+
+  const loadLiveData = useCallback(() => {
+    const live = getLiveData()
+    if (!live) return
+    setBaselineResult({
+      predictions: live.predictions,
+      n_flows: live.totalFlows,
+      n_threats: live.threatCount,
+      n_benign: live.benignCount,
+    })
+    // Compute cleanAccuracy from live predictions
+    const correct = live.predictions?.filter((p: any) => p.label_predicted === p.label_true).length || 0
+    const total = live.predictions?.length || 1
+    const baseAcc = (correct / total) * 100
+    setCleanAccuracy(baseAcc)
+    setLiveDataLoaded(true)
+  }, [])
 
   const runBaselineAnalysis = async () => {
     if (!file) return
@@ -239,6 +258,23 @@ export default function DataPoisoningSim() {
           </div>
         )}
       </div>
+
+      {/* Live Monitor Data Banner */}
+      {hasLiveData() && !liveDataLoaded && !baselineResult && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-accent-orange/10 border border-accent-orange/20 rounded-xl">
+          <Radio className="w-4 h-4 text-accent-orange" />
+          <div className="flex-1">
+            <span className="text-xs font-medium text-accent-orange">Live Monitor data available</span>
+            <span className="text-[10px] text-text-secondary ml-2">{getLiveData()?.totalFlows} flows from {getLiveData()?.source}</span>
+          </div>
+          <button
+            onClick={loadLiveData}
+            className="px-3 py-1 bg-accent-orange hover:bg-accent-orange/80 text-white text-[10px] font-medium rounded-lg transition-colors"
+          >
+            Use Live Data
+          </button>
+        </div>
+      )}
 
       {/* Strategy Selector */}
       <div>

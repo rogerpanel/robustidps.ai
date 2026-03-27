@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   TrendingUp, ChevronRight, Shield, AlertTriangle, Target,
   Activity, Zap, BarChart3, Layers, ArrowRight,
-  Upload, FileText, X, Loader2,
+  Upload, FileText, X, Loader2, Radio,
 } from 'lucide-react'
+import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
 import ModelSelector from '../components/ModelSelector'
@@ -196,7 +197,32 @@ export default function AttackChainPredictor() {
   const [modelId, setModelId] = useState('surrogate')
   const [analysisResult, setAnalysisResult] = useState<any>(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [liveDataLoaded, setLiveDataLoaded] = useState(false)
   const { addNotice, updateNotice } = useNoticeBoard()
+
+  const loadLiveData = useCallback(() => {
+    const live = getLiveData()
+    if (!live) return
+    setAnalysisResult({
+      predictions: live.predictions,
+      n_flows: live.totalFlows,
+      n_threats: live.threatCount,
+      n_benign: live.benignCount,
+    })
+    // Auto-select most common non-benign attack from live data
+    if (live.predictions) {
+      const attackCounts: Record<string, number> = {}
+      live.predictions.forEach((p: any) => {
+        const label = p.label_predicted
+        if (label && label !== 'Benign') {
+          attackCounts[label] = (attackCounts[label] || 0) + 1
+        }
+      })
+      const topAttack = Object.entries(attackCounts).sort((a, b) => b[1] - a[1])[0]
+      if (topAttack) setSelectedAttack(topAttack[0])
+    }
+    setLiveDataLoaded(true)
+  }, [])
 
   const runAnalysis = async () => {
     if (!file) return
@@ -339,6 +365,23 @@ export default function AttackChainPredictor() {
           </button>
         </div>
       </div>
+
+      {/* Live Monitor Data Banner */}
+      {hasLiveData() && !liveDataLoaded && !analysisResult && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-accent-orange/10 border border-accent-orange/20 rounded-xl">
+          <Radio className="w-4 h-4 text-accent-orange" />
+          <div className="flex-1">
+            <span className="text-xs font-medium text-accent-orange">Live Monitor data available</span>
+            <span className="text-[10px] text-text-secondary ml-2">{getLiveData()?.totalFlows} flows from {getLiveData()?.source}</span>
+          </div>
+          <button
+            onClick={loadLiveData}
+            className="px-3 py-1 bg-accent-orange hover:bg-accent-orange/80 text-white text-[10px] font-medium rounded-lg transition-colors"
+          >
+            Use Live Data
+          </button>
+        </div>
+      )}
 
       {/* Detected Attacks Summary (from uploaded data) */}
       {detectedAttacks.length > 0 && (
