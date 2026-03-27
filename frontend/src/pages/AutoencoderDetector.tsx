@@ -2,9 +2,13 @@ import { useState, useMemo } from 'react'
 import {
   Layers, Activity, ShieldCheck, AlertTriangle, CheckCircle2,
   XCircle, ArrowRight, Settings2, BarChart3, Zap, Eye,
+  Upload, FileText, X, Loader2,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
+import ModelSelector from '../components/ModelSelector'
+import { analyseFile } from '../utils/api'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 /* ── Architecture Config ────────────────────────────────────────────── */
 const AUTOENCODER_CONFIG = {
