@@ -146,6 +146,9 @@ app = FastAPI(
     openapi_url=None if _is_production else "/api/openapi.json",
 )
 
+import time as _time_module
+_app_start_time = _time_module.time()
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
