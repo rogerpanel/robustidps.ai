@@ -3,6 +3,7 @@ import {
   Trophy, BarChart3, Database, ChevronDown, ChevronRight, ArrowUp, ArrowDown,
   Minus, Filter, Info, ExternalLink, Search, Cpu, Shield, Zap, Globe, BookOpen,
 } from 'lucide-react'
+import PageGuide from '../components/PageGuide'
 
 // ── Benchmark data ───────────────────────────────────────────────────────
 
@@ -218,6 +219,17 @@ export default function Benchmarks() {
           Standardised evaluation leaderboard — all 7 core models benchmarked across 6 datasets against industry baselines.
         </p>
       </div>
+
+      <PageGuide
+        title="How to use Benchmarks"
+        steps={[
+          { title: 'Review cross-dataset results', desc: 'Compare model performance (accuracy, F1, precision, recall) across all benchmark datasets in the comparison table.' },
+          { title: 'Filter by model or dataset', desc: 'Use the filters to focus on specific models or datasets. Sort by any metric column to find the best performer.' },
+          { title: 'Analyse robustness metrics', desc: 'Check adversarial robustness scores, calibration (ECE), and uncertainty metrics alongside standard accuracy.' },
+          { title: 'Export for publication', desc: 'Use the Export menu to download benchmark tables in CSV or LaTeX format for your research papers.' },
+        ]}
+        tip="Tip: Look at macro F1 (not just accuracy) for imbalanced datasets like UNSW-NB15 where some attack classes are rare."
+      />
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -4,6 +4,7 @@ import {
   ExternalLink, ChevronDown, ChevronUp, Shield,
   FileText, Layers, Tag, BarChart3,
 } from 'lucide-react'
+import PageGuide from '../components/PageGuide'
 
 /* ═══════════════════════ Dataset Registry ══════════════════════════════════ */
 
@@ -400,6 +401,17 @@ export default function Datasets() {
           </button>
         </div>
       </div>
+
+      <PageGuide
+        title="How to use Datasets"
+        steps={[
+          { title: 'Browse available datasets', desc: 'View the 6 benchmark datasets (CIC-IoT-2023, CSE-CIC-IDS2018, UNSW-NB15, NSL-KDD, etc.) with their specifications, class distributions, and feature counts.' },
+          { title: 'View dataset statistics', desc: 'Click any dataset card to see detailed statistics: number of flows, attack class distribution, feature dimensions, and recommended preprocessing.' },
+          { title: 'Download sample data', desc: 'Download sample CSV files for testing with the Upload & Analyse, Adversarial Eval, or RL Response Agent pages.' },
+          { title: 'Compare datasets', desc: 'Compare attack distributions and feature characteristics across datasets to understand their strengths for different evaluation scenarios.' },
+        ]}
+        tip="Tip: CIC-IoT-2023 has the widest attack variety (34 classes). Use it for comprehensive model evaluation."
+      />
 
       {/* Collection DOI links */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

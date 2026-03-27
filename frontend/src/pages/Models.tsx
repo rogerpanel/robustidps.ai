@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { fetchModels, activateModel, enableModel, disableModel, uploadCustomModel, deleteCustomModel, benchmarkModels } from '../utils/api'
 import { Brain, Check, FlaskConical, Clock, Network, Loader2, ToggleLeft, ToggleRight, Upload, Trash2, X, AlertTriangle, Sparkles, Info, Zap, BarChart3, Trophy, Cpu, ArrowRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import PageGuide from '../components/PageGuide'
 
 interface ModelInfo {
   id: string
@@ -178,6 +179,17 @@ export default function Models() {
           Enable models for analysis, benchmark their performance, or upload your own custom model.
         </p>
       </div>
+
+      <PageGuide
+        title="How to use Models"
+        steps={[
+          { title: 'Browse model registry', desc: 'View all 12+ IDS models: SurrogateIDS ensemble, SDE-TGNN, CyberSecLLM, Neural ODE, FedGTD, and more — with architecture details and performance metrics.' },
+          { title: 'Switch active model', desc: 'Click "Activate" on any model to switch the detection backbone used by Upload & Analyse, Live Monitor, and other inference pages.' },
+          { title: 'Compare architectures', desc: 'Review each model\'s parameter count, inference latency, input/output dimensions, and training methodology.' },
+          { title: 'Check model weights', desc: 'Verify model weight file status (loaded/available) and see which models are ready for inference.' },
+        ]}
+        tip="Tip: SurrogateIDS (7-Branch Ensemble) is the default and most accurate model. Individual branch models are useful for ablation studies."
+      />
 
       {/* Info: Where models apply */}
       <div className="flex items-start gap-3 px-4 py-3 bg-accent-blue/5 border border-accent-blue/20 rounded-xl">
