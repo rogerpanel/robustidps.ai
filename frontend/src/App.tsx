@@ -41,6 +41,9 @@ import {
   BookOpenCheck,
   DatabaseBackup,
   GitMerge,
+  TrendingUp,
+  GitBranch,
+  Layers,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -81,6 +84,10 @@ const MultiAgentChain = lazy(() => import('./pages/MultiAgentChain'))
 const MitreAttackMapper = lazy(() => import('./pages/MitreAttackMapper'))
 const AlertTriage = lazy(() => import('./pages/AlertTriage'))
 const ComplianceHub = lazy(() => import('./pages/ComplianceHub'))
+const AttackChainPredictor = lazy(() => import('./pages/AttackChainPredictor'))
+const DataPoisoningSim = lazy(() => import('./pages/DataPoisoningSim'))
+const AlertCausalityGraph = lazy(() => import('./pages/AlertCausalityGraph'))
+const AutoencoderDetector = lazy(() => import('./pages/AutoencoderDetector'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -105,6 +112,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/upload', label: 'Upload & Analyse', icon: Upload },
       { to: '/analytics', label: 'Analytics', icon: BarChart3 },
       { to: '/live', label: 'Live Monitor', icon: Radio },
+      { to: '/causality-graph', label: 'Alert Causality', icon: GitBranch },
     ],
   },
   {
@@ -122,6 +130,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/rl-agent', label: 'RL Response Agent', icon: Crosshair },
       { to: '/adversarial', label: 'Adversarial Eval', icon: Fingerprint },
       { to: '/xai', label: 'Explainability', icon: Eye },
+      { to: '/autoencoder', label: 'Autoencoder Detector', icon: Layers },
     ],
   },
   {
@@ -131,6 +140,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/threat-response', label: 'Threat Response', icon: Crosshair },
       { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
       { to: '/federated', label: 'Federated Learning', icon: Network },
+      { to: '/attack-chain', label: 'Attack Chain Predictor', icon: TrendingUp },
     ],
   },
   {
@@ -140,6 +150,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/jailbreak-taxonomy', label: 'Jailbreak Taxonomy', icon: BookOpenCheck },
       { to: '/rag-poisoning', label: 'RAG Poisoning', icon: DatabaseBackup },
       { to: '/multi-agent', label: 'Multi-Agent Chain', icon: GitMerge },
+      { to: '/data-poisoning', label: 'Data Poisoning Sim', icon: FlaskConical },
     ],
   },
   {
@@ -663,6 +674,10 @@ export default function App() {
               <Route path="/mitre-attack" element={<MitreAttackMapper />} />
               <Route path="/alert-triage" element={<AlertTriage />} />
               <Route path="/compliance" element={<ComplianceHub />} />
+              <Route path="/attack-chain" element={<AttackChainPredictor />} />
+              <Route path="/data-poisoning" element={<DataPoisoningSim />} />
+              <Route path="/causality-graph" element={<AlertCausalityGraph />} />
+              <Route path="/autoencoder" element={<AutoencoderDetector />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
