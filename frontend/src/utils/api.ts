@@ -1683,3 +1683,14 @@ export async function scanLiveTraffic(flows: any[], scanType = 'all'): Promise<{
   if (!resp.ok) throw new Error(`Live traffic scan failed: ${resp.status}`)
   return resp.json()
 }
+
+// ── File Analysis ───────────────────────────────────────────────────────
+
+export async function analyseFile(file: File, modelId = 'surrogate') {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('model_id', modelId);
+  const res = await authFetch(`${API}/api/analyse`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`Analysis failed: ${res.status}`);
+  return res.json();
+}

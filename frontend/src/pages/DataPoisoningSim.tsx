@@ -2,10 +2,13 @@ import { useState, useCallback } from 'react'
 import {
   Shuffle, KeySquare, TrendingDown, Eye, Play, RotateCcw,
   ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Shield,
-  Activity, Beaker,
+  Activity, Beaker, Upload, FileText, X, Loader2,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
+import ModelSelector from '../components/ModelSelector'
+import { analyseFile } from '../utils/api'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 /* ── Poison Strategies ──────────────────────────────────────────────── */
 const ICON_MAP: Record<string, typeof Shuffle> = {
@@ -120,14 +123,40 @@ export default function DataPoisoningSim() {
   const [result, setResult] = useState<SimResult | null>(null)
   const [running, setRunning] = useState(false)
 
+  const [file, setFile] = useState<File | null>(null)
+  const [modelId, setModelId] = useState('surrogate')
+  const [baselineResult, setBaselineResult] = useState<any>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [cleanAccuracy, setCleanAccuracy] = useState(97.8) // default demo value
+  const { addNotice, updateNotice } = useNoticeBoard()
+
+  const runBaselineAnalysis = async () => {
+    if (!file) return
+    setAnalyzing(true)
+    const nid = addNotice({ title: 'Baseline Analysis', description: `Establishing clean accuracy on ${file.name}...`, status: 'running', page: '/data-poisoning' })
+    try {
+      const data = await analyseFile(file, modelId)
+      setBaselineResult(data)
+      // Calculate baseline accuracy from predictions
+      const correct = data.predictions?.filter((p: any) => p.label_predicted === p.label_true).length || 0
+      const total = data.predictions?.length || 1
+      const baseAcc = (correct / total) * 100
+      setCleanAccuracy(baseAcc)
+      updateNotice(nid, { status: 'completed', description: `Baseline: ${baseAcc.toFixed(1)}% accuracy on ${total} samples` })
+    } catch (err) {
+      updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Analysis failed' })
+    }
+    setAnalyzing(false)
+  }
+
   const runSimulation = useCallback(() => {
     setRunning(true)
     setTimeout(() => {
-      const res = simulatePoisoning(selectedStrategy, poisonRate / 100, 96.5)
+      const res = simulatePoisoning(selectedStrategy, poisonRate / 100, cleanAccuracy)
       setResult(res)
       setRunning(false)
     }, 800)
-  }, [selectedStrategy, poisonRate])
+  }, [selectedStrategy, poisonRate, cleanAccuracy])
 
   const reset = () => {
     setResult(null)
