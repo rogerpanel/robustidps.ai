@@ -8,6 +8,7 @@ import PageGuide from '../components/PageGuide'
 import { uploadFile, connectStream, scanLiveTraffic } from '../utils/api'
 import { useAnalysis } from '../hooks/useAnalysis'
 import { registerSessionReset } from '../utils/sessionReset'
+import { setLiveData } from '../utils/liveDataStore'
 import { useSessionState } from '../hooks/useSessionState'
 
 interface ModelPrediction {
@@ -237,6 +238,7 @@ export default function LiveMonitor() {
     summary: string
   } | null>(null)
   const [llmScanning, setLlmScanning] = useState(false)
+  const [sentToPages, setSentToPages] = useState<Set<string>>(new Set())
 
   const { setLiveResults } = useAnalysis()
 
@@ -445,6 +447,26 @@ export default function LiveMonitor() {
     setLiveResults(results, fileName || (captureMode === 'live' ? `Live Capture (${currentCycle} cycles)` : 'Live Monitor'))
     setSentToUpload(true)
   }, [analytics, events, threatCount, benignCount, captureMode, fileName, currentCycle, setLiveResults])
+
+  const pushToPage = useCallback((pagePath: string, _pageLabel: string) => {
+    setLiveData({
+      predictions: events.map(ev => ({
+        flow_id: String(ev.flow_id),
+        src_ip: ev.src_ip,
+        dst_ip: ev.dst_ip,
+        label_predicted: ev.label_predicted,
+        confidence: ev.confidence,
+        severity: ev.severity,
+        epistemic_uncertainty: 1 - ev.confidence,
+      })),
+      source: fileName || (captureMode === 'live' ? `Live Capture (${currentCycle} cycles)` : 'File Replay'),
+      threatCount,
+      benignCount,
+      totalFlows: events.length,
+      timestamp: Date.now(),
+    })
+    setSentToPages(prev => new Set(prev).add(pagePath))
+  }, [events, fileName, captureMode, currentCycle, threatCount, benignCount])
 
   // Ref to track if we already attached WS listeners on remount
   const wsAttached = useRef(false)
@@ -988,22 +1010,53 @@ export default function LiveMonitor() {
                   onClick={sendToUploadAnalyse}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-blue/15 text-accent-blue rounded-lg text-xs font-medium hover:bg-accent-blue/25 transition-colors"
                 >
-                  <Send className="w-3 h-3" /> Send to Upload &amp; Analyse
+                  <Send className="w-3 h-3" /> Upload &amp; Analyse
                 </button>
               ) : (
                 <span className="text-xs text-accent-green flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Sent to Upload &amp; Analyse
+                  <CheckCircle2 className="w-3 h-3" /> Uploaded
                 </span>
               )}
               <button
                 onClick={() => setShowAnalytics(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-purple/15 text-accent-purple rounded-lg text-xs font-medium hover:bg-accent-purple/25 transition-colors"
               >
-                <BarChart3 className="w-3 h-3" /> View Analytics
+                <BarChart3 className="w-3 h-3" /> Analytics
               </button>
+            </div>
+
+            {/* Send to Analysis Pages */}
+            <div className="mt-3 pt-3 border-t border-accent-green/10">
+              <div className="text-[10px] text-text-secondary mb-2 font-medium">Send captured data to:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { path: '/alert-triage', label: 'Alert Triage' },
+                  { path: '/autoencoder', label: 'Autoencoder' },
+                  { path: '/causality-graph', label: 'Causality Graph' },
+                  { path: '/attack-chain', label: 'Attack Chain' },
+                  { path: '/data-poisoning', label: 'Data Poisoning' },
+                ].map(page => (
+                  <button
+                    key={page.path}
+                    onClick={() => pushToPage(page.path, page.label)}
+                    disabled={sentToPages.has(page.path)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-medium transition-colors ${
+                      sentToPages.has(page.path)
+                        ? 'bg-accent-green/10 text-accent-green'
+                        : 'bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20'
+                    }`}
+                  >
+                    {sentToPages.has(page.path) ? <CheckCircle2 className="w-2.5 h-2.5" /> : <Send className="w-2.5 h-2.5" />}
+                    {sentToPages.has(page.path) ? `${page.label} ✓` : page.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3 flex justify-end">
               <button
                 onClick={resetAll}
-                className="flex items-center gap-1.5 px-3 py-1.5 border border-bg-card text-text-secondary rounded-lg text-xs hover:text-text-primary hover:border-accent-red/30 transition-colors ml-auto"
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-bg-card text-text-secondary rounded-lg text-xs hover:text-text-primary hover:border-accent-red/30 transition-colors"
               >
                 <X className="w-3 h-3" /> Clear &amp; Reset
               </button>
