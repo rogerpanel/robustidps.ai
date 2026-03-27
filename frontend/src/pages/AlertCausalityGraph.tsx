@@ -2,8 +2,12 @@ import { useState, useMemo } from 'react'
 import {
   GitBranch, AlertTriangle, Shield, ChevronDown, ChevronRight,
   Clock, ArrowRight, Zap, Search, Activity,
+  Upload, FileText, X, Loader2,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
+import ModelSelector from '../components/ModelSelector'
+import { analyseFile } from '../utils/api'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 /* ── Types ── */
 interface IncidentAlert {
@@ -87,15 +91,82 @@ const SEVERITY_STYLES: Record<string, string> = {
   low: 'bg-accent-blue/15 text-accent-blue border-accent-blue/30',
 }
 
+/* ── Helpers for building incidents from analysis ── */
+
+const mapAttackToStage = (label: string) => {
+  if (label?.includes('Recon') || label?.includes('Ping') || label?.includes('Scan')) return 'Reconnaissance'
+  if (label?.includes('BruteForce')) return 'Credential Access'
+  if (label?.includes('SQLi') || label?.includes('XSS')) return 'Initial Access'
+  if (label?.includes('CmdInjection')) return 'Execution'
+  if (label?.includes('Backdoor')) return 'Persistence'
+  if (label?.includes('Spoofing')) return 'Lateral Movement'
+  if (label?.includes('DDoS') || label?.includes('Ransom')) return 'Impact'
+  if (label?.includes('Mirai')) return 'C2 Communication'
+  return 'Execution'
+}
+
+const buildIncidents = (predictions: any[]): Incident[] => {
+  const groups: Record<string, any[]> = {}
+  predictions.forEach((p: any, i: number) => {
+    if (p.severity === 'benign') return
+    const src = p.src_ip || 'unknown'
+    if (!groups[src]) groups[src] = []
+    groups[src].push({
+      id: `A${i + 1}`,
+      time: new Date(Date.now() - (predictions.length - i) * 60000).toTimeString().slice(0, 8),
+      attack: p.label_predicted || 'Unknown',
+      src: src,
+      dst: p.dst_ip || '10.0.0.1',
+      confidence: p.confidence || 0.5,
+      stage: mapAttackToStage(p.label_predicted),
+    })
+  })
+
+  return Object.entries(groups)
+    .filter(([_, alerts]) => alerts.length >= 2)
+    .slice(0, 5)
+    .map(([src, alerts], i) => ({
+      id: `INC-${String(i + 1).padStart(3, '0')}`,
+      title: `Attack chain from ${src}`,
+      severity: alerts.some((a: any) => a.attack.includes('Malware') || a.attack.includes('Ransom')) ? 'critical' as const : 'high' as const,
+      alerts,
+      rootCause: `Multiple attack stages detected from ${src}`,
+      recommendation: `Investigate ${src}, check for lateral movement, review firewall rules`,
+    }))
+}
+
 /* ── Component ── */
 export default function AlertCausalityGraph() {
   const [expandedId, setExpandedId] = useState<string | null>('INC-001')
   const [searchTerm, setSearchTerm] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [modelId, setModelId] = useState('surrogate')
+  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const { addNotice, updateNotice } = useNoticeBoard()
+
+  const runAnalysis = async () => {
+    if (!file) return
+    setAnalyzing(true)
+    const nid = addNotice({ title: 'Causality Graph Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/alert-causality-graph' })
+    try {
+      const data = await analyseFile(file, modelId)
+      setAnalysisResult(data)
+      const incidents = data.predictions ? buildIncidents(data.predictions) : []
+      updateNotice(nid, { status: 'completed', description: `${incidents.length} incident chain(s) built from ${data.predictions?.length || 0} predictions` })
+    } catch (err) {
+      updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Analysis failed' })
+    }
+    setAnalyzing(false)
+  }
+
+  const realIncidents = analysisResult?.predictions ? buildIncidents(analysisResult.predictions) : []
+  const activeIncidents = realIncidents.length > 0 ? realIncidents : DEMO_INCIDENTS
 
   const filteredIncidents = useMemo(() => {
-    if (!searchTerm) return DEMO_INCIDENTS
+    if (!searchTerm) return activeIncidents
     const q = searchTerm.toLowerCase()
-    return DEMO_INCIDENTS.filter(
+    return activeIncidents.filter(
       (inc) =>
         inc.title.toLowerCase().includes(q) ||
         inc.id.toLowerCase().includes(q) ||
@@ -107,27 +178,27 @@ export default function AlertCausalityGraph() {
             a.stage.toLowerCase().includes(q),
         ),
     )
-  }, [searchTerm])
+  }, [searchTerm, activeIncidents])
 
   /* ── Stats ── */
   const stats = useMemo(() => {
-    const totalIncidents = DEMO_INCIDENTS.length
-    const totalAlerts = DEMO_INCIDENTS.reduce((s, i) => s + i.alerts.length, 0)
-    const avgAlerts = (totalAlerts / totalIncidents).toFixed(1)
-    const rootCauses = DEMO_INCIDENTS.map((i) => i.rootCause)
+    const totalIncidents = activeIncidents.length
+    const totalAlerts = activeIncidents.reduce((s, i) => s + i.alerts.length, 0)
+    const avgAlerts = totalIncidents ? (totalAlerts / totalIncidents).toFixed(1) : '0'
+    const rootCauses = activeIncidents.map((i) => i.rootCause)
     const causeWords = rootCauses.map((r) => r.split(' ').slice(0, 3).join(' '))
     const freq: Record<string, number> = {}
     causeWords.forEach((w) => { freq[w] = (freq[w] || 0) + 1 })
     const mostCommon = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'
-    const criticalCount = DEMO_INCIDENTS.filter((i) => i.severity === 'critical').length
+    const criticalCount = activeIncidents.filter((i) => i.severity === 'critical').length
     return { totalIncidents, totalAlerts, avgAlerts, mostCommon, criticalCount }
-  }, [])
+  }, [activeIncidents])
 
   const uniqueStages = useMemo(() => {
     const stages = new Set<string>()
-    DEMO_INCIDENTS.forEach((inc) => inc.alerts.forEach((a) => stages.add(a.stage)))
+    activeIncidents.forEach((inc) => inc.alerts.forEach((a) => stages.add(a.stage)))
     return Array.from(stages)
-  }, [])
+  }, [activeIncidents])
 
   const toggle = (id: string) => setExpandedId((prev) => (prev === id ? null : id))
 

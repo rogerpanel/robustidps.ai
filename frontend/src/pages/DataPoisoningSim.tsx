@@ -165,6 +165,9 @@ export default function DataPoisoningSim() {
     setTargetClass('Benign')
     setNumSamples(5000)
     setDefensesEnabled(false)
+    setFile(null)
+    setBaselineResult(null)
+    setCleanAccuracy(97.8)
   }
 
   const activeStrat = POISON_STRATEGIES.find(s => s.id === selectedStrategy)!
@@ -195,6 +198,47 @@ export default function DataPoisoningSim() {
         ]}
         tip="All simulations run locally with deterministic calculations \u2014 no real models are harmed."
       />
+
+      {/* Baseline Upload & Model Selection */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
+          Establish Baseline (Optional)
+        </h2>
+        <p className="text-xs text-text-secondary mb-3">
+          Upload a dataset and run model inference to establish real baseline accuracy before simulating poisoning effects.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          {/* Drag & drop */}
+          <div>
+            {file ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-green/30 bg-accent-green/5">
+                <FileText className="w-4 h-4 text-accent-green shrink-0" />
+                <span className="text-xs font-mono truncate flex-1">{file.name}</span>
+                <button onClick={() => { setFile(null); setBaselineResult(null) }} className="text-text-secondary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
+              </div>
+            ) : (
+              <label onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('border-accent-blue','bg-accent-blue/10') }} onDragLeave={e => { e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10') }} onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10'); const f = e.dataTransfer.files[0]; if(f) setFile(f) }} className="flex flex-col items-center gap-1 px-3 py-3 rounded-lg border-2 border-dashed border-bg-card hover:border-text-secondary cursor-pointer transition-colors">
+                <Upload className="w-5 h-5 text-text-secondary" />
+                <span className="text-[10px] text-text-secondary">Drop or click</span>
+                <span className="text-[9px] text-text-secondary/60">.csv .pcap .pcapng</span>
+                <input type="file" accept=".csv,.pcap,.pcapng" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              </label>
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">Target Model</label>
+            <ModelSelector value={modelId} onChange={setModelId} compact />
+          </div>
+          <button onClick={runBaselineAnalysis} disabled={!file || analyzing} className="px-4 py-2.5 bg-accent-blue hover:bg-accent-blue/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+            {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> Establishing Baseline...</> : 'Establish Baseline'}
+          </button>
+        </div>
+        {baselineResult && (
+          <div className="mt-3 p-3 bg-accent-green/5 border border-accent-green/20 rounded-lg text-xs text-accent-green">
+            Baseline established: {cleanAccuracy.toFixed(1)}% accuracy on {baselineResult.predictions?.length || 0} samples using {modelId}
+          </div>
+        )}
+      </div>
 
       {/* Strategy Selector */}
       <div>
