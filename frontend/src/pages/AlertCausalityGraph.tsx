@@ -107,39 +107,108 @@ const mapAttackToStage = (label: string) => {
 }
 
 const buildIncidents = (predictions: any[]): Incident[] => {
-  const groups: Record<string, any[]> = {}
+  // Group non-benign alerts by source IP
+  const srcGroups: Record<string, any[]> = {}
+  // Also group by destination IP for pivot detection
+  const dstGroups: Record<string, any[]> = {}
+  // Also group by attack family for pattern detection
+  const familyGroups: Record<string, any[]> = {}
+
   predictions.forEach((p: any, i: number) => {
-    if (p.severity === 'benign') return
-    const src = p.src_ip || 'unknown'
-    if (!groups[src]) groups[src] = []
-    groups[src].push({
+    if (p.severity === 'benign' || p.label_predicted === 'Benign') return
+    const alert = {
       id: `A${i + 1}`,
       time: new Date(Date.now() - (predictions.length - i) * 60000).toTimeString().slice(0, 8),
       attack: p.label_predicted || 'Unknown',
-      src: src,
+      src: p.src_ip || 'unknown',
       dst: p.dst_ip || '10.0.0.1',
       confidence: p.confidence || 0.5,
       stage: mapAttackToStage(p.label_predicted),
-    })
+    }
+    const src = alert.src
+    const dst = alert.dst
+    const family = (p.label_predicted || '').split('-')[0] || 'Unknown'
+
+    if (!srcGroups[src]) srcGroups[src] = []
+    srcGroups[src].push(alert)
+    if (!dstGroups[dst]) dstGroups[dst] = []
+    dstGroups[dst].push(alert)
+    if (!familyGroups[family]) familyGroups[family] = []
+    familyGroups[family].push(alert)
   })
 
-  return Object.entries(groups)
+  // Build incidents from source IP groups (primary), then dst groups, then family groups
+  const incidents: Incident[] = []
+  const usedAlertIds = new Set<string>()
+
+  // Source IP chains (attacker-centric)
+  Object.entries(srcGroups)
     .filter(([_, alerts]) => alerts.length >= 2)
-    .slice(0, 5)
-    .map(([src, alerts], i) => ({
-      id: `INC-${String(i + 1).padStart(3, '0')}`,
-      title: `Attack chain from ${src}`,
-      severity: alerts.some((a: any) => a.attack.includes('Malware') || a.attack.includes('Ransom')) ? 'critical' as const : 'high' as const,
-      alerts,
-      rootCause: `Multiple attack stages detected from ${src}`,
-      recommendation: `Investigate ${src}, check for lateral movement, review firewall rules`,
-    }))
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 3)
+    .forEach(([src, alerts], i) => {
+      alerts.forEach(a => usedAlertIds.add(a.id))
+      const stages = new Set(alerts.map(a => a.stage))
+      incidents.push({
+        id: `INC-${String(incidents.length + 1).padStart(3, '0')}`,
+        title: `Attack chain from ${src} (${alerts.length} alerts)`,
+        severity: alerts.some(a => a.attack.includes('Malware') || a.attack.includes('Ransom') || a.attack.includes('DDoS')) ? 'critical' : 'high',
+        alerts: alerts.slice(0, 10),
+        rootCause: `${stages.size} attack stages detected from source ${src}`,
+        recommendation: `Block ${src}, investigate targeted hosts, check for lateral movement`,
+      })
+    })
+
+  // If not enough source-based incidents, add destination-based (target-centric)
+  if (incidents.length < 3) {
+    Object.entries(dstGroups)
+      .filter(([_, alerts]) => alerts.length >= 2 && alerts.some(a => !usedAlertIds.has(a.id)))
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 3 - incidents.length)
+      .forEach(([dst, alerts]) => {
+        const uniqueAlerts = alerts.filter(a => !usedAlertIds.has(a.id))
+        if (uniqueAlerts.length < 2) return
+        uniqueAlerts.forEach(a => usedAlertIds.add(a.id))
+        incidents.push({
+          id: `INC-${String(incidents.length + 1).padStart(3, '0')}`,
+          title: `Multi-source attack on ${dst} (${uniqueAlerts.length} alerts)`,
+          severity: uniqueAlerts.some(a => a.attack.includes('Malware') || a.attack.includes('Ransom')) ? 'critical' : 'high',
+          alerts: uniqueAlerts.slice(0, 10),
+          rootCause: `Target ${dst} attacked by ${new Set(uniqueAlerts.map(a => a.src)).size} sources`,
+          recommendation: `Harden ${dst}, review access controls, deploy WAF rules`,
+        })
+      })
+  }
+
+  // If still not enough, group by attack family
+  if (incidents.length < 2) {
+    Object.entries(familyGroups)
+      .filter(([fam, alerts]) => fam !== 'Benign' && alerts.length >= 2 && alerts.some(a => !usedAlertIds.has(a.id)))
+      .sort((a, b) => b[1].length - a[1].length)
+      .slice(0, 3 - incidents.length)
+      .forEach(([family, alerts]) => {
+        const uniqueAlerts = alerts.filter(a => !usedAlertIds.has(a.id))
+        if (uniqueAlerts.length < 2) return
+        uniqueAlerts.forEach(a => usedAlertIds.add(a.id))
+        incidents.push({
+          id: `INC-${String(incidents.length + 1).padStart(3, '0')}`,
+          title: `${family} attack campaign (${uniqueAlerts.length} alerts)`,
+          severity: family === 'Malware' || family === 'DDoS' ? 'critical' : 'high',
+          alerts: uniqueAlerts.slice(0, 10),
+          rootCause: `${family} attacks from ${new Set(uniqueAlerts.map(a => a.src)).size} sources`,
+          recommendation: `Review ${family} detection rules, update signatures, investigate affected hosts`,
+        })
+      })
+  }
+
+  return incidents
 }
 
 /* ── Component ── */
 export default function AlertCausalityGraph() {
   const [expandedId, setExpandedId] = useState<string | null>('INC-001')
   const [searchTerm, setSearchTerm] = useState('')
+  const [stageFilter, setStageFilter] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [modelId, setModelId] = useState('surrogate')
   const [analysisResult, setAnalysisResult] = useState<any>(null)
@@ -178,21 +247,29 @@ export default function AlertCausalityGraph() {
   const activeIncidents = realIncidents.length > 0 ? realIncidents : DEMO_INCIDENTS
 
   const filteredIncidents = useMemo(() => {
-    if (!searchTerm) return activeIncidents
-    const q = searchTerm.toLowerCase()
-    return activeIncidents.filter(
-      (inc) =>
-        inc.title.toLowerCase().includes(q) ||
-        inc.id.toLowerCase().includes(q) ||
-        inc.alerts.some(
-          (a) =>
-            a.attack.toLowerCase().includes(q) ||
-            a.src.toLowerCase().includes(q) ||
-            a.dst.toLowerCase().includes(q) ||
-            a.stage.toLowerCase().includes(q),
-        ),
-    )
-  }, [searchTerm, activeIncidents])
+    let result = activeIncidents
+    // Filter by kill-chain stage
+    if (stageFilter) {
+      result = result.filter(inc => inc.alerts.some(a => a.stage === stageFilter))
+    }
+    // Filter by search term
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase()
+      result = result.filter(
+        (inc) =>
+          inc.title.toLowerCase().includes(q) ||
+          inc.id.toLowerCase().includes(q) ||
+          inc.alerts.some(
+            (a) =>
+              a.attack.toLowerCase().includes(q) ||
+              a.src.toLowerCase().includes(q) ||
+              a.dst.toLowerCase().includes(q) ||
+              a.stage.toLowerCase().includes(q),
+          ),
+      )
+    }
+    return result
+  }, [searchTerm, stageFilter, activeIncidents])
 
   /* ── Stats ── */
   const stats = useMemo(() => {
@@ -329,18 +406,31 @@ export default function AlertCausalityGraph() {
         />
       </div>
 
-      {/* Stage Legend */}
+      {/* Stage Filter (clickable) */}
       <div className="flex flex-wrap gap-2">
         {Object.entries(STAGE_COLORS).map(([stage, color]) => (
-          <span
+          <button
             key={stage}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border border-white/10"
-            style={{ backgroundColor: `${color}20`, color }}
+            onClick={() => setStageFilter(stageFilter === stage ? null : stage)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all cursor-pointer ${
+              stageFilter === stage
+                ? 'border-white/40 scale-105 shadow-lg'
+                : stageFilter && stageFilter !== stage
+                  ? 'border-white/5 opacity-40'
+                  : 'border-white/10 hover:border-white/30'
+            }`}
+            style={{ backgroundColor: `${color}${stageFilter === stage ? '40' : '20'}`, color }}
           >
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
             {stage}
-          </span>
+            {stageFilter === stage && <span className="ml-1">×</span>}
+          </button>
         ))}
+        {stageFilter && (
+          <button onClick={() => setStageFilter(null)} className="text-[10px] text-text-secondary hover:text-text-primary ml-1">
+            Clear filter
+          </button>
+        )}
       </div>
 
       {/* Incident Cards */}
