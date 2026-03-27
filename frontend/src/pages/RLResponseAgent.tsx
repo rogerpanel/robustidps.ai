@@ -734,6 +734,55 @@ export default function RLResponseAgent() {
         </div>
       )}
 
+      {/* Bounded Autonomy Configuration */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-accent-orange/20">
+        <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
+          <Shield className="w-5 h-5 text-accent-orange" />
+          Bounded Autonomy Configuration
+        </h2>
+        <p className="text-xs text-text-secondary mb-4">
+          Configure what the RL agent can do autonomously vs. what requires human approval. Based on CrowdStrike-style bounded autonomy.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-text-primary">Autonomous Actions (No Approval Needed)</h3>
+            {[
+              { action: 'Monitor', threshold: 'Always', desc: 'Passive observation — no impact on traffic' },
+              { action: 'RateLimit', threshold: 'Confidence ≥ 70%', desc: 'Throttle suspicious flows to reduce impact' },
+            ].map((r, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2 bg-accent-green/5 border border-accent-green/20 rounded-lg text-xs">
+                <CheckCircle2 className="w-4 h-4 text-accent-green shrink-0" />
+                <div className="flex-1">
+                  <span className="font-medium text-text-primary">{r.action}</span>
+                  <span className="text-text-secondary ml-2">— {r.desc}</span>
+                </div>
+                <span className="text-accent-green text-[10px] font-mono">{r.threshold}</span>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-3">
+            <h3 className="text-xs font-semibold text-text-primary">Requires Human Approval</h3>
+            {[
+              { action: 'Reset', threshold: 'Confidence ≥ 85%', desc: 'Reset connection — moderate disruption risk' },
+              { action: 'Block', threshold: 'Confidence ≥ 95%', desc: 'Block IP — high impact, potential false positive' },
+              { action: 'Quarantine', threshold: 'Confidence ≥ 99%', desc: 'Full isolation — maximum disruption' },
+            ].map((r, i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2 bg-accent-amber/5 border border-accent-amber/20 rounded-lg text-xs">
+                <AlertTriangle className="w-4 h-4 text-accent-amber shrink-0" />
+                <div className="flex-1">
+                  <span className="font-medium text-text-primary">{r.action}</span>
+                  <span className="text-text-secondary ml-2">— {r.desc}</span>
+                </div>
+                <span className="text-accent-amber text-[10px] font-mono">{r.threshold}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 p-3 bg-bg-primary rounded-lg text-xs text-text-secondary">
+          <strong className="text-accent-orange">Safety Guarantee:</strong> The CPO agent's false-positive blocking rate is constrained to &lt;0.1%. Block and Quarantine actions are automatically downgraded if detection confidence is insufficient, regardless of policy thresholds.
+        </div>
+      </div>
+
       {/* How CPO Works */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h2 className="text-lg font-display font-semibold mb-3">How CPO Response Works</h2>

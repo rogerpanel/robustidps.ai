@@ -28,6 +28,8 @@ import {
   Package,
   Scale,
   BookOpen,
+  Target,
+  Filter,
   ChevronRight,
   ChevronDown,
   Diamond,
@@ -76,6 +78,9 @@ const PromptInjectionPlayground = lazy(() => import('./pages/PromptInjectionPlay
 const JailbreakTaxonomy = lazy(() => import('./pages/JailbreakTaxonomy'))
 const RAGPoisoning = lazy(() => import('./pages/RAGPoisoning'))
 const MultiAgentChain = lazy(() => import('./pages/MultiAgentChain'))
+const MitreAttackMapper = lazy(() => import('./pages/MitreAttackMapper'))
+const AlertTriage = lazy(() => import('./pages/AlertTriage'))
+const ComplianceHub = lazy(() => import('./pages/ComplianceHub'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -138,6 +143,14 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    heading: 'MLSecOps Standards',
+    items: [
+      { to: '/mitre-attack', label: 'MITRE ATT&CK', icon: Target },
+      { to: '/alert-triage', label: 'Alert Triage', icon: Filter },
+      { to: '/compliance', label: 'Compliance Hub', icon: ClipboardCheck },
+    ],
+  },
+  {
     heading: 'AI Security & Gov',
     items: [
       { to: '/pq-crypto', label: 'PQ Cryptography', icon: KeySquare },
@@ -168,7 +181,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 // Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
 const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'System']
-const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'AI Security & Gov', 'Industry & Research']
+const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'MLSecOps Standards', 'AI Security & Gov', 'Industry & Research']
 
 export default function App() {
   const [online, setOnline] = useState<boolean | null>(null)
@@ -647,6 +660,9 @@ export default function App() {
               <Route path="/jailbreak-taxonomy" element={<JailbreakTaxonomy />} />
               <Route path="/rag-poisoning" element={<RAGPoisoning />} />
               <Route path="/multi-agent" element={<MultiAgentChain />} />
+              <Route path="/mitre-attack" element={<MitreAttackMapper />} />
+              <Route path="/alert-triage" element={<AlertTriage />} />
+              <Route path="/compliance" element={<ComplianceHub />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
