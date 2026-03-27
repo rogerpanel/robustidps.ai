@@ -2,9 +2,13 @@ import { useState, useMemo } from 'react'
 import {
   TrendingUp, ChevronRight, Shield, AlertTriangle, Target,
   Activity, Zap, BarChart3, Layers, ArrowRight,
+  Upload, FileText, X, Loader2,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
+import ModelSelector from '../components/ModelSelector'
+import { analyseFile } from '../utils/api'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 /* ── Attack transition probability matrix ────────────────────────────── */
 /* Domain knowledge from MITRE ATT&CK kill chain analysis (Markov model) */
@@ -188,6 +192,52 @@ export default function AttackChainPredictor() {
   const [selectedAttack, setSelectedAttack] = useState<string>('Recon-PingSweep')
   const [predictionDepth, setPredictionDepth] = useState(3)
   const [showAlternatives, setShowAlternatives] = useState(true)
+  const [file, setFile] = useState<File | null>(null)
+  const [modelId, setModelId] = useState('surrogate')
+  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const { addNotice, updateNotice } = useNoticeBoard()
+
+  const runAnalysis = async () => {
+    if (!file) return
+    setAnalyzing(true)
+    const nid = addNotice({ title: 'Attack Chain Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/attack-chain-predictor' })
+    try {
+      const data = await analyseFile(file, modelId)
+      setAnalysisResult(data)
+      // Auto-select most common non-benign attack
+      if (data.predictions) {
+        const attackCounts: Record<string, number> = {}
+        data.predictions.forEach((p: any) => {
+          const label = p.label_predicted
+          if (label && label !== 'Benign') {
+            attackCounts[label] = (attackCounts[label] || 0) + 1
+          }
+        })
+        const topAttack = Object.entries(attackCounts).sort((a, b) => b[1] - a[1])[0]
+        if (topAttack) setSelectedAttack(topAttack[0])
+      }
+      updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows analyzed` })
+    } catch (err) {
+      updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Analysis failed' })
+    }
+    setAnalyzing(false)
+  }
+
+  /* Detected attacks summary from analysis */
+  const detectedAttacks = useMemo(() => {
+    if (!analysisResult?.predictions) return []
+    const counts: Record<string, number> = {}
+    analysisResult.predictions.forEach((p: any) => {
+      const label = p.label_predicted
+      if (label && label !== 'Benign') {
+        counts[label] = (counts[label] || 0) + 1
+      }
+    })
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+  }, [analysisResult])
 
   /* Predicted chain */
   const chain = useMemo(() => predictChain(selectedAttack, predictionDepth), [selectedAttack, predictionDepth])
@@ -258,6 +308,76 @@ export default function AttackChainPredictor() {
         steps={GUIDE_STEPS}
         tip="Start with a Recon attack to see the full kill chain unfold from reconnaissance to impact."
       />
+
+      {/* Upload + Model selector */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">Upload Traffic for Chain Prediction</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          {/* Drag & drop file zone */}
+          <div>
+            {file ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-green/30 bg-accent-green/5">
+                <FileText className="w-4 h-4 text-accent-green shrink-0" />
+                <span className="text-xs font-mono truncate flex-1">{file.name}</span>
+                <button onClick={() => { setFile(null); setAnalysisResult(null) }} className="text-text-secondary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
+              </div>
+            ) : (
+              <label onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('border-accent-blue','bg-accent-blue/10') }} onDragLeave={e => { e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10') }} onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10'); const f = e.dataTransfer.files[0]; if(f) setFile(f) }} className="flex flex-col items-center gap-1 px-3 py-3 rounded-lg border-2 border-dashed border-bg-card hover:border-text-secondary cursor-pointer transition-colors">
+                <Upload className="w-5 h-5 text-text-secondary" />
+                <span className="text-[10px] text-text-secondary">Drop or click</span>
+                <span className="text-[9px] text-text-secondary/60">.csv .pcap .pcapng</span>
+                <input type="file" accept=".csv,.pcap,.pcapng" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              </label>
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">Detection Model</label>
+            <ModelSelector value={modelId} onChange={setModelId} compact />
+          </div>
+          <button onClick={runAnalysis} disabled={!file || analyzing} className="px-4 py-2.5 bg-accent-blue hover:bg-accent-blue/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+            {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : 'Analyze & Predict Attack Chains'}
+          </button>
+        </div>
+      </div>
+
+      {/* Detected Attacks Summary (from uploaded data) */}
+      {detectedAttacks.length > 0 && (
+        <div className="bg-bg-card border border-bg-card rounded-xl p-5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-accent-orange" />
+            Detected Attacks Summary
+          </h2>
+          <div className="space-y-2">
+            {detectedAttacks.map(([attack, count]) => {
+              const sev = getSeverity(attack)
+              const isSelected = selectedAttack === attack
+              return (
+                <button
+                  key={attack}
+                  onClick={() => setSelectedAttack(attack)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg border text-left transition-all ${
+                    isSelected
+                      ? 'border-accent-blue/50 bg-accent-blue/10'
+                      : 'border-bg-card/50 hover:bg-bg-surface/50'
+                  }`}
+                >
+                  <div className="flex-1 text-xs font-mono text-text-primary">{attack}</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold" style={{ color: sev.color }}>{count} hits</span>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded border font-medium"
+                      style={{ color: sev.color, borderColor: sev.color + '40', backgroundColor: sev.color + '15' }}
+                    >
+                      {sev.level}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-[10px] text-text-secondary mt-2">Click an attack to auto-select it for chain prediction.</p>
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
