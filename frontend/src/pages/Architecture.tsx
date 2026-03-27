@@ -139,8 +139,8 @@ const SCALING = [
 const TECH_STACK = [
   { category: 'Frontend', items: ['React 18', 'TypeScript', 'Vite', 'Tailwind CSS', 'Recharts', 'React Router'] },
   { category: 'Backend', items: ['Python 3.11', 'FastAPI', 'PyTorch 2.x', 'NumPy/Pandas', 'scikit-learn', 'SQLite/PostgreSQL'] },
-  { category: 'ML Models', items: ['Neural ODE (torchdiffeq)', 'Mamba (state-space)', 'Transformer (attention)', 'GNN (PyG)', 'CRYSTALS-Kyber (PQ)', 'PPO (RL agent)'] },
-  { category: 'DevOps', items: ['Docker Compose', 'Nginx reverse proxy', 'Let\'s Encrypt TLS', 'GitHub Actions CI', 'Hetzner Cloud', 'systemd services'] },
+  { category: 'ML Models', items: ['Neural ODE (torchdiffeq)', 'Mamba (state-space)', 'Transformer (attention)', 'GNN (PyG)', 'CRYSTALS-Kyber (PQ)', 'PPO (RL agent)', 'DOMPurify', 'Multi-LLM (Claude/GPT-4o/Gemini/DeepSeek)'] },
+  { category: 'DevOps', items: ['Docker Compose', 'Nginx reverse proxy', 'Let\'s Encrypt TLS', 'GitHub Actions CI', 'Hetzner Cloud', 'systemd services', 'Cloudflare Tunnel', 'PWA Service Worker'] },
 ]
 
 /* ── Performance metrics ───────────────────────────────────────────────── */
@@ -566,6 +566,22 @@ export default function Architecture() {
                 {step.label}
               </span>
               {i < 5 && <ArrowRight className="w-3 h-3 text-text-secondary/30" />}
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs mt-3">
+          {[
+            { label: 'LLM API Traffic', color: 'bg-accent-orange/15 text-accent-orange' },
+            { label: 'Defense Pipeline', color: 'bg-bg-card text-text-secondary' },
+            { label: 'Prompt Analysis', color: 'bg-accent-purple/15 text-accent-purple' },
+            { label: 'SOC Copilot', color: 'bg-accent-amber/15 text-accent-amber' },
+            { label: 'Analyst', color: 'bg-accent-green/15 text-accent-green' },
+          ].map((step, i) => (
+            <span key={step.label} className="flex items-center gap-2">
+              <span className={`px-2.5 py-1 rounded-lg font-medium ${step.color}`}>
+                {step.label}
+              </span>
+              {i < 4 && <ArrowRight className="w-3 h-3 text-text-secondary/30" />}
             </span>
           ))}
         </div>
