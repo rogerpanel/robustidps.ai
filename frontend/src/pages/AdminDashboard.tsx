@@ -5,6 +5,7 @@ import {
   AlertTriangle, LogIn, Upload, Cpu, Download, Flame, RefreshCw,
 } from 'lucide-react'
 import { getUser } from '../utils/auth'
+import PageGuide from '../components/PageGuide'
 import {
   fetchUsers, fetchAuditLogs, exportAuditLogs, updateUserRole,
   resetUserPassword, deleteUser, toggleUserActive,
@@ -415,6 +416,17 @@ export default function AdminDashboard() {
           </p>
         </div>
       </div>
+
+      <PageGuide
+        title="How to use Admin Dashboard"
+        steps={[
+          { title: 'Manage users', desc: 'View all user accounts, change roles (admin/analyst/viewer), reset passwords, activate/deactivate accounts, or delete users.' },
+          { title: 'Review audit logs', desc: 'Browse all user activities (logins, uploads, predictions, exports) with filtering by action type. Export logs as CSV for compliance.' },
+          { title: 'Monitor active sessions', desc: 'See who is currently online, which page they are viewing, and their idle time. Auto-refreshes every 10 seconds.' },
+          { title: 'Check system health', desc: 'Monitor CPU, memory, disk usage, active jobs, model status, and device info. Auto-refreshes every 15 seconds.' },
+        ]}
+        tip="Tip: The Active Sessions tab shows real-time user activity — useful for monitoring during live demonstrations and security audits."
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

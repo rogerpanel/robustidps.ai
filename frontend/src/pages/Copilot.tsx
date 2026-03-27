@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { authHeaders } from '../utils/auth'
+import PageGuide from '../components/PageGuide'
 import { syncLLMAttackResults } from '../utils/api'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 
@@ -387,6 +388,17 @@ export default function Copilot() {
           </button>
         </div>
       </div>
+
+      <PageGuide
+        title="How to use SOC Copilot"
+        steps={[
+          { title: 'Configure LLM provider', desc: 'Open Settings to enter your API key for Claude, GPT-4o, Gemini, or DeepSeek. Leave empty to use the server\'s configured key. Local mode works without any key.' },
+          { title: 'Select context', desc: 'Click any context chip (Active Operations, Upload Results, Red Team, etc.) to pre-fill a relevant query. The copilot fetches real data from that page.' },
+          { title: 'Ask questions', desc: 'Type any security question. The copilot uses tool-calling to look up threat summaries, job details, firewall rules, model info, and LLM attack results.' },
+          { title: 'Investigate LLM attacks', desc: 'Click the Prompt Injection, Jailbreak, RAG Poisoning, or Multi-Agent context chips to query findings from the LLM Attack Surface pages.' },
+        ]}
+        tip="Tip: Start with 'Show me all active operations' to see what data is available for the copilot to analyze."
+      />
 
       {/* Settings Panel */}
       {showSettings && (

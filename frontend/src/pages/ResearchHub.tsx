@@ -6,6 +6,7 @@ import {
   Shield,
 } from 'lucide-react'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
+import PageGuide from '../components/PageGuide'
 import {
   fetchTasks, fetchTask, deleteTask,
   fetchExperiments, createExperiment, deleteExperiment, updateExperiment,
@@ -937,6 +938,17 @@ export default function ResearchHub() {
           Track experiments, manage background jobs, and generate publication-ready exports.
         </p>
       </div>
+
+      <PageGuide
+        title="How to use Research Hub"
+        steps={[
+          { title: 'Track experiments', desc: 'View saved experiments from Upload, Red Team, Ablation, and other modules. Tag, search, and compare experiments side-by-side.' },
+          { title: 'Generate reports', desc: 'Select experiments and export LaTeX comparison tables, MITRE ATT&CK mappings, or CSV reports for your publications.' },
+          { title: 'Review LLM security posture', desc: 'The LLM Security Lab tab aggregates findings from all 4 LLM Attack Surface pages with block rates and defense effectiveness.' },
+          { title: 'Manage publications', desc: 'View draft IEEE TNNLS papers, copy the Zenodo DOI citation (APA or BibTeX), and track foundation paper implementations.' },
+        ]}
+        tip="Tip: Save results from any analysis page as an experiment, then use the Reports tab to auto-generate publication-ready LaTeX tables."
+      />
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-bg-card">
