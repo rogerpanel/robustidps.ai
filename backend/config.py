@@ -48,14 +48,14 @@ CORS_ORIGINS = [
 ]
 RATE_LIMIT_DEFAULT = os.getenv("RATE_LIMIT_DEFAULT", "100/minute")
 RATE_LIMIT_HEAVY = os.getenv("RATE_LIMIT_HEAVY", "10/minute")
-MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "100"))
+MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "250"))
 MAX_LIVE_CAPTURE_SIZE_MB = int(os.getenv("MAX_LIVE_CAPTURE_SIZE_MB", "500"))
 ALLOWED_EXTENSIONS = {".csv", ".pcap", ".pcapng"}
 
 # ── Application ───────────────────────────────────────────────────────────
 DEVICE = os.getenv("DEVICE", "cpu")
 MC_PASSES = int(os.getenv("MC_PASSES", "20"))
-MAX_ROWS = int(os.getenv("MAX_ROWS", "10000"))
+MAX_ROWS = int(os.getenv("MAX_ROWS", "20000"))
 
 # ── Datasets ──────────────────────────────────────────────────────────────
 DATASETS_DIR = Path(os.getenv("DATASETS_DIR", str(Path(__file__).parent / "datasets")))
