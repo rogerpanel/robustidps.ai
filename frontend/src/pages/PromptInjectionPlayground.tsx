@@ -443,7 +443,7 @@ export default function PromptInjectionPlayground() {
             <button
               onClick={runEvaluation}
               disabled={running || !activePayload.trim()}
-              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-orange hover:bg-accent-orange/80 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {running ? (
                 <>

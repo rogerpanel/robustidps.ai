@@ -438,7 +438,7 @@ export default function RedTeamArena() {
             />
             <button onClick={handleRunSingle}
               disabled={!file || !fileReady || running || fileLoading || selectedAttacks.length === 0}
-              className="px-5 py-2.5 bg-accent-red text-white rounded-lg text-sm font-medium hover:bg-accent-red/80 transition-colors disabled:opacity-40 flex items-center gap-2">
+              className="px-5 py-2.5 bg-accent-orange text-white rounded-lg text-sm font-medium hover:bg-accent-orange/80 transition-colors disabled:opacity-40 flex items-center gap-2">
               {running ? <><Loader2 className="w-4 h-4 animate-spin" />Running attacks...</> : <><Swords className="w-4 h-4" />Launch Arena</>}
             </button>
           </div>

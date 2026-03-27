@@ -599,7 +599,7 @@ export default function App() {
           {/* Breadcrumb bar */}
           {breadcrumb && (
             <div className="mb-3 flex items-center gap-2 text-xs text-text-secondary/60">
-              <span className="font-semibold uppercase tracking-wider">{breadcrumb.group}</span>
+              <span className={`font-semibold uppercase tracking-wider ${breadcrumb.group === 'LLM Attack Surfaces' ? 'text-accent-orange/50' : ''}`}>{breadcrumb.group}</span>
               <ChevronRight className="w-3 h-3" />
               <span className="text-text-primary font-medium">{breadcrumb.page}</span>
             </div>

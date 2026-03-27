@@ -534,7 +534,7 @@ export default function MultiAgentChain() {
                   <button
                     onClick={runSimulation}
                     disabled={running}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium transition-all disabled:opacity-40"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-orange hover:bg-accent-orange/80 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-40"
                   >
                     {running ? (
                       <>

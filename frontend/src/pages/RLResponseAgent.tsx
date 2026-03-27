@@ -287,7 +287,7 @@ export default function RLResponseAgent() {
             <button
               onClick={handleRun}
               disabled={!file || running}
-              className="w-full px-4 py-2.5 bg-accent-red text-white rounded-lg text-xs font-medium hover:bg-accent-red/80 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full px-4 py-2.5 bg-accent-orange text-white rounded-lg text-xs font-medium hover:bg-accent-orange/80 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {running ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Simulating...</>

@@ -205,7 +205,7 @@ export default function Dashboard() {
 
       {/* Row 4: LLM Attack Surface Summary (if data available) */}
       {(llmAttack.promptInjection.length > 0 || llmAttack.jailbreakFindings.length > 0 || llmAttack.ragPoisoning.length > 0 || llmAttack.multiAgent.length > 0) && (
-        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card border-t-2 border-t-accent-orange/30">
           <h3 className="text-sm font-medium text-text-primary mb-4 flex items-center gap-2">
             <ShieldAlert className="w-4 h-4 text-accent-red" />
             LLM Attack Surface Summary

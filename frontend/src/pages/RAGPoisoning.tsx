@@ -519,7 +519,7 @@ export default function RAGPoisoning() {
             <button
               onClick={runSimulation}
               disabled={running || !query.trim()}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-purple/20 hover:bg-accent-purple/30 text-accent-purple border border-accent-purple/30 rounded-lg text-sm font-medium transition-all disabled:opacity-40"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-orange hover:bg-accent-orange/80 text-white rounded-lg text-sm font-medium transition-all disabled:opacity-40"
             >
               {running ? (
                 <>
