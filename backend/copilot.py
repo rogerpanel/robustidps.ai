@@ -445,10 +445,19 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
             job = db.get(Job, args["job_id"])
             if not job:
                 return json.dumps({"error": f"Job {args['job_id']} not found"})
+            # Enforce per-job authorization
+            if user and user.role != "admin" and job.user_id != user.id:
+                return json.dumps({"error": "Access denied — you can only view your own jobs"})
             rules = db.execute(select(FirewallRule).where(FirewallRule.job_id == args["job_id"])).scalars().all()
             return json.dumps({"job_id": job.id, "filename": job.filename, "format": job.format_detected, "n_flows": job.n_flows, "n_threats": job.n_threats, "model_used": job.model_used, "created_at": job.created_at.isoformat() if job.created_at else None, "firewall_rules_count": len(rules), "top_threats": [{"source_ip": r.source_ip, "threat": r.threat_label, "severity": r.severity, "confidence": r.confidence} for r in rules[:10]]})
 
         elif name == "get_firewall_rules":
+            # Enforce per-job authorization
+            job = db.get(Job, args["job_id"])
+            if not job:
+                return json.dumps({"error": "Job not found"})
+            if user and user.role != "admin" and job.user_id != user.id:
+                return json.dumps({"error": "Access denied — you can only view your own jobs"})
             rules = db.execute(select(FirewallRule).where(FirewallRule.job_id == args["job_id"])).scalars().all()
             return json.dumps([{"rule_type": r.rule_type, "source_ip": r.source_ip, "action": r.action, "threat_label": r.threat_label, "severity": r.severity, "confidence": r.confidence, "rule_text": r.rule_text} for r in rules])
 

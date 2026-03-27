@@ -253,7 +253,7 @@ export default function RAGPoisoning() {
         poisonedResponse: result.poisoned_response,
       })
     } catch (err: any) {
-      console.error('RAG simulation failed:', err)
+      console.error('RAG simulation failed:', err instanceof Error ? err.message : 'Unknown error')
       // FALLBACK: keep existing local simulation logic so page works without backend
       const hasPoisonedDocs = kbDocuments.some(d => d.poisoned)
       const totalDefenceScore = activeDefences.reduce((sum, id) => {

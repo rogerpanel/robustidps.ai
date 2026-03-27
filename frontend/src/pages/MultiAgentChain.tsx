@@ -259,7 +259,7 @@ export default function MultiAgentChain() {
         }
       }, 800)
     } catch (err: any) {
-      console.error('Multi-agent simulation failed:', err)
+      console.error('Multi-agent simulation failed:', err instanceof Error ? err.message : 'Unknown error')
       // FALLBACK to existing animation logic
       let step = 0
       const attack = selectedAttack

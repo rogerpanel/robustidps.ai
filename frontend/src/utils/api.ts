@@ -1500,7 +1500,7 @@ export async function syncLLMAttackResults(summary: Record<string, unknown>) {
       body: JSON.stringify({ summary }),
     });
   } catch (err) {
-    console.warn('[LLM Attack Sync] Failed to sync results to backend:', err)
+    console.warn('[LLM Attack Sync] Failed to sync results to backend:', err instanceof Error ? err.message : 'Unknown error')
     throw err
   }
 }

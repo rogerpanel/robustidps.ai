@@ -182,6 +182,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Cache-Control"] = "no-store"
@@ -3485,9 +3486,20 @@ async def stream(ws: WebSocket):
             return
 
         job = job_store[job_id]
-        # WebSocket ownership check via token in init message
-        ws_user_id = msg.get("user_id")
-        if job.get("user_id") and ws_user_id and job["user_id"] != int(ws_user_id):
+        # Validate user from JWT token sent in init message
+        ws_token = msg.get("token", "")
+        ws_user = None
+        if ws_token:
+            try:
+                import jwt as _jwt
+                from config import SECRET_KEY, JWT_ALGORITHM
+                payload = _jwt.decode(ws_token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
+                ws_user = payload.get("sub") or payload.get("user_id")
+            except Exception:
+                pass
+
+        # Check job ownership
+        if job.get("user_id") and ws_user and job["user_id"] != ws_user:
             await ws.send_json({"error": "not authorised"})
             await ws.close()
             return
@@ -3550,6 +3562,18 @@ async def live_capture(ws: WebSocket):
     try:
         init = await ws.receive_text()
         msg = json.loads(init)
+        # Validate user from JWT token sent in init message
+        ws_token = msg.get("token", "")
+        ws_user = None
+        if ws_token:
+            try:
+                import jwt as _jwt
+                from config import SECRET_KEY, JWT_ALGORITHM
+                payload = _jwt.decode(ws_token, SECRET_KEY, algorithms=[JWT_ALGORITHM])
+                ws_user = payload.get("sub") or payload.get("user_id")
+            except Exception:
+                pass
+
         source = msg.get("source", "interface")  # "interface" or "file"
         iface = msg.get("interface", "eth0")
         interval = min(max(int(msg.get("interval", 30)), 5), 300)

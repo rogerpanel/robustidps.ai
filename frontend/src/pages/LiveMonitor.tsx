@@ -763,7 +763,7 @@ export default function LiveMonitor() {
       )
       setLlmScanResults(result)
     } catch (err) {
-      console.error('LLM scan failed:', err)
+      console.error('LLM scan failed:', err instanceof Error ? err.message : 'Unknown error')
     } finally {
       setLlmScanning(false)
     }

@@ -223,7 +223,7 @@ export default function PromptInjectionPlayground() {
         payload: template.payload || customPayload,
       })
     } catch (err: any) {
-      console.error('Prompt injection test failed:', err)
+      console.error('Prompt injection test failed:', err instanceof Error ? err.message : 'Unknown error')
       // Fallback to local simulation if API fails
       const template = useCustom
         ? { ...selectedTemplate, payload: customPayload, systemPrompt: customSystemPrompt }
