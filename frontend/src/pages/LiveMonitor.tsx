@@ -493,7 +493,7 @@ export default function LiveMonitor() {
           if (data.status) { setCaptureStatus(data.message || data.status); if (data.cycle) setCurrentCycle(data.cycle) }
           if (data.type === 'flow') {
             const ev: FlowEvent = { flow_id: data.flow_id, src_ip: data.src_ip, dst_ip: data.dst_ip, label_predicted: data.label_predicted, confidence: data.confidence, severity: data.severity, cycle: data.cycle }
-            setEvents((prev) => [ev, ...prev].slice(0, 500))
+            setEvents((prev) => [ev, ...prev].slice(0, 2000))
             if (ev.severity === 'benign') setBenignCount((c) => c + 1)
             else setThreatCount((c) => c + 1)
           }
@@ -501,7 +501,7 @@ export default function LiveMonitor() {
           if (data.error) { setWsError(data.error); setRunning(false); return }
           if (data.done) { setRunning(false); setDone(true); return }
           const ev = data as FlowEvent
-          setEvents((prev) => [ev, ...prev].slice(0, 500))
+          setEvents((prev) => [ev, ...prev].slice(0, 2000))
           if (ev.severity === 'benign') setBenignCount((c) => c + 1)
           else setThreatCount((c) => c + 1)
         }
@@ -544,7 +544,7 @@ export default function LiveMonitor() {
     const ws = connectStream(jobId, rate,
       (data) => {
         const ev = data as unknown as FlowEvent
-        setEvents((prev) => [ev, ...prev].slice(0, 500))
+        setEvents((prev) => [ev, ...prev].slice(0, 2000))
         if (ev.severity === 'benign') setBenignCount((c) => c + 1)
         else setThreatCount((c) => c + 1)
       },
@@ -648,7 +648,7 @@ export default function LiveMonitor() {
           protocol: data.protocol, model_predictions: data.model_predictions,
           primary_model: data.primary_model,
         }
-        setEvents((prev) => [ev, ...prev].slice(0, 500))
+        setEvents((prev) => [ev, ...prev].slice(0, 2000))
         if (ev.severity === 'benign') setBenignCount((c) => c + 1)
         else setThreatCount((c) => c + 1)
         if (ev.auto_blocked) setAutoBlockCount((c) => c + 1)
@@ -661,7 +661,7 @@ export default function LiveMonitor() {
           severity: 'benign', cycle: data.cycle,
           src_port: data.src_port, dst_port: data.dst_port, protocol: data.protocol,
         }
-        setEvents((prev) => [ev, ...prev].slice(0, 500))
+        setEvents((prev) => [ev, ...prev].slice(0, 2000))
         setBenignCount((c) => c + 1)
       }
     }
@@ -772,7 +772,7 @@ export default function LiveMonitor() {
     setLlmScanning(true)
     try {
       const result = await scanLiveTraffic(
-        flowData.slice(0, 200).map((f: FlowEvent) => ({
+        flowData.slice(0, 500).map((f: FlowEvent) => ({
           flow_id: f.flow_id != null ? String(f.flow_id) : String(Math.random()),
           src_ip: f.src_ip,
           dst_ip: f.dst_ip,
