@@ -234,11 +234,14 @@ export default function AlertCausalityGraph() {
 
       {/* PageGuide */}
       <PageGuide
+        title="How to use Alert Causality Graph"
         steps={[
-          'Review incident cards below -- each groups correlated alerts into a single attack narrative.',
-          'Expand an incident to see the horizontal causality chain with kill-chain stage progression and alert details.',
-          'Check the root cause analysis and recommended response actions at the bottom of each expanded incident.',
+          { title: 'Upload or use live data', desc: 'Upload a CSV/PCAP file or use captured flows from the Live Monitor. The system groups related alerts into incident chains by source IP.' },
+          { title: 'Review incident cards', desc: 'Each incident groups correlated alerts into a single attack narrative with severity, alert count, time span, and kill-chain stages.' },
+          { title: 'Expand the causality chain', desc: 'Click any incident to see the horizontal timeline with stage-colored nodes, source/destination IPs, confidence scores, and attack progression.' },
+          { title: 'Analyse root cause', desc: 'Check the root cause analysis and recommended response actions at the bottom of each expanded incident.' },
         ]}
+        tip="Tip: Upload a dataset with diverse attack types — the graph groups multi-stage attacks from the same source IP into incident chains automatically."
       />
 
       {/* Upload + Model selector */}
