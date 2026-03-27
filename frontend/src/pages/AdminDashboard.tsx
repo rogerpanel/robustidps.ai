@@ -6,8 +6,9 @@ import {
 } from 'lucide-react'
 import { getUser } from '../utils/auth'
 import {
-  fetchUsers, fetchAuditLogs, updateUserRole, resetUserPassword,
-  deleteUser, toggleUserActive,
+  fetchUsers, fetchAuditLogs, exportAuditLogs, updateUserRole,
+  resetUserPassword, deleteUser, toggleUserActive,
+  fetchActiveSessions, fetchSystemHealth,
 } from '../utils/api'
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
@@ -86,11 +87,151 @@ const ACTION_COLORS: Record<string, string> = {
   FIREWALL_GENERATE: 'text-accent-green',
 }
 
+/* ── Sessions Tab ──────────────────────────────────────────────────────── */
+
+function SessionsTab() {
+  const [sessions, setSessions] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [online, setOnline] = useState(0)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await fetchActiveSessions()
+      setSessions(data.sessions || [])
+      setOnline(data.online || 0)
+    } catch {}
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const id = setInterval(load, 10000)
+    return () => clearInterval(id)
+  }, [load])
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold text-text-primary">Active Sessions</span>
+          <span className="text-xs px-2 py-0.5 rounded bg-accent-green/15 text-accent-green">{online} online</span>
+          <span className="text-xs text-text-secondary">{sessions.length} total</span>
+        </div>
+        <button onClick={load} className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      {loading && sessions.length === 0 ? (
+        <div className="text-center py-8 text-text-secondary text-sm">Loading sessions...</div>
+      ) : sessions.length === 0 ? (
+        <div className="text-center py-8 text-text-secondary text-sm">No active sessions</div>
+      ) : (
+        <div className="space-y-2">
+          {sessions.sort((a: any, b: any) => a.idle_seconds - b.idle_seconds).map((s: any, i: number) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3 bg-bg-card border border-bg-card rounded-lg">
+              <div className={`w-2.5 h-2.5 rounded-full ${s.is_online ? 'bg-accent-green animate-pulse' : 'bg-text-secondary/30'}`} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-text-primary truncate">{s.email}</div>
+                <div className="text-[10px] text-text-secondary">
+                  Page: <span className="text-accent-blue">{s.current_page || '/'}</span>
+                  {' \u00b7 '}
+                  {s.is_online ? <span className="text-accent-green">active</span> : `idle ${Math.floor(s.idle_seconds / 60)}m`}
+                </div>
+              </div>
+              <div className="text-xs text-text-secondary">{s.last_heartbeat ? timeAgo(s.last_heartbeat) : '\u2014'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Health Tab ─────────────────────────────────────────────────────────── */
+
+function HealthTab() {
+  const [health, setHealth] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await fetchSystemHealth()
+      setHealth(data)
+    } catch {}
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const id = setInterval(load, 15000)
+    return () => clearInterval(id)
+  }, [load])
+
+  if (loading && !health) return <div className="text-center py-8 text-text-secondary text-sm">Loading system health...</div>
+  if (!health) return <div className="text-center py-8 text-text-secondary text-sm">Failed to load health data</div>
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-text-primary">System Health</span>
+        <button onClick={load} className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-bg-card rounded-lg p-4 border border-bg-card">
+          <div className="text-[10px] text-text-secondary uppercase">CPU</div>
+          <div className={`text-2xl font-display font-bold ${health.cpu_percent > 80 ? 'text-accent-red' : health.cpu_percent > 50 ? 'text-accent-amber' : 'text-accent-green'}`}>
+            {health.cpu_percent}%
+          </div>
+        </div>
+        <div className="bg-bg-card rounded-lg p-4 border border-bg-card">
+          <div className="text-[10px] text-text-secondary uppercase">Memory</div>
+          <div className={`text-2xl font-display font-bold ${health.memory?.percent > 85 ? 'text-accent-red' : health.memory?.percent > 60 ? 'text-accent-amber' : 'text-accent-green'}`}>
+            {health.memory?.percent}%
+          </div>
+          <div className="text-[10px] text-text-secondary">{health.memory?.used_gb} / {health.memory?.total_gb} GB</div>
+        </div>
+        <div className="bg-bg-card rounded-lg p-4 border border-bg-card">
+          <div className="text-[10px] text-text-secondary uppercase">Disk</div>
+          <div className={`text-2xl font-display font-bold ${health.disk?.percent > 90 ? 'text-accent-red' : health.disk?.percent > 70 ? 'text-accent-amber' : 'text-accent-green'}`}>
+            {health.disk?.percent}%
+          </div>
+          <div className="text-[10px] text-text-secondary">{health.disk?.used_gb} / {health.disk?.total_gb} GB</div>
+        </div>
+        <div className="bg-bg-card rounded-lg p-4 border border-bg-card">
+          <div className="text-[10px] text-text-secondary uppercase">Active Jobs</div>
+          <div className="text-2xl font-display font-bold text-accent-blue">{health.application?.active_jobs}</div>
+          <div className="text-[10px] text-text-secondary">{health.application?.total_jobs} total &middot; {health.application?.cached_results} cached</div>
+        </div>
+      </div>
+
+      {/* Model Status */}
+      <div className="bg-bg-card rounded-lg p-4 border border-bg-card">
+        <h3 className="text-xs font-semibold text-text-primary mb-2">Model Status</h3>
+        <div className="flex items-center gap-4 text-xs">
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${health.model?.loaded ? 'bg-accent-green' : 'bg-accent-red'}`} />
+            {health.model?.loaded ? 'Loaded' : 'Not loaded'}
+          </div>
+          <span className="text-text-secondary">Active: <span className="text-accent-blue">{health.model?.active_model || 'none'}</span></span>
+          <span className="text-text-secondary">Device: <span className="text-text-primary">{health.model?.device}</span></span>
+          <span className="text-text-secondary">PID: <span className="font-mono">{health.application?.pid}</span></span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Component ─────────────────────────────────────────────────────────── */
 
 export default function AdminDashboard() {
   const currentUser = getUser()
-  const [tab, setTab] = useState<'users' | 'audit'>('users')
+  const [tab, setTab] = useState<'users' | 'audit' | 'sessions' | 'health'>('users')
 
   // Users state
   const [users, setUsers] = useState<UserRecord[]>([])
@@ -331,6 +472,26 @@ export default function AdminDashboard() {
           <Activity className="w-4 h-4 inline mr-1.5 -mt-0.5" />
           Audit Logs ({logsTotal})
         </button>
+        <button
+          onClick={() => setTab('sessions')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            tab === 'sessions'
+              ? 'bg-accent-green/15 text-accent-green'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          <Globe className="w-4 h-4" /> Active Sessions
+        </button>
+        <button
+          onClick={() => setTab('health')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            tab === 'health'
+              ? 'bg-accent-purple/15 text-accent-purple'
+              : 'text-text-secondary hover:text-text-primary'
+          }`}
+        >
+          <Monitor className="w-4 h-4" /> System Health
+        </button>
       </div>
 
       {/* Users Tab */}
@@ -478,13 +639,29 @@ export default function AdminDashboard() {
                 className="w-full pl-9 pr-3 py-2 bg-bg-secondary border border-bg-card rounded-lg text-sm text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-1 focus:ring-accent-blue"
               />
             </div>
-            <button
-              onClick={() => loadLogs(logsOffset)}
-              className="px-3 py-2 bg-bg-secondary border border-bg-card rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 inline mr-1.5 -mt-0.5 ${logsLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    const blob = await exportAuditLogs(logsFilter || undefined)
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url; a.download = 'audit_logs.csv'; a.click()
+                    URL.revokeObjectURL(url)
+                  } catch {}
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-accent-green/15 text-accent-green rounded-lg text-xs font-medium hover:bg-accent-green/25 transition-colors"
+              >
+                <Download className="w-3 h-3" /> Export CSV
+              </button>
+              <button
+                onClick={() => loadLogs(logsOffset)}
+                className="px-3 py-2 bg-bg-secondary border border-bg-card rounded-lg text-sm text-text-secondary hover:text-text-primary transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 inline mr-1.5 -mt-0.5 ${logsLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
 
           {logsLoading && logs.length === 0 ? (
@@ -569,6 +746,16 @@ export default function AdminDashboard() {
             </>
           )}
         </div>
+      )}
+
+      {/* Sessions Tab */}
+      {tab === 'sessions' && (
+        <SessionsTab />
+      )}
+
+      {/* Health Tab */}
+      {tab === 'health' && (
+        <HealthTab />
       )}
 
       {/* Action Modal */}

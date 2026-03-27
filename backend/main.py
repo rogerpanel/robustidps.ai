@@ -92,7 +92,7 @@ from auth import (
     router as auth_router, get_current_user, require_auth, require_role,
     ensure_default_admin,
 )
-from audit import AuditMiddleware, log_audit
+from audit import AuditMiddleware, log_audit, router as audit_router
 from firewall import router as firewall_router
 from copilot import router as copilot_router
 from continual import ContinualLearningEngine
@@ -234,6 +234,7 @@ app.include_router(workspaces_router)
 app.include_router(prevention_router)
 app.include_router(sessions_router)
 app.include_router(llm_attacks_router)
+app.include_router(audit_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
@@ -426,6 +427,63 @@ def _build_predictions(features, metadata, labels_encoded, label_names,
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "model_loaded": model is not None}
+
+
+@app.get("/api/admin/system-health")
+async def admin_system_health(user=Depends(require_auth)):
+    """Admin-only system health dashboard data."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    import os
+
+    # System metrics (safe even if psutil is not installed)
+    try:
+        import psutil
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        mem = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+    except ImportError:
+        cpu_percent = 0
+        mem = type('', (), {'total': 0, 'used': 0, 'percent': 0})()
+        disk = type('', (), {'total': 1, 'used': 0})()
+
+    # Application metrics
+    active_jobs = sum(1 for j in _bg_jobs.values() if j.get("status") == "running")
+    total_jobs = len(_bg_jobs)
+    cached_results = len(_completed_results)
+
+    # Model status
+    model_status = {
+        "loaded": model is not None,
+        "active_model": active_model_id,
+        "device": str(DEVICE),
+    }
+
+    # Uptime
+    uptime_seconds = _time_module.time() - _app_start_time
+
+    return {
+        "cpu_percent": cpu_percent,
+        "memory": {
+            "total_gb": round(mem.total / (1024**3), 1),
+            "used_gb": round(mem.used / (1024**3), 1),
+            "percent": mem.percent,
+        },
+        "disk": {
+            "total_gb": round(disk.total / (1024**3), 1),
+            "used_gb": round(disk.used / (1024**3), 1),
+            "percent": round(disk.used / disk.total * 100, 1),
+        },
+        "application": {
+            "active_jobs": active_jobs,
+            "total_jobs": total_jobs,
+            "cached_results": cached_results,
+            "pid": os.getpid(),
+        },
+        "model": model_status,
+        "uptime_seconds": round(uptime_seconds),
+    }
 
 
 @app.get("/api/gpu")

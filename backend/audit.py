@@ -9,16 +9,20 @@ Every significant action is logged to the audit_logs table with:
   - Timestamp
 """
 
+import csv
 import logging
 import time
+from io import StringIO
 from typing import Optional
 
-from fastapi import Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import Response
+from starlette.responses import Response, StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from database import SessionLocal, AuditLog
+from database import SessionLocal, AuditLog, User, get_db
+from auth import require_auth
 
 logger = logging.getLogger("robustidps.audit")
 
@@ -156,3 +160,48 @@ class AuditMiddleware(BaseHTTPMiddleware):
             )
 
         return response
+
+
+# ── Admin endpoints ──────────────────────────────────────────────────────
+
+router = APIRouter(tags=["Audit"])
+
+
+@router.get("/api/audit/export")
+async def export_audit_logs(
+    action: str = "",
+    user_email: str = "",
+    limit: int = 1000,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Admin-only: export audit logs as CSV."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    q = select(AuditLog).order_by(AuditLog.timestamp.desc()).limit(min(limit, 5000))
+    if action:
+        q = q.where(AuditLog.action == action)
+
+    logs = db.execute(q).scalars().all()
+
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["timestamp", "action", "user_id", "resource", "details", "ip_address", "user_agent"])
+    for log in logs:
+        writer.writerow([
+            log.timestamp.isoformat() if log.timestamp else "",
+            log.action,
+            log.user_id or "",
+            log.resource or "",
+            log.details or "",
+            log.ip_address or "",
+            log.user_agent or "",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=audit_logs.csv"},
+    )

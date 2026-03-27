@@ -413,6 +413,28 @@ export async function fetchAuditLogs(limit = 100, offset = 0) {
   return res.json();
 }
 
+export async function exportAuditLogs(action?: string): Promise<Blob> {
+  const res = await authFetch(`${API}/api/audit/export${action ? `?action=${action}` : ''}`);
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  return res.blob();
+}
+
+// ── Active Sessions (admin) ─────────────────────────────────────────────
+
+export async function fetchActiveSessions() {
+  const res = await authFetch(`${API}/api/sessions/active`);
+  if (!res.ok) throw new Error(`Failed to fetch sessions (${res.status})`);
+  return res.json();
+}
+
+// ── System Health (admin) ───────────────────────────────────────────────
+
+export async function fetchSystemHealth() {
+  const res = await authFetch(`${API}/api/admin/system-health`);
+  if (!res.ok) throw new Error(`Failed to fetch health (${res.status})`);
+  return res.json();
+}
+
 // ── Continual Learning ──────────────────────────────────────────────────
 
 export async function fetchContinualStatus() {

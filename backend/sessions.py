@@ -176,6 +176,56 @@ def heartbeat(
     }
 
 
+@router.get("/admin/active")
+def admin_list_active_sessions(
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Admin-only: list all active user sessions across all users."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    now = datetime.datetime.utcnow()
+    sessions = db.execute(
+        select(UserSession).where(
+            and_(
+                UserSession.is_active == True,
+                UserSession.expires_at > now,
+            )
+        ).order_by(UserSession.last_heartbeat.desc())
+    ).scalars().all()
+
+    active = []
+    for s in sessions:
+        last_seen = s.last_heartbeat
+        if last_seen:
+            idle_seconds = (now - last_seen).total_seconds()
+        else:
+            idle_seconds = 9999
+
+        # Look up user email
+        u = db.execute(
+            select(User).where(User.id == s.user_id)
+        ).scalar_one_or_none()
+
+        active.append({
+            "session_key": s.session_id,
+            "user_id": s.user_id,
+            "email": u.email if u else "unknown",
+            "device_label": s.device_label,
+            "ip_address": s.ip_address,
+            "last_heartbeat": s.last_heartbeat.isoformat() if s.last_heartbeat else "",
+            "idle_seconds": round(idle_seconds),
+            "is_online": idle_seconds < 300,  # 5 min threshold
+        })
+
+    return {
+        "sessions": active,
+        "total": len(active),
+        "online": sum(1 for s in active if s["is_online"]),
+    }
+
+
 @router.get("/active", response_model=list[SessionInfo])
 def list_active_sessions(
     user: User = Depends(require_auth),
