@@ -4,7 +4,7 @@ import { Code, Copy, Check, ChevronDown, ChevronRight, ExternalLink, AlertTriang
 /* ── Endpoint definitions ──────────────────────────────────────────────── */
 
 interface Endpoint {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   path: string
   summary: string
   description: string

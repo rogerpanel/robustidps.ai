@@ -29,6 +29,9 @@ const LAYERS = [
       { label: 'MambaShield', desc: 'Selective state-space O(n) processing' },
       { label: 'Stochastic Transformer', desc: 'MC Dropout Bayesian UQ' },
       { label: 'Game-Theoretic Defence', desc: 'Stackelberg robustness certs' },
+      { label: 'SDE-TGNN', desc: 'Stochastic Differential Equation temporal graph network' },
+      { label: 'CL-RL Unified', desc: 'Continual Learning + RL with unified Fisher Information (β=0.7)' },
+      { label: 'CyberSecLLM', desc: 'Mamba-CrossAttention-MoE cybersecurity foundation model' },
     ],
   },
   {
@@ -49,6 +52,18 @@ const LAYERS = [
       { label: 'SOC Copilot', desc: 'Natural language threat analysis' },
       { label: 'Threat Response Engine', desc: 'Automated block/quarantine/monitor' },
       { label: 'SIEM Connectors', desc: 'Splunk, Elastic, QRadar integration' },
+    ],
+  },
+  {
+    name: 'LLM Security & SOC Copilot',
+    color: 'accent-orange',
+    components: [
+      { label: 'Defense Pipeline', desc: 'Input sanitization, boundary enforcement, output filtering, context isolation' },
+      { label: 'SOC Copilot', desc: 'Multi-LLM agentic AI (Claude, GPT-4o, Gemini, DeepSeek) with tool-use' },
+      { label: 'Prompt Injection Detection', desc: '8 attack categories with real-time pattern matching' },
+      { label: 'RAG Pipeline Hardening', desc: 'Document provenance, embedding thresholds, poisoning detection' },
+      { label: 'Multi-Agent Trust', desc: 'Inter-agent verification, trust scoring, capability boundaries' },
+      { label: 'Live Traffic LLM Scan', desc: 'Detect LLM API calls in network flows, extract and analyze prompts' },
     ],
   },
   {
@@ -216,6 +231,18 @@ const SECURITY_ITEMS = [
     desc: 'Pydantic schema validation on all endpoints with strict type coercion and size limits',
     icon: CheckCircle,
     color: 'text-accent-red',
+  },
+  {
+    label: 'Admin Monitoring',
+    desc: 'Active session tracking, system health dashboard, audit log export',
+    icon: Shield,
+    color: 'text-accent-green',
+  },
+  {
+    label: 'DOMPurify Sanitization',
+    desc: 'XSS prevention on all LLM-generated content via strict HTML allowlist',
+    icon: Shield,
+    color: 'text-accent-purple',
   },
 ]
 
