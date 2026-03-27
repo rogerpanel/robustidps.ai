@@ -1,10 +1,14 @@
 import { useState, useMemo } from 'react'
 import {
   Shield, ExternalLink, Search, ChevronRight, Activity,
-  Crosshair, Info, X,
+  Crosshair, Info, X, Upload, FileText, Loader2, Radio,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
+import ModelSelector from '../components/ModelSelector'
+import { analyseFile } from '../utils/api'
+import { useNoticeBoard } from '../hooks/useNoticeBoard'
+import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 
 /* ── MITRE ATT&CK mapping data ──────────────────────────────────────── */
 
@@ -86,6 +90,7 @@ const CYBER_KILL_CHAIN = [
 /* ── Page guide steps ────────────────────────────────────────────────── */
 
 const GUIDE_STEPS = [
+  { title: 'Upload traffic data', desc: 'Upload a CSV/PCAP file or use Live Monitor captured data to see which ATT&CK techniques appear in your real traffic.' },
   { title: 'Kill Chain Overview', desc: 'Review the ATT&CK tactic stages across the kill chain. Click any stage to filter the table below.' },
   { title: 'Explore Mappings', desc: 'Browse the full mapping table linking the platform\'s 34 attack classes to MITRE ATT&CK technique IDs.' },
   { title: 'Click a Technique', desc: 'Select any ATT&CK technique badge to see all attack classes that map to that technique.' },
@@ -99,6 +104,12 @@ export default function MitreAttackMapper() {
   const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [detailTechnique, setDetailTechnique] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [modelId, setModelId] = useState('surrogate')
+  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [liveDataLoaded, setLiveDataLoaded] = useState(false)
+  const { addNotice, updateNotice } = useNoticeBoard()
 
   /* Derived data */
   const attackClasses = useMemo(() => ATTACK_CLASSES.filter(a => a.technique !== '-'), [])
@@ -173,6 +184,46 @@ export default function MitreAttackMapper() {
 
   const hasFilters = selectedTactic || selectedTechnique || searchQuery.trim()
 
+  const runAnalysis = async () => {
+    if (!file) return
+    setAnalyzing(true)
+    const nid = addNotice({ title: 'MITRE ATT&CK Analysis', description: `Mapping ${file.name}...`, status: 'running', page: '/mitre-attack' })
+    try {
+      const data = await analyseFile(file, modelId)
+      setAnalysisResult(data)
+      updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows mapped to ATT&CK` })
+    } catch (err) {
+      updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Analysis failed' })
+    }
+    setAnalyzing(false)
+  }
+
+  const loadLiveData = () => {
+    const live = getLiveData()
+    if (!live) return
+    setAnalysisResult({ predictions: live.predictions, n_flows: live.totalFlows, n_threats: live.threatCount })
+    setLiveDataLoaded(true)
+  }
+
+  const detectedCounts = useMemo(() => {
+    if (!analysisResult?.predictions) return {}
+    const counts: Record<string, number> = {}
+    analysisResult.predictions.forEach((p: any) => {
+      const label = p.label_predicted || ''
+      if (label && label !== 'Benign') {
+        counts[label] = (counts[label] || 0) + 1
+      }
+    })
+    return counts
+  }, [analysisResult])
+
+  const totalDetected = Object.values(detectedCounts).reduce((s: number, c: any) => s + (c as number), 0)
+  const detectedTechniques = new Set(
+    Object.keys(detectedCounts)
+      .map(cls => ATTACK_CLASSES.find(a => a.class === cls)?.technique)
+      .filter(Boolean)
+  )
+
   return (
     <div className="space-y-6 mitre-mapper-root">
       {/* ── Header ──────────────────────────────────────────────────── */}
@@ -197,6 +248,75 @@ export default function MitreAttackMapper() {
         steps={GUIDE_STEPS}
         tip="All 30 malicious attack classes (excluding Benign) are mapped to ATT&CK. Click any kill chain stage or technique badge to filter."
       />
+
+      {/* ── Data Integration ──────────────────────────────────────── */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
+          Map Your Traffic to ATT&CK
+        </h2>
+        <p className="text-xs text-text-secondary mb-3">Upload a dataset or use Live Monitor data to see which ATT&CK techniques appear in your actual traffic.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div>
+            {file ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-green/30 bg-accent-green/5">
+                <FileText className="w-4 h-4 text-accent-green shrink-0" />
+                <span className="text-xs font-mono truncate flex-1">{file.name}</span>
+                <button onClick={() => { setFile(null); setAnalysisResult(null) }} className="text-text-secondary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
+              </div>
+            ) : (
+              <label onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('border-accent-blue','bg-accent-blue/10') }} onDragLeave={e => { e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10') }} onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10'); const f = e.dataTransfer.files[0]; if(f) setFile(f) }} className="flex flex-col items-center gap-1 px-3 py-3 rounded-lg border-2 border-dashed border-bg-card hover:border-text-secondary cursor-pointer transition-colors">
+                <Upload className="w-5 h-5 text-text-secondary" />
+                <span className="text-[10px] text-text-secondary">Drop or click</span>
+                <span className="text-[9px] text-text-secondary/60">.csv .pcap .pcapng</span>
+                <input type="file" accept=".csv,.pcap,.pcapng" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              </label>
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">Detection Model</label>
+            <ModelSelector value={modelId} onChange={setModelId} compact />
+          </div>
+          <button onClick={runAnalysis} disabled={!file || analyzing} className="px-4 py-2.5 bg-accent-orange hover:bg-accent-orange/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+            {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> Mapping...</> : 'Analyze & Map to ATT&CK'}
+          </button>
+        </div>
+      </div>
+
+      {/* Live Monitor data banner */}
+      {hasLiveData() && !liveDataLoaded && !analysisResult && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-accent-orange/10 border border-accent-orange/20 rounded-xl">
+          <Radio className="w-4 h-4 text-accent-orange" />
+          <div className="flex-1">
+            <span className="text-xs font-medium text-accent-orange">Live Monitor data available</span>
+            <span className="text-[10px] text-text-secondary ml-2">{getLiveData()?.totalFlows} flows from {getLiveData()?.source}</span>
+          </div>
+          <button onClick={loadLiveData} className="px-3 py-1 bg-accent-orange hover:bg-accent-orange/80 text-white text-[10px] font-medium rounded-lg transition-colors">
+            Use Live Data
+          </button>
+        </div>
+      )}
+
+      {/* Detection Summary (when real data loaded) */}
+      {analysisResult && totalDetected > 0 && (
+        <div className="bg-accent-orange/5 border border-accent-orange/20 rounded-xl p-4">
+          <h3 className="text-sm font-semibold text-accent-orange mb-2 flex items-center gap-2">
+            <Activity className="w-4 h-4" />
+            Detected in Your Traffic — {totalDetected} threats mapped to {detectedTechniques.size} ATT&CK techniques
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(detectedCounts).sort((a, b) => (b[1] as number) - (a[1] as number)).slice(0, 10).map(([cls, count]) => {
+              const mapping = ATTACK_CLASSES.find(a => a.class === cls)
+              return mapping ? (
+                <button key={cls} onClick={() => handleTechniqueClick(mapping.technique)} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium bg-accent-orange/15 text-accent-orange hover:bg-accent-orange/25 transition-colors">
+                  <span className="font-mono">{mapping.technique}</span>
+                  <span>{cls}</span>
+                  <span className="bg-accent-orange/30 px-1 rounded">{count as number}</span>
+                </button>
+              ) : null
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Cyber Kill Chain Bar ────────────────────────────────────── */}
       <div className="bg-bg-secondary border border-bg-card rounded-xl p-5">
@@ -268,11 +388,14 @@ export default function MitreAttackMapper() {
       </div>
 
       {/* ── Stats Row ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className={`grid grid-cols-2 ${analysisResult ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-3`}>
         <StatCard label="Attack Classes Mapped" value={attackClasses.length} color="#3B82F6" />
         <StatCard label="Unique Techniques" value={uniqueTechniques.length} color="#8B5CF6" />
         <StatCard label="Tactics Covered" value={Object.keys(tacticCounts).length} color="#22C55E" />
         <StatCard label="Kill Chain Coverage" value={`${Math.round((Object.keys(tacticCounts).length / KILL_CHAIN_STAGES.length) * 100)}%`} color="#F59E0B" />
+        {analysisResult && (
+          <StatCard label="Threats Detected" value={totalDetected} color="#F97316" />
+        )}
       </div>
 
       {/* ── Technique Detail Modal ──────────────────────────────────── */}
@@ -365,10 +488,15 @@ export default function MitreAttackMapper() {
               {filteredClasses.map((item, idx) => (
                 <tr
                   key={`${item.class}-${idx}`}
-                  className="border-b border-bg-card/50 hover:bg-bg-card/30 transition-colors"
+                  className={`border-b border-bg-card/50 hover:bg-bg-card/30 transition-colors ${detectedCounts[item.class] ? 'border-l-2 border-l-accent-orange bg-accent-orange/5' : ''}`}
                 >
                   <td className="px-4 py-2.5">
                     <span className="font-mono font-medium text-text-primary">{item.class}</span>
+                    {detectedCounts[item.class] && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded bg-accent-orange/20 text-accent-orange text-[9px] font-bold">
+                        {detectedCounts[item.class]} detected
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
                     <button
