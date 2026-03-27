@@ -57,3 +57,48 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
+
+/* ── Blue/Orange Brand Accent Utilities ──────────────────────────── */
+
+/* Subtle top-border accent for cards — adds visual rhythm */
+.card-accent-blue {
+  border-top: 2px solid rgba(59, 130, 246, 0.3);
+}
+.card-accent-orange {
+  border-top: 2px solid rgba(249, 115, 22, 0.3);
+}
+
+/* Section divider with gradient — replaces plain gray borders */
+.section-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(59, 130, 246, 0.2), rgba(249, 115, 22, 0.2), transparent);
+}
+
+/* Hover glow effect for interactive cards */
+.hover-glow-blue:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.08);
+}
+.hover-glow-orange:hover {
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.08);
+}
+
+/* Page section background with subtle blue tint */
+.bg-section-alt {
+  background-color: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+/* Scrollbar with blue tint on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.4);
+}
+
+/* Focus ring — orange for primary actions, blue for secondary */
+.focus-ring-orange:focus-visible {
+  outline: 2px solid rgba(249, 115, 22, 0.5);
+  outline-offset: 2px;
+}
+.focus-ring-blue:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline-offset: 2px;
+}

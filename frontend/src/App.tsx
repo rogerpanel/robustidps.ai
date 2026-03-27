@@ -366,7 +366,7 @@ export default function App() {
               onClick={() => toggleGroup(group.heading)}
               className={`w-full flex items-center gap-1.5 px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
                 isActiveGroup
-                  ? 'text-accent-blue/70'
+                  ? group.heading === 'LLM Attack Surfaces' ? 'text-accent-orange/70' : 'text-accent-blue/70'
                   : 'text-text-secondary/50 hover:text-text-secondary/80'
               }`}
             >
@@ -387,7 +387,9 @@ export default function App() {
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isActive
-                          ? 'bg-accent-blue/15 text-accent-blue'
+                          ? group.heading === 'LLM Attack Surfaces'
+                            ? 'bg-accent-orange/15 text-accent-orange'
+                            : 'bg-accent-blue/15 text-accent-blue'
                           : 'text-text-secondary hover:text-text-primary hover:bg-bg-card/50'
                       }`
                     }
@@ -405,7 +407,7 @@ export default function App() {
   )
 
   const sidebarFooter = (
-    <div className="p-4 border-t border-bg-card space-y-2">
+    <div className="p-4 border-t border-accent-blue/10 space-y-2">
       {demoMode && !authed && (
         <div className="flex items-center gap-2 text-xs mb-2">
           <span className="px-2 py-0.5 bg-accent-amber/15 text-accent-amber rounded text-[10px] font-medium uppercase">
