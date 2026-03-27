@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import DOMPurify from 'dompurify'
 import { authHeaders } from '../utils/auth'
 import { syncLLMAttackResults } from '../utils/api'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
@@ -614,7 +615,7 @@ export default function Copilot() {
                 : 'bg-bg-secondary border border-bg-card text-text-primary rounded-bl-sm'
             }`}>
               {msg.role === 'assistant' ? (
-                <div className="prose prose-sm prose-invert max-w-none [&_strong]:text-text-primary [&_code]:text-accent-blue [&_code]:bg-bg-card/50 [&_code]:px-1 [&_code]:rounded" dangerouslySetInnerHTML={{ __html: msg.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br/>').replace(/- (.*?)(<br\/>|$)/g, '<li>$1</li>').replace(/(<li>.*<\/li>)/g, '<ul class="list-disc list-inside space-y-0.5 my-1">$1</ul>') }} />
+                <div className="prose prose-sm prose-invert max-w-none [&_strong]:text-text-primary [&_code]:text-accent-blue [&_code]:bg-bg-card/50 [&_code]:px-1 [&_code]:rounded" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\n/g, '<br/>').replace(/- (.*?)(<br\/>|$)/g, '<li>$1</li>').replace(/(<li>.*<\/li>)/g, '<ul class="list-disc list-inside space-y-0.5 my-1">$1</ul>'), { ALLOWED_TAGS: ['strong', 'em', 'code', 'br', 'ul', 'ol', 'li', 'p', 'span', 'div', 'pre'], ALLOWED_ATTR: ['class'] }) }} />
               ) : (
                 msg.content
               )}
