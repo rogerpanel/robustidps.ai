@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import {
   Shield, AlertTriangle, CheckCircle, XCircle, Eye,
   BarChart3, Settings, Filter, ChevronDown, ChevronUp,
-  Upload, FileText, X, Loader2, Radio,
+  Upload, FileText, X, Loader2, Radio, Info,
 } from 'lucide-react'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import PageGuide from '../components/PageGuide'
@@ -305,6 +305,13 @@ export default function AlertTriage() {
           </button>
         ))}
       </div>
+
+      {!analysisResult && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-accent-blue/5 border border-accent-blue/10 rounded-lg text-xs text-accent-blue">
+          <Info className="w-3.5 h-3.5 shrink-0" />
+          Showing sample alerts for demonstration. Upload a dataset above to triage real detections.
+        </div>
+      )}
 
       {/* Alerts table */}
       <div className="bg-bg-card border border-bg-card rounded-xl overflow-hidden">

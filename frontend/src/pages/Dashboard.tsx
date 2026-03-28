@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import {
   Activity, ShieldAlert, ShieldCheck, Gauge, Ban, Search as SearchIcon,
   Eye, AlertTriangle, ChevronDown, ChevronRight, Download, Globe, Brain,
-  RefreshCw, Shield, Target, Zap, Syringe, BookOpen, Database, GitMerge,
+  RefreshCw, Shield, Target, Zap, Syringe, BookOpen, Database, GitMerge, Info,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import StatCard from '../components/StatCard'
@@ -140,6 +140,13 @@ export default function Dashboard() {
           </button>
         )}
       </div>
+
+      {!analysisResults && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-accent-blue/5 border border-accent-blue/10 rounded-lg text-xs text-accent-blue">
+          <Info className="w-3.5 h-3.5 shrink-0" />
+          Showing sample data. Upload & analyse a dataset to see real detection results.
+        </div>
+      )}
 
       {/* Row 1: Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">

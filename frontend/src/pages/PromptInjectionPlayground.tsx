@@ -156,6 +156,7 @@ export default function PromptInjectionPlayground() {
   const [selectedDefences, setSelectedDefences] = useState<string[]>(['none'])
   const [results, setResults] = useState<Array<{ defenceId: string; result: ReturnType<typeof simulateDefence> }>>([])
   const [running, setRunning] = useState(false)
+  const [resultMode, setResultMode] = useState<'api' | 'simulated' | null>(null)
   const [expandedResult, setExpandedResult] = useState<string | null>(null)
   const [showPayload, setShowPayload] = useState(true)
   const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
@@ -210,6 +211,7 @@ export default function PromptInjectionPlayground() {
         })
       )
       setResults(apiResults)
+      setResultMode('api')
       updateNotice(nid, { status: 'completed', description: `${apiResults.filter(r => r.result.blocked).length}/${apiResults.length} attacks blocked` })
       // Still persist to context for dashboard/copilot
       addPromptInjectionResult({
@@ -233,6 +235,7 @@ export default function PromptInjectionPlayground() {
         result: simulateDefence(template, defenceId),
       }))
       setResults(newResults)
+      setResultMode('simulated')
       updateNotice(nid, { status: 'completed', description: 'Completed (fallback mode)' })
       newResults.forEach(({ defenceId, result }) => {
         addPromptInjectionResult({
@@ -469,6 +472,12 @@ export default function PromptInjectionPlayground() {
                 <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
                   <Eye className="w-4 h-4 text-accent-blue" />
                   Evaluation Summary
+                  {resultMode === 'simulated' && (
+                    <span className="text-[9px] text-accent-amber ml-2">(local simulation — backend unavailable)</span>
+                  )}
+                  {resultMode === 'api' && (
+                    <span className="text-[9px] text-accent-green ml-2">(real defense evaluation)</span>
+                  )}
                 </h2>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="text-center p-3 bg-bg-secondary rounded-lg">

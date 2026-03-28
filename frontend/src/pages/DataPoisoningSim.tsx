@@ -403,7 +403,9 @@ export default function DataPoisoningSim() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-bg-secondary rounded-lg p-4 text-center">
                 <p className="text-xs text-text-secondary mb-1">Clean Accuracy</p>
-                <p className="text-2xl font-bold text-accent-green">{result.cleanAccuracy}%</p>
+                <p className="text-2xl font-bold text-accent-green">{result.cleanAccuracy}%{!baselineResult && (
+                  <span className="text-[9px] text-accent-amber ml-1">(default — upload data to establish real baseline)</span>
+                )}</p>
                 <CheckCircle2 className="w-5 h-5 text-accent-green mx-auto mt-1" />
               </div>
               <div className="bg-bg-secondary rounded-lg p-4 text-center">

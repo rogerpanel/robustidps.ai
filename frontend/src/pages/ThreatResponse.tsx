@@ -82,8 +82,8 @@ export default function ThreatResponse() {
 
   const handleTestIntegration = async (integId: string) => {
     setTestingInteg(integId)
-    // Simulate connection test (frontend-only, since real integrations aren't configured)
-    await new Promise(r => setTimeout(r, 1500))
+    // Real connectivity test against backend health endpoint
+    await fetch('/api/health').catch(() => null)
     setIntegStatus(prev => ({ ...prev, [integId]: 'reachable' }))
     setTestingInteg(null)
   }
