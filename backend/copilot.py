@@ -160,7 +160,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent"},
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab"},
                 "job_id": {"type": "string", "description": "Optional specific job_id"},
             },
             "required": ["page"],
@@ -624,6 +624,20 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                         return json.dumps(summary)
 
                 return json.dumps({"page": page, "status": "no_active_result"})
+
+            if page in ("mitre_attack", "alert_triage", "attack_chain", "data_poisoning", "autoencoder", "causality_graph", "pq_traffic_lab"):
+                cache_key = (uid, page)
+                cached = _main._completed_results.get(cache_key)
+                if cached:
+                    result = cached.get("result", {})
+                    return json.dumps({"page": page, "status": "done", "timestamp": cached.get("timestamp"), **result})
+                # Admin fallback
+                if is_admin:
+                    for (cache_uid, cache_page), c in _main._completed_results.items():
+                        if cache_page == page:
+                            return json.dumps({"page": page, "status": "done", "timestamp": c.get("timestamp"), **c.get("result", {})})
+                return json.dumps({"page": page, "status": "no_active_result",
+                                   "hint": f"Run an analysis on the {page.replace('_', ' ').title()} page first."})
 
             if page in ("prompt_injection", "jailbreak_taxonomy", "rag_poisoning", "multi_agent"):
                 # LLM attack surface results are stored client-side and synced to _completed_results

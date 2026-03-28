@@ -154,7 +154,7 @@ export default function DataPoisoningSim() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Baseline Analysis', description: `Establishing clean accuracy on ${file.name}...`, status: 'running', page: '/data-poisoning' })
     try {
-      const data = await analyseFile(file, modelId)
+      const data = await analyseFile(file, modelId, 'data_poisoning')
       setBaselineResult(data)
       // Calculate baseline accuracy from predictions
       const correct = data.predictions?.filter((p: any) => p.label_predicted === p.label_true).length || 0

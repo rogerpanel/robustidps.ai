@@ -1686,11 +1686,31 @@ export async function scanLiveTraffic(flows: any[], scanType = 'all'): Promise<{
 
 // ── File Analysis ───────────────────────────────────────────────────────
 
-export async function analyseFile(file: File, modelId = 'surrogate') {
+export async function cachePageResult(page: string, result: Record<string, unknown>): Promise<void> {
+  try {
+    await authFetch(`${API}/api/cache-page-result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page, result }),
+    })
+  } catch {
+    // Silently fail — results still available in frontend
+  }
+}
+
+export async function analyseFile(file: File, modelId = 'surrogate', cachePage?: string) {
   const form = new FormData();
   form.append('file', file);
   form.append('model_id', modelId);
-  const res = await authFetch(`${API}/api/analyse`, { method: 'POST', body: form });
+  const res = await authFetch(`${API}/api/predict`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(`Analysis failed: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  if (cachePage) {
+    cachePageResult(cachePage, {
+      n_flows: data.predictions?.length || 0,
+      n_threats: data.predictions?.filter((p: any) => p.severity !== 'benign').length || 0,
+      model_used: modelId,
+    }).catch(() => {})
+  }
+  return data;
 }

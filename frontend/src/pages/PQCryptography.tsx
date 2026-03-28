@@ -173,7 +173,7 @@ export default function PQCryptography() {
     setPqcAnalyzing(true)
     const nid = addNotice({ title: 'PQC Traffic Analysis', description: `Analyzing ${pqcFile.name}...`, status: 'running', page: '/pq-crypto' })
     try {
-      const data = await analyseFile(pqcFile, pqcModelId)
+      const data = await analyseFile(pqcFile, pqcModelId, 'pq_traffic_lab')
       setPqcResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows analyzed for PQC patterns` })
     } catch (err: any) {

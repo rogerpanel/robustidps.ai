@@ -229,7 +229,7 @@ export default function AttackChainPredictor() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Attack Chain Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/attack-chain-predictor' })
     try {
-      const data = await analyseFile(file, modelId)
+      const data = await analyseFile(file, modelId, 'attack_chain')
       setAnalysisResult(data)
       // Auto-select most common non-benign attack
       if (data.predictions) {

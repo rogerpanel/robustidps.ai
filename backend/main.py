@@ -4162,6 +4162,25 @@ async def download_live_capture(capture_id: str, _user=Depends(require_auth)):
     )
 
 
+@app.post("/api/cache-page-result")
+async def cache_page_result(request: Request, user=Depends(require_auth)):
+    """Store frontend analysis results so the Copilot can access them."""
+    body = await request.json()
+    page = body.get("page", "")
+    result = body.get("result", {})
+    if not page:
+        raise HTTPException(400, "page is required")
+
+    uid = user.id if user else None
+    from datetime import datetime
+    _completed_results[(uid, page)] = {
+        "job_id": f"{page}_{uid or 'anon'}",
+        "result": result,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    return {"status": "ok", "page": page}
+
+
 @app.delete("/api/live_capture/{capture_id}")
 async def delete_live_capture(capture_id: str, _user=Depends(require_auth)):
     """Delete a capture file to free storage."""

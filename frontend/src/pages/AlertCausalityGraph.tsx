@@ -233,7 +233,7 @@ export default function AlertCausalityGraph() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Causality Graph Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/alert-causality-graph' })
     try {
-      const data = await analyseFile(file, modelId)
+      const data = await analyseFile(file, modelId, 'causality_graph')
       setAnalysisResult(data)
       const incidents = data.predictions ? buildIncidents(data.predictions) : []
       updateNotice(nid, { status: 'completed', description: `${incidents.length} incident chain(s) built from ${data.predictions?.length || 0} predictions` })

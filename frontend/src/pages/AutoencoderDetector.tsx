@@ -143,7 +143,7 @@ export default function AutoencoderDetector() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Autoencoder Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/autoencoder-detector' })
     try {
-      const data = await analyseFile(file, modelId)
+      const data = await analyseFile(file, modelId, 'autoencoder')
       setAnalysisResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows analyzed` })
     } catch (err) {

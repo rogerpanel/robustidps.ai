@@ -189,7 +189,7 @@ export default function MitreAttackMapper() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'MITRE ATT&CK Analysis', description: `Mapping ${file.name}...`, status: 'running', page: '/mitre-attack' })
     try {
-      const data = await analyseFile(file, modelId)
+      const data = await analyseFile(file, modelId, 'mitre_attack')
       setAnalysisResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows mapped to ATT&CK` })
     } catch (err) {

@@ -119,7 +119,7 @@ export default function AlertTriage() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Alert Triage Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/alert-triage' })
     try {
-      const data = await analyseFile(file, modelId)
+      const data = await analyseFile(file, modelId, 'alert_triage')
       setAnalysisResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} alerts triaged` })
     } catch (err) {
