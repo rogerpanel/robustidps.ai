@@ -2663,6 +2663,39 @@ async def download_adversarial_benchmark():
     )
 
 
+@app.get("/api/sample-data/info")
+async def sample_data_info():
+    """List available sample data files with sizes."""
+    import os
+    data_dir = os.path.join(os.path.dirname(__file__), '..', 'sample_data')
+    files = {}
+    for name in ['validation_benchmark.pcap', 'validation_benchmark_ground_truth.csv',
+                  'adversarial_benchmark.pcap', 'pqc_test_dataset.csv']:
+        path = os.path.join(data_dir, name)
+        if os.path.exists(path):
+            files[name] = {"size_mb": round(os.path.getsize(path) / (1024*1024), 1), "available": True}
+        else:
+            files[name] = {"size_mb": 0, "available": False}
+    return {"files": files, "generate_command": "cd sample_data && python generate_validation_pcap.py --flows 60000"}
+
+
+@app.get("/api/sample-data/download/{filename}")
+async def download_sample_data(filename: str):
+    """Download a sample data file."""
+    import os
+
+    ALLOWED = {"validation_benchmark.pcap", "validation_benchmark_ground_truth.csv",
+               "adversarial_benchmark.pcap", "pqc_test_dataset.csv"}
+    if filename not in ALLOWED:
+        raise HTTPException(404, "File not found")
+
+    filepath = os.path.join(os.path.dirname(__file__), '..', 'sample_data', filename)
+    if not os.path.exists(filepath):
+        raise HTTPException(404, f"{filename} not found. Generate it first.")
+
+    return FileResponse(filepath, filename=filename, media_type="application/octet-stream")
+
+
 # ── Adversarial Red Team Arena ─────────────────────────────────────────────
 
 @app.get("/api/redteam/attacks")
