@@ -244,7 +244,7 @@ const ERROR_CODES: { code: number; status: string; description: string; resoluti
   { code: 401, status: 'Unauthorized', description: 'Missing or expired JWT bearer token.', resolution: 'Re-authenticate via POST /api/auth/login.' },
   { code: 403, status: 'Forbidden', description: 'Insufficient permissions for this resource.', resolution: 'Ensure your user role has the required access level.' },
   { code: 404, status: 'Not Found', description: 'Resource does not exist.', resolution: 'Check endpoint path and resource IDs.' },
-  { code: 413, status: 'Payload Too Large', description: 'Upload exceeds maximum file size (250MB).', resolution: 'Reduce file size or use chunked upload.' },
+  { code: 413, status: 'Payload Too Large', description: 'Upload exceeds maximum file size (350MB).', resolution: 'Reduce file size or use chunked upload.' },
   { code: 422, status: 'Unprocessable Entity', description: 'Valid JSON but semantic validation failed.', resolution: 'Check field constraints (e.g. epsilon range, model name).' },
   { code: 429, status: 'Too Many Requests', description: 'Rate limit exceeded.', resolution: 'Wait for the Retry-After header duration.' },
   { code: 500, status: 'Internal Error', description: 'Unexpected server error.', resolution: 'Retry with exponential backoff; report persistent issues.' },

@@ -2667,7 +2667,13 @@ async def download_adversarial_benchmark():
 async def sample_data_info():
     """List available sample data files with sizes."""
     import os
-    data_dir = os.path.join(os.path.dirname(__file__), '..', 'sample_data')
+    # Check multiple paths (host vs Docker container)
+    candidates = [
+        os.path.join(os.path.dirname(__file__), '..', 'sample_data'),
+        os.path.join(os.path.dirname(__file__), 'sample_data'),
+        '/app/sample_data',
+    ]
+    data_dir = next((d for d in candidates if os.path.isdir(d)), candidates[0])
     files = {}
     for name in ['validation_benchmark.pcap', 'validation_benchmark_ground_truth.csv',
                   'adversarial_benchmark.pcap', 'pqc_test_dataset.csv']:
@@ -2676,7 +2682,7 @@ async def sample_data_info():
             files[name] = {"size_mb": round(os.path.getsize(path) / (1024*1024), 1), "available": True}
         else:
             files[name] = {"size_mb": 0, "available": False}
-    return {"files": files, "generate_command": "cd sample_data && python generate_validation_pcap.py --flows 60000"}
+    return {"files": files, "data_dir": data_dir, "generate_command": "docker compose exec backend bash -c 'cd /app && python sample_data/generate_validation_pcap.py --flows 60000'"}
 
 
 @app.get("/api/sample-data/download/{filename}")
@@ -2689,8 +2695,14 @@ async def download_sample_data(filename: str):
     if filename not in ALLOWED:
         raise HTTPException(404, "File not found")
 
-    filepath = os.path.join(os.path.dirname(__file__), '..', 'sample_data', filename)
-    if not os.path.exists(filepath):
+    # Check multiple paths (host vs Docker container)
+    candidates = [
+        os.path.join(os.path.dirname(__file__), '..', 'sample_data', filename),
+        os.path.join(os.path.dirname(__file__), 'sample_data', filename),
+        f'/app/sample_data/{filename}',
+    ]
+    filepath = next((p for p in candidates if os.path.exists(p)), None)
+    if not filepath:
         raise HTTPException(404, f"{filename} not found. Generate it first.")
 
     return FileResponse(filepath, filename=filename, media_type="application/octet-stream")

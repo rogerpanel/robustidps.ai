@@ -48,7 +48,7 @@ CORS_ORIGINS = [
 ]
 RATE_LIMIT_DEFAULT = os.getenv("RATE_LIMIT_DEFAULT", "100/minute")
 RATE_LIMIT_HEAVY = os.getenv("RATE_LIMIT_HEAVY", "10/minute")
-MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "250"))
+MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "350"))
 MAX_LIVE_CAPTURE_SIZE_MB = int(os.getenv("MAX_LIVE_CAPTURE_SIZE_MB", "500"))
 ALLOWED_EXTENSIONS = {".csv", ".pcap", ".pcapng"}
 
