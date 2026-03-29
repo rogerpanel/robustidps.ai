@@ -188,20 +188,8 @@ export default function Models() {
           { title: 'Compare architectures', desc: 'Review each model\'s parameter count, inference latency, input/output dimensions, and training methodology.' },
           { title: 'Check model weights', desc: 'Verify model weight file status (loaded/available) and see which models are ready for inference.' },
         ]}
-        tip="Tip: SurrogateIDS (7-Branch Ensemble) is the default and most accurate model. Individual branch models are useful for ablation studies."
+        tip="Tip: SurrogateIDS (7-Branch Ensemble) is the default and most accurate. Upload & Analyse uses the model from its Settings panel. Live Monitor uses the active default. Ablation Studio only works with SurrogateIDS."
       />
-
-      {/* Info: Where models apply */}
-      <div className="flex items-start gap-3 px-4 py-3 bg-accent-blue/5 border border-accent-blue/20 rounded-xl">
-        <Info className="w-5 h-5 text-accent-blue shrink-0 mt-0.5" />
-        <div className="text-xs text-text-secondary space-y-1">
-          <p><strong className="text-text-primary">Where selected models apply:</strong></p>
-          <p><span className="text-accent-blue font-medium">Upload & Analyse</span> — uses the model you select in its Settings panel. Only <strong>enabled</strong> models appear in that dropdown.</p>
-          <p><span className="text-accent-blue font-medium">Live Monitor</span> — streams predictions using the active default model. Enable additional models here to compare.</p>
-          <p><span className="text-accent-blue font-medium">Ablation Studio</span> — only works with the SurrogateIDS (7-branch) model.</p>
-          <p><span className="text-accent-blue font-medium">Quick Benchmark</span> — runs all <strong>enabled</strong> models on synthetic data to compare speed, confidence, and threat distribution. No dataset needed.</p>
-        </div>
-      </div>
 
       {/* Built-in models */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
