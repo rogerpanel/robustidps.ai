@@ -2676,6 +2676,8 @@ async def sample_data_info():
     data_dir = next((d for d in candidates if os.path.isdir(d)), candidates[0])
     files = {}
     for name in ['validation_benchmark.pcap', 'validation_benchmark_ground_truth.csv',
+                  'pqc_validation_benchmark.pcap', 'pqc_validation_benchmark_ground_truth.csv',
+                  'combined_validation_benchmark.pcap', 'combined_validation_benchmark_ground_truth.csv',
                   'adversarial_benchmark.pcap', 'pqc_test_dataset.csv']:
         path = os.path.join(data_dir, name)
         if os.path.exists(path):
@@ -2691,6 +2693,8 @@ async def download_sample_data(filename: str):
     import os
 
     ALLOWED = {"validation_benchmark.pcap", "validation_benchmark_ground_truth.csv",
+               "pqc_validation_benchmark.pcap", "pqc_validation_benchmark_ground_truth.csv",
+               "combined_validation_benchmark.pcap", "combined_validation_benchmark_ground_truth.csv",
                "adversarial_benchmark.pcap", "pqc_test_dataset.csv"}
     if filename not in ALLOWED:
         raise HTTPException(404, "File not found")
