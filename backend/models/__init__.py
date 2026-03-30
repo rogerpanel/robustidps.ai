@@ -18,6 +18,7 @@ from .clrl_models import (
     CostValueNetWrapper,
     UnifiedFIMWrapper,
 )
+from .multi_agent_pqc import MultiAgentPQCWrapper, MultiAgentPQCIDS
 from .policy_network import PolicyNetwork, ValueNetwork, CostValueNetwork
 from .unified_fim import UnifiedFIM
 from .nids_env import NIDSResponseEnv, ACTION_NAMES, ACTION_SEVERITY
@@ -29,6 +30,9 @@ __all__ = [
     "list_models",
     "load_model",
     "MODEL_INFO",
+    # Multi-Agent PQC-IDS
+    "MultiAgentPQCWrapper",
+    "MultiAgentPQCIDS",
     # CL-RL Model Wrappers
     "CLRLUnifiedWrapper",
     "CPOPolicyWrapper",

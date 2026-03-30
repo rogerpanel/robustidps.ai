@@ -24,6 +24,7 @@ from .clrl_models import (
     CostValueNetWrapper,
     UnifiedFIMWrapper,
 )
+from .multi_agent_pqc import MultiAgentPQCWrapper
 
 WEIGHTS_DIR = Path(__file__).parent.parent / "weights"
 
@@ -355,6 +356,16 @@ MODEL_INFO = {
         "has_ablation": False,
         "category": "clrl",
         "parent_model": "clrl_unified",
+    },
+    # ── Multi-Agent PQC-IDS ─────────────────────────────────────────────
+    "multi_agent_pqc": {
+        "name": "Multi-Agent PQC-IDS",
+        "description": "4-agent cooperative IDS with PQC-aware traffic classification. Agents: Traffic Analyst, PQC Specialist, Anomaly Detector, Coordinator.",
+        "paper": "Multi-Agent PQC-Aware Intrusion Detection for Post-Quantum Network Security",
+        "class": MultiAgentPQCWrapper,
+        "weight_file": "multi_agent_pqc.pt",
+        "has_ablation": False,
+        "category": "pqc",
     },
 }
 
