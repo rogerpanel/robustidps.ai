@@ -2,9 +2,9 @@
 Multi-Agent PQC-IDS — Post-Quantum Cryptography-Aware Intrusion Detection.
 
 Four specialized cooperative agents with attention-weighted fusion:
-  Agent 1 (Traffic Analyst): 83→[128,64]→34 attack classification
-  Agent 2 (PQC Specialist): 83→[128,64]→14 PQC algorithm identification
-  Agent 3 (Anomaly Detector): Autoencoder 83→32→16→32→83 reconstruction
+  Agent 1 (Traffic Analyst): 83->[128,64]->34 attack classification
+  Agent 2 (PQC Specialist): 83->[128,64]->14 PQC algorithm identification
+  Agent 3 (Anomaly Detector): Autoencoder 83->32->16->32->83 reconstruction
   Agent 4 (Coordinator): Attention fusion of all agent outputs
 
 Total parameters: ~70,598
@@ -16,7 +16,6 @@ Author: Roger Nick Anaedevha
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .surrogate import SurrogateIDS
 
 PQC_CLASSES = [
     "Kyber-512", "Kyber-768", "Kyber-1024",
@@ -27,11 +26,47 @@ PQC_CLASSES = [
     "Unknown-PQC",
 ]
 
-ATTACK_CLASSES = SurrogateIDS.CLASS_NAMES  # 34 classes
+ATTACK_CLASSES = [
+    "Benign",
+    "DDoS-TCP_Flood",
+    "DDoS-UDP_Flood",
+    "DDoS-ICMP_Flood",
+    "DDoS-HTTP_Flood",
+    "DDoS-SYN_Flood",
+    "DDoS-SlowLoris",
+    "DDoS-RSTFIN_Flood",
+    "DDoS-Pshack_Flood",
+    "DDoS-ACK_Fragmentation",
+    "DDoS-UDP_Fragmentation",
+    "DDoS-ICMP_Fragmentation",
+    "Recon-PortScan",
+    "Recon-OSScan",
+    "Recon-HostDiscovery",
+    "Recon-PingSweep",
+    "BruteForce-SSH",
+    "BruteForce-FTP",
+    "BruteForce-HTTP",
+    "BruteForce-Dictionary",
+    "Spoofing-ARP",
+    "Spoofing-DNS",
+    "Spoofing-IP",
+    "WebAttack-SQLi",
+    "WebAttack-XSS",
+    "WebAttack-CommandInjection",
+    "WebAttack-BrowserHijacking",
+    "Malware-Backdoor",
+    "Malware-Ransomware",
+    "Malware-Trojan",
+    "DoS-Slowhttptest",
+    "DoS-Hulk",
+    "Mirai-greeth_flood",
+    "Mirai-greip_flood",
+]
 
 
 class TrafficAnalystAgent(nn.Module):
-    """Agent 1: Network attack classification (83→34)."""
+    """Agent 1: Network attack classification (83->34)."""
+
     def __init__(self, in_dim=83, hidden=[128, 64], out_dim=34, dropout=0.1):
         super().__init__()
         layers = []
@@ -41,13 +76,15 @@ class TrafficAnalystAgent(nn.Module):
             prev = h
         self.backbone = nn.Sequential(*layers)
         self.head = nn.Linear(prev, out_dim)
+
     def forward(self, x):
         feat = self.backbone(x)
         return self.head(feat), feat
 
 
 class PQCSpecialistAgent(nn.Module):
-    """Agent 2: PQC algorithm identification (83→14)."""
+    """Agent 2: PQC algorithm identification (83->14)."""
+
     def __init__(self, in_dim=83, hidden=[128, 64], out_dim=14, dropout=0.1):
         super().__init__()
         layers = []
@@ -57,13 +94,15 @@ class PQCSpecialistAgent(nn.Module):
             prev = h
         self.backbone = nn.Sequential(*layers)
         self.head = nn.Linear(prev, out_dim)
+
     def forward(self, x):
         feat = self.backbone(x)
         return self.head(feat), feat
 
 
 class AnomalyDetectorAgent(nn.Module):
-    """Agent 3: Autoencoder-based anomaly detection (83→16→83)."""
+    """Agent 3: Autoencoder-based anomaly detection (83->16->83)."""
+
     def __init__(self, in_dim=83, bottleneck=16, dropout=0.1):
         super().__init__()
         self.encoder = nn.Sequential(
@@ -74,6 +113,7 @@ class AnomalyDetectorAgent(nn.Module):
             nn.Linear(bottleneck, 32), nn.ReLU(), nn.Dropout(dropout),
             nn.Linear(32, in_dim),
         )
+
     def forward(self, x):
         z = self.encoder(x)
         recon = self.decoder(z)
@@ -83,6 +123,7 @@ class AnomalyDetectorAgent(nn.Module):
 
 class CoordinatorAgent(nn.Module):
     """Agent 4: Attention-weighted fusion of all agents."""
+
     def __init__(self, n_agents=3, feat_dim=64, bottleneck_dim=16):
         super().__init__()
         total_dim = feat_dim * 2 + bottleneck_dim  # traffic(64) + pqc(64) + anomaly(16)
@@ -90,6 +131,7 @@ class CoordinatorAgent(nn.Module):
             nn.Linear(total_dim, 32), nn.Tanh(),
             nn.Linear(32, n_agents), nn.Softmax(dim=-1),
         )
+
     def forward(self, feats_list):
         concat = torch.cat(feats_list, dim=-1)
         weights = self.attn(concat)
@@ -98,6 +140,7 @@ class CoordinatorAgent(nn.Module):
 
 class MultiAgentPQCIDS(nn.Module):
     """Composite 4-agent PQC-aware IDS."""
+
     def __init__(self, dropout=0.1):
         super().__init__()
         self.traffic_agent = TrafficAnalystAgent(dropout=dropout)
@@ -115,7 +158,7 @@ class MultiAgentPQCIDS(nn.Module):
         # Weighted fusion for final attack classification
         w = agent_weights  # (B, 3)
         fused = (w[:, 0:1] * attack_logits +
-                 w[:, 1:2] * F.pad(pqc_logits, (0, 34-14)) +
+                 w[:, 1:2] * F.pad(pqc_logits, (0, 34 - 14)) +
                  w[:, 2:3] * anomaly_scores.expand(-1, 34))
 
         return {
@@ -127,21 +170,7 @@ class MultiAgentPQCIDS(nn.Module):
             "raw_pqc": pqc_logits,
         }
 
-
-class MultiAgentPQCWrapper(nn.Module):
-    """Platform-compatible wrapper for RobustIDPS.ai."""
-    N_FEATURES = 83
-    N_CLASSES = 34
-    BRANCH_NAMES = SurrogateIDS.BRANCH_NAMES
-    CLASS_NAMES = SurrogateIDS.CLASS_NAMES
-    SEVERITY_MAP = SurrogateIDS.SEVERITY_MAP
-
-    def __init__(self, dropout=0.1, disabled_branches=None):
-        super().__init__()
-        self.model = MultiAgentPQCIDS(dropout=dropout)
-
-    def forward(self, x):
-        return self.model(x)["attack_logits"]
-
-    def forward_full(self, x):
-        return self.model(x)
+    def predict(self, x):
+        """Return attack class index predictions."""
+        out = self.forward(x)
+        return out["attack_logits"].argmax(dim=-1)

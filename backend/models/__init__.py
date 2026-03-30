@@ -47,6 +47,9 @@ __all__ = [
     "NIDSResponseEnv",
     "ACTION_NAMES",
     "ACTION_SEVERITY",
+    # Multi-Agent PQC-IDS
+    "MultiAgentPQCWrapper",
+    "MultiAgentPQCIDS",
     # Evaluation
     "AdversarialEvaluator",
     "ATTACK_CONFIGS",
