@@ -1295,6 +1295,35 @@ export default function PQCryptography() {
       {/* ══ TRAFFIC LAB TAB ══ */}
       {tab === 'traffic_lab' && (
         <div className="space-y-6">
+          {/* Model Evolution: PQ-IDPS → Multi-Agent PQC-IDS */}
+          <div className="bg-gradient-to-r from-accent-purple/5 to-accent-orange/5 border border-accent-purple/20 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-accent-purple" />
+              PQC Detection Models
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="bg-bg-primary/50 rounded-lg p-3 border border-accent-purple/10">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-purple/15 text-accent-purple">BRANCH 3</span>
+                  <span className="font-medium text-text-primary">PQ-IDPS</span>
+                </div>
+                <p className="text-text-secondary">Single MLP branch inside the 7-branch SurrogateIDS ensemble. Detects 34 attack classes with PQC-aware feature processing. Used in Benchmark &amp; Simulate tab.</p>
+              </div>
+              <div className="bg-bg-primary/50 rounded-lg p-3 border border-accent-orange/10">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-orange/15 text-accent-orange">SUCCESSOR</span>
+                  <span className="font-medium text-text-primary">Multi-Agent PQC-IDS</span>
+                </div>
+                <p className="text-text-secondary">4-agent cooperative system: Traffic Analyst (34 attacks) + PQC Specialist (14 PQ algorithms) + Anomaly Detector (autoencoder) + Coordinator (attention fusion). Select it in the Model dropdown below.</p>
+              </div>
+            </div>
+            <p className="text-[10px] text-text-secondary mt-2">
+              <a href="https://github.com/rogerpanel/Multi-Agent-PQC-models" target="_blank" rel="noopener noreferrer" className="text-accent-orange hover:underline">GitHub: Multi-Agent-PQC-models</a>
+              {' · '}
+              <a href="https://doi.org/10.34740/kaggle/dsv/15424420" target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">Dataset DOI: 10.34740/kaggle/dsv/15424420</a>
+            </p>
+          </div>
+
           {/* Mode Toggle */}
           <div className="flex gap-2">
             <button onClick={() => setPqcMode('single')} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium transition-all ${pqcMode === 'single' ? 'bg-accent-purple text-white' : 'bg-bg-secondary border border-bg-card text-text-secondary hover:text-text-primary'}`}>

@@ -347,19 +347,6 @@ MODEL_INFO = {
         "category": "clrl",
         "parent_model": "clrl_unified",
     },
-    # ── Multi-Agent PQC-IDS ─────────────────────────────────────────────
-    "multi_agent_pqc": {
-        "name": "Multi-Agent PQC-IDS",
-        "description": "4-agent cooperative IDS with PQC-aware traffic classification",
-        "paper": "Multi-Agent PQC-IDS: Post-Quantum Cryptography-Aware Intrusion Detection",
-        "class": MultiAgentPQCWrapper,
-        "weight_file": "multi_agent_pqc.pt",
-        "has_ablation": False,
-        "category": "pqc",
-        "params": "70,598",
-        "input_dim": 83,
-        "output_dim": 34,
-    },
     "unified_fim": {
         "name": "Unified FIM Model (Fisher Information-Regularised)",
         "description": "Fisher Information-regularised detection network. Balances detection preservation (β=0.7) with policy plasticity (1−β=0.3) via unified FIM from both EWC and CPO trust regions.",
@@ -373,7 +360,7 @@ MODEL_INFO = {
     # ── Multi-Agent PQC-IDS ─────────────────────────────────────────────
     "multi_agent_pqc": {
         "name": "Multi-Agent PQC-IDS",
-        "description": "4-agent cooperative IDS with PQC-aware traffic classification. Agents: Traffic Analyst, PQC Specialist, Anomaly Detector, Coordinator.",
+        "description": "4-agent cooperative IDS with PQC-aware traffic classification. Successor to PQ-IDPS (Branch 3). Agents: Traffic Analyst (34 attacks), PQC Specialist (14 PQ algorithms), Anomaly Detector (autoencoder), Coordinator (attention fusion).",
         "paper": "Multi-Agent PQC-Aware Intrusion Detection for Post-Quantum Network Security",
         "class": MultiAgentPQCWrapper,
         "weight_file": "multi_agent_pqc.pt",
