@@ -25,6 +25,8 @@ const CATEGORY_COLORS: Record<string, string> = {
   temporal: 'bg-accent-purple/15 text-accent-purple',
   federated: 'bg-accent-green/15 text-accent-green',
   foundation: 'bg-accent-amber/15 text-accent-amber',
+  pqc: 'bg-accent-orange/15 text-accent-orange',
+  clrl: 'bg-accent-purple/15 text-accent-purple',
   custom: 'bg-accent-red/15 text-accent-red',
 }
 
