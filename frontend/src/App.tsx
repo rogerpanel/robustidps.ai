@@ -44,6 +44,12 @@ import {
   TrendingUp,
   GitBranch,
   Layers,
+  FileText,
+  Globe,
+  Zap,
+  Search,
+  Shield,
+  AlertTriangle,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -88,6 +94,8 @@ const AttackChainPredictor = lazy(() => import('./pages/AttackChainPredictor'))
 const DataPoisoningSim = lazy(() => import('./pages/DataPoisoningSim'))
 const AlertCausalityGraph = lazy(() => import('./pages/AlertCausalityGraph'))
 const AutoencoderDetector = lazy(() => import('./pages/AutoencoderDetector'))
+const IncidentReports = lazy(() => import('./pages/IncidentReports'))
+const ThreatIntel = lazy(() => import('./pages/ThreatIntel'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -158,6 +166,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/mitre-attack', label: 'MITRE ATT&CK', icon: Target },
       { to: '/alert-triage', label: 'Alert Triage', icon: Filter },
+      { to: '/incident-reports', label: 'Incident Reports', icon: FileText },
+      { to: '/threat-intel', label: 'Threat Intel', icon: Globe },
       { to: '/compliance', label: 'Compliance Hub', icon: ClipboardCheck },
     ],
   },
@@ -678,6 +688,8 @@ export default function App() {
               <Route path="/data-poisoning" element={<DataPoisoningSim />} />
               <Route path="/causality-graph" element={<AlertCausalityGraph />} />
               <Route path="/autoencoder" element={<AutoencoderDetector />} />
+              <Route path="/incident-reports" element={<IncidentReports />} />
+              <Route path="/threat-intel" element={<ThreatIntel />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
