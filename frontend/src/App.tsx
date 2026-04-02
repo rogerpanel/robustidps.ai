@@ -96,6 +96,10 @@ const AlertCausalityGraph = lazy(() => import('./pages/AlertCausalityGraph'))
 const AutoencoderDetector = lazy(() => import('./pages/AutoencoderDetector'))
 const IncidentReports = lazy(() => import('./pages/IncidentReports'))
 const ThreatIntel = lazy(() => import('./pages/ThreatIntel'))
+const AutoInvestigation = lazy(() => import('./pages/AutoInvestigation'))
+const ThreatHunt = lazy(() => import('./pages/ThreatHunt'))
+const RuleGenerator = lazy(() => import('./pages/RuleGenerator'))
+const CVEMapper = lazy(() => import('./pages/CVEMapper'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -152,6 +156,17 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    heading: 'SOC Intelligence',
+    items: [
+      { to: '/auto-investigate', label: 'Auto-Investigation', icon: Zap },
+      { to: '/threat-hunt', label: 'Threat Hunt', icon: Search },
+      { to: '/incident-reports', label: 'Incident Reports', icon: FileText },
+      { to: '/threat-intel', label: 'Threat Intel', icon: Globe },
+      { to: '/rule-generator', label: 'Rule Generator', icon: Shield },
+      { to: '/cve-mapper', label: 'CVE Mapper', icon: AlertTriangle },
+    ],
+  },
+  {
     heading: 'LLM Attack Surfaces',
     items: [
       { to: '/prompt-injection', label: 'Prompt Injection', icon: Syringe },
@@ -166,8 +181,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/mitre-attack', label: 'MITRE ATT&CK', icon: Target },
       { to: '/alert-triage', label: 'Alert Triage', icon: Filter },
-      { to: '/incident-reports', label: 'Incident Reports', icon: FileText },
-      { to: '/threat-intel', label: 'Threat Intel', icon: Globe },
       { to: '/compliance', label: 'Compliance Hub', icon: ClipboardCheck },
     ],
   },
@@ -201,7 +214,7 @@ const NAV_GROUPS: NavGroup[] = [
 ]
 
 // Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
-const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'System']
+const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'SOC Intelligence', 'System']
 const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'MLSecOps Standards', 'AI Security & Gov', 'Industry & Research']
 
 export default function App() {
@@ -690,6 +703,10 @@ export default function App() {
               <Route path="/autoencoder" element={<AutoencoderDetector />} />
               <Route path="/incident-reports" element={<IncidentReports />} />
               <Route path="/threat-intel" element={<ThreatIntel />} />
+              <Route path="/auto-investigate" element={<AutoInvestigation />} />
+              <Route path="/threat-hunt" element={<ThreatHunt />} />
+              <Route path="/rule-generator" element={<RuleGenerator />} />
+              <Route path="/cve-mapper" element={<CVEMapper />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
