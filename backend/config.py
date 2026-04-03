@@ -56,6 +56,8 @@ ALLOWED_EXTENSIONS = {".csv", ".pcap", ".pcapng"}
 DEVICE = os.getenv("DEVICE", "cpu")
 MC_PASSES = int(os.getenv("MC_PASSES", "20"))
 MAX_ROWS = int(os.getenv("MAX_ROWS", "20000"))
+MAX_ROWS_ADVERSARIAL = int(os.getenv("MAX_ROWS_ADVERSARIAL", "5000"))
+MAX_ROWS_REDTEAM = int(os.getenv("MAX_ROWS_REDTEAM", "5000"))
 
 # ── Datasets ──────────────────────────────────────────────────────────────
 DATASETS_DIR = Path(os.getenv("DATASETS_DIR", str(Path(__file__).parent / "datasets")))

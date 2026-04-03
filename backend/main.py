@@ -78,6 +78,7 @@ from slowapi.errors import RateLimitExceeded
 
 from config import (
     CORS_ORIGINS, DEVICE, MC_PASSES, MAX_ROWS,
+    MAX_ROWS_ADVERSARIAL, MAX_ROWS_REDTEAM,
     RATE_LIMIT_DEFAULT, RATE_LIMIT_HEAVY, MAX_UPLOAD_SIZE_MB,
     MAX_LIVE_CAPTURE_SIZE_MB, ALLOWED_EXTENSIONS,
 )
@@ -2310,7 +2311,7 @@ async def clrl_adversarial(
                 target_model,
                 features,
                 labels_encoded,
-                max_samples=500,
+                max_samples=min(500, MAX_ROWS_ADVERSARIAL),
             )
             results["model_id"] = model_id
             results["model_name"] = MODEL_INFO.get(model_id, {}).get("name", model_id)
@@ -2409,7 +2410,8 @@ async def clrl_adversarial_multi_run(
                             model,
                             ds["features"],
                             ds["labels"],
-                            max_samples=500,
+                            max_samples=min(500, MAX_ROWS_ADVERSARIAL),
+                            fast_mode=True,
                         )
                         cell_result["model_id"] = mn
                         cell_result["model_name"] = model_name_display
@@ -2779,7 +2781,7 @@ async def redteam_run(
             )
             result = await asyncio.to_thread(
                 run_arena, selected, features,
-                labels_encoded, attack_list, epsilon, min(n_samples, MAX_ROWS),
+                labels_encoded, attack_list, epsilon, min(n_samples, MAX_ROWS_REDTEAM),
             )
             result["model_used"] = model_name if model_name else active_model_id
             result["dataset_format"] = fmt
@@ -2830,7 +2832,7 @@ async def redteam_multi_run(
     attack_list = json.loads(attacks_raw) if attacks_raw and attacks_raw != "[]" else None
 
     epsilon = float(form.get("epsilon", 0.1))
-    n_samples = min(int(form.get("n_samples", 500)), MAX_ROWS)
+    n_samples = min(int(form.get("n_samples", 500)), MAX_ROWS_REDTEAM)
 
     job_id = str(uuid.uuid4())[:8]
     _bg_jobs[job_id] = {"status": "running", "result": None, "error": None, "user_id": user.id}
@@ -2876,6 +2878,7 @@ async def redteam_multi_run(
                 attack_list,
                 epsilon,
                 n_samples,
+                fast_mode=True,
             )
 
             _bg_jobs[job_id] = {"status": "done", "result": result, "error": None, "user_id": user.id}

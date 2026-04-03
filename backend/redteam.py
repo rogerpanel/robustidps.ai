@@ -32,7 +32,7 @@ import numpy as np
 logger = logging.getLogger("robustidps.redteam")
 
 # Batch size cap for model inference (prevents OOM from N×N internal matrices)
-_ARENA_BATCH = 512
+_ARENA_BATCH = 4096
 
 # ── Attack implementations ────────────────────────────────────────────────
 
@@ -155,6 +155,7 @@ def run_arena(
     attacks: list[str] | None = None,
     epsilon: float = 0.1,
     n_samples: int = 500,
+    fast_mode: bool = False,
 ) -> dict:
     """
     Run the adversarial red-team arena.
@@ -216,6 +217,10 @@ def run_arena(
             if atk["needs_grad"]:
                 if atk_key == "deepfool":
                     adv_features = atk["fn"](model, features)
+                elif atk_key == "pgd" and fast_mode:
+                    adv_features = atk["fn"](model, features, labels, eps=epsilon, steps=5)
+                elif atk_key == "cw" and fast_mode:
+                    adv_features = atk["fn"](model, features, labels, eps=epsilon, steps=8)
                 else:
                     adv_features = atk["fn"](model, features, labels, eps=epsilon)
             else:
@@ -700,6 +705,7 @@ def run_multi_arena(
     attacks: list[str] | None = None,
     epsilon: float = 0.1,
     n_samples: int = 500,
+    fast_mode: bool = False,
 ) -> dict:
     """
     Full multi-dataset × multi-model red team analysis.
@@ -733,6 +739,7 @@ def run_multi_arena(
                 ds["features"].clone(),
                 lab.clone() if lab is not None else None,
                 attacks, epsilon, n_samples,
+                fast_mode=fast_mode,
             )
             arena["model_used"] = mname
             arena["dataset_name"] = ds["name"]

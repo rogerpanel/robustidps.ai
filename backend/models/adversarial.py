@@ -46,9 +46,22 @@ class AdversarialEvaluator:
         labels: torch.Tensor,
         configs: Optional[List[Dict]] = None,
         max_samples: int = 500,
+        fast_mode: bool = False,
     ) -> Dict:
         """Run all 6 attacks and return accuracy under each."""
         configs = configs or ATTACK_CONFIGS
+
+        # In fast_mode, override PGD steps and C&W iterations for speed
+        if fast_mode:
+            fast_configs = []
+            for cfg in configs:
+                cfg = dict(cfg)  # shallow copy
+                if cfg["name"] == "pgd":
+                    cfg["steps"] = 10
+                elif cfg["name"] == "cw":
+                    cfg["max_iterations"] = 15
+                fast_configs.append(cfg)
+            configs = fast_configs
 
         # Subsample for efficiency
         if len(features) > max_samples:
