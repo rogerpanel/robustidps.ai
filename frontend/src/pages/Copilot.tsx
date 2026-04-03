@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Send, Bot, User, Key, Loader2, Sparkles, X, Settings, Trash2, ChevronDown, Cpu, ToggleLeft, ToggleRight, ChevronLeft, ChevronRight, Zap } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { authHeaders } from '../utils/auth'
 import PageGuide from '../components/PageGuide'
@@ -92,6 +92,44 @@ const SUGGESTIONS = [
   'What can you do?',
 ]
 
+const WORKFLOWS = [
+  {
+    id: 'full_investigation',
+    name: 'Full Investigation',
+    desc: 'Analyze \u2192 Triage \u2192 Incident chains \u2192 Report',
+    steps: ['Show me all active operations', 'Get the threat summary', 'Show the auto-investigation results', 'Generate an incident report summary'],
+    icon: '\uD83D\uDD0D',
+  },
+  {
+    id: 'threat_landscape',
+    name: 'Threat Landscape',
+    desc: 'Attack distribution \u2192 Top attackers \u2192 CVE mapping',
+    steps: ['What threats were detected?', 'Show me the threat intel on top attacking IPs', 'Which CVEs were mapped to detected attacks?'],
+    icon: '\uD83C\uDF10',
+  },
+  {
+    id: 'llm_security_check',
+    name: 'LLM Security Audit',
+    desc: 'Prompt injection \u2192 Jailbreak \u2192 RAG \u2192 Multi-agent results',
+    steps: ['Show me prompt injection test results', 'What did the jailbreak taxonomy find?', 'Show RAG poisoning simulation results', 'Show multi-agent chain results'],
+    icon: '\uD83D\uDEE1\uFE0F',
+  },
+  {
+    id: 'compliance_review',
+    name: 'Compliance Review',
+    desc: 'OWASP LLM Top 10 \u2192 NIST AI RMF \u2192 MITRE ATT&CK coverage',
+    steps: ['Show the compliance hub status', 'What MITRE ATT&CK techniques were detected?', 'Show the alert triage results'],
+    icon: '\uD83D\uDCCB',
+  },
+  {
+    id: 'defensive_posture',
+    name: 'Defensive Posture',
+    desc: 'Adversarial robustness \u2192 RL agent \u2192 Federated learning status',
+    steps: ['Show adversarial robustness results', 'Show RL response agent results', 'Show federated learning status'],
+    icon: '\u2694\uFE0F',
+  },
+]
+
 const PAGE_CONTEXTS = [
   { id: 'active_ops', label: 'Active Operations', query: 'Show me all active operations across pages. What analyses are currently running or completed?', icon: 'activity' },
   { id: 'upload', label: 'Upload Results', query: 'Get the latest upload analysis results. Summarise the threats found, severity distribution, and key findings.', icon: 'upload' },
@@ -156,6 +194,7 @@ export default function Copilot() {
   const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem(STORAGE_KEYS.model) || '')
   const [showSettings, setShowSettings] = useState(false)
   const [showModelPanel, setShowModelPanel] = useState(false)
+  const [showWorkflows, setShowWorkflows] = useState(false)
 
   // Server-side provider status
   const [serverProviders, setServerProviders] = useState<Record<string, boolean>>({})
@@ -590,6 +629,43 @@ export default function Copilot() {
             <span className="flex items-center text-[9px] text-accent-red px-2">sync failed</span>
           )}
         </div>
+      </div>
+
+      {/* Investigation Workflows */}
+      <div className="mb-2">
+        <button
+          onClick={() => setShowWorkflows(!showWorkflows)}
+          className="flex items-center gap-1.5 text-[10px] text-text-secondary hover:text-accent-orange transition-colors"
+        >
+          <Zap className="w-3 h-3" />
+          {showWorkflows ? 'Hide' : 'Show'} Investigation Workflows
+        </button>
+        {showWorkflows && (
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {WORKFLOWS.map(wf => (
+              <button
+                key={wf.id}
+                onClick={async () => {
+                  setShowWorkflows(false)
+                  for (const step of wf.steps) {
+                    await new Promise(r => setTimeout(r, 500))
+                    sendMessage(step)
+                    await new Promise(r => setTimeout(r, 3000))
+                  }
+                }}
+                disabled={loading}
+                className="text-left p-2.5 rounded-lg border border-bg-card bg-bg-secondary hover:border-accent-orange/30 hover:bg-accent-orange/5 transition-colors disabled:opacity-50"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm">{wf.icon}</span>
+                  <span className="text-[11px] font-medium text-text-primary">{wf.name}</span>
+                </div>
+                <p className="text-[9px] text-text-secondary">{wf.desc}</p>
+                <div className="text-[8px] text-accent-orange mt-1">{wf.steps.length} steps</div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Messages */}

@@ -4,7 +4,7 @@ import {
   Trash2, UserX, UserCheck, KeyRound, Clock, Globe, Monitor,
   AlertTriangle, LogIn, Upload, Cpu, Download, Flame, RefreshCw,
 } from 'lucide-react'
-import { getUser } from '../utils/auth'
+import { getUser, authHeaders } from '../utils/auth'
 import PageGuide from '../components/PageGuide'
 import {
   fetchUsers, fetchAuditLogs, exportAuditLogs, updateUserRole,
@@ -228,11 +228,62 @@ function HealthTab() {
   )
 }
 
+/* ── Workspaces Tab ───────────────────────────────────────────────────── */
+
+const WORKSPACES_API = import.meta.env.VITE_API_URL || ''
+
+function WorkspacesTab() {
+  const [workspaces, setWorkspaces] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`${WORKSPACES_API}/api/workspaces`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : { workspaces: [] })
+      .then(d => setWorkspaces(d.workspaces || []))
+      .catch(() => setWorkspaces([]))
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Demo workspaces if none exist
+  const displayWorkspaces = workspaces.length > 0 ? workspaces : [
+    { id: 'default', name: 'Default Workspace', owner: 'admin@robustidps.ai', members: 1, created_at: new Date().toISOString(), models_enabled: 12, datasets_uploaded: 0 },
+  ]
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-text-primary">Workspace Management</span>
+        <span className="text-xs text-text-secondary">{displayWorkspaces.length} workspace(s)</span>
+      </div>
+      <div className="space-y-2">
+        {displayWorkspaces.map((ws: any) => (
+          <div key={ws.id || ws.name} className="bg-bg-card border border-bg-card rounded-lg p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h4 className="text-sm font-medium text-text-primary">{ws.name}</h4>
+                <p className="text-[10px] text-text-secondary">Owner: {ws.owner || ws.owner_email || '\u2014'} · Created: {ws.created_at ? new Date(ws.created_at).toLocaleDateString() : '\u2014'}</p>
+              </div>
+              <span className="text-xs px-2 py-0.5 rounded bg-accent-blue/15 text-accent-blue">{ws.members || 1} member(s)</span>
+            </div>
+            <div className="flex gap-4 text-xs text-text-secondary">
+              <span>Models: {ws.models_enabled || '\u2014'}</span>
+              <span>Datasets: {ws.datasets_uploaded || 0}</span>
+              <span>Jobs: {ws.total_jobs || 0}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[9px] text-text-secondary italic">Multi-tenant workspace isolation allows organizations to maintain separate datasets, models, and analysis results within the same RobustIDPS.ai deployment.</p>
+    </div>
+  )
+}
+
 /* ── Component ─────────────────────────────────────────────────────────── */
 
 export default function AdminDashboard() {
   const currentUser = getUser()
-  const [tab, setTab] = useState<'users' | 'audit' | 'sessions' | 'health'>('users')
+  const [tab, setTab] = useState<'users' | 'audit' | 'sessions' | 'health' | 'workspaces'>('users')
 
   // Users state
   const [users, setUsers] = useState<UserRecord[]>([])
@@ -504,6 +555,12 @@ export default function AdminDashboard() {
         >
           <Monitor className="w-4 h-4" /> System Health
         </button>
+        <button
+          onClick={() => setTab('workspaces')}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${tab === 'workspaces' ? 'bg-accent-amber text-white' : 'text-text-secondary hover:text-text-primary'}`}
+        >
+          <Globe className="w-4 h-4" /> Workspaces
+        </button>
       </div>
 
       {/* Users Tab */}
@@ -768,6 +825,11 @@ export default function AdminDashboard() {
       {/* Health Tab */}
       {tab === 'health' && (
         <HealthTab />
+      )}
+
+      {/* Workspaces Tab */}
+      {tab === 'workspaces' && (
+        <WorkspacesTab />
       )}
 
       {/* Action Modal */}

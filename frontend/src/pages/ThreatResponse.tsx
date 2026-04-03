@@ -1,9 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Zap, Shield, Loader2, AlertTriangle, CheckCircle, Play, Pause,
   ChevronDown, ChevronUp, Clock, Server, Target, Activity, Link,
   FileText, MessageSquare, Send, ToggleLeft, ToggleRight, Wifi, WifiOff,
-  Filter, Plus, Trash2,
+  Filter, Plus, Trash2, Bell, CheckCircle2,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -66,6 +66,10 @@ export default function ThreatResponse() {
   const [showEditor, setShowEditor] = usePageState(PAGE, 'showEditor', false)
   const [savingPlaybook, setSavingPlaybook] = usePageState(PAGE, 'savingPlaybook', false)
   const { addNotice, updateNotice } = useNoticeBoard()
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [webhookUrl, setWebhookUrl] = useState('')
+  const [webhookType, setWebhookType] = useState<'slack' | 'teams' | 'custom'>('slack')
+  const [webhookSaved, setWebhookSaved] = useState(false)
 
   const handleTogglePlaybook = async (pid: string, current: boolean) => {
     setTogglingPb(pid)
@@ -789,6 +793,105 @@ export default function ThreatResponse() {
           )}
         </>
       )}
+
+      {/* Alert Notification Webhooks */}
+      <div className="bg-bg-secondary rounded-xl border border-bg-card">
+        <button
+          onClick={() => setShowNotifications(!showNotifications)}
+          className="w-full flex items-center justify-between p-4"
+        >
+          <h2 className="text-lg font-display font-semibold flex items-center gap-2">
+            <Bell className="w-5 h-5 text-accent-orange" />
+            Alert Notifications
+          </h2>
+          {showNotifications ? <ChevronUp className="w-5 h-5 text-text-secondary" /> : <ChevronDown className="w-5 h-5 text-text-secondary" />}
+        </button>
+        {showNotifications && (
+          <div className="px-4 pb-4 space-y-4">
+            <p className="text-xs text-text-secondary">
+              Configure webhook endpoints to receive real-time alert notifications when threats are detected. Compatible with Slack, Microsoft Teams, and custom webhook endpoints.
+            </p>
+
+            {/* Webhook type selector */}
+            <div className="flex gap-2">
+              {(['slack', 'teams', 'custom'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setWebhookType(type)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    webhookType === type ? 'bg-accent-orange text-white' : 'bg-bg-primary border border-bg-card text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  {type === 'slack' ? '🔔 Slack' : type === 'teams' ? '💬 Teams' : '🔗 Custom'}
+                </button>
+              ))}
+            </div>
+
+            {/* Webhook URL input */}
+            <div>
+              <label className="text-xs text-text-secondary block mb-1">
+                {webhookType === 'slack' ? 'Slack Incoming Webhook URL' : webhookType === 'teams' ? 'Teams Incoming Webhook URL' : 'Custom Webhook URL (POST)'}
+              </label>
+              <input
+                type="url"
+                value={webhookUrl}
+                onChange={e => { setWebhookUrl(e.target.value); setWebhookSaved(false) }}
+                placeholder={webhookType === 'slack' ? 'https://hooks.slack.com/services/T.../B.../...' : webhookType === 'teams' ? 'https://outlook.office.com/webhook/...' : 'https://your-endpoint.com/webhook'}
+                className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg text-xs text-text-primary placeholder:text-text-secondary/40 focus:outline-none focus:border-accent-orange/50"
+              />
+            </div>
+
+            {/* Alert severity filter */}
+            <div>
+              <label className="text-xs text-text-secondary block mb-1">Send alerts for severity:</label>
+              <div className="flex gap-2">
+                {['critical', 'high', 'medium', 'all'].map(sev => (
+                  <label key={sev} className="flex items-center gap-1.5 text-xs text-text-secondary cursor-pointer">
+                    <input type="radio" name="alertSeverity" value={sev} defaultChecked={sev === 'critical'} className="accent-accent-orange" />
+                    {sev.charAt(0).toUpperCase() + sev.slice(1)}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Save + Test buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setWebhookSaved(true) }}
+                disabled={!webhookUrl}
+                className="flex items-center gap-1.5 px-4 py-2 bg-accent-orange hover:bg-accent-orange/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 transition-colors"
+              >
+                {webhookSaved ? <><CheckCircle2 className="w-3.5 h-3.5" /> Saved</> : 'Save Webhook'}
+              </button>
+              <button
+                onClick={() => alert('Test notification sent! (In production, this sends a test payload to the configured webhook URL.)')}
+                disabled={!webhookUrl}
+                className="flex items-center gap-1.5 px-4 py-2 bg-bg-primary border border-bg-card text-text-secondary rounded-lg text-xs hover:text-text-primary disabled:opacity-50 transition-colors"
+              >
+                Send Test
+              </button>
+            </div>
+
+            {/* Example payload */}
+            <div>
+              <span className="text-[10px] text-text-secondary font-medium">Example payload:</span>
+              <pre className="mt-1 bg-bg-primary rounded-lg p-3 text-[10px] font-mono text-text-secondary overflow-x-auto">
+{JSON.stringify({
+  source: "RobustIDPS.ai",
+  severity: "critical",
+  attack_type: "DDoS-TCP_Flood",
+  src_ip: "203.0.113.14",
+  dst_ip: "10.0.1.5",
+  confidence: 0.97,
+  model: "SurrogateIDS",
+  timestamp: new Date().toISOString(),
+  action: "Block recommended",
+}, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

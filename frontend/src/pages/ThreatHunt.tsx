@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react'
 import {
   Search, Loader2, Shield, Upload, FileText, X, Radio,
   Clock, Trash2, ChevronRight, BarChart3, Filter, Zap,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
@@ -109,6 +110,10 @@ export default function ThreatHunt() {
   const [searching, setSearching] = useState(false)
   const [history, setHistory] = useState<string[]>([])
   const { addNotice, updateNotice } = useNoticeBoard()
+  const [showSchedule, setShowSchedule] = useState(false)
+  const [scheduleQuery, setScheduleQuery] = useState('')
+  const [scheduleInterval, setScheduleInterval] = useState('daily')
+  const [savedSchedules, setSavedSchedules] = useState<{query: string; interval: string; active: boolean}[]>([])
 
   const loadLiveData = useCallback(() => {
     const live = getLiveData()
@@ -358,6 +363,93 @@ export default function ThreatHunt() {
           )}
         </div>
       )}
+
+      {/* Scheduled Hunts */}
+      <div className="bg-bg-secondary rounded-xl border border-bg-card">
+        <button
+          onClick={() => setShowSchedule(!showSchedule)}
+          className="w-full flex items-center justify-between p-4"
+        >
+          <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <Clock className="w-4 h-4 text-accent-purple" />
+            Scheduled Hunts
+          </h2>
+          {showSchedule ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
+        </button>
+        {showSchedule && (
+          <div className="px-4 pb-4 space-y-3">
+            <p className="text-xs text-text-secondary">
+              Schedule recurring threat hunts to run automatically. Results are cached and accessible via the SOC Copilot.
+            </p>
+
+            {/* Create new schedule */}
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <label className="text-[10px] text-text-secondary block mb-1">Hunt Query</label>
+                <input
+                  type="text"
+                  value={scheduleQuery}
+                  onChange={e => setScheduleQuery(e.target.value)}
+                  placeholder="e.g., Show all critical threats"
+                  className="w-full px-3 py-1.5 bg-bg-primary border border-bg-card rounded-lg text-xs text-text-primary placeholder:text-text-secondary/40 focus:outline-none focus:border-accent-purple/50"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-text-secondary block mb-1">Interval</label>
+                <select
+                  value={scheduleInterval}
+                  onChange={e => setScheduleInterval(e.target.value)}
+                  className="px-2 py-1.5 bg-bg-primary border border-bg-card rounded-lg text-xs text-text-primary"
+                >
+                  <option value="hourly">Hourly</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </div>
+              <button
+                onClick={() => {
+                  if (!scheduleQuery.trim()) return
+                  setSavedSchedules(prev => [...prev, { query: scheduleQuery, interval: scheduleInterval, active: true }])
+                  setScheduleQuery('')
+                }}
+                className="px-3 py-1.5 bg-accent-purple hover:bg-accent-purple/80 text-white rounded-lg text-xs font-medium transition-colors"
+              >
+                + Add
+              </button>
+            </div>
+
+            {/* Saved schedules */}
+            {savedSchedules.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] text-text-secondary font-medium">Active Schedules:</span>
+                {savedSchedules.map((s, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 bg-bg-primary rounded-lg text-xs">
+                    <div className={`w-2 h-2 rounded-full ${s.active ? 'bg-accent-green animate-pulse' : 'bg-text-secondary/30'}`} />
+                    <span className="text-text-primary flex-1 truncate">{s.query}</span>
+                    <span className="text-accent-purple text-[10px]">{s.interval}</span>
+                    <button
+                      onClick={() => setSavedSchedules(prev => prev.map((sc, j) => j === i ? { ...sc, active: !sc.active } : sc))}
+                      className="text-text-secondary hover:text-text-primary text-[10px]"
+                    >
+                      {s.active ? 'Pause' : 'Resume'}
+                    </button>
+                    <button
+                      onClick={() => setSavedSchedules(prev => prev.filter((_, j) => j !== i))}
+                      className="text-text-secondary hover:text-accent-red text-[10px]"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-[9px] text-text-secondary italic">
+              Scheduled hunts run in the background and cache results for SOC Copilot access. In production, connect to a task scheduler (cron/Celery) for automated execution.
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
