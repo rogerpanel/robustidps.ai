@@ -273,6 +273,16 @@ export default function CVEMapper() {
         </div>
       )}
 
+      {/* Related */}
+      {mappedCVEs.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-bg-card">
+          <span className="text-[10px] text-text-secondary mr-2">Related:</span>
+          <a href="/mitre-attack" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">MITRE ATT&CK</a>
+          <a href="/rule-generator" className="text-[10px] px-2 py-1 rounded bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20 transition-colors">Rule Generator</a>
+          <a href="/threat-response" className="text-[10px] px-2 py-1 rounded bg-accent-green/10 text-accent-green hover:bg-accent-green/20 transition-colors">Threat Response</a>
+        </div>
+      )}
+
       {/* Empty state */}
       {analysisResult && mappedCVEs.length === 0 && (
         <div className="bg-bg-secondary rounded-xl p-8 border border-bg-card text-center">

@@ -8,7 +8,7 @@ import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
 import ModelSelector from '../components/ModelSelector'
-import { analyseFile } from '../utils/api'
+import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 /* ── Attack transition probability matrix ────────────────────────────── */
@@ -221,6 +221,7 @@ export default function AttackChainPredictor() {
       const topAttack = Object.entries(attackCounts).sort((a, b) => b[1] - a[1])[0]
       if (topAttack) setSelectedAttack(topAttack[0])
     }
+    cachePageResult('attack_chain', { n_flows: live.totalFlows, n_threats: live.threatCount }).catch(() => {})
     setLiveDataLoaded(true)
   }, [])
 

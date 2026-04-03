@@ -381,6 +381,16 @@ export default function AutoInvestigation() {
               </div>
             )}
           </div>
+
+          {/* Continue Investigation */}
+          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-bg-card">
+            <span className="text-[10px] text-text-secondary mr-2">Continue to:</span>
+            <a href="/alert-triage" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Alert Triage</a>
+            <a href="/incident-reports" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Incident Reports</a>
+            <a href="/threat-intel" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Threat Intel</a>
+            <a href="/rule-generator" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Rule Generator</a>
+            <a href="/mitre-attack" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">MITRE ATT&CK</a>
+          </div>
         </div>
       )}
     </div>

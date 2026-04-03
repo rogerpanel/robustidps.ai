@@ -495,6 +495,14 @@ export default function DataPoisoningSim() {
               ))}
             </ul>
           </div>
+
+          {/* Related */}
+          <div className="flex flex-wrap gap-2 pt-3 border-t border-bg-card">
+            <span className="text-[10px] text-text-secondary mr-2">Related:</span>
+            <a href="/adversarial" className="text-[10px] px-2 py-1 rounded bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors">Adversarial Robustness</a>
+            <a href="/redteam" className="text-[10px] px-2 py-1 rounded bg-accent-amber/10 text-accent-amber hover:bg-accent-amber/20 transition-colors">Red Team Arena</a>
+            <a href="/supply-chain" className="text-[10px] px-2 py-1 rounded bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition-colors">Supply Chain Security</a>
+          </div>
         </div>
       )}
     </div>

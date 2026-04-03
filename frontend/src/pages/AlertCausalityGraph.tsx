@@ -7,7 +7,7 @@ import {
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import PageGuide from '../components/PageGuide'
 import ModelSelector from '../components/ModelSelector'
-import { analyseFile } from '../utils/api'
+import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
 /* ── Types ── */
@@ -225,6 +225,7 @@ export default function AlertCausalityGraph() {
       n_threats: live.threatCount,
       n_benign: live.benignCount,
     })
+    cachePageResult('causality_graph', { n_flows: live.totalFlows, n_threats: live.threatCount }).catch(() => {})
     setLiveDataLoaded(true)
   }, [])
 
@@ -643,6 +644,14 @@ export default function AlertCausalityGraph() {
             </div>
           )
         })}
+      </div>
+
+      {/* Related Analysis */}
+      <div className="flex flex-wrap gap-2 pt-3 border-t border-bg-card">
+        <span className="text-[10px] text-text-secondary mr-2">Related:</span>
+        <a href="/attack-chain" className="text-[10px] px-2 py-1 rounded bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition-colors">Attack Chain Predictor</a>
+        <a href="/auto-investigate" className="text-[10px] px-2 py-1 rounded bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20 transition-colors">Auto-Investigation</a>
+        <a href="/mitre-attack" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">MITRE ATT&CK</a>
       </div>
     </div>
   )

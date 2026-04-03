@@ -6,7 +6,7 @@ import {
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
 import ModelSelector from '../components/ModelSelector'
-import { analyseFile } from '../utils/api'
+import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 
@@ -202,6 +202,7 @@ export default function MitreAttackMapper() {
     const live = getLiveData()
     if (!live) return
     setAnalysisResult({ predictions: live.predictions, n_flows: live.totalFlows, n_threats: live.threatCount })
+    cachePageResult('mitre_attack', { n_flows: live.totalFlows, n_threats: live.threatCount }).catch(() => {})
     setLiveDataLoaded(true)
   }
 
@@ -566,6 +567,14 @@ export default function MitreAttackMapper() {
             )
           })}
         </div>
+      </div>
+
+      {/* Related */}
+      <div className="flex flex-wrap gap-2 pt-3 border-t border-bg-card">
+        <span className="text-[10px] text-text-secondary mr-2">Related:</span>
+        <a href="/cve-mapper" className="text-[10px] px-2 py-1 rounded bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors">CVE Mapper</a>
+        <a href="/causality-graph" className="text-[10px] px-2 py-1 rounded bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition-colors">Causality Graph</a>
+        <a href="/attack-chain" className="text-[10px] px-2 py-1 rounded bg-accent-amber/10 text-accent-amber hover:bg-accent-amber/20 transition-colors">Attack Chain</a>
       </div>
 
       {/* ── Legend / Footer ──────────────────────────────────────────── */}

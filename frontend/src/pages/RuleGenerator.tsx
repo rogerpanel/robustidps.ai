@@ -270,6 +270,16 @@ export default function RuleGenerator() {
         </>
       )}
 
+      {/* Related */}
+      {generatedRules.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-bg-card">
+          <span className="text-[10px] text-text-secondary mr-2">Deploy rules to:</span>
+          <a href="/threat-response" className="text-[10px] px-2 py-1 rounded bg-accent-green/10 text-accent-green hover:bg-accent-green/20 transition-colors">Threat Response Playbooks</a>
+          <a href="/cve-mapper" className="text-[10px] px-2 py-1 rounded bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors">CVE Mapper</a>
+          <a href="/auto-investigate" className="text-[10px] px-2 py-1 rounded bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20 transition-colors">Auto-Investigation</a>
+        </div>
+      )}
+
       {/* Empty state */}
       {analysisResult && generatedRules.length === 0 && (
         <div className="bg-bg-secondary rounded-xl p-8 border border-bg-card text-center">

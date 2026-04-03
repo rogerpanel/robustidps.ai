@@ -310,6 +310,16 @@ export default function ThreatIntel() {
         </div>
       )}
 
+      {/* Continue */}
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-bg-card">
+          <span className="text-[10px] text-text-secondary mr-2">Continue to:</span>
+          <a href="/rule-generator" className="text-[10px] px-2 py-1 rounded bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20 transition-colors">Generate Rules</a>
+          <a href="/incident-reports" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Incident Report</a>
+          <a href="/cve-mapper" className="text-[10px] px-2 py-1 rounded bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors">CVE Mapper</a>
+        </div>
+      )}
+
       {/* Empty state */}
       {analysisResult && ipIntel.length === 0 && (
         <div className="text-center py-12 text-text-secondary">
