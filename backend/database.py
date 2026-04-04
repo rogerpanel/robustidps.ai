@@ -35,6 +35,12 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
 
+    # Profile fields
+    robust_id = Column(String(10), unique=True, nullable=True, index=True)  # e.g. ROB-A7X2
+    specialization = Column(String(100), default="")  # SOC Analyst | ML Researcher | Threat Hunter | etc.
+    bio = Column(String(500), default="")
+    avatar_color = Column(String(7), default="#3B82F6")  # Hex color for initials avatar
+
     jobs = relationship("Job", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")
 

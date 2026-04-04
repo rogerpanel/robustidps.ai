@@ -9,7 +9,9 @@ Roles:
 
 import datetime
 import logging
+import random
 import re
+import string
 import time
 from collections import defaultdict
 from typing import Optional
@@ -62,6 +64,18 @@ def _clear_failed_attempts(email: str) -> None:
     _failed_attempts.pop(email, None)
 
 
+def _generate_robust_id(db: Session) -> str:
+    """Generate a unique memorable RobustID like ROB-A7X2."""
+    chars = string.ascii_uppercase + string.digits
+    for _ in range(100):  # max attempts
+        code = ''.join(random.choices(chars, k=4))
+        rid = f"ROB-{code}"
+        existing = db.execute(select(User).where(User.robust_id == rid)).scalar_one_or_none()
+        if not existing:
+            return rid
+    return f"ROB-{''.join(random.choices(chars, k=6))}"  # fallback: 6-char
+
+
 # ── Password Strength Validation ─────────────────────────────────────────
 
 def validate_password_strength(password: str) -> None:
@@ -112,6 +126,7 @@ class UserResponse(BaseModel):
     use_case: str
     is_active: bool
     created_at: datetime.datetime
+    robust_id: str = ""
 
 
 class Token(BaseModel):
@@ -222,6 +237,7 @@ def register(body: UserCreate, db: Session = Depends(get_db)):
         use_case=body.use_case,
         role="viewer",  # public registrations get viewer role by default
     )
+    user.robust_id = _generate_robust_id(db)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -388,6 +404,7 @@ def create_user(
         use_case=body.use_case,
         role=role,
     )
+    user.robust_id = _generate_robust_id(db)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -412,6 +429,9 @@ def ensure_default_admin(db: Session):
             existing.password_hash = hash_password(ADMIN_PASSWORD)
             db.commit()
             logger.info("Admin password updated for %s", ADMIN_EMAIL)
+        if not existing.robust_id:
+            existing.robust_id = _generate_robust_id(db)
+            db.commit()
         return
 
     user_count = db.execute(select(func.count(User.id))).scalar()
@@ -424,6 +444,7 @@ def ensure_default_admin(db: Session):
         full_name="System Administrator",
         role="admin",
     )
+    admin.robust_id = _generate_robust_id(db)
     db.add(admin)
     db.commit()
     logger.info("Default admin created: %s", ADMIN_EMAIL)
