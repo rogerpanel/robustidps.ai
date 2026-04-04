@@ -100,6 +100,7 @@ const AutoInvestigation = lazy(() => import('./pages/AutoInvestigation'))
 const ThreatHunt = lazy(() => import('./pages/ThreatHunt'))
 const RuleGenerator = lazy(() => import('./pages/RuleGenerator'))
 const CVEMapper = lazy(() => import('./pages/CVEMapper'))
+const Profile = lazy(() => import('./pages/Profile'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -205,6 +206,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     heading: 'System',
     items: [
+      { to: '/profile', label: 'My Profile', icon: User },
       { to: '/admin', label: 'Admin', icon: ShieldCheck, adminOnly: true },
       { to: '/architecture', label: 'Architecture', icon: Database },
       { to: '/api-docs', label: 'API Docs', icon: BookOpen },
@@ -454,22 +456,26 @@ export default function App() {
   )
 
   const sidebarFooter = (
-    <div className="p-4 border-t border-accent-blue/10 space-y-2">
+    <div className="border-t border-accent-blue/10">
+      {/* User Profile Card */}
+      {user && (
+        <a href="/profile" className="flex items-center gap-2.5 px-3 py-2.5 mx-2 mt-2 mb-1 rounded-lg bg-bg-card/30 hover:bg-bg-card/50 transition-colors">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: '#3B82F6' }}>
+            {(user.full_name || user.email || 'U').split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-text-primary truncate">{user.full_name || user.email}</div>
+            <div className="text-[9px] text-text-secondary font-mono">{(user as Record<string, unknown>).robust_id as string || `ROB-${String(user.id || 0).padStart(4, '0')}`}</div>
+          </div>
+        </a>
+      )}
+      <div className="p-4 space-y-2">
       {demoMode && !authed && (
         <div className="flex items-center gap-2 text-xs mb-2">
           <span className="px-2 py-0.5 bg-accent-amber/15 text-accent-amber rounded text-[10px] font-medium uppercase">
             Demo Mode
           </span>
           <span className="text-text-secondary text-[10px]">Read-only</span>
-        </div>
-      )}
-      {user && (
-        <div className="flex items-center gap-2 text-xs text-text-secondary mb-2">
-          <User className="w-3.5 h-3.5" />
-          <span className="truncate flex-1">{user.email}</span>
-          <span className="px-1.5 py-0.5 bg-accent-blue/15 text-accent-blue rounded text-[10px] font-medium uppercase">
-            {user.role}
-          </span>
         </div>
       )}
       <button
@@ -503,6 +509,7 @@ export default function App() {
             <span className="text-text-secondary">Connecting...</span>
           </>
         )}
+      </div>
       </div>
     </div>
   )
@@ -707,6 +714,7 @@ export default function App() {
               <Route path="/threat-hunt" element={<ThreatHunt />} />
               <Route path="/rule-generator" element={<RuleGenerator />} />
               <Route path="/cve-mapper" element={<CVEMapper />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>

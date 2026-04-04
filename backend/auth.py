@@ -209,6 +209,7 @@ def _user_response(u: User) -> UserResponse:
         role=u.role, organization=u.organization or "",
         use_case=u.use_case or "", is_active=u.is_active,
         created_at=u.created_at,
+        robust_id=u.robust_id or "",
     )
 
 
@@ -448,3 +449,113 @@ def ensure_default_admin(db: Session):
     db.add(admin)
     db.commit()
     logger.info("Default admin created: %s", ADMIN_EMAIL)
+
+
+# ── User Profile ──────────────────────────────────────────────────────
+
+class ProfileUpdate(BaseModel):
+    full_name: str = ""
+    organization: str = ""
+    specialization: str = ""
+    bio: str = ""
+    use_case: str = ""
+    avatar_color: str = ""
+
+
+@router.get("/profile")
+async def get_profile(user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    """Get current user's profile."""
+    from database import Job, AuditLog
+    job_count = db.execute(select(func.count(Job.id)).where(Job.user_id == user.id)).scalar() or 0
+    audit_count = db.execute(select(func.count(AuditLog.id)).where(AuditLog.user_id == user.id)).scalar() or 0
+
+    return {
+        "id": user.id,
+        "robust_id": user.robust_id or f"ROB-{user.id:04d}",
+        "email": user.email,
+        "full_name": user.full_name or "",
+        "role": user.role,
+        "organization": user.organization or "",
+        "specialization": user.specialization if hasattr(user, 'specialization') else "",
+        "bio": user.bio if hasattr(user, 'bio') else "",
+        "use_case": user.use_case or "",
+        "avatar_color": user.avatar_color if hasattr(user, 'avatar_color') else "#3B82F6",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login": user.last_login.isoformat() if user.last_login else None,
+        "is_active": user.is_active,
+        "stats": {
+            "analyses_run": job_count,
+            "actions_logged": audit_count,
+        },
+    }
+
+
+@router.patch("/profile")
+async def update_profile(update: ProfileUpdate, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    """Update current user's profile."""
+    if update.full_name:
+        user.full_name = update.full_name[:255]
+    if update.organization:
+        user.organization = update.organization[:255]
+    if update.specialization:
+        user.specialization = update.specialization[:100]
+    if update.bio:
+        user.bio = update.bio[:500]
+    if update.use_case:
+        user.use_case = update.use_case[:100]
+    if update.avatar_color and update.avatar_color.startswith('#') and len(update.avatar_color) == 7:
+        user.avatar_color = update.avatar_color
+    db.commit()
+    return {"status": "ok", "message": "Profile updated"}
+
+
+@router.get("/profile/{robust_id}")
+async def get_public_profile(robust_id: str, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    """View another user's public profile (for collaboration)."""
+    from database import Job
+    target = db.execute(select(User).where(User.robust_id == robust_id)).scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    job_count = db.execute(select(func.count(Job.id)).where(Job.user_id == target.id)).scalar() or 0
+
+    return {
+        "robust_id": target.robust_id,
+        "full_name": target.full_name or "Anonymous",
+        "role": target.role,
+        "organization": target.organization or "",
+        "specialization": target.specialization if hasattr(target, 'specialization') else "",
+        "bio": target.bio if hasattr(target, 'bio') else "",
+        "avatar_color": target.avatar_color if hasattr(target, 'avatar_color') else "#3B82F6",
+        "member_since": target.created_at.isoformat() if target.created_at else None,
+        "analyses_run": job_count,
+    }
+
+
+@router.patch("/users/{user_id}/profile")
+async def admin_update_user_profile(
+    user_id: int,
+    update: ProfileUpdate,
+    user: User = Depends(require_auth),
+    db: Session = Depends(get_db),
+):
+    """Admin: update any user's profile fields."""
+    if user.role != "admin":
+        raise HTTPException(403, "Admin only")
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(404, "User not found")
+    if update.full_name:
+        target.full_name = update.full_name[:255]
+    if update.organization:
+        target.organization = update.organization[:255]
+    if update.specialization:
+        target.specialization = update.specialization[:100]
+    if update.bio:
+        target.bio = update.bio[:500]
+    if update.use_case:
+        target.use_case = update.use_case[:100]
+    if update.avatar_color and update.avatar_color.startswith('#'):
+        target.avatar_color = update.avatar_color
+    db.commit()
+    return {"status": "ok"}
