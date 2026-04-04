@@ -40,6 +40,9 @@ class User(Base):
     specialization = Column(String(100), default="")  # SOC Analyst | ML Researcher | Threat Hunter | etc.
     bio = Column(String(500), default="")
     avatar_color = Column(String(7), default="#3B82F6")  # Hex color for initials avatar
+    preferred_model = Column(String(50), default="surrogate")  # Default IDS model for all pages
+    timezone = Column(String(50), default="UTC")  # User's timezone for timestamp display
+    orcid = Column(String(25), default="")  # ORCID identifier (e.g., 0000-0002-1825-0097)
 
     jobs = relationship("Job", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")

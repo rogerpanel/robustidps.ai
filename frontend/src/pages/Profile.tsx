@@ -37,6 +37,9 @@ interface ProfileData {
   created_at: string
   analyses_run: number
   actions_logged: number
+  preferred_model: string
+  timezone: string
+  orcid: string
 }
 
 async function fetchProfile(): Promise<ProfileData> {
@@ -93,6 +96,9 @@ export default function Profile() {
   const [bio, setBio] = useState('')
   const [useCase, setUseCase] = useState('')
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0])
+  const [preferredModel, setPreferredModel] = useState('surrogate')
+  const [timezone, setTimezone] = useState('UTC')
+  const [orcid, setOrcid] = useState('')
 
   const loadProfile = useCallback(async () => {
     try {
@@ -106,6 +112,9 @@ export default function Profile() {
       setBio(data.bio || '')
       setUseCase(data.use_case || '')
       setAvatarColor(data.avatar_color || AVATAR_COLORS[0])
+      setPreferredModel(data.preferred_model || 'surrogate')
+      setTimezone(data.timezone || 'UTC')
+      setOrcid(data.orcid || '')
     } catch (err) {
       // Fall back to local user data
       if (localUser) {
@@ -123,6 +132,9 @@ export default function Profile() {
           created_at: localUser.created_at || '',
           analyses_run: 0,
           actions_logged: 0,
+          preferred_model: 'surrogate',
+          timezone: 'UTC',
+          orcid: '',
         }
         setProfile(fallback)
         setFullName(fallback.full_name)
@@ -151,6 +163,9 @@ export default function Profile() {
         bio,
         use_case: useCase,
         avatar_color: avatarColor,
+        preferred_model: preferredModel,
+        timezone,
+        orcid,
       })
       setProfile(data)
       setEditing(false)
@@ -171,6 +186,9 @@ export default function Profile() {
       setBio(profile.bio || '')
       setUseCase(profile.use_case || '')
       setAvatarColor(profile.avatar_color || AVATAR_COLORS[0])
+      setPreferredModel(profile.preferred_model || 'surrogate')
+      setTimezone(profile.timezone || 'UTC')
+      setOrcid(profile.orcid || '')
     }
     setEditing(false)
   }
@@ -386,6 +404,74 @@ export default function Profile() {
               )}
             </div>
 
+            {/* Preferred Detection Model */}
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Preferred Detection Model</label>
+              {editing ? (
+                <select
+                  value={preferredModel}
+                  onChange={(e) => setPreferredModel(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border-primary text-sm text-text-primary focus:outline-none focus:border-accent-blue/50 transition-colors"
+                >
+                  <option value="surrogate">SurrogateIDS (7-Branch Ensemble)</option>
+                  <option value="neural_ode">Neural ODE (TA-BN-ODE)</option>
+                  <option value="optimal_transport">Optimal Transport (PPFOT-IDS)</option>
+                  <option value="fedgtd">FedGTD (Byzantine-Resilient)</option>
+                  <option value="sde_tgnn">SDE-TGNN (Stochastic)</option>
+                  <option value="cybersec_llm">CyberSecLLM (Mamba-MoE)</option>
+                  <option value="clrl_unified">CL-RL Unified</option>
+                  <option value="multi_agent_pqc">Multi-Agent PQC-IDS</option>
+                </select>
+              ) : (
+                <p className="text-sm text-text-primary">{profile?.preferred_model || 'surrogate'}</p>
+              )}
+            </div>
+
+            {/* Timezone */}
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Timezone</label>
+              {editing ? (
+                <select
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border-primary text-sm text-text-primary focus:outline-none focus:border-accent-blue/50 transition-colors"
+                >
+                  {['UTC', 'Europe/Moscow', 'Europe/London', 'Europe/Berlin', 'Europe/Paris', 'US/Eastern', 'US/Central', 'US/Pacific', 'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Dubai', 'Asia/Kolkata', 'Africa/Lagos', 'Australia/Sydney'].map(tz => (
+                    <option key={tz} value={tz}>{tz}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-sm text-text-primary">{profile?.timezone || 'UTC'}</p>
+              )}
+            </div>
+
+            {/* ORCID */}
+            <div>
+              <label className="block text-xs font-medium text-text-secondary mb-1">
+                ORCID
+                {orcid && (
+                  <a href={`https://orcid.org/${orcid}`} target="_blank" rel="noopener noreferrer" className="ml-2 text-accent-green hover:underline text-[9px]">
+                    View on orcid.org
+                  </a>
+                )}
+              </label>
+              {editing ? (
+                <input
+                  type="text"
+                  value={orcid}
+                  onChange={(e) => setOrcid(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-bg-secondary border border-border-primary text-sm text-text-primary font-mono focus:outline-none focus:border-accent-blue/50 transition-colors placeholder:text-text-secondary/40"
+                  placeholder="0000-0002-1825-0097"
+                />
+              ) : (
+                <p className="text-sm text-text-primary font-mono">
+                  {profile?.orcid ? (
+                    <a href={`https://orcid.org/${profile.orcid}`} target="_blank" rel="noopener noreferrer" className="text-accent-green hover:underline">{profile.orcid}</a>
+                  ) : '-'}
+                </p>
+              )}
+            </div>
+
             {/* Avatar Color */}
             {editing && (
               <div>
@@ -459,6 +545,24 @@ export default function Profile() {
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-text-secondary">Use Case</span>
                   <span className="font-medium text-text-primary">{profile.use_case}</span>
+                </div>
+              )}
+              {profile?.preferred_model && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-secondary">Default Model</span>
+                  <span className="font-medium text-text-primary">{profile.preferred_model}</span>
+                </div>
+              )}
+              {profile?.timezone && profile.timezone !== 'UTC' && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-secondary">Timezone</span>
+                  <span className="font-medium text-text-primary">{profile.timezone}</span>
+                </div>
+              )}
+              {profile?.orcid && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-text-secondary">ORCID</span>
+                  <a href={`https://orcid.org/${profile.orcid}`} target="_blank" rel="noopener noreferrer" className="font-medium text-accent-green hover:underline font-mono">{profile.orcid}</a>
                 </div>
               )}
             </div>

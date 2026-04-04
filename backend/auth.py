@@ -127,6 +127,7 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime.datetime
     robust_id: str = ""
+    preferred_model: str = "surrogate"
 
 
 class Token(BaseModel):
@@ -210,6 +211,7 @@ def _user_response(u: User) -> UserResponse:
         use_case=u.use_case or "", is_active=u.is_active,
         created_at=u.created_at,
         robust_id=u.robust_id or "",
+        preferred_model=u.preferred_model if hasattr(u, 'preferred_model') else "surrogate",
     )
 
 
@@ -460,6 +462,9 @@ class ProfileUpdate(BaseModel):
     bio: str = ""
     use_case: str = ""
     avatar_color: str = ""
+    preferred_model: str = ""
+    timezone: str = ""
+    orcid: str = ""
 
 
 @router.get("/profile")
@@ -480,6 +485,9 @@ async def get_profile(user: User = Depends(require_auth), db: Session = Depends(
         "bio": user.bio if hasattr(user, 'bio') else "",
         "use_case": user.use_case or "",
         "avatar_color": user.avatar_color if hasattr(user, 'avatar_color') else "#3B82F6",
+        "preferred_model": user.preferred_model if hasattr(user, 'preferred_model') else "surrogate",
+        "timezone": user.timezone if hasattr(user, 'timezone') else "UTC",
+        "orcid": user.orcid if hasattr(user, 'orcid') else "",
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "last_login": user.last_login.isoformat() if user.last_login else None,
         "is_active": user.is_active,
@@ -505,6 +513,15 @@ async def update_profile(update: ProfileUpdate, user: User = Depends(require_aut
         user.use_case = update.use_case[:100]
     if update.avatar_color and update.avatar_color.startswith('#') and len(update.avatar_color) == 7:
         user.avatar_color = update.avatar_color
+    if update.preferred_model:
+        user.preferred_model = update.preferred_model[:50]
+    if update.timezone:
+        user.timezone = update.timezone[:50]
+    if update.orcid is not None:
+        # Validate ORCID format: 0000-0000-0000-0000
+        orcid_clean = update.orcid.strip()
+        if orcid_clean == "" or (len(orcid_clean) == 19 and orcid_clean.count('-') == 3):
+            user.orcid = orcid_clean
     db.commit()
     return {"status": "ok", "message": "Profile updated"}
 
@@ -527,6 +544,7 @@ async def get_public_profile(robust_id: str, user: User = Depends(require_auth),
         "specialization": target.specialization if hasattr(target, 'specialization') else "",
         "bio": target.bio if hasattr(target, 'bio') else "",
         "avatar_color": target.avatar_color if hasattr(target, 'avatar_color') else "#3B82F6",
+        "orcid": target.orcid if hasattr(target, 'orcid') else "",
         "member_since": target.created_at.isoformat() if target.created_at else None,
         "analyses_run": job_count,
     }
@@ -557,5 +575,14 @@ async def admin_update_user_profile(
         target.use_case = update.use_case[:100]
     if update.avatar_color and update.avatar_color.startswith('#'):
         target.avatar_color = update.avatar_color
+    if update.preferred_model:
+        target.preferred_model = update.preferred_model[:50]
+    if update.timezone:
+        target.timezone = update.timezone[:50]
+    if update.orcid is not None:
+        # Validate ORCID format: 0000-0000-0000-0000
+        orcid_clean = update.orcid.strip()
+        if orcid_clean == "" or (len(orcid_clean) == 19 and orcid_clean.count('-') == 3):
+            target.orcid = orcid_clean
     db.commit()
     return {"status": "ok"}
