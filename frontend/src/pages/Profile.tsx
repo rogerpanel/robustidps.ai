@@ -74,9 +74,9 @@ function Avatar({ name, color, size = 'lg' }: { name: string; color: string; siz
 }
 
 const GUIDE_STEPS = [
-  { label: 'View your profile details, stats, and RobustID badge' },
-  { label: 'Click the pencil icon to edit your name, org, specialization, and avatar' },
-  { label: 'Copy your RobustID to share with teammates or embed in reports' },
+  { title: 'View your profile', desc: 'See your RobustID badge, role, organization, activity stats, preferred model, timezone, and ORCID. Your RobustID is a unique identifier for attribution and collaboration.' },
+  { title: 'Edit your details', desc: 'Click the Edit button to update your name, organization, specialization, bio, use case, preferred detection model, timezone, ORCID, and avatar color.' },
+  { title: 'Share your RobustID', desc: 'Copy your RobustID (e.g., ROB-A7X2) to share with teammates, embed in reports, or reference in SOC Copilot conversations for collaboration.' },
 ]
 
 export default function Profile() {
