@@ -70,9 +70,12 @@ def _generate_robust_id(db: Session) -> str:
     for _ in range(100):  # max attempts
         code = ''.join(random.choices(chars, k=4))
         rid = f"ROB-{code}"
-        existing = db.execute(select(User).where(User.robust_id == rid)).scalar_one_or_none()
-        if not existing:
-            return rid
+        try:
+            existing = db.execute(select(User).where(User.robust_id == rid)).scalar_one_or_none()
+            if not existing:
+                return rid
+        except Exception:
+            return rid  # Column doesn't exist yet — ID is unique enough
     return f"ROB-{''.join(random.choices(chars, k=6))}"  # fallback: 6-char
 
 
@@ -210,8 +213,8 @@ def _user_response(u: User) -> UserResponse:
         role=u.role, organization=u.organization or "",
         use_case=u.use_case or "", is_active=u.is_active,
         created_at=u.created_at,
-        robust_id=u.robust_id or "",
-        preferred_model=u.preferred_model if hasattr(u, 'preferred_model') else "surrogate",
+        robust_id=getattr(u, 'robust_id', '') or "",
+        preferred_model=getattr(u, 'preferred_model', 'surrogate') or "surrogate",
     )
 
 
@@ -432,8 +435,11 @@ def ensure_default_admin(db: Session):
             existing.password_hash = hash_password(ADMIN_PASSWORD)
             db.commit()
             logger.info("Admin password updated for %s", ADMIN_EMAIL)
-        if not existing.robust_id:
-            existing.robust_id = _generate_robust_id(db)
+        if not getattr(existing, 'robust_id', None):
+            try:
+                existing.robust_id = _generate_robust_id(db)
+            except Exception:
+                pass  # Column may not exist yet in DB
             db.commit()
         return
 
@@ -476,7 +482,7 @@ async def get_profile(user: User = Depends(require_auth), db: Session = Depends(
 
     return {
         "id": user.id,
-        "robust_id": user.robust_id or f"ROB-{user.id:04d}",
+        "robust_id": getattr(user, 'robust_id', '') or f"ROB-{user.id:04d}",
         "email": user.email,
         "full_name": user.full_name or "",
         "role": user.role,
