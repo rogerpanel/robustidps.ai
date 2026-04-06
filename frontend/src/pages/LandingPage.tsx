@@ -6,7 +6,7 @@ import {
   ChevronRight, ExternalLink, Play, Database, Code, Layers,
   Cpu, Globe, Server, Fingerprint, BookOpen, Sparkles, Syringe,
   BookOpenCheck, GitMerge, AlertTriangle, AlertOctagon,
-  KeySquare, RefreshCw, Crosshair,
+  KeySquare, RefreshCw, Crosshair, Search, FileText,
 } from 'lucide-react'
 
 /* ── Research method cards ─────────────────────────────────────────────── */
@@ -91,6 +91,7 @@ const BENCHMARK = {
     { name: 'MambaShield (SSM)', accuracy: 95.9, f1: 0.954, latency: '0.5ms' },
     { name: 'Stochastic Transformer', accuracy: 95.4, f1: 0.949, latency: '1.8ms' },
     { name: 'FedGTD (Byzantine-resilient)', accuracy: 95.1, f1: 0.946, latency: '1.3ms' },
+    { name: 'Multi-Agent PQC-IDS', accuracy: 94.3, f1: 0.938, latency: '1.5ms' },
   ],
 }
 
@@ -186,6 +187,12 @@ const CAPABILITIES = [
     title: 'Post-Quantum Cryptography',
     desc: 'CRYSTALS-Kyber, Dilithium, and SPHINCS+ securing IDS communications against quantum adversaries.',
   },
+  {
+    icon: Target,
+    title: 'MLSecOps Standards',
+    desc: 'MITRE ATT&CK mapping, OWASP LLM Top 10 scorecard, NIST AI RMF compliance dashboard, and automated alert triage.',
+    accent: 'text-accent-orange',
+  },
 ]
 
 /* ── Architecture tiers ────────────────────────────────────────────────── */
@@ -221,6 +228,7 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
             <a href="#methods" className="hover:text-text-primary transition-colors">Methods</a>
             <a href="#results" className="hover:text-text-primary transition-colors">Results</a>
             <a href="#llm-security" className="hover:text-accent-orange transition-colors">LLM Security</a>
+            <a href="#soc-intel" className="hover:text-text-primary transition-colors">SOC Intel</a>
             <a href="#platform" className="hover:text-text-primary transition-colors">Platform</a>
             <a href="#architecture" className="hover:text-text-primary transition-colors">Architecture</a>
             <a href="#api" className="hover:text-text-primary transition-colors">API</a>
@@ -267,9 +275,9 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
             </h1>
 
             <p className="mt-6 text-lg text-text-secondary max-w-2xl leading-relaxed">
-              A production-grade AI/ML security platform with 12+ neural network models, continual learning (EWC),
-              constrained RL response, Byzantine-resilient federated learning, and a comprehensive LLM attack surface
-              testing suite — evaluated on CIC-IoT-2023 with 34-class classification achieving{' '}
+              A production-grade AI/ML security platform with 13+ neural network models, SOC Intelligence suite,
+              LLM security testing, continual learning, and autonomous response — evaluated on CIC-IoT-2023
+              with 34-class classification achieving{' '}
               <span className="text-accent-green font-semibold">97.8% accuracy</span>.
             </p>
 
@@ -294,12 +302,12 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
             {/* Quick stats */}
             <div className="mt-12 grid grid-cols-3 sm:grid-cols-6 gap-4">
               {[
-                { value: '12+', label: 'AI Models', accent: false },
+                { value: '13+', label: 'AI Models', accent: false },
                 { value: '34', label: 'Attack Classes', accent: false },
                 { value: '97.8%', label: 'Accuracy', accent: false },
-                { value: '4', label: 'LLM Attack Modules', accent: true },
+                { value: '5', label: 'LLM Attack Modules', accent: true },
                 { value: '4', label: 'LLM Providers', accent: true },
-                { value: '30+', label: 'Pages', accent: false },
+                { value: '46', label: 'Pages', accent: false },
               ].map((s) => (
                 <div key={s.label} className="text-center">
                   <div className={`text-2xl font-display font-bold ${s.accent ? 'text-accent-orange' : 'text-text-primary'}`}>{s.value}</div>
@@ -475,6 +483,42 @@ export default function LandingPage({ onEnterDemo, onSignIn }: Props) {
             >
               Try It Live
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── SOC Intelligence Suite ───────────────────────────────────── */}
+      <section id="soc-intel" className="py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-accent-blue/10 border border-accent-blue/20 rounded-full text-xs text-accent-blue font-medium mb-4">
+              <Zap className="w-3.5 h-3.5" />
+              SOC Intelligence — Enterprise Features
+            </div>
+            <h2 className="text-3xl font-display font-bold text-text-primary">
+              SOC Intelligence Suite
+            </h2>
+            <p className="mt-3 text-text-secondary max-w-2xl mx-auto">
+              Enterprise-grade SOC tools inspired by Microsoft Security Copilot, SentinelOne Purple AI, and Google Sec-Gemini.
+              Agentic investigation, natural language threat hunting, and automated rule generation.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { name: 'Auto-Investigation', desc: 'One-click agentic investigation: analyze → triage → incident chains → report. Inspired by SentinelOne Purple AI.', icon: Zap },
+              { name: 'Natural Language Threat Hunt', desc: 'Type "show all SSH brute force with confidence above 90%" and get instant results. NL-to-query translation.', icon: Search },
+              { name: 'Incident Reports', desc: 'Auto-generated reports with executive summary, threat landscape, MITRE ATT&CK coverage, and recommendations.', icon: FileText },
+              { name: 'Threat Intelligence', desc: 'IP reputation scoring with geo-location, threat scores, and attack pattern analysis for every detected attacker.', icon: Globe },
+              { name: 'Rule Generator', desc: 'Auto-generate Suricata/Snort IDS rules from detected attacks. Copy or download .rules files for immediate deployment.', icon: Shield },
+              { name: 'CVE Mapper', desc: 'Map detected web attacks to real CVE IDs with CVSS scores, remediation guidance, and NVD links.', icon: AlertTriangle },
+            ].map((item) => (
+              <div key={item.name} className="p-5 bg-bg-secondary rounded-xl border border-bg-card hover:border-accent-blue/30 transition-colors">
+                <item.icon className="w-6 h-6 text-accent-blue mb-3" />
+                <h3 className="font-display font-semibold text-text-primary text-sm mb-2">{item.name}</h3>
+                <p className="text-xs text-text-secondary leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -696,8 +740,8 @@ for p in results["predictions"][:5]:
             Explore the Full Research Platform
           </h2>
           <p className="text-text-secondary mb-8 max-w-lg mx-auto">
-            12+ AI models, LLM attack surface testing, multi-LLM SOC Copilot, continual learning,
-            federated training, and 30+ interactive pages. No installation required.
+            13+ AI models, SOC Intelligence suite, LLM attack surface testing, multi-LLM SOC Copilot,
+            MLSecOps compliance, and 46 interactive pages. No installation required.
           </p>
 
           <div className="flex flex-wrap justify-center gap-4">
