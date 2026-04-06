@@ -183,11 +183,13 @@ export default function About() {
               <p className="text-xs text-text-secondary uppercase tracking-wider mb-1">Author</p>
               <p className="text-sm font-medium text-text-primary">Roger Nick Anaedevha</p>
               <p className="text-xs text-text-secondary">ICIS, MEPhI, Moscow</p>
+              <a href="mailto:roger@robustidps.ai" className="text-xs text-accent-blue hover:underline">roger@robustidps.ai</a>
             </div>
             <div>
               <p className="text-xs text-text-secondary uppercase tracking-wider mb-1">Supervisor</p>
               <p className="text-sm font-medium text-text-primary">Alexander Gennadievich Trofimov</p>
               <p className="text-xs text-text-secondary">ICIS, MEPhI, Moscow</p>
+              <a href="mailto:agtrofimov@robustidps.ai" className="text-xs text-accent-blue hover:underline">agtrofimov@robustidps.ai</a>
             </div>
           </div>
           <div className="pt-2 border-t border-bg-card">
@@ -228,8 +230,9 @@ export default function About() {
           </a>
         </div>
         <p className="text-[10px] text-text-secondary mt-3">
-          Roger Nick Anaedevha — MSc/PhD Candidate, Institute of Cyber-Intelligent Systems (ICIS), National Research Nuclear University MEPhI, Moscow, Russia.
-          Supervised by Alexander Gennadievich Trofimov, Associate Professor.
+          Roger Nick Anaedevha — <a href="mailto:roger@robustidps.ai" className="text-accent-blue hover:underline">roger@robustidps.ai</a><br/>
+          Alexander Gennadievich Trofimov — <a href="mailto:agtrofimov@robustidps.ai" className="text-accent-blue hover:underline">agtrofimov@robustidps.ai</a><br/>
+          General inquiries — <a href="mailto:support@robustidps.ai" className="text-accent-blue hover:underline">support@robustidps.ai</a>
         </p>
       </div>
     </div>

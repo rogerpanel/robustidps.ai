@@ -741,6 +741,7 @@ for p in results["predictions"][:5]:
               </a>
             </div>
             <div className="flex items-center gap-4 text-xs text-text-secondary">
+              <a href="mailto:support@robustidps.ai" className="text-accent-blue hover:underline">support@robustidps.ai</a>
               <span>FastAPI + React + Vite</span>
               <span>PyTorch + Multi-LLM</span>
             </div>

@@ -4,7 +4,13 @@
   "creators": [
     {
       "name": "Anaedevha, Roger Nick",
-      "affiliation": "National Research Nuclear University MEPhI"
+      "affiliation": "National Research Nuclear University MEPhI",
+      "email": "roger@robustidps.ai"
+    },
+    {
+      "name": "Trofimov, Alexander Gennadievich",
+      "affiliation": "National Research Nuclear University MEPhI",
+      "email": "agtrofimov@robustidps.ai"
     }
   ],
   "upload_type": "software",

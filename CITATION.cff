@@ -5,8 +5,13 @@ type: software
 authors:
   - family-names: Anaedevha
     given-names: Roger Nick
+    email: "roger@robustidps.ai"
     affiliation: "National Research Nuclear University MEPhI"
     orcid: ""
+  - family-names: Trofimov
+    given-names: Alexander Gennadievich
+    email: "agtrofimov@robustidps.ai"
+    affiliation: "National Research Nuclear University MEPhI"
 repository-code: "https://github.com/rogerpanel/robustidps.ai"
 url: "https://robustidps.ai"
 abstract: >-
