@@ -94,8 +94,6 @@ export default function AutoInvestigation() {
     setPhases(prev => prev.map((p, i) => i === idx ? { ...p, status } : p))
   }
 
-  const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
-
   const runInvestigation = async () => {
     setRunning(true)
     setReport(null)
@@ -111,24 +109,20 @@ export default function AutoInvestigation() {
         setRawData(data)
       }
       if (!data?.predictions?.length) throw new Error('No predictions available')
-      await delay(400)
       updatePhase(0, 'done')
 
       // Phase 2: Triage
       updatePhase(1, 'running')
-      await delay(500)
       const triaged = data.predictions.map((p: any) => ({ ...p, triage: triageAlert(p) }))
       updatePhase(1, 'done')
 
       // Phase 3: Incident chains
       updatePhase(2, 'running')
-      await delay(500)
       const incidents = buildIncidents(triaged)
       updatePhase(2, 'done')
 
       // Phase 4: Summary
       updatePhase(3, 'running')
-      await delay(400)
       const tp = triaged.filter((t: any) => t.triage === 'true_positive').length
       const fp = triaged.filter((t: any) => t.triage === 'false_positive').length
       const review = triaged.filter((t: any) => t.triage === 'needs_review').length

@@ -59,6 +59,33 @@ const CVE_MAPPINGS: Record<string, CVEMapping> = {
     ],
     remediation: 'Enable DNSSEC. Use DNS-over-HTTPS. Monitor for unusual DNS responses.',
   },
+  'DDoS-TCP_Flood': {
+    cves: [
+      { id: 'CVE-2024-3596', description: 'RADIUS protocol vulnerability enabling MitM and DDoS amplification', cvss: 9.0, year: 2024 },
+      { id: 'CVE-2023-44487', description: 'HTTP/2 Rapid Reset DDoS attack (exploited in wild)', cvss: 7.5, year: 2023 },
+    ],
+    remediation: 'Deploy rate limiting. Enable SYN cookies. Use upstream DDoS scrubbing service.',
+  },
+  'Recon-PortScan': {
+    cves: [
+      { id: 'CVE-2024-21762', description: 'FortiOS out-of-bound write enabling RCE after recon', cvss: 9.6, year: 2024 },
+      { id: 'CVE-2023-20198', description: 'Cisco IOS XE Web UI privilege escalation (post-recon)', cvss: 10.0, year: 2023 },
+    ],
+    remediation: 'Review exposed services. Implement port knocking. Deploy IDS with scan detection rules.',
+  },
+  'Malware-Backdoor': {
+    cves: [
+      { id: 'CVE-2024-3094', description: 'XZ Utils backdoor in Linux sshd (supply chain)', cvss: 10.0, year: 2024 },
+      { id: 'CVE-2023-44221', description: 'SonicWall SMA command injection (backdoor vector)', cvss: 7.2, year: 2023 },
+    ],
+    remediation: 'Verify supply chain integrity. Monitor for C2 beaconing. Segment network.',
+  },
+  'BruteForce-FTP': {
+    cves: [
+      { id: 'CVE-2024-27322', description: 'ProFTPD heap overflow enabling RCE after brute force', cvss: 7.5, year: 2024 },
+    ],
+    remediation: 'Disable anonymous FTP. Enforce strong credentials. Use SFTP instead.',
+  },
 }
 
 /* ── CVSS color helpers ──────────────────────────────────────────────── */

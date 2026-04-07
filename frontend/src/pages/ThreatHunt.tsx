@@ -69,7 +69,20 @@ const parseQuery = (query: string, predictions: any[]): QueryResult => {
     return { type: 'aggregation', data: Object.entries(ipCounts).sort((a, b) => b[1] - a[1]).slice(0, limit), total: filtered.length }
   }
 
-  return { type: 'list', data: filtered.slice(0, 100), total: filtered.length }
+  // Destination-based hunting
+  if (q.includes('destination') || q.includes('target') || q.includes('victim')) {
+    const dstCounts: Record<string, number> = {}
+    filtered.forEach(p => { const ip = p.dst_ip || 'unknown'; dstCounts[ip] = (dstCounts[ip] || 0) + 1 })
+    const limit = topMatch ? parseInt(topMatch[1]) : 10
+    return { type: 'aggregation', data: Object.entries(dstCounts).sort((a,b) => b[1] - a[1]).slice(0, limit), total: filtered.length }
+  }
+
+  // Protocol filter
+  if (q.includes('tcp')) filtered = filtered.filter(p => p.protocol === 'TCP' || p.protocol === 6)
+  if (q.includes('udp')) filtered = filtered.filter(p => p.protocol === 'UDP' || p.protocol === 17)
+  if (q.includes('icmp')) filtered = filtered.filter(p => p.protocol === 'ICMP' || p.protocol === 1)
+
+  return { type: 'list', data: filtered.slice(0, 500), total: filtered.length }
 }
 
 /* ── Constants ── */
@@ -140,22 +153,19 @@ export default function ThreatHunt() {
     const queryText = q || query
     if (!queryText.trim() || predictions.length === 0) return
     setSearching(true)
-    // Simulate brief processing delay
-    setTimeout(() => {
-      const res = parseQuery(queryText, predictions)
-      setResult(res)
-      setSearching(false)
-      setHistory(prev => {
-        const next = [queryText, ...prev.filter(h => h !== queryText)].slice(0, 5)
-        return next
-      })
-      cachePageResult('threat_hunt', {
-        query: queryText,
-        results: res.total,
-        type: res.type,
-        model_used: modelId,
-      })
-    }, 300)
+    const res = parseQuery(queryText, predictions)
+    setResult(res)
+    setSearching(false)
+    setHistory(prev => {
+      const next = [queryText, ...prev.filter(h => h !== queryText)].slice(0, 5)
+      return next
+    })
+    cachePageResult('threat_hunt', {
+      query: queryText,
+      results: res.total,
+      type: res.type,
+      model_used: modelId,
+    })
   }
 
   const dataLoaded = predictions.length > 0
@@ -304,7 +314,7 @@ export default function ThreatHunt() {
             </h3>
             <span className="text-xs text-text-secondary">
               Found <span className="text-accent-blue font-semibold">{result.total}</span> matching flows out of {predictions.length} total
-              {result.type === 'list' && result.total > 100 && <span className="text-text-secondary/60"> (showing first 100)</span>}
+              {result.type === 'list' && result.total > 500 && <span className="text-text-secondary/60"> (showing first 500)</span>}
             </span>
           </div>
 
@@ -450,6 +460,17 @@ export default function ThreatHunt() {
           </div>
         )}
       </div>
+
+      {/* Related */}
+      {result && (
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-bg-card">
+          <span className="text-[10px] text-text-secondary mr-2">Continue to:</span>
+          <a href="/auto-investigate" className="text-[10px] px-2 py-1 rounded bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20 transition-colors">Auto-Investigation</a>
+          <a href="/incident-reports" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Incident Reports</a>
+          <a href="/rule-generator" className="text-[10px] px-2 py-1 rounded bg-accent-green/10 text-accent-green hover:bg-accent-green/20 transition-colors">Rule Generator</a>
+          <a href="/threat-intel" className="text-[10px] px-2 py-1 rounded bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition-colors">Threat Intel</a>
+        </div>
+      )}
     </div>
   )
 }

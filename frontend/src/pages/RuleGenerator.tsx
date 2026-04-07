@@ -26,6 +26,14 @@ const RULE_TEMPLATES: Record<string, (src: string, dst: string) => string> = {
   'Spoofing-DNS': (s, d) => `alert udp ${s} 53 -> ${d} any (msg:"RobustIDPS: DNS Spoofing detected"; content:"|81 80|"; offset:2; depth:2; classtype:bad-unknown; sid:3000040; rev:1;)`,
   'Malware-Backdoor': (s, d) => `alert tcp ${d} any -> ${s} [4444,5555,8888,1337] (msg:"RobustIDPS: Backdoor C2 Communication"; flow:to_server,established; classtype:trojan-activity; sid:3000050; rev:1;)`,
   'Malware-Ransomware': (s, d) => `alert tcp ${s} any -> ${d} 445 (msg:"RobustIDPS: Ransomware SMB Activity"; flow:to_server,established; content:"|ff|SMB"; classtype:trojan-activity; sid:3000051; rev:1;)`,
+  'DDoS-ICMP_Flood': (s: string, d: string) => `alert icmp ${s} any -> ${d} any (msg:"RobustIDPS: ICMP Flood"; threshold:type both,track by_src,count 50,seconds 5; classtype:denial-of-service; sid:3000005; rev:1;)`,
+  'DDoS-SlowLoris': (s: string, d: string) => `alert tcp ${s} any -> ${d} 80 (msg:"RobustIDPS: SlowLoris detected"; flow:to_server,established; content:"GET"; http_method; threshold:type both,track by_src,count 3,seconds 60; classtype:denial-of-service; sid:3000006; rev:1;)`,
+  'BruteForce-HTTP': (s: string, d: string) => `alert tcp ${s} any -> ${d} 80 (msg:"RobustIDPS: HTTP Brute Force"; flow:to_server,established; content:"POST"; http_method; threshold:type both,track by_src,count 10,seconds 30; classtype:attempted-admin; sid:3000012; rev:1;)`,
+  'Spoofing-ARP': (s: string, d: string) => `alert arp any any -> any any (msg:"RobustIDPS: ARP Spoofing detected"; classtype:bad-unknown; sid:3000041; rev:1;)`,
+  'Spoofing-IP': (s: string, d: string) => `alert ip ${s} any -> ${d} any (msg:"RobustIDPS: IP Spoofing detected"; ttl:<5; classtype:bad-unknown; sid:3000042; rev:1;)`,
+  'Mirai-greeth_flood': (s: string, d: string) => `alert tcp ${s} any -> ${d} [23,2323,7547] (msg:"RobustIDPS: Mirai Botnet C2"; flow:to_server; content:"|00 00 00 01|"; classtype:trojan-activity; sid:3000060; rev:1;)`,
+  'DNS_Spoofing': (s: string, d: string) => `alert udp any 53 -> ${d} any (msg:"RobustIDPS: DNS Cache Poisoning"; content:"|81 80|"; offset:2; depth:2; classtype:bad-unknown; sid:3000043; rev:1;)`,
+  'WebAttack-BrowserHijacking': (s: string, d: string) => `alert tcp ${s} any -> ${d} 80 (msg:"RobustIDPS: Browser Hijacking Attempt"; flow:to_server,established; content:"Set-Cookie"; http_header; classtype:web-application-attack; sid:3000023; rev:1;)`,
 }
 
 const GUIDE_STEPS = [
@@ -146,7 +154,7 @@ export default function RuleGenerator() {
   const highlightRule = (rule: string) => {
     return rule
       .replace(/^(alert)\b/g, '<span class="text-accent-red font-bold">$1</span>')
-      .replace(/\b(tcp|udp|icmp)\b/g, '<span class="text-accent-blue">$1</span>')
+      .replace(/\b(tcp|udp|icmp|arp|ip)\b/g, '<span class="text-accent-blue">$1</span>')
       .replace(/\b(msg|content|flow|flags|threshold|classtype|sid|rev|nocase|offset|depth|http_method)\b/g, '<span class="text-accent-amber">$1</span>')
       .replace(/"([^"]+)"/g, '<span class="text-accent-green">"$1"</span>')
       .replace(/(\$[A-Z_]+)/g, '<span class="text-accent-purple">$1</span>')
