@@ -1,5 +1,5 @@
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { useEffect, useState, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import {
   LayoutDashboard,
   Upload,
@@ -343,14 +343,28 @@ export default function App() {
     trackPageView(location.pathname)
   }, [location.pathname])
 
+  // Health check with resilience — only show offline after 3 consecutive failures
+  const failCountRef = useRef(0)
   useEffect(() => {
     let cancelled = false
     const check = () => {
       fetchHealth()
-        .then(() => { if (!cancelled) setOnline(true) })
-        .catch(() => { if (!cancelled) setOnline(false) })
+        .then(() => {
+          if (!cancelled) {
+            failCountRef.current = 0
+            setOnline(true)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            failCountRef.current += 1
+            // Only mark offline after 3 consecutive failures (45 seconds)
+            if (failCountRef.current >= 3) {
+              setOnline(false)
+            }
+          }
+        })
     }
-    // Defer first health check so it doesn't compete with initial page resources
     const startDelay = setTimeout(check, 2000)
     const id = setInterval(check, 15000)
     return () => { cancelled = true; clearTimeout(startDelay); clearInterval(id) }
@@ -500,8 +514,8 @@ export default function App() {
           </>
         ) : online === false ? (
           <>
-            <WifiOff className="w-3.5 h-3.5 text-accent-red" />
-            <span className="text-accent-red">Backend offline</span>
+            <span className="w-2 h-2 rounded-full bg-accent-amber animate-pulse" />
+            <span className="text-accent-amber">Reconnecting...</span>
           </>
         ) : (
           <>
@@ -660,8 +674,12 @@ export default function App() {
           )}
 
           {online === false && (
-            <div className="mb-4 px-4 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
-              Backend offline — showing cached / sample data
+            <div className="mb-4 px-4 py-2.5 bg-accent-amber/10 border border-accent-amber/20 rounded-lg text-xs flex items-center gap-2">
+              <Loader2 className="w-3.5 h-3.5 text-accent-amber animate-spin" />
+              <span className="text-accent-amber">Reconnecting to backend server... Results from previous analyses remain available.</span>
+              <button onClick={() => { fetchHealth().then(() => setOnline(true)).catch(() => {}) }} className="ml-auto px-2 py-0.5 bg-accent-amber/20 text-accent-amber rounded text-[10px] hover:bg-accent-amber/30">
+                Retry Now
+              </button>
             </div>
           )}
           <Suspense fallback={

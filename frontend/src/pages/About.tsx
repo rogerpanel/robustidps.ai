@@ -168,6 +168,43 @@ export default function About() {
         </table>
       </div>
 
+      {/* Who Is This For? */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h2 className="text-lg font-display font-bold text-text-primary mb-4">Who Is This For?</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+            <div className="text-2xl mb-2">🛡️</div>
+            <h3 className="text-sm font-semibold text-accent-blue mb-1">SOC Analysts & Security Engineers</h3>
+            <p className="text-xs text-text-secondary">Upload your network traffic, get AI-powered threat detection with uncertainty scores. Auto-generate Suricata/Snort rules and incident reports. The SOC Copilot answers questions about your data in plain English.</p>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+            <div className="text-2xl mb-2">🎓</div>
+            <h3 className="text-sm font-semibold text-accent-purple mb-1">Researchers & PhD Students</h3>
+            <p className="text-xs text-text-secondary">Benchmark your models against 13+ neural networks on 6 datasets. Interactive ablation studies, adversarial robustness testing, and publication-ready LaTeX exports. All models are open-source with Zenodo DOI.</p>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+            <div className="text-2xl mb-2">🏢</div>
+            <h3 className="text-sm font-semibold text-accent-orange mb-1">Enterprise Security Teams</h3>
+            <p className="text-xs text-text-secondary">MITRE ATT&CK mapping, OWASP LLM Top 10 compliance, NIST AI RMF dashboard, and CVE vulnerability tracking. Multi-user with admin controls, audit logging, and role-based access.</p>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+            <div className="text-2xl mb-2">🔐</div>
+            <h3 className="text-sm font-semibold text-accent-green mb-1">LLM Security Practitioners</h3>
+            <p className="text-xs text-text-secondary">Test prompt injection, jailbreak, RAG poisoning, and multi-agent chain attacks against real LLM providers (Claude, GPT-4o, Gemini, DeepSeek). Measure defense effectiveness with quantified metrics.</p>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+            <div className="text-2xl mb-2">🔬</div>
+            <h3 className="text-sm font-semibold text-accent-red mb-1">Penetration Testers</h3>
+            <p className="text-xs text-text-secondary">Red Team Arena with 6 adversarial attack methods, attack chain prediction, and auto-generated remediation recommendations. Test how models degrade under FGSM, PGD, C&W, and DeepFool attacks.</p>
+          </div>
+          <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+            <div className="text-2xl mb-2">📊</div>
+            <h3 className="text-sm font-semibold text-accent-amber mb-1">Anyone with Network Data</h3>
+            <p className="text-xs text-text-secondary">Upload any CSV or PCAP file and get instant threat analysis. No ML expertise needed — the platform explains results in plain language through the SOC Copilot. Try the demo with sample data to see it in action.</p>
+          </div>
+        </div>
+      </div>
+
       {/* ── Dissertation & Author Info ──────────────────────────────────── */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h2 className="text-lg font-display font-semibold mb-4">Dissertation Information</h2>

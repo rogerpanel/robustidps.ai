@@ -523,6 +523,17 @@ export default function AdversarialRobustness() {
                   )}
                 </button>
               </div>
+
+              {/* What's Next — Post-Analysis Guidance */}
+              <div className="bg-accent-blue/5 border border-accent-blue/15 rounded-xl p-4">
+                <h3 className="text-xs font-semibold text-text-primary mb-2">Explore further:</h3>
+                <div className="flex flex-wrap gap-2">
+                  <a href="/redteam" className="text-[10px] px-2 py-1 rounded bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors">Red Team Arena</a>
+                  <a href="/data-poisoning" className="text-[10px] px-2 py-1 rounded bg-accent-amber/10 text-accent-amber hover:bg-accent-amber/20 transition-colors">Data Poisoning Sim</a>
+                  <a href="/autoencoder" className="text-[10px] px-2 py-1 rounded bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition-colors">Autoencoder Detector</a>
+                  <a href="/copilot" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Ask SOC Copilot</a>
+                </div>
+              </div>
             </>
           )}
 

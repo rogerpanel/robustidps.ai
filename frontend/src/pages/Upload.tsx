@@ -24,6 +24,7 @@ import {
   Upload as UploadIcon, ChevronDown, ChevronUp, TrendingUp, FlaskConical,
   ToggleRight, ToggleLeft, TrendingDown, Brain, Shield, FolderOpen, Download,
   Layers, GitCompare, Activity, BarChart3, Target, Zap,
+  ArrowRight, Search, Sparkles,
 } from 'lucide-react'
 import {
   fetchDatasets, fetchSampleData, downloadAdversarialBenchmark,
@@ -799,6 +800,34 @@ export default function UploadPage() {
                   </ResponsiveContainer>
                 </div>
               )}
+
+              {/* What's Next — Post-Analysis Guidance */}
+              <div className="bg-accent-blue/5 border border-accent-blue/15 rounded-xl p-4 mt-4">
+                <h3 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+                  <ArrowRight className="w-4 h-4 text-accent-blue" />
+                  What's Next?
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <a href="/live" className="flex items-center gap-2 px-3 py-2 bg-bg-secondary rounded-lg text-xs text-text-secondary hover:text-accent-blue hover:bg-accent-blue/5 transition-colors">
+                    <Radio className="w-3.5 h-3.5" /> Test on Live Monitor
+                  </a>
+                  <a href="/auto-investigate" className="flex items-center gap-2 px-3 py-2 bg-bg-secondary rounded-lg text-xs text-text-secondary hover:text-accent-orange hover:bg-accent-orange/5 transition-colors">
+                    <Zap className="w-3.5 h-3.5" /> Auto-Investigation
+                  </a>
+                  <a href="/threat-hunt" className="flex items-center gap-2 px-3 py-2 bg-bg-secondary rounded-lg text-xs text-text-secondary hover:text-accent-blue hover:bg-accent-blue/5 transition-colors">
+                    <Search className="w-3.5 h-3.5" /> Hunt Threats
+                  </a>
+                  <a href="/mitre-attack" className="flex items-center gap-2 px-3 py-2 bg-bg-secondary rounded-lg text-xs text-text-secondary hover:text-accent-purple hover:bg-accent-purple/5 transition-colors">
+                    <Target className="w-3.5 h-3.5" /> MITRE ATT&CK Map
+                  </a>
+                  <a href="/rule-generator" className="flex items-center gap-2 px-3 py-2 bg-bg-secondary rounded-lg text-xs text-text-secondary hover:text-accent-green hover:bg-accent-green/5 transition-colors">
+                    <Shield className="w-3.5 h-3.5" /> Generate IDS Rules
+                  </a>
+                  <a href="/copilot" className="flex items-center gap-2 px-3 py-2 bg-bg-secondary rounded-lg text-xs text-text-secondary hover:text-accent-amber hover:bg-accent-amber/5 transition-colors">
+                    <Sparkles className="w-3.5 h-3.5" /> Ask SOC Copilot
+                  </a>
+                </div>
+              </div>
             </>
           )}
         </>
