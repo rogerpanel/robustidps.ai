@@ -160,7 +160,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper"},
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual_learning, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper"},
                 "job_id": {"type": "string", "description": "Optional specific job_id"},
             },
             "required": ["page"],
@@ -625,7 +625,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
 
                 return json.dumps({"page": page, "status": "no_active_result"})
 
-            if page in ("mitre_attack", "alert_triage", "attack_chain", "data_poisoning", "autoencoder", "causality_graph", "pq_traffic_lab", "auto_investigation", "threat_hunt", "incident_reports", "threat_intel", "rule_generator", "cve_mapper"):
+            if page in ("mitre_attack", "alert_triage", "attack_chain", "data_poisoning", "autoencoder", "causality_graph", "pq_traffic_lab", "auto_investigation", "threat_hunt", "incident_reports", "threat_intel", "rule_generator", "cve_mapper", "continual_learning"):
                 cache_key = (uid, page)
                 cached = _main._completed_results.get(cache_key)
                 if cached:

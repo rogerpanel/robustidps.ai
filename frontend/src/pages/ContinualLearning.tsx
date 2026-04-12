@@ -8,6 +8,7 @@ import {
   fetchContinualStatus, triggerContinualUpdate,
   measureDrift, rollbackModel,
   fetchCLRLContinualMetrics, checkDrift as checkCLRLDrift,
+  cachePageResult,
 } from '../utils/api'
 import ExportMenu from '../components/ExportMenu'
 import PageGuide from '../components/PageGuide'
@@ -166,6 +167,7 @@ export default function ContinualLearning() {
         if (fileRef.current) fileRef.current.value = ''
         await loadStatus()
         updateNotice(nid, { status: 'completed', title: `Model updated to v${data.version}` })
+        cachePageResult('continual_learning', { version: data.version, epochs, lr, ewc_lambda: ewcLambda, message: data.message }).catch(() => {})
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Update failed'
