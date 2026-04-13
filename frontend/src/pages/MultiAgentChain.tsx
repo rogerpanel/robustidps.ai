@@ -5,12 +5,15 @@ import {
   CheckCircle2, XCircle, ArrowRight, ArrowDown,
   Loader2, Brain, MessageSquare, Lock, Unlock,
   GitBranch, Workflow, Bot, Settings, RefreshCw,
+  Upload, FileText, X, Radio, Activity,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import LLMProviderConfig, { getCopilotDefaults } from '../components/LLMProviderConfig'
+import ModelSelector from '../components/ModelSelector'
 import { useLLMAttackResults } from '../hooks/useLLMAttackResults'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
-import { simulateMultiAgent } from '../utils/api'
+import { simulateMultiAgent, analyseFile } from '../utils/api'
+import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 
 /* ── Agent Definitions ───────────────────────────────────────────────── */
 interface Agent {
@@ -199,6 +202,61 @@ const TRUST_COLORS = {
   low: 'text-red-400',
 }
 
+/* ── Build real chain scenarios from analysis data ──────────────────── */
+const buildRealChainScenarios = (predictions: any[]) => {
+  // Group threats by source IP to find multi-stage attackers
+  const threatsBySource: Record<string, any[]> = {}
+  predictions.filter((p: any) => p.severity !== 'benign').forEach((p: any) => {
+    const src = p.src_ip || 'unknown'
+    if (!threatsBySource[src]) threatsBySource[src] = []
+    threatsBySource[src].push(p)
+  })
+
+  // Build chain scenarios from real attack sequences
+  const realScenarios: typeof CHAIN_ATTACKS = []
+
+  Object.entries(threatsBySource)
+    .filter(([_, threats]) => threats.length >= 2)
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 5)
+    .forEach(([src, threats], i) => {
+      const attackTypes = [...new Set(threats.map((t: any) => t.label_predicted))]
+      const maxConf = Math.max(...threats.map((t: any) => t.confidence || 0))
+
+      // Map detected attacks to agent chain steps
+      const chainSteps = threats.slice(0, 6).map((t: any, step: number) => {
+        const agentId = ['orchestrator', 'researcher', 'coder', 'tool_caller', 'reviewer'][step % 5]
+        return {
+          step: step + 1,
+          agent: agentId,
+          action: `Detected: ${t.label_predicted} from ${src} (conf: ${((t.confidence || 0) * 100).toFixed(0)}%)`,
+          compromised: (t.confidence || 0) > 0.8 && t.severity !== 'benign',
+          message: `[REAL DATA] ${t.label_predicted} targeting ${t.dst_ip || 'internal'}`,
+        }
+      })
+
+      realScenarios.push({
+        id: `real_${i + 1}`,
+        name: `Real Attack Chain: ${src} (${attackTypes.slice(0, 3).join(' \u2192 ')})`,
+        severity: maxConf > 0.9 ? 'critical' : maxConf > 0.7 ? 'high' : 'medium',
+        description: `${threats.length} attacks detected from ${src} across ${attackTypes.length} attack types. Max confidence: ${(maxConf * 100).toFixed(0)}%.`,
+        mechanism: `Multi-stage attack sequence from ${src} progressing through ${attackTypes.slice(0, 4).join(', ')}`,
+        entryPoint: 'orchestrator',
+        affectedAgents: chainSteps.filter(s => s.compromised).map(s => s.agent),
+        attackChain: chainSteps,
+        impact: `${threats.length} malicious flows from a single source across ${attackTypes.length} distinct attack types`,
+        mitigations: [
+          `Block source IP ${src}`,
+          `Review all ${attackTypes.length} attack types from this source`,
+          'Enable inter-agent trust verification',
+          'Check for lateral movement to internal hosts',
+        ],
+      })
+    })
+
+  return realScenarios
+}
+
 /* ── Main Component ──────────────────────────────────────────────────── */
 export default function MultiAgentChain() {
   const { addMultiAgentResult } = useLLMAttackResults()
@@ -212,6 +270,49 @@ export default function MultiAgentChain() {
   const [apiResult, setApiResult] = useState<any>(null)
   const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
   const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
+
+  /* File upload + analysis state */
+  const [file, setFile] = useState<File | null>(null)
+  const [modelId, setModelId] = useState('surrogate')
+  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [liveDataLoaded, setLiveDataLoaded] = useState(false)
+  const [realScenarios, setRealScenarios] = useState<typeof CHAIN_ATTACKS>([])
+
+  const loadLiveData = useCallback(() => {
+    const live = getLiveData()
+    if (!live) return
+    const data = {
+      predictions: live.predictions,
+      n_flows: live.totalFlows,
+      n_threats: live.threatCount,
+      n_benign: live.benignCount,
+    }
+    setAnalysisResult(data)
+    setLiveDataLoaded(true)
+    if (data.predictions) {
+      const real = buildRealChainScenarios(data.predictions)
+      setRealScenarios(real)
+    }
+  }, [])
+
+  const runAnalysis = async () => {
+    if (!file) return
+    setAnalyzing(true)
+    const nid = addNotice({ title: 'Multi-Agent Chain Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/multi-agent' })
+    try {
+      const data = await analyseFile(file, modelId, 'multi_agent')
+      setAnalysisResult(data)
+      if (data.predictions) {
+        const real = buildRealChainScenarios(data.predictions)
+        setRealScenarios(real)
+      }
+      updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows analyzed, ${realScenarios.length} attack chains found` })
+    } catch (err) {
+      updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Analysis failed' })
+    }
+    setAnalyzing(false)
+  }
 
   const runSimulation = useCallback(async () => {
     if (!selectedAttack) return
@@ -391,6 +492,54 @@ export default function MultiAgentChain() {
         </div>
       </div>
 
+      {/* Upload + Model selector */}
+      <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
+        <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">Upload Traffic for Chain Analysis</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          {/* Drag & drop file zone */}
+          <div>
+            {file ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-accent-green/30 bg-accent-green/5">
+                <FileText className="w-4 h-4 text-accent-green shrink-0" />
+                <span className="text-xs font-mono truncate flex-1">{file.name}</span>
+                <button onClick={() => { setFile(null); setAnalysisResult(null); setRealScenarios([]) }} className="text-text-secondary hover:text-text-primary"><X className="w-3.5 h-3.5" /></button>
+              </div>
+            ) : (
+              <label onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('border-accent-blue','bg-accent-blue/10') }} onDragLeave={e => { e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10') }} onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('border-accent-blue','bg-accent-blue/10'); const f = e.dataTransfer.files[0]; if(f) setFile(f) }} className="flex flex-col items-center gap-1 px-3 py-3 rounded-lg border-2 border-dashed border-bg-card hover:border-text-secondary cursor-pointer transition-colors">
+                <Upload className="w-5 h-5 text-text-secondary" />
+                <span className="text-[10px] text-text-secondary">Drop or click</span>
+                <span className="text-[9px] text-text-secondary/60">.csv .pcap .pcapng</span>
+                <input type="file" accept=".csv,.pcap,.pcapng" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
+              </label>
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-text-secondary block mb-1">Detection Model</label>
+            <ModelSelector value={modelId} onChange={setModelId} compact />
+          </div>
+          <button onClick={runAnalysis} disabled={!file || analyzing} className="px-4 py-2.5 bg-accent-orange hover:bg-accent-orange/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+            {analyzing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</> : 'Run Chain Analysis'}
+          </button>
+        </div>
+      </div>
+
+      {/* Live Monitor Data Banner */}
+      {hasLiveData() && !liveDataLoaded && !analysisResult && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-accent-orange/10 border border-accent-orange/20 rounded-xl">
+          <Radio className="w-4 h-4 text-accent-orange" />
+          <div className="flex-1">
+            <span className="text-xs font-medium text-accent-orange">Live Monitor data available</span>
+            <span className="text-[10px] text-text-secondary ml-2">{getLiveData()?.totalFlows} flows from {getLiveData()?.source}</span>
+          </div>
+          <button
+            onClick={loadLiveData}
+            className="px-3 py-1 bg-accent-orange hover:bg-accent-orange/80 text-white text-[10px] font-medium rounded-lg transition-colors"
+          >
+            Use Live Data
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* ── Left: Attack Scenarios ──────────────────────────────────────── */}
         <div className="space-y-4">
@@ -400,6 +549,42 @@ export default function MultiAgentChain() {
               Attack Scenarios
             </h2>
             <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+              {/* Real Attack Chains (from uploaded data) */}
+              {realScenarios.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-xs font-semibold text-accent-orange mb-2 flex items-center gap-1">
+                    <Activity className="w-3.5 h-3.5" />
+                    Real Attack Chains (from your data) — {realScenarios.length} detected
+                  </h3>
+                  <div className="space-y-2">
+                    {realScenarios.map(scenario => (
+                      <button
+                        key={scenario.id}
+                        onClick={() => { setSelectedAttack(scenario); setCompleted(false); setCurrentStep(0); setApiResult(null) }}
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${
+                          selectedAttack?.id === scenario.id
+                            ? 'border-accent-orange/50 bg-accent-orange/10'
+                            : 'border-bg-card hover:border-accent-orange/30 bg-bg-secondary'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                            scenario.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
+                            scenario.severity === 'high' ? 'bg-accent-amber/20 text-accent-amber' :
+                            'bg-accent-blue/20 text-accent-blue'
+                          }`}>{(scenario.severity || 'medium').toUpperCase()}</span>
+                          <span className="text-xs font-medium text-text-primary truncate">{scenario.name}</span>
+                        </div>
+                        <p className="text-[10px] text-text-secondary">{scenario.description}</p>
+                        <div className="text-[9px] text-accent-orange mt-1">{scenario.attackChain.length} steps · {scenario.affectedAgents?.length || 0} agents affected</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Simulated Scenarios */}
+              <h3 className="text-xs font-semibold text-text-secondary mb-2">Simulated Scenarios</h3>
               {CHAIN_ATTACKS.map(attack => {
                 const sev = SEVERITY_COLORS[attack.severity]
                 const isActive = selectedAttack?.id === attack.id

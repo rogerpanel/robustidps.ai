@@ -2697,7 +2697,8 @@ async def download_sample_data(filename: str):
     ALLOWED = {"validation_benchmark.pcap", "validation_benchmark_ground_truth.csv",
                "pqc_validation_benchmark.pcap", "pqc_validation_benchmark_ground_truth.csv",
                "combined_validation_benchmark.pcap", "combined_validation_benchmark_ground_truth.csv",
-               "adversarial_benchmark.pcap", "pqc_test_dataset.csv"}
+               "adversarial_benchmark.pcap", "pqc_test_dataset.csv",
+               "multiagent_validation.pcap", "multiagent_ground_truth.csv"}
     if filename not in ALLOWED:
         raise HTTPException(404, "File not found")
 
