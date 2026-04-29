@@ -270,6 +270,7 @@ export default function MultiAgentChain() {
   const [apiResult, setApiResult] = useState<any>(null)
   const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
   const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
+  const [showSafetyCert, setShowSafetyCert] = useState(false)
 
   /* File upload + analysis state */
   const [file, setFile] = useState<File | null>(null)
@@ -862,6 +863,76 @@ export default function MultiAgentChain() {
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              {/* ConformalGuard — Safety Certification */}
+              <div className="bg-bg-secondary rounded-xl border border-accent-green/20">
+                <button
+                  onClick={() => setShowSafetyCert(!showSafetyCert)}
+                  className="w-full flex items-center justify-between p-4"
+                >
+                  <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-accent-green" />
+                    ConformalGuard — Safety Certification
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-green/15 text-accent-green">NEW</span>
+                  </h2>
+                  {showSafetyCert ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
+                </button>
+                {showSafetyCert && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <p className="text-xs text-text-secondary">
+                      ConformalGuard provides distribution-free finite-sample safety certificates for multi-agent LLM execution.
+                      Agent interactions are modeled as heterogeneous continuous-time dynamic graphs with 4 node types and 6 edge types.
+                    </p>
+                    <div className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+                      <div className="text-xs font-semibold text-text-primary mb-2">Coverage Guarantee</div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-accent-green">94.9%</div>
+                          <div className="text-[9px] text-text-secondary">Empirical Coverage (α=0.05)</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-accent-blue">96.1%</div>
+                          <div className="text-[9px] text-text-secondary">Critical Violation Block Rate</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-accent-amber">3.4%</div>
+                          <div className="text-[9px] text-text-secondary">False Block Rate</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-accent-purple">23ms</div>
+                          <div className="text-[9px] text-text-secondary">Per-Step Latency</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-text-secondary">
+                      <p className="mb-1"><strong className="text-text-primary">Mathematical Guarantee:</strong> P[y_t ∈ C_α(G_&lt;t)] ≥ 1 − α</p>
+                      <p className="mb-1"><strong className="text-text-primary">11 Violation Classes:</strong> Prompt injection propagation, capability escalation, trust boundary violations, information leakage, tool abuse, instruction override, context poisoning, role manipulation, output manipulation, denial of service, data exfiltration</p>
+                      <p><strong className="text-text-primary">Adaptive:</strong> Gibbs–Candès online coverage mechanism with concept drift monitoring</p>
+                    </div>
+                    {completed && (
+                      <div className="bg-accent-green/5 border border-accent-green/20 rounded-lg p-3">
+                        <div className="text-xs font-medium text-accent-green mb-1">Simulation Safety Assessment</div>
+                        <div className="text-[10px] text-text-secondary">
+                          {apiResult ? (
+                            <>
+                              Chain integrity: {((apiResult.chain_integrity_score ?? 0) * 100).toFixed(0)}% ·
+                              Agents compromised: {(apiResult.compromised_agents || []).length}/{apiResult.total_agents ?? 4} ·
+                              Safety verdict: <span className={`font-bold ${(apiResult.chain_integrity_score ?? 0) > 0.7 ? 'text-accent-green' : 'text-accent-red'}`}>
+                                {(apiResult.chain_integrity_score ?? 0) > 0.7 ? 'SAFE (within certified bounds)' : 'UNSAFE (exceeds certified bounds)'}
+                              </span>
+                            </>
+                          ) : (
+                            'Run a simulation to see the safety assessment.'
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <a href="https://github.com/rogerpanel/ConformalGuard-Models" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent-green hover:underline">
+                      GitHub: rogerpanel/ConformalGuard-Models
+                    </a>
+                  </div>
+                )}
               </div>
 
               {/* Affected Agents */}

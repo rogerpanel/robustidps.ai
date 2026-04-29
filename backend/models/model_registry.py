@@ -25,6 +25,7 @@ from .clrl_models import (
     UnifiedFIMWrapper,
 )
 from .multi_agent_pqc import MultiAgentPQCWrapper
+from .lipmamba import LipMambaWrapper
 
 WEIGHTS_DIR = Path(__file__).parent.parent / "weights"
 
@@ -356,6 +357,16 @@ MODEL_INFO = {
         "has_ablation": False,
         "category": "clrl",
         "parent_model": "clrl_unified",
+    },
+    # ── LipMamba (Certified Poisoning Defense) ────────────────────────
+    "lipmamba": {
+        "name": "LipMamba (Certified Poisoning Defense)",
+        "description": "Lipschitz-constrained selective state-space model with certified defense against hidden-state poisoning. Successor to MambaShield (Branch 4) with formal robustness guarantees via spectral normalization and PAC-Bayesian certificates.",
+        "paper": "LipMamba: Lipschitz-Constrained SSMs with Certified Poisoning Defense",
+        "class": LipMambaWrapper,
+        "weight_file": "lipmamba.pt",
+        "has_ablation": False,
+        "category": "certified",
     },
     # ── Multi-Agent PQC-IDS ─────────────────────────────────────────────
     "multi_agent_pqc": {

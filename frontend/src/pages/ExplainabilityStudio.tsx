@@ -107,6 +107,7 @@ export default function ExplainabilityStudio() {
   const [runningMulti, setRunningMulti] = usePageState(PAGE, 'runningMulti', false)
   const [multiView, setMultiView] = usePageState(PAGE, 'multiView', 'overview')
 
+  const [showCTExplain, setShowCTExplain] = useState(false)
   const resultsRef = useRef<HTMLDivElement>(null)
   const { addNotice, updateNotice } = useNoticeBoard()
 

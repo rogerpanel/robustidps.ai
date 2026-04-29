@@ -27,6 +27,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   foundation: 'bg-accent-amber/15 text-accent-amber',
   pqc: 'bg-accent-orange/15 text-accent-orange',
   clrl: 'bg-accent-purple/15 text-accent-purple',
+  certified: 'bg-accent-green/15 text-accent-green',
   custom: 'bg-accent-red/15 text-accent-red',
 }
 

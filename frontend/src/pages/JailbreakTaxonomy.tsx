@@ -222,6 +222,7 @@ export default function JailbreakTaxonomy() {
   const [searchQuery, setSearchQuery] = useState('')
   const [severityFilter, setSeverityFilter] = useState<string | null>(null)
   const [testingTech, setTestingTech] = useState<string | null>(null)
+  const [showCampaign, setShowCampaign] = useState(false)
   const [testResult, setTestResult] = useState<any>(null)
   const [llmProvider, setLlmProvider] = useState(() => getCopilotDefaults().provider)
   const [llmApiKey, setLlmApiKey] = useState(() => getCopilotDefaults().apiKey)
@@ -568,6 +569,55 @@ export default function JailbreakTaxonomy() {
             </div>
           )
         })}
+      </div>
+
+      {/* JailGuard — Real-Time Campaign Detection */}
+      <div className="bg-bg-secondary rounded-xl border border-bg-card">
+        <button
+          onClick={() => setShowCampaign(!showCampaign)}
+          className="w-full flex items-center justify-between p-4"
+        >
+          <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <Shield className="w-4 h-4 text-accent-orange" />
+            JailGuard — Campaign Detection
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-orange/15 text-accent-orange">NEW</span>
+          </h2>
+          {showCampaign ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
+        </button>
+        {showCampaign && (
+          <div className="px-4 pb-4 space-y-3">
+            <p className="text-xs text-text-secondary">
+              JailGuard models API interactions as continuous-time dynamic graphs to detect coordinated jailbreak campaigns across multiple users and sessions.
+              Powered by CT-DGNN with Lipschitz-certified robustness (F1: 96.8%, AUC-ROC: 98.4%).
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">Campaign F1</div>
+                <div className="text-lg font-bold text-accent-green">96.8%</div>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">Query AUC-ROC</div>
+                <div className="text-lg font-bold text-accent-blue">98.4%</div>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">P99 Latency</div>
+                <div className="text-lg font-bold text-accent-purple">38ms</div>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">Certified Radius</div>
+                <div className="text-lg font-bold text-accent-orange">{'≥'}0.15</div>
+              </div>
+            </div>
+            <div className="text-xs text-text-secondary space-y-1">
+              <p><strong className="text-text-primary">Graph Construction:</strong> API traffic {'→'} heterogeneous graph with 4 node types (User, Session, Query, Model) and 6 relation types</p>
+              <p><strong className="text-text-primary">Detection:</strong> Continuous-time Neural ODE dynamics with multi-scale temporal encoding (1s to 7d)</p>
+              <p><strong className="text-text-primary">Certification:</strong> Spectral normalization + Jacobian-Frobenius regularization + Gr{'ö'}nwall-based certificates</p>
+            </div>
+            <a href="https://github.com/rogerpanel/JailGuard-models" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent-orange hover:underline">
+              GitHub: rogerpanel/JailGuard-models
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Overview Stats */}

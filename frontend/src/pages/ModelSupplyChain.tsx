@@ -1,8 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Package, Shield, Loader2, AlertTriangle, CheckCircle, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, Search, FileText, Scan, BarChart3,
-  Lock, Eye, Download, ExternalLink, Fingerprint,
+  Lock, Eye, Download, ExternalLink, Fingerprint, Network,
 } from 'lucide-react'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -54,6 +54,7 @@ export default function ModelSupplyChain() {
   const [expandedModel, setExpandedModel] = usePageState<string | null>(PAGE, 'expandedModel', null)
   const [expandedVuln, setExpandedVuln] = usePageState<string | null>(PAGE, 'expandedVuln', null)
   const [vulnFilter, setVulnFilter] = usePageState(PAGE, 'vulnFilter', '')
+  const [showFedLoRA, setShowFedLoRA] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -867,6 +868,103 @@ export default function ModelSupplyChain() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* FedLoRAGuard — Federated Adapter Integrity Verification */}
+      <div className="bg-bg-secondary rounded-xl border border-bg-card">
+        <button
+          onClick={() => setShowFedLoRA(!showFedLoRA)}
+          className="w-full flex items-center justify-between p-4"
+        >
+          <h2 className="text-lg font-display font-semibold flex items-center gap-2">
+            <Network className="w-5 h-5 text-accent-amber" />
+            FedLoRAGuard — Adapter Integrity Verification
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-amber/15 text-accent-amber">NEW</span>
+          </h2>
+          {showFedLoRA ? <ChevronUp className="w-5 h-5 text-text-secondary" /> : <ChevronDown className="w-5 h-5 text-text-secondary" />}
+        </button>
+        {showFedLoRA && (
+          <div className="px-4 pb-4 space-y-4">
+            <p className="text-xs text-text-secondary">
+              FedLoRAGuard verifies community-shared LoRA adapters across distributed marketplaces (Hugging Face, Civitai, ModelScope)
+              using federated dynamic graph neural networks with differential privacy certificates. No marketplace shares raw adapter weights.
+            </p>
+
+            {/* Performance Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">Macro-F1</div>
+                <div className="text-lg font-bold text-accent-green">96.4%</div>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">AUROC</div>
+                <div className="text-lg font-bold text-accent-blue">0.984</div>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">Certified Radius k*</div>
+                <div className="text-lg font-bold text-accent-purple">8</div>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+                <div className="text-[10px] text-text-secondary">Privacy Budget</div>
+                <div className="text-lg font-bold text-accent-amber">ε=5.0</div>
+              </div>
+            </div>
+
+            {/* Architecture */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-semibold text-text-primary">Verification Architecture</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[10px] text-text-secondary">
+                <div className="bg-bg-primary rounded-lg p-2 border border-bg-card">
+                  <strong className="text-accent-blue">Graph Modeling:</strong> Heterogeneous continuous-time dynamic graph of LoRA ecosystem (adapters, users, repositories, dependencies)
+                </div>
+                <div className="bg-bg-primary rounded-lg p-2 border border-bg-card">
+                  <strong className="text-accent-purple">Neural Encoders:</strong> DyGFormer + HGT + DyG-Mamba for multimodal weight, text, and behavioral feature encoding
+                </div>
+                <div className="bg-bg-primary rounded-lg p-2 border border-bg-card">
+                  <strong className="text-accent-green">Federated Protocol:</strong> 50 clients, FLTrust bootstrapping, RDP-accountant DP-SGD (ε=5.0, δ=10⁻⁵)
+                </div>
+                <div className="bg-bg-primary rounded-lg p-2 border border-bg-card">
+                  <strong className="text-accent-amber">Certification:</strong> Calibrated maliciousness probability + certified poisoning radius k* guaranteeing verdict invariance under collusion
+                </div>
+              </div>
+            </div>
+
+            {/* Simulated Adapter Scan */}
+            <div className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+              <h3 className="text-xs font-semibold text-text-primary mb-2">Adapter Integrity Status</h3>
+              <div className="space-y-1.5">
+                {[
+                  { name: 'SurrogateIDS LoRA (fine-tuned)', status: 'verified', risk: 'low', k: 12 },
+                  { name: 'CyberSecLLM adapter (v2.1)', status: 'verified', risk: 'low', k: 8 },
+                  { name: 'PQC-IDS adapter (Kyber-aware)', status: 'verified', risk: 'low', k: 10 },
+                  { name: 'Community adapter (HF: anon-user)', status: 'warning', risk: 'medium', k: 3 },
+                  { name: 'External adapter (untrusted source)', status: 'flagged', risk: 'high', k: 1 },
+                ].map((adapter, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 bg-bg-secondary rounded-lg text-xs">
+                    {adapter.status === 'verified' ? (
+                      <CheckCircle2 className="w-4 h-4 text-accent-green shrink-0" />
+                    ) : adapter.status === 'warning' ? (
+                      <AlertTriangle className="w-4 h-4 text-accent-amber shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-accent-red shrink-0" />
+                    )}
+                    <span className="font-mono text-text-primary flex-1">{adapter.name}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                      adapter.risk === 'low' ? 'bg-accent-green/15 text-accent-green' :
+                      adapter.risk === 'medium' ? 'bg-accent-amber/15 text-accent-amber' :
+                      'bg-accent-red/15 text-accent-red'
+                    }`}>{adapter.risk.toUpperCase()}</span>
+                    <span className="text-text-secondary text-[9px]">k*={adapter.k}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <a href="https://github.com/rogerpanel/FedLoRAGuard-Models" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent-amber hover:underline">
+              GitHub: rogerpanel/FedLoRAGuard-Models
+            </a>
+          </div>
+        )}
       </div>
     </div>
   )

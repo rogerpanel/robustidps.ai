@@ -19,6 +19,7 @@ from .clrl_models import (
     UnifiedFIMWrapper,
 )
 from .multi_agent_pqc import MultiAgentPQCWrapper, MultiAgentPQCIDS
+from .lipmamba import LipMambaWrapper, LipMambaIDS
 from .policy_network import PolicyNetwork, ValueNetwork, CostValueNetwork
 from .unified_fim import UnifiedFIM
 from .nids_env import NIDSResponseEnv, ACTION_NAMES, ACTION_SEVERITY
@@ -33,6 +34,9 @@ __all__ = [
     # Multi-Agent PQC-IDS
     "MultiAgentPQCWrapper",
     "MultiAgentPQCIDS",
+    # LipMamba (Certified Poisoning Defense)
+    "LipMambaWrapper",
+    "LipMambaIDS",
     # CL-RL Model Wrappers
     "CLRLUnifiedWrapper",
     "CPOPolicyWrapper",
