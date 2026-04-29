@@ -1500,6 +1500,61 @@ export default function ExplainabilityStudio() {
           )}
         </div>
       )}
+
+      {/* CT-Explain — Advanced Explanation Methods */}
+      <div className="bg-bg-secondary rounded-xl border border-bg-card">
+        <button
+          onClick={() => setShowCTExplain(!showCTExplain)}
+          className="w-full flex items-center justify-between p-4"
+        >
+          <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <Eye className="w-4 h-4 text-accent-purple" />
+            CT-Explain — Advanced Explanation Methods
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-purple/15 text-accent-purple">NEW</span>
+          </h2>
+          {showCTExplain ? <ChevronUp className="w-4 h-4 text-text-secondary" /> : <ChevronDown className="w-4 h-4 text-text-secondary" />}
+        </button>
+        {showCTExplain && (
+          <div className="px-4 pb-4 space-y-3">
+            <p className="text-xs text-text-secondary">
+              CT-Explain extends the CT-TGNN backbone with four SOC-optimized explanation methods and conformal safety certification.
+              Designed for human-AI collaborative intrusion detection with calibrated confidence intervals.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-bg-primary rounded-lg p-3 border border-accent-purple/10">
+                <h4 className="text-xs font-semibold text-accent-blue mb-1">1. Temporal Attention Flow</h4>
+                <p className="text-[10px] text-text-secondary">Visualizes how attention propagates through the continuous-time graph. Shows which past events most influenced the current detection decision.</p>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-accent-purple/10">
+                <h4 className="text-xs font-semibold text-accent-amber mb-1">2. Fokker-Planck Uncertainty</h4>
+                <p className="text-[10px] text-text-secondary">Decomposes predictive uncertainty via stochastic differential equations. Separates epistemic (model ignorance) from aleatoric (data noise) uncertainty per feature.</p>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-accent-purple/10">
+                <h4 className="text-xs font-semibold text-accent-green mb-1">3. Counterfactual Trajectories</h4>
+                <p className="text-[10px] text-text-secondary">Computes adjoint-based counterfactuals: "What minimal change to the traffic would flip the detection?" Shows the decision boundary in interpretable feature space.</p>
+              </div>
+              <div className="bg-bg-primary rounded-lg p-3 border border-accent-purple/10">
+                <h4 className="text-xs font-semibold text-accent-red mb-1">4. Game-Theoretic Strategy</h4>
+                <p className="text-[10px] text-text-secondary">Reveals the Nash equilibrium strategy the detector uses against adaptive adversaries. Maps detection decisions to MITRE ATT&CK techniques with confidence.</p>
+              </div>
+            </div>
+            <div className="bg-bg-primary rounded-lg p-3 border border-bg-card">
+              <div className="text-xs font-semibold text-text-primary mb-1">Conformal Safety Layer</div>
+              <div className="text-[10px] text-text-secondary">
+                All explanations include conformal prediction sets with coverage guarantee P[y ∈ C_α] ≥ 1−α.
+                E-value martingale monitoring detects concept drift and triggers recalibration automatically.
+              </div>
+            </div>
+            <div className="text-[10px] text-text-secondary">
+              <strong className="text-text-primary">Datasets:</strong> 6 benchmarks × 84.2M records × 83 attack classes ·
+              <strong className="text-text-primary">Pipeline:</strong> Network Traffic → Graph → CT-TGNN/SDE-TGNN → Explainability Engine → ConformalGuard → SOC Dashboard
+            </div>
+            <a href="https://github.com/rogerpanel/CT-Explain" target="_blank" rel="noopener noreferrer" className="text-[10px] text-accent-purple hover:underline">
+              GitHub: rogerpanel/CT-Explain
+            </a>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
