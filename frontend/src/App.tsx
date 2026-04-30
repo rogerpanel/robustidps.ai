@@ -50,6 +50,7 @@ import {
   Search,
   Shield,
   AlertTriangle,
+  Monitor,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -100,6 +101,8 @@ const AutoInvestigation = lazy(() => import('./pages/AutoInvestigation'))
 const ThreatHunt = lazy(() => import('./pages/ThreatHunt'))
 const RuleGenerator = lazy(() => import('./pages/RuleGenerator'))
 const CVEMapper = lazy(() => import('./pages/CVEMapper'))
+const DeviceDiscovery = lazy(() => import('./pages/DeviceDiscovery'))
+const NetworkTopologyMap = lazy(() => import('./pages/NetworkTopologyMap'))
 const Profile = lazy(() => import('./pages/Profile'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
@@ -165,6 +168,8 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/threat-intel', label: 'Threat Intel', icon: Globe },
       { to: '/rule-generator', label: 'Rule Generator', icon: Shield },
       { to: '/cve-mapper', label: 'CVE Mapper', icon: AlertTriangle },
+      { to: '/device-discovery', label: 'Device Discovery', icon: Monitor },
+      { to: '/network-map', label: 'Network Map', icon: Network },
     ],
   },
   {
@@ -732,6 +737,8 @@ export default function App() {
               <Route path="/threat-hunt" element={<ThreatHunt />} />
               <Route path="/rule-generator" element={<RuleGenerator />} />
               <Route path="/cve-mapper" element={<CVEMapper />} />
+              <Route path="/device-discovery" element={<DeviceDiscovery />} />
+              <Route path="/network-map" element={<NetworkTopologyMap />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/about" element={<About />} />
             </Routes>
