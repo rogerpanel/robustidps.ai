@@ -1698,11 +1698,9 @@ export async function cachePageResult(page: string, result: Record<string, unkno
   }
 }
 
-export async function analyseFile(file: File, modelId = 'surrogate', cachePage?: string, quickMode?: boolean) {
+export async function analyseFile(file: File, modelId = 'surrogate', cachePage?: string, _quickMode?: boolean) {
   const form = new FormData();
   form.append('file', file);
-  form.append('model_name', modelId);
-  if (quickMode) form.append('quick_mode', 'true');
   const res = await authFetch(`${API}/api/predict`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(`Analysis failed: ${res.status}`);
   const data = await res.json();
