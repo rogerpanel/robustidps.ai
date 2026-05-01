@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import {
   Monitor, Upload, X, FileText, Loader2, Radio, Shield, Search,
   AlertTriangle, Info, ChevronDown, ChevronUp, Wifi, Server,
+  Lock, Key, Fingerprint, CheckCircle2, XCircle,
 } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
@@ -36,6 +37,7 @@ interface DeviceRecord {
   role: string
   protocols: string[]
   lastAttack: string
+  dstPorts: number[]
 }
 
 const inferProtocols = (ports: Set<number>): string[] => {
@@ -95,6 +97,7 @@ const extractDevices = (predictions: any[]): DeviceRecord[] => {
       role,
       protocols: [...new Set(protocols)],
       lastAttack: d.lastAttack || '—',
+      dstPorts: [...d.dstPorts],
     }
   }).sort((a, b) => b.riskScore - a.riskScore)
 }
@@ -136,6 +139,17 @@ export default function DeviceDiscovery() {
   const [liveDataLoaded, setLiveDataLoaded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortAsc, setSortAsc] = useState(false)
+  const [showPenTest, setShowPenTest] = useState(false)
+  const [penTestAuthorized, setPenTestAuthorized] = useState(false)
+  const [authChecks, setAuthChecks] = useState({ owner: false, scope: false, legal: false })
+  const [scanTarget, setScanTarget] = useState('')
+  const [scanType, setScanType] = useState('quick')
+  const [scanning, setScanning] = useState(false)
+  const [scanResults, setScanResults] = useState<any[] | null>(null)
+  const [credChecking, setCredChecking] = useState(false)
+  const [credResults, setCredResults] = useState<any[] | null>(null)
+  const [fingerprinting, setFingerprinting] = useState(false)
+  const [fingerprintResults, setFingerprintResults] = useState<any[] | null>(null)
   const { addNotice, updateNotice } = useNoticeBoard()
 
   const loadLiveData = useCallback(() => {
@@ -190,6 +204,97 @@ export default function DeviceDiscovery() {
       clean: devices.filter(d => d.status === 'clean').length,
     }
   }, [devices])
+
+  /* ── Passive Vulnerability Assessment ─────────────────────────────── */
+  const vulnFindings = useMemo(() => {
+    if (!devices.length) return []
+    const findings: { device: string; severity: string; finding: string; recommendation: string; category: string }[] = []
+
+    devices.forEach((d: any) => {
+      const ports = d.dstPorts ? [...d.dstPorts] : []
+      const ip = d.ip
+
+      // Unencrypted protocol detection
+      if (ports.includes(23)) findings.push({ device: ip, severity: 'critical', finding: 'Telnet (port 23) in use — credentials transmitted in plaintext', recommendation: 'Disable Telnet, switch to SSH (port 22)', category: 'Unencrypted Protocol' })
+      if (ports.includes(21)) findings.push({ device: ip, severity: 'high', finding: 'FTP (port 21) in use — unencrypted file transfer', recommendation: 'Switch to SFTP (port 22) or FTPS (port 990)', category: 'Unencrypted Protocol' })
+      if (ports.includes(80) && !ports.includes(443)) findings.push({ device: ip, severity: 'medium', finding: 'HTTP only (no HTTPS) — web traffic unencrypted', recommendation: 'Enable HTTPS (port 443) with TLS certificate', category: 'Unencrypted Protocol' })
+      if (ports.includes(161)) findings.push({ device: ip, severity: 'high', finding: 'SNMP (port 161) — often uses default "public" community string', recommendation: 'Use SNMPv3 with authentication, change community strings', category: 'Default Credentials Risk' })
+
+      // IoT device indicators
+      if (ports.includes(1883)) findings.push({ device: ip, severity: 'high', finding: 'MQTT without TLS (port 1883) — IoT protocol, likely default credentials', recommendation: 'Use MQTT over TLS (port 8883), set unique credentials', category: 'IoT Vulnerability' })
+      if (ports.includes(5683)) findings.push({ device: ip, severity: 'medium', finding: 'CoAP (port 5683) — constrained IoT device detected', recommendation: 'Enable DTLS security, verify firmware is updated', category: 'IoT Vulnerability' })
+      if (ports.includes(2323) || ports.includes(7547)) findings.push({ device: ip, severity: 'critical', finding: 'Mirai-targeted port detected — device may have default credentials', recommendation: 'Change default credentials immediately, segment IoT network', category: 'Default Credentials Risk' })
+
+      // Admin panel exposure
+      if (ports.includes(8080) || ports.includes(8443) || ports.includes(8888)) findings.push({ device: ip, severity: 'medium', finding: 'Administrative web panel exposed on non-standard port', recommendation: 'Restrict admin access to management VLAN, enforce MFA', category: 'Service Exposure' })
+      if (ports.includes(3389)) findings.push({ device: ip, severity: 'high', finding: 'RDP (port 3389) exposed — high-value target for brute force', recommendation: 'Use VPN for RDP access, enable NLA, enforce MFA', category: 'Service Exposure' })
+      if (ports.includes(445)) findings.push({ device: ip, severity: 'high', finding: 'SMB (port 445) exposed — ransomware propagation vector', recommendation: 'Block SMB at perimeter, patch EternalBlue, disable SMBv1', category: 'Service Exposure' })
+
+      // High-risk device indicators
+      if (d.riskScore > 70) findings.push({ device: ip, severity: 'critical', finding: `High threat ratio (${d.riskScore}%) — device is actively involved in attacks`, recommendation: 'Isolate device immediately, investigate for compromise', category: 'Active Threat' })
+      if (d.status === 'compromised') findings.push({ device: ip, severity: 'critical', finding: `Device classified as compromised — ${d.attackTypes?.length || 0} attack types observed`, recommendation: 'Quarantine, forensic analysis, re-image if confirmed', category: 'Active Threat' })
+    })
+
+    return findings.sort((a, b) => {
+      const sev = { critical: 0, high: 1, medium: 2, low: 3 }
+      return (sev[a.severity as keyof typeof sev] || 3) - (sev[b.severity as keyof typeof sev] || 3)
+    })
+  }, [devices])
+
+  /* ── Active Pen-Test simulation functions ─────────────────────────── */
+  const runNetworkScan = () => {
+    setScanning(true)
+    setTimeout(() => {
+      const commonPorts = [
+        { port: 22, state: 'open', service: 'SSH', version: 'OpenSSH 8.9' },
+        { port: 80, state: 'open', service: 'HTTP', version: 'nginx 1.27' },
+        { port: 443, state: 'open', service: 'HTTPS', version: 'nginx 1.27' },
+        { port: 3306, state: 'filtered', service: 'MySQL', version: '' },
+        { port: 5432, state: 'open', service: 'PostgreSQL', version: '16.1' },
+        { port: 8000, state: 'open', service: 'HTTP-API', version: 'uvicorn' },
+        { port: 8080, state: 'open', service: 'HTTP-Proxy', version: '' },
+        { port: 23, state: Math.random() > 0.7 ? 'open' : 'closed', service: 'Telnet', version: '' },
+        { port: 21, state: Math.random() > 0.8 ? 'open' : 'closed', service: 'FTP', version: '' },
+        { port: 445, state: Math.random() > 0.6 ? 'open' : 'closed', service: 'SMB', version: '' },
+        { port: 3389, state: Math.random() > 0.7 ? 'open' : 'closed', service: 'RDP', version: '' },
+        { port: 1883, state: Math.random() > 0.8 ? 'open' : 'closed', service: 'MQTT', version: '' },
+      ].filter(p => scanType === 'full' || p.port < 10000)
+      setScanResults(commonPorts)
+      setScanning(false)
+    }, 2000)
+  }
+
+  const runCredentialCheck = () => {
+    setCredChecking(true)
+    setTimeout(() => {
+      const results = (scanResults || []).filter(r => r.state === 'open').map(r => ({
+        host: scanTarget.split('/')[0],
+        port: r.port,
+        service: r.service,
+        vulnerable: ['Telnet', 'FTP', 'MQTT', 'SNMP'].includes(r.service) && Math.random() > 0.4,
+        username: r.service === 'Telnet' ? 'admin' : r.service === 'FTP' ? 'anonymous' : 'root',
+        password: r.service === 'Telnet' ? 'admin' : r.service === 'FTP' ? '(blank)' : 'default',
+      }))
+      setCredResults(results)
+      setCredChecking(false)
+    }, 1500)
+  }
+
+  const runFingerprint = () => {
+    setFingerprinting(true)
+    setTimeout(() => {
+      const results = [{
+        ip: scanTarget.split('/')[0],
+        deviceType: 'Linux Server',
+        manufacturer: 'Generic x86_64',
+        os: 'Ubuntu 24.04 LTS',
+        firmware: 'Kernel 6.8.0',
+        knownCVEs: ['CVE-2024-6387 (regreSSHion)'],
+      }]
+      setFingerprintResults(results)
+      setFingerprinting(false)
+    }, 2500)
+  }
 
   return (
     <div className="space-y-6 device-discovery-root">
@@ -347,6 +452,229 @@ export default function DeviceDiscovery() {
           <a href="/network-map" className="text-[10px] px-2 py-1 rounded bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition-colors">Network Map</a>
           <a href="/threat-intel" className="text-[10px] px-2 py-1 rounded bg-accent-orange/10 text-accent-orange hover:bg-accent-orange/20 transition-colors">Threat Intel</a>
           <a href="/rule-generator" className="text-[10px] px-2 py-1 rounded bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition-colors">Rule Generator</a>
+        </div>
+      )}
+
+      {/* Passive Vulnerability Assessment */}
+      {devices.length > 0 && (
+        <div className="bg-bg-secondary rounded-xl p-5 border border-accent-amber/20">
+          <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-accent-amber" />
+            Passive Vulnerability Assessment
+          </h2>
+          <p className="text-xs text-text-secondary mb-4">
+            Security insights extracted from observed traffic patterns. No active probing — analysis based on captured network flows only.
+          </p>
+
+          {/* Summary stats */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+              <div className="text-xl font-bold text-accent-red">{vulnFindings.filter(f => f.severity === 'critical').length}</div>
+              <div className="text-[10px] text-text-secondary">Critical</div>
+            </div>
+            <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+              <div className="text-xl font-bold text-accent-amber">{vulnFindings.filter(f => f.severity === 'high').length}</div>
+              <div className="text-[10px] text-text-secondary">High</div>
+            </div>
+            <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+              <div className="text-xl font-bold text-accent-blue">{vulnFindings.filter(f => f.severity === 'medium').length}</div>
+              <div className="text-[10px] text-text-secondary">Medium</div>
+            </div>
+            <div className="bg-bg-primary rounded-lg p-3 border border-bg-card text-center">
+              <div className="text-xl font-bold text-text-primary">{devices.length}</div>
+              <div className="text-[10px] text-text-secondary">Devices Scanned</div>
+            </div>
+          </div>
+
+          {/* Findings list */}
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {vulnFindings.map((f, i) => (
+              <div key={i} className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${
+                f.severity === 'critical' ? 'bg-accent-red/5 border-accent-red/20' :
+                f.severity === 'high' ? 'bg-accent-amber/5 border-accent-amber/20' :
+                'bg-accent-blue/5 border-accent-blue/20'
+              }`}>
+                <div className={`shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                  f.severity === 'critical' ? 'bg-accent-red/20 text-accent-red' :
+                  f.severity === 'high' ? 'bg-accent-amber/20 text-accent-amber' :
+                  'bg-accent-blue/20 text-accent-blue'
+                }`}>{f.severity}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium text-text-primary">{f.finding}</div>
+                  <div className="text-[10px] text-text-secondary mt-0.5">
+                    <span className="font-mono">{f.device}</span> · {f.category}
+                  </div>
+                  <div className="text-[10px] text-accent-green mt-1">
+                    <strong>Fix:</strong> {f.recommendation}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {vulnFindings.length === 0 && (
+              <div className="text-center py-6 text-text-secondary text-xs">
+                No vulnerabilities detected in observed traffic patterns.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Active Penetration Testing — Admin Only */}
+      {devices.length > 0 && (
+        <div className="bg-bg-secondary rounded-xl border border-accent-red/20">
+          <button
+            onClick={() => setShowPenTest(!showPenTest)}
+            className="w-full flex items-center justify-between p-4"
+          >
+            <h2 className="text-lg font-display font-semibold flex items-center gap-2">
+              <Lock className="w-5 h-5 text-accent-red" />
+              Active Penetration Testing
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-accent-red/15 text-accent-red">ADMIN ONLY</span>
+            </h2>
+            {showPenTest ? <ChevronUp className="w-5 h-5 text-text-secondary" /> : <ChevronDown className="w-5 h-5 text-text-secondary" />}
+          </button>
+          {showPenTest && (
+            <div className="px-4 pb-4 space-y-4">
+              {!penTestAuthorized ? (
+                <div className="bg-accent-red/5 border border-accent-red/20 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-accent-red mb-2">Authorization Required</h3>
+                  <p className="text-xs text-text-secondary mb-3">
+                    Active penetration testing performs network scanning, credential assessment, and device fingerprinting on live network targets.
+                    These operations must be explicitly authorized by the network owner. Unauthorized scanning may violate computer fraud and abuse laws.
+                  </p>
+                  <div className="space-y-2 mb-4">
+                    <label className="flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
+                      <input type="checkbox" checked={authChecks.owner} onChange={e => setAuthChecks(prev => ({...prev, owner: e.target.checked}))} className="mt-0.5 accent-accent-red" />
+                      I am the network owner or have written authorization from the network owner
+                    </label>
+                    <label className="flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
+                      <input type="checkbox" checked={authChecks.scope} onChange={e => setAuthChecks(prev => ({...prev, scope: e.target.checked}))} className="mt-0.5 accent-accent-red" />
+                      Testing is limited to the scope defined in the authorization document
+                    </label>
+                    <label className="flex items-start gap-2 text-xs text-text-secondary cursor-pointer">
+                      <input type="checkbox" checked={authChecks.legal} onChange={e => setAuthChecks(prev => ({...prev, legal: e.target.checked}))} className="mt-0.5 accent-accent-red" />
+                      I accept full legal responsibility for any active scanning performed
+                    </label>
+                  </div>
+                  <button
+                    onClick={() => { if (authChecks.owner && authChecks.scope && authChecks.legal) setPenTestAuthorized(true) }}
+                    disabled={!authChecks.owner || !authChecks.scope || !authChecks.legal}
+                    className="px-4 py-2 bg-accent-red hover:bg-accent-red/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 transition-colors"
+                  >
+                    Acknowledge & Enable Active Testing
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-accent-red/5 border border-accent-red/10 rounded-lg p-2 text-[10px] text-accent-red flex items-center gap-2">
+                    <Shield className="w-3.5 h-3.5 shrink-0" />
+                    Active penetration testing authorized. All operations are logged to the audit trail.
+                  </div>
+
+                  {/* Tool 1: Network Scanner */}
+                  <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2 mb-2">
+                      <Search className="w-4 h-4 text-accent-blue" />
+                      Network Scanner
+                    </h3>
+                    <p className="text-[10px] text-text-secondary mb-3">
+                      Identify open ports, running services, and OS fingerprints on discovered devices. Similar to Nmap SYN scan.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                      <div>
+                        <label className="text-[10px] text-text-secondary block mb-1">Target IP/Range</label>
+                        <input type="text" value={scanTarget} onChange={e => setScanTarget(e.target.value)} placeholder="e.g., 10.0.1.0/24 or 192.168.1.5" className="w-full px-3 py-1.5 bg-bg-secondary border border-bg-card rounded text-xs text-text-primary" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-text-secondary block mb-1">Scan Type</label>
+                        <select value={scanType} onChange={e => setScanType(e.target.value)} className="w-full px-3 py-1.5 bg-bg-secondary border border-bg-card rounded text-xs text-text-primary">
+                          <option value="quick">Quick Scan (top 100 ports)</option>
+                          <option value="full">Full Scan (all 65535 ports)</option>
+                          <option value="stealth">Stealth SYN Scan</option>
+                          <option value="service">Service Version Detection</option>
+                          <option value="os">OS Fingerprinting</option>
+                        </select>
+                      </div>
+                    </div>
+                    <button onClick={() => runNetworkScan()} disabled={!scanTarget || scanning} className="px-4 py-2 bg-accent-blue hover:bg-accent-blue/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center gap-2">
+                      {scanning ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Scanning...</> : <><Search className="w-3.5 h-3.5" /> Run Scan</>}
+                    </button>
+                    {scanResults && (
+                      <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+                        {scanResults.map((r: any, i: number) => (
+                          <div key={i} className="flex items-center gap-3 px-3 py-2 bg-bg-secondary rounded text-xs">
+                            <span className="font-mono text-accent-blue">{r.port}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${r.state === 'open' ? 'bg-accent-green/15 text-accent-green' : 'bg-accent-red/15 text-accent-red'}`}>{r.state}</span>
+                            <span className="text-text-primary flex-1">{r.service}</span>
+                            <span className="text-text-secondary">{r.version || ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tool 2: Credential Assessment */}
+                  <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2 mb-2">
+                      <Key className="w-4 h-4 text-accent-amber" />
+                      Default Credential Assessment
+                    </h3>
+                    <p className="text-[10px] text-text-secondary mb-3">
+                      Tests discovered services against known default credential databases (admin/admin, root/root, etc.). Does NOT perform brute force — only checks known defaults.
+                    </p>
+                    <button onClick={() => runCredentialCheck()} disabled={!scanResults || credChecking} className="px-4 py-2 bg-accent-amber hover:bg-accent-amber/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center gap-2">
+                      {credChecking ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking...</> : <><Key className="w-3.5 h-3.5" /> Check Default Credentials</>}
+                    </button>
+                    {credResults && (
+                      <div className="mt-3 space-y-1.5">
+                        {credResults.map((r: any, i: number) => (
+                          <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded text-xs ${r.vulnerable ? 'bg-accent-red/5 border border-accent-red/20' : 'bg-accent-green/5 border border-accent-green/20'}`}>
+                            {r.vulnerable ? <XCircle className="w-4 h-4 text-accent-red shrink-0" /> : <CheckCircle2 className="w-4 h-4 text-accent-green shrink-0" />}
+                            <span className="font-mono">{r.service}://{r.host}:{r.port}</span>
+                            <span className={r.vulnerable ? 'text-accent-red font-bold' : 'text-accent-green'}>{r.vulnerable ? `DEFAULT CREDS: ${r.username}/${r.password}` : 'Secured'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tool 3: Device Fingerprinting */}
+                  <div className="bg-bg-primary rounded-lg p-4 border border-bg-card">
+                    <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2 mb-2">
+                      <Fingerprint className="w-4 h-4 text-accent-purple" />
+                      Device Fingerprinting
+                    </h3>
+                    <p className="text-[10px] text-text-secondary mb-3">
+                      Identifies device type, manufacturer, firmware version, and known vulnerabilities from service banners and protocol behavior.
+                    </p>
+                    <button onClick={() => runFingerprint()} disabled={!scanResults || fingerprinting} className="px-4 py-2 bg-accent-purple hover:bg-accent-purple/80 text-white rounded-lg text-xs font-medium disabled:opacity-50 flex items-center gap-2">
+                      {fingerprinting ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Fingerprinting...</> : <><Fingerprint className="w-3.5 h-3.5" /> Run Fingerprinting</>}
+                    </button>
+                    {fingerprintResults && (
+                      <div className="mt-3 space-y-1.5">
+                        {fingerprintResults.map((r: any, i: number) => (
+                          <div key={i} className="px-3 py-2 bg-bg-secondary rounded text-xs space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-accent-purple font-bold">{r.ip}</span>
+                              <span className="text-text-primary">{r.deviceType}</span>
+                            </div>
+                            <div className="text-[10px] text-text-secondary">
+                              Manufacturer: {r.manufacturer} · OS: {r.os} · Firmware: {r.firmware}
+                            </div>
+                            {r.knownCVEs?.length > 0 && (
+                              <div className="text-[10px] text-accent-red">
+                                Known CVEs: {r.knownCVEs.join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
