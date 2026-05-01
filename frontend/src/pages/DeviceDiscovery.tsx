@@ -272,12 +272,14 @@ export default function DeviceDiscovery() {
     // Extract unique ports observed
     const portMap: Record<number, { count: number; services: Set<string>; threats: number }> = {}
     relevantFlows.forEach((f: any) => {
-      const port = f.dst_port || f.src_port || 0
-      if (!port) return
-      if (!portMap[port]) portMap[port] = { count: 0, services: new Set(), threats: 0 }
-      portMap[port].count++
-      if (f.severity !== 'benign') portMap[port].threats++
-      if (f.label_predicted) portMap[port].services.add(f.label_predicted)
+      const dport = parseInt(f.dst_port) || 0
+      const sport = parseInt(f.src_port) || 0
+      ;[dport, sport].filter(p => p > 0).forEach(port => {
+        if (!portMap[port]) portMap[port] = { count: 0, services: new Set(), threats: 0 }
+        portMap[port].count++
+        if (f.severity !== 'benign') portMap[port].threats++
+        if (f.label_predicted) portMap[port].services.add(f.label_predicted)
+      })
     })
 
     // Known port-to-service mapping
@@ -320,15 +322,21 @@ export default function DeviceDiscovery() {
       .sort((a, b) => a.port - b.port)
 
     // If no flows found for target, fall back to showing all unique ports in the dataset
-    if (results.length === 0 && relevantFlows.length === 0) {
-      const allPorts: Record<number, number> = {}
+    if (results.length === 0) {
+      const allPorts: Record<number, { count: number; threats: number }> = {}
       preds.forEach((p: any) => {
-        if (p.dst_port) allPorts[p.dst_port] = (allPorts[p.dst_port] || 0) + 1
+        const dp = parseInt(p.dst_port) || 0
+        const sp = parseInt(p.src_port) || 0
+        ;[dp, sp].filter(x => x > 0).forEach(port => {
+          if (!allPorts[port]) allPorts[port] = { count: 0, threats: 0 }
+          allPorts[port].count++
+          if (p.severity !== 'benign') allPorts[port].threats++
+        })
       })
-      Object.entries(allPorts).sort((a, b) => parseInt(b[0]) - parseInt(a[0])).slice(0, 20).forEach(([p, count]) => {
+      Object.entries(allPorts).sort((a, b) => (b[1] as any).count - (a[1] as any).count).slice(0, 20).forEach(([p, info]) => {
         const port = parseInt(p)
         const known = SERVICE_MAP[port]
-        results.push({ port, state: 'open', service: known?.name || `Port ${port}`, version: known?.version || '', flowCount: count, threatCount: 0 })
+        results.push({ port, state: 'open', service: known?.name || `Port ${port}`, version: known?.version || '', flowCount: (info as any).count, threatCount: (info as any).threats })
       })
     }
 
