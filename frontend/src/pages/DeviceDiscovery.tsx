@@ -16,10 +16,20 @@ const _store: {
   file: File | null
   analysisResult: any
   modelId: string
+  scanResults: any[] | null
+  credResults: any[] | null
+  fingerprintResults: any[] | null
+  penTestAuthorized: boolean
+  scanTarget: string
 } = {
   file: null,
   analysisResult: null,
   modelId: 'surrogate',
+  scanResults: null,
+  credResults: null,
+  fingerprintResults: null,
+  penTestAuthorized: false,
+  scanTarget: '',
 }
 
 /* ── Device extraction logic ───────────────────────────────────────── */
@@ -140,16 +150,21 @@ export default function DeviceDiscovery() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortAsc, setSortAsc] = useState(false)
   const [showPenTest, setShowPenTest] = useState(false)
-  const [penTestAuthorized, setPenTestAuthorized] = useState(false)
-  const [authChecks, setAuthChecks] = useState({ owner: false, scope: false, legal: false })
-  const [scanTarget, setScanTarget] = useState('')
+  const [penTestAuthorized, _setPenTestAuth] = useState(_store.penTestAuthorized)
+  const setPenTestAuthorized = (v: boolean) => { _store.penTestAuthorized = v; _setPenTestAuth(v) }
+  const [authChecks, setAuthChecks] = useState({ owner: _store.penTestAuthorized, scope: _store.penTestAuthorized, legal: _store.penTestAuthorized })
+  const [scanTarget, _setScanTarget] = useState(_store.scanTarget)
+  const setScanTarget = (v: string) => { _store.scanTarget = v; _setScanTarget(v) }
   const [scanType, setScanType] = useState('quick')
   const [scanning, setScanning] = useState(false)
-  const [scanResults, setScanResults] = useState<any[] | null>(null)
+  const [scanResults, _setScanResults] = useState<any[] | null>(_store.scanResults)
+  const setScanResults = (v: any[] | null) => { _store.scanResults = v; _setScanResults(v) }
   const [credChecking, setCredChecking] = useState(false)
-  const [credResults, setCredResults] = useState<any[] | null>(null)
+  const [credResults, _setCredResults] = useState<any[] | null>(_store.credResults)
+  const setCredResults = (v: any[] | null) => { _store.credResults = v; _setCredResults(v) }
   const [fingerprinting, setFingerprinting] = useState(false)
-  const [fingerprintResults, setFingerprintResults] = useState<any[] | null>(null)
+  const [fingerprintResults, _setFingerprintResults] = useState<any[] | null>(_store.fingerprintResults)
+  const setFingerprintResults = (v: any[] | null) => { _store.fingerprintResults = v; _setFingerprintResults(v) }
   const { addNotice, updateNotice } = useNoticeBoard()
 
   const loadLiveData = useCallback(() => {
