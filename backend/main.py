@@ -887,6 +887,7 @@ async def get_results(
 async def predict(
     request: Request,
     file: UploadFile = File(...),
+    quick_mode: bool = Form(default=False),
     user=Depends(require_auth),
 ):
     # Circuit breaker check — block predictions if drift threshold exceeded
@@ -903,6 +904,16 @@ async def predict(
     features, metadata, labels_encoded, label_names, fmt = await asyncio.to_thread(
         extract_features, data, file.filename or "upload.csv"
     )
+
+    # Quick mode: subsample large files for fast preview (5,000 rows)
+    effective_max = 5000 if quick_mode else MAX_ROWS
+    if len(features) > effective_max:
+        idx = torch.randperm(len(features))[:effective_max].sort().values
+        features = features[idx]
+        metadata = [metadata[i] for i in idx.tolist()] if metadata else metadata
+        if labels_encoded is not None:
+            labels_encoded = labels_encoded[idx]
+
     result = await asyncio.to_thread(
         predict_with_uncertainty,
         model, features.to(DEVICE),

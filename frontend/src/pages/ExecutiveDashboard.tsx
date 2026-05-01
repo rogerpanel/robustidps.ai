@@ -7,6 +7,17 @@ import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 
+// Module-level store: survives component unmount on navigation
+const _store: {
+  file: File | null
+  analysisResult: any
+  modelId: string
+} = {
+  file: null,
+  analysisResult: null,
+  modelId: 'surrogate',
+}
+
 /* ── Guide steps ── */
 const GUIDE_STEPS = [
   { title: 'Upload Data', desc: 'Drag-and-drop a network capture file or use live monitor data for instant analysis.' },
@@ -32,10 +43,14 @@ const SEV_LABELS: Record<string, string> = {
 }
 
 export default function ExecutiveDashboard() {
-  const [file, setFile] = useState<File | null>(null)
-  const [modelId, setModelId] = useState('surrogate')
-  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [file, _setFile] = useState<File | null>(_store.file)
+  const [modelId, _setModelId] = useState(_store.modelId)
+  const [analysisResult, _setAnalysisResult] = useState<any>(_store.analysisResult)
   const [analyzing, setAnalyzing] = useState(false)
+
+  const setFile = (f: File | null) => { _store.file = f; _setFile(f) }
+  const setModelId = (v: string) => { _store.modelId = v; _setModelId(v) }
+  const setAnalysisResult = (v: any) => { _store.analysisResult = v; _setAnalysisResult(v) }
   const [dragOver, setDragOver] = useState(false)
   const [liveDataLoaded, setLiveDataLoaded] = useState(false)
   const { addNotice, updateNotice } = useNoticeBoard()
@@ -66,7 +81,7 @@ export default function ExecutiveDashboard() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Executive Dashboard Analysis', description: `Analyzing ${file.name}...`, status: 'running', page: '/executive-dashboard' })
     try {
-      const data = await analyseFile(file, modelId, 'executive_dashboard')
+      const data = await analyseFile(file, modelId, 'executive_dashboard', true)
       setAnalysisResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows analyzed` })
     } catch (err) {

@@ -10,6 +10,17 @@ import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 
+// Module-level store: survives component unmount on navigation
+const _store: {
+  file: File | null
+  analysisResult: any
+  modelId: string
+} = {
+  file: null,
+  analysisResult: null,
+  modelId: 'surrogate',
+}
+
 /* ── Device extraction logic ───────────────────────────────────────── */
 
 interface DeviceRecord {
@@ -114,10 +125,14 @@ const ROLE_STYLE: Record<string, string> = {
 }
 
 export default function DeviceDiscovery() {
-  const [file, setFile] = useState<File | null>(null)
-  const [modelId, setModelId] = useState('surrogate')
-  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [file, _setFile] = useState<File | null>(_store.file)
+  const [modelId, _setModelId] = useState(_store.modelId)
+  const [analysisResult, _setAnalysisResult] = useState<any>(_store.analysisResult)
   const [analyzing, setAnalyzing] = useState(false)
+
+  const setFile = (f: File | null) => { _store.file = f; _setFile(f) }
+  const setModelId = (v: string) => { _store.modelId = v; _setModelId(v) }
+  const setAnalysisResult = (v: any) => { _store.analysisResult = v; _setAnalysisResult(v) }
   const [liveDataLoaded, setLiveDataLoaded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortAsc, setSortAsc] = useState(false)
@@ -135,7 +150,7 @@ export default function DeviceDiscovery() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Device Discovery', description: `Scanning ${file.name}...`, status: 'running', page: '/device-discovery' })
     try {
-      const data = await analyseFile(file, modelId, 'device_discovery')
+      const data = await analyseFile(file, modelId, 'device_discovery', true)
       setAnalysisResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows scanned` })
       cachePageResult('device_discovery', { n_flows: data.predictions?.length || 0, model: modelId }).catch(() => {})

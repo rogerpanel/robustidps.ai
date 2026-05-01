@@ -1035,6 +1035,9 @@ export default function LiveMonitor() {
                   { path: '/causality-graph', label: 'Causality Graph' },
                   { path: '/attack-chain', label: 'Attack Chain' },
                   { path: '/data-poisoning', label: 'Data Poisoning' },
+                  { path: '/executive', label: 'Executive View' },
+                  { path: '/device-discovery', label: 'Device Discovery' },
+                  { path: '/network-map', label: 'Network Map' },
                 ].map(page => (
                   <button
                     key={page.path}

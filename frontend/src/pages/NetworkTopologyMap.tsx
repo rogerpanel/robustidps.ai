@@ -21,6 +21,19 @@ interface TopoEdge {
   from: string; to: string; count: number; hasThreat: boolean
 }
 
+// Module-level store: survives component unmount on navigation
+const _store: {
+  file: File | null
+  analysisResult: any
+  modelId: string
+  selectedNode: TopoNode | null
+} = {
+  file: null,
+  analysisResult: null,
+  modelId: 'surrogate',
+  selectedNode: null,
+}
+
 interface Topology {
   nodes: TopoNode[]; edges: TopoEdge[]
 }
@@ -82,12 +95,17 @@ const GUIDE_STEPS = [
 ]
 
 export default function NetworkTopologyMap() {
-  const [file, setFile] = useState<File | null>(null)
-  const [modelId, setModelId] = useState('surrogate')
-  const [analysisResult, setAnalysisResult] = useState<any>(null)
+  const [file, _setFile] = useState<File | null>(_store.file)
+  const [modelId, _setModelId] = useState(_store.modelId)
+  const [analysisResult, _setAnalysisResult] = useState<any>(_store.analysisResult)
   const [analyzing, setAnalyzing] = useState(false)
   const [liveDataLoaded, setLiveDataLoaded] = useState(false)
-  const [selectedNode, setSelectedNode] = useState<TopoNode | null>(null)
+  const [selectedNode, _setSelectedNode] = useState<TopoNode | null>(_store.selectedNode)
+
+  const setFile = (f: File | null) => { _store.file = f; _setFile(f) }
+  const setModelId = (v: string) => { _store.modelId = v; _setModelId(v) }
+  const setAnalysisResult = (v: any) => { _store.analysisResult = v; _setAnalysisResult(v) }
+  const setSelectedNode = (v: TopoNode | null) => { _store.selectedNode = v; _setSelectedNode(v) }
   const { addNotice, updateNotice } = useNoticeBoard()
 
   const loadLiveData = useCallback(() => {
@@ -102,7 +120,7 @@ export default function NetworkTopologyMap() {
     setAnalyzing(true)
     const nid = addNotice({ title: 'Network Map', description: `Mapping ${file.name}...`, status: 'running', page: '/network-map' })
     try {
-      const data = await analyseFile(file, modelId, 'network_map')
+      const data = await analyseFile(file, modelId, 'network_map', true)
       setAnalysisResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows mapped` })
       cachePageResult('network_map', { n_flows: data.predictions?.length || 0, model: modelId }).catch(() => {})

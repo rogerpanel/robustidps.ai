@@ -3,6 +3,9 @@ import { GitBranch, Building2, HeartPulse, Layers, ArrowRight, CheckCircle, Shie
 import PageGuide from '../components/PageGuide'
 import { cachePageResult } from '../utils/api'
 
+// Module-level store: survives component unmount on navigation
+const _store = { tab: 'banking' as string }
+
 /* ── Guide ────────────────────────────────────────────────────────── */
 
 const GUIDE_STEPS = [
@@ -100,7 +103,8 @@ const TRANSFER_STEPS = [
 type Tab = 'banking' | 'medical' | 'architecture'
 
 export default function DomainTransferDemo() {
-  const [tab, setTab] = useState<Tab>('banking')
+  const [tab, _setTab] = useState<Tab>(_store.tab as Tab)
+  const setTab = (t: Tab) => { _store.tab = t; _setTab(t) }
 
   // Cache on mount (informational page)
   useState(() => { cachePageResult('domain_transfer', {}).catch(() => {}) })
