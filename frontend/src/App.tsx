@@ -51,6 +51,7 @@ import {
   Shield,
   AlertTriangle,
   Monitor,
+  PieChart,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -103,6 +104,8 @@ const RuleGenerator = lazy(() => import('./pages/RuleGenerator'))
 const CVEMapper = lazy(() => import('./pages/CVEMapper'))
 const DeviceDiscovery = lazy(() => import('./pages/DeviceDiscovery'))
 const NetworkTopologyMap = lazy(() => import('./pages/NetworkTopologyMap'))
+const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard'))
+const DomainTransferDemo = lazy(() => import('./pages/DomainTransferDemo'))
 const Profile = lazy(() => import('./pages/Profile'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
@@ -128,6 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/upload', label: 'Upload & Analyse', icon: Upload },
       { to: '/analytics', label: 'Analytics', icon: BarChart3 },
       { to: '/live', label: 'Live Monitor', icon: Radio },
+      { to: '/executive', label: 'Executive View', icon: PieChart },
       { to: '/causality-graph', label: 'Alert Causality', icon: GitBranch },
     ],
   },
@@ -206,6 +210,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/postdoc-portal', label: 'Postdoc Portal', icon: GraduationCap },
       { to: '/interview-prep', label: 'Interview Prep', icon: ClipboardCheck },
       { to: '/benchmarks', label: 'Benchmarks', icon: Trophy },
+      { to: '/domain-transfer', label: 'Domain Transfer', icon: GitBranch },
     ],
   },
   {
@@ -739,6 +744,8 @@ export default function App() {
               <Route path="/cve-mapper" element={<CVEMapper />} />
               <Route path="/device-discovery" element={<DeviceDiscovery />} />
               <Route path="/network-map" element={<NetworkTopologyMap />} />
+              <Route path="/executive" element={<ExecutiveDashboard />} />
+              <Route path="/domain-transfer" element={<DomainTransferDemo />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/about" element={<About />} />
             </Routes>
