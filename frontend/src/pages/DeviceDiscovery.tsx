@@ -167,7 +167,7 @@ export default function DeviceDiscovery() {
       const data = await analyseFile(file, modelId, 'device_discovery', true)
       setAnalysisResult(data)
       updateNotice(nid, { status: 'completed', description: `${data.predictions?.length || 0} flows scanned` })
-      cachePageResult('device_discovery', { n_flows: data.predictions?.length || 0, model: modelId }).catch(() => {})
+      cachePageResult('device_discovery', { n_flows: data.predictions?.length || 0, model: modelId, n_devices: 'pending' }).catch(() => {})
     } catch (err) {
       updateNotice(nid, { status: 'error', description: err instanceof Error ? err.message : 'Analysis failed' })
     }
@@ -319,6 +319,14 @@ export default function DeviceDiscovery() {
 
     setScanResults(results)
     setScanning(false)
+    cachePageResult('device_discovery', {
+      n_flows: (analysisResult?.predictions || []).length,
+      model: modelId,
+      scan_target: scanTarget,
+      scan_type: scanType,
+      open_ports: results.length,
+      scan_results: results.slice(0, 20),
+    }).catch(() => {})
   }
 
   const runCredentialCheck = () => {
@@ -353,6 +361,12 @@ export default function DeviceDiscovery() {
 
     setCredResults(results)
     setCredChecking(false)
+    const vulnerable = results.filter((r: any) => r.vulnerable)
+    cachePageResult('device_discovery', {
+      n_flows: (analysisResult?.predictions || []).length,
+      model: modelId,
+      credential_check: { total_services: results.length, vulnerable_services: vulnerable.length, vulnerable_details: vulnerable },
+    }).catch(() => {})
   }
 
   const runFingerprint = () => {
@@ -421,6 +435,11 @@ export default function DeviceDiscovery() {
 
     setFingerprintResults(results)
     setFingerprinting(false)
+    cachePageResult('device_discovery', {
+      n_flows: (analysisResult?.predictions || []).length,
+      model: modelId,
+      fingerprint: results[0],
+    }).catch(() => {})
   }
 
   return (
@@ -838,3 +857,4 @@ export default function DeviceDiscovery() {
     </div>
   )
 }
+
