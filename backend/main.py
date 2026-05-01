@@ -909,13 +909,17 @@ async def predict(
     if len(features) > effective_max:
         idx = torch.randperm(len(features))[:effective_max].sort().values
         features = features[idx]
-        metadata = [metadata[i] for i in idx.tolist()] if metadata else metadata
+        if metadata is not None and hasattr(metadata, '__len__') and len(metadata) > 0:
+            try:
+                metadata = [metadata[i] for i in idx.tolist()]
+            except Exception:
+                metadata = metadata
         if labels_encoded is not None:
             labels_encoded = labels_encoded[idx]
 
     result = await asyncio.to_thread(
         predict_with_uncertainty,
-        inference_model, features.to(DEVICE),
+        model, features.to(DEVICE),
         labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
         n_mc=MC_PASSES,
     )
