@@ -259,9 +259,9 @@ export default function DeviceDiscovery() {
   /* ── Active Pen-Test functions (real data extraction) ─────────────── */
   const runNetworkScan = () => {
     setScanning(true)
-    // Extract real port data from analysis results
-    const preds = analysisResult?.predictions || []
-    const targetBase = scanTarget.split('/')[0]
+    try {
+      const preds = analysisResult?.predictions || []
+      const targetBase = scanTarget.split('/')[0]
 
     // Find all flows involving the target IP (as src or dst)
     const relevantFlows = preds.filter((p: any) =>
@@ -341,19 +341,24 @@ export default function DeviceDiscovery() {
     }
 
     setScanResults(results)
-    setScanning(false)
     cachePageResult('device_discovery', {
       n_flows: (analysisResult?.predictions || []).length,
       model: modelId,
       scan_target: scanTarget,
       scan_type: scanType,
       open_ports: results.length,
-      scan_results: results.slice(0, 20),
+      scan_results: results.slice(0, 20).map(r => ({ ...r })),
     }).catch(() => {})
+    } catch (err) {
+      console.error('Network scan error:', err instanceof Error ? err.message : err)
+    } finally {
+      setScanning(false)
+    }
   }
 
   const runCredentialCheck = () => {
     setCredChecking(true)
+    try {
 
     const DEFAULT_CREDS: Record<string, { username: string; password: string; risk: string }> = {
       'Telnet': { username: 'admin', password: 'admin', risk: 'Telnet transmits credentials in plaintext' },
@@ -383,13 +388,17 @@ export default function DeviceDiscovery() {
     })
 
     setCredResults(results)
-    setCredChecking(false)
     const vulnerable = results.filter((r: any) => r.vulnerable)
     cachePageResult('device_discovery', {
       n_flows: (analysisResult?.predictions || []).length,
       model: modelId,
       credential_check: { total_services: results.length, vulnerable_services: vulnerable.length, vulnerable_details: vulnerable },
     }).catch(() => {})
+    } catch (err) {
+      console.error('Credential check error:', err instanceof Error ? err.message : err)
+    } finally {
+      setCredChecking(false)
+    }
   }
 
   const runFingerprint = () => {
