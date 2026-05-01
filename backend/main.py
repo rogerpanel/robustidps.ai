@@ -908,7 +908,7 @@ async def predict(
     )
 
     # Subsample large files to prevent timeout
-    effective_max = min(MAX_ROWS, 10000)
+    effective_max = 3000
     if len(features) > effective_max:
         idx = torch.randperm(len(features))[:effective_max].sort().values
         features = features[idx]
@@ -920,11 +920,12 @@ async def predict(
         if labels_encoded is not None:
             labels_encoded = labels_encoded[idx]
 
+    # Use 5 MC passes for fast /api/predict (full MC_PASSES=20 used by /api/predict_uncertain)
     result = await asyncio.to_thread(
         predict_with_uncertainty,
         model, features.to(DEVICE),
         labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
-        n_mc=MC_PASSES,
+        n_mc=5,
     )
     payload = _build_predictions(features, metadata, labels_encoded, label_names, result)
     payload["job_id"] = str(uuid.uuid4())[:8]
