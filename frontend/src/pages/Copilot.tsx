@@ -148,6 +148,13 @@ const PAGE_CONTEXTS = [
   { id: 'jailbreak_taxonomy', label: 'Jailbreak Taxonomy', query: 'Get the jailbreak taxonomy analysis results. What jailbreak techniques have been catalogued, what is the severity distribution, average effectiveness vs detection difficulty, and which categories pose the highest risk?', icon: 'book-open' },
   { id: 'rag_poisoning', label: 'RAG Poisoning', query: 'Get the RAG poisoning simulation results. How many poisoning scenarios were tested, what was the risk level distribution, which attack types were most dangerous, and which defenses were active during testing?', icon: 'database' },
   { id: 'multi_agent', label: 'Multi-Agent Chain', query: 'Get the multi-agent chain attack simulation results. How many attack scenarios were tested, what was the agent compromise rate, which scenarios were critical, and how effective were the defenses at containing propagation?', icon: 'git-merge' },
+  { id: 'device_discovery', label: 'Device Discovery', query: 'Get the device discovery results. How many devices were found, which are compromised, what vulnerabilities were detected, and what are the network scan and credential assessment findings?', icon: 'monitor' },
+  { id: 'network_map', label: 'Network Map', query: 'Get the network topology map results. How many connections were found, which are threat paths, and what does the network topology look like?', icon: 'network' },
+  { id: 'executive_dashboard', label: 'Executive View', query: 'Get the executive dashboard results. What is the network health score, threat count, severity distribution, and top attacking IPs?', icon: 'bar-chart' },
+  { id: 'auto_investigation', label: 'Auto-Investigation', query: 'Get the auto-investigation results. What incidents were found, how many alerts were triaged, and what are the recommended actions?', icon: 'zap' },
+  { id: 'threat_hunt', label: 'Threat Hunt', query: 'Get the threat hunting results. What queries were run and what threats were found?', icon: 'search' },
+  { id: 'incident_reports', label: 'Incident Reports', query: 'Get the incident report. Show the executive summary, threat landscape, timeline, and recommendations.', icon: 'file-text' },
+  { id: 'rule_generator', label: 'Rule Generator', query: 'Get the generated IDS rules. How many Suricata/Snort rules were created and for which attack types?', icon: 'shield' },
 ] as const
 
 // Safely parse JSON from localStorage

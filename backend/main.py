@@ -887,7 +887,8 @@ async def get_results(
 async def predict(
     request: Request,
     file: UploadFile = File(...),
-    quick_mode: bool = Form(default=False),
+    model_name: str = Form(default=""),
+    quick_mode: str = Form(default="false"),
     user=Depends(require_auth),
 ):
     # Circuit breaker check — block predictions if drift threshold exceeded
@@ -905,8 +906,19 @@ async def predict(
         extract_features, data, file.filename or "upload.csv"
     )
 
+    # Switch model if requested
+    if model_name and model_name != active_model_id:
+        try:
+            alt_model = load_model(model_name, str(DEVICE))
+            alt_model.eval()
+        except Exception:
+            alt_model = None  # Fall back to default
+    else:
+        alt_model = None
+
     # Quick mode: subsample large files for fast preview (5,000 rows)
-    effective_max = 5000 if quick_mode else MAX_ROWS
+    is_quick = quick_mode in ('true', 'True', '1', True)
+    effective_max = 5000 if is_quick else MAX_ROWS
     if len(features) > effective_max:
         idx = torch.randperm(len(features))[:effective_max].sort().values
         features = features[idx]
@@ -914,9 +926,10 @@ async def predict(
         if labels_encoded is not None:
             labels_encoded = labels_encoded[idx]
 
+    inference_model = alt_model if alt_model is not None else model
     result = await asyncio.to_thread(
         predict_with_uncertainty,
-        model, features.to(DEVICE),
+        inference_model, features.to(DEVICE),
         labels=labels_encoded.to(DEVICE) if labels_encoded is not None else None,
         n_mc=MC_PASSES,
     )
