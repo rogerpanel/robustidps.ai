@@ -52,6 +52,8 @@ import {
   AlertTriangle,
   Monitor,
   PieChart,
+  Plug,
+  Workflow,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -107,6 +109,10 @@ const NetworkTopologyMap = lazy(() => import('./pages/NetworkTopologyMap'))
 const ExecutiveDashboard = lazy(() => import('./pages/ExecutiveDashboard'))
 const DomainTransferDemo = lazy(() => import('./pages/DomainTransferDemo'))
 const Profile = lazy(() => import('./pages/Profile'))
+const MitreAtlasMapper = lazy(() => import('./pages/MitreAtlasMapper'))
+const MCPSecurity = lazy(() => import('./pages/MCPSecurity'))
+const InvestigationChain = lazy(() => import('./pages/InvestigationChain'))
+const BreachAttackSimulation = lazy(() => import('./pages/BreachAttackSimulation'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -167,6 +173,7 @@ const NAV_GROUPS: NavGroup[] = [
     heading: 'SOC Intelligence',
     items: [
       { to: '/auto-investigate', label: 'Auto-Investigation', icon: Zap },
+      { to: '/investigation-chain', label: 'Investigation Chain', icon: Workflow },
       { to: '/threat-hunt', label: 'Threat Hunt', icon: Search },
       { to: '/incident-reports', label: 'Incident Reports', icon: FileText },
       { to: '/threat-intel', label: 'Threat Intel', icon: Globe },
@@ -174,6 +181,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/cve-mapper', label: 'CVE Mapper', icon: AlertTriangle },
       { to: '/device-discovery', label: 'Device Discovery', icon: Monitor },
       { to: '/network-map', label: 'Network Map', icon: Network },
+      { to: '/bas', label: 'Breach & Attack Sim', icon: Swords },
     ],
   },
   {
@@ -183,6 +191,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/jailbreak-taxonomy', label: 'Jailbreak Taxonomy', icon: BookOpenCheck },
       { to: '/rag-poisoning', label: 'RAG Poisoning', icon: DatabaseBackup },
       { to: '/multi-agent', label: 'Multi-Agent Chain', icon: GitMerge },
+      { to: '/mcp-security', label: 'MCP Security', icon: Plug },
       { to: '/data-poisoning', label: 'Data Poisoning Sim', icon: FlaskConical },
     ],
   },
@@ -190,6 +199,7 @@ const NAV_GROUPS: NavGroup[] = [
     heading: 'MLSecOps Standards',
     items: [
       { to: '/mitre-attack', label: 'MITRE ATT&CK', icon: Target },
+      { to: '/atlas', label: 'MITRE ATLAS', icon: Brain },
       { to: '/alert-triage', label: 'Alert Triage', icon: Filter },
       { to: '/compliance', label: 'Compliance Hub', icon: ClipboardCheck },
     ],
@@ -747,6 +757,10 @@ export default function App() {
               <Route path="/executive" element={<ExecutiveDashboard />} />
               <Route path="/domain-transfer" element={<DomainTransferDemo />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/atlas" element={<MitreAtlasMapper />} />
+              <Route path="/mcp-security" element={<MCPSecurity />} />
+              <Route path="/investigation-chain" element={<InvestigationChain />} />
+              <Route path="/bas" element={<BreachAttackSimulation />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>

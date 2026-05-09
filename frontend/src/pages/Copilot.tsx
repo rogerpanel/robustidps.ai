@@ -155,6 +155,10 @@ const PAGE_CONTEXTS = [
   { id: 'threat_hunt', label: 'Threat Hunt', query: 'Get the threat hunting results. What queries were run and what threats were found?', icon: 'search' },
   { id: 'incident_reports', label: 'Incident Reports', query: 'Get the incident report. Show the executive summary, threat landscape, timeline, and recommendations.', icon: 'file-text' },
   { id: 'rule_generator', label: 'Rule Generator', query: 'Get the generated IDS rules. How many Suricata/Snort rules were created and for which attack types?', icon: 'shield' },
+  { id: 'mitre_atlas', label: 'MITRE ATLAS', query: 'Get the MITRE ATLAS mapping results. Which adversarial-ML techniques map to flows in the latest analysis? Show the AML.T0xxx IDs, tactics, severity, and which platform attack classes correspond to each technique.', icon: 'brain' },
+  { id: 'mcp_security', label: 'MCP Security', query: 'Get the MCP Security Test results. How many tests were run, what was the block rate, which categories had bypasses, and which critical-severity tests reached the model? List the defenses currently enabled.', icon: 'plug' },
+  { id: 'investigation_chain', label: 'Investigation Chain', query: 'Get the autonomous Investigation Chain results. Summarise total flows, threats, incidents, hunt findings, top actors, recommendations, and which MITRE ATT&CK techniques were triggered end-to-end.', icon: 'git-merge' },
+  { id: 'bas', label: 'BAS', query: 'Get the Breach & Attack Simulation results. Which scenarios were run, what was the overall detection rate, how many critical steps were missed, what was the mean time-to-detect, and which detectors were enabled?', icon: 'swords' },
 ] as const
 
 // Safely parse JSON from localStorage

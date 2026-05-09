@@ -160,7 +160,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual_learning, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper, executive_dashboard, device_discovery, network_map, domain_transfer"},
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual_learning, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, mitre_atlas, mcp_security, investigation_chain, bas, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper, executive_dashboard, device_discovery, network_map, domain_transfer"},
                 "job_id": {"type": "string", "description": "Optional specific job_id"},
             },
             "required": ["page"],
@@ -427,6 +427,34 @@ def _summarise_page_result(page: str, result: dict) -> dict:
             if ratios:
                 summary["avg_robustness"] = round(sum(ratios) / len(ratios) * 100, 2)
                 summary["min_robustness"] = round(min(ratios) * 100, 2)
+    elif page == "mitre_atlas":
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_threats"] = result.get("n_threats", 0)
+        summary["model_used"] = result.get("model_used", "")
+    elif page == "mcp_security":
+        summary["total_tests"] = result.get("total_tests", 0)
+        summary["blocked"] = result.get("blocked", 0)
+        summary["partial"] = result.get("partial", 0)
+        summary["bypassed"] = result.get("bypassed", 0)
+        summary["block_rate"] = result.get("block_rate", 0)
+        summary["defenses_enabled"] = result.get("defenses_enabled", [])
+        summary["critical_bypasses"] = result.get("critical_bypasses", [])
+    elif page == "investigation_chain":
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_threats"] = result.get("n_threats", 0)
+        summary["n_incidents"] = result.get("n_incidents", 0)
+        summary["n_hunt_findings"] = result.get("n_hunt_findings", 0)
+        summary["n_recommendations"] = result.get("n_recommendations", 0)
+        summary["critical_incidents"] = result.get("critical_incidents", 0)
+        summary["attack_types"] = result.get("attack_types", [])
+        summary["model_used"] = result.get("model_used", "")
+    elif page == "bas":
+        summary["scenarios_run"] = result.get("scenarios_run", 0)
+        summary["total_steps"] = result.get("total_steps", 0)
+        summary["total_detected"] = result.get("total_detected", 0)
+        summary["overall_detection_rate"] = result.get("overall_detection_rate", 0)
+        summary["detectors_enabled"] = result.get("detectors_enabled", [])
+        summary["critical_missed"] = result.get("critical_missed", 0)
     return summary
 
 

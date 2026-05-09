@@ -26,6 +26,7 @@ from .clrl_models import (
 )
 from .multi_agent_pqc import MultiAgentPQCWrapper
 from .lipmamba import LipMambaWrapper
+from .ssl_anomaly import SSLGraphAnomalyWrapper
 
 WEIGHTS_DIR = Path(__file__).parent.parent / "weights"
 
@@ -367,6 +368,16 @@ MODEL_INFO = {
         "weight_file": "lipmamba.pt",
         "has_ablation": False,
         "category": "certified",
+    },
+    # ── Self-Supervised Anomaly Model (E-GraphSAGE + Transformer AE) ────
+    "ssl_graph_anomaly": {
+        "name": "SSL-GraphAnomaly (E-GraphSAGE + Transformer AE)",
+        "description": "Self-supervised anomaly detector trained on benign flows only. E-GraphSAGE-style edge-feature encoder feeds a Transformer Autoencoder; reconstruction error + Mahalanobis-style centering produces an anomaly energy that is pushed into the per-class logits at inference. No labelled attack data required for fitting.",
+        "paper": "Self-Supervised Graph Anomaly Detection for Network Intrusion (RobustIDPS — IEEE TNNLS submission)",
+        "class": SSLGraphAnomalyWrapper,
+        "weight_file": "ssl_graph_anomaly.pt",
+        "has_ablation": False,
+        "category": "self_supervised",
     },
     # ── Multi-Agent PQC-IDS ─────────────────────────────────────────────
     "multi_agent_pqc": {
