@@ -15,7 +15,7 @@ import AutoTuneButton from '../components/AutoTuneButton'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
-import { runRedteam, runRedteamMulti, fetchSampleData, fetchModels } from '../utils/api'
+import { runRedteam, runRedteamMulti, fetchSampleData, fetchModels, cachePageResult } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
@@ -205,6 +205,17 @@ export default function RedTeamArena() {
     try {
       const data = await runRedteam(file, selectedAttacks, epsilon, nSamples, selectedModel)
       setResult(data)
+      cachePageResult('redteam', {
+        n_attacks: Array.isArray((data as any)?.attacks) ? (data as any).attacks.length : 0,
+        attacks: (data as any)?.attacks,
+        model_used: (data as any)?.model_used || selectedModel,
+        epsilon: (data as any)?.epsilon ?? epsilon,
+        n_samples: (data as any)?.n_samples ?? nSamples,
+        clean_accuracy: (data as any)?.clean_accuracy,
+        clean_confidence: (data as any)?.clean_confidence,
+        robustness_score: (data as any)?.robustness_score,
+        dataset_format: (data as any)?.dataset_format || '',
+      }).catch(() => {})
       updateNotice(nid, { status: 'completed', description: 'Attack simulation complete' })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Arena failed')

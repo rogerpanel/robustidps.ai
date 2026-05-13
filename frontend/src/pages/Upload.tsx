@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import {
   fetchDatasets, fetchSampleData, downloadAdversarialBenchmark,
-  uploadAndPredictMulti, fetchModels,
+  uploadAndPredictMulti, fetchModels, cachePageResult,
   type DatasetMeta,
 } from '../utils/api'
 

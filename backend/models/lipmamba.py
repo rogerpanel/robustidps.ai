@@ -96,3 +96,7 @@ class LipMambaWrapper(nn.Module):
 
     def forward_with_cert(self, x):
         return self.model.forward_with_cert(x)
+
+    @classmethod
+    def severity_for(cls, label: str) -> str:
+        return SurrogateIDS.severity_for(label)

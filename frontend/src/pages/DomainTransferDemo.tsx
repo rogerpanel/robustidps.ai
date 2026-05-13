@@ -2,9 +2,14 @@ import { useState } from 'react'
 import { GitBranch, Building2, HeartPulse, Layers, ArrowRight, CheckCircle, Shield, Database, Paintbrush } from 'lucide-react'
 import PageGuide from '../components/PageGuide'
 import { cachePageResult } from '../utils/api'
+import { registerSessionReset } from '../utils/sessionReset'
 
 // Module-level store: survives component unmount on navigation
 const _store = { tab: 'banking' as string }
+
+registerSessionReset(() => {
+  _store.tab = 'banking'
+})
 
 /* ── Guide ────────────────────────────────────────────────────────── */
 

@@ -6,7 +6,7 @@ import {
   FlaskConical, Save, Wifi, TrendingUp,
   Upload, FileText, X, GitCompare,
 } from 'lucide-react'
-import { runRLSimulation, fetchRLMetrics, fetchCLRLStatus, createExperiment } from '../utils/api'
+import { runRLSimulation, fetchRLMetrics, fetchCLRLStatus, createExperiment, cachePageResult } from '../utils/api'
 import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
 import PageGuide from '../components/PageGuide'
@@ -89,6 +89,20 @@ export default function RLResponseAgent() {
       const data = await runRLSimulation(file, numEpisodes)
       setResult(data)
       fetchRLMetrics().then(setRlMetrics).catch(() => {})
+      cachePageResult('rl_response', {
+        n_episodes: numEpisodes,
+        total_steps: (data as any)?.total_steps ?? 0,
+        threat_mitigation_rate: (data as any)?.threat_mitigation_rate,
+        fp_blocking_rate: (data as any)?.fp_blocking_rate,
+        mean_episode_reward: (data as any)?.mean_episode_reward,
+        constraint_violations: (data as any)?.constraint_violations ?? 0,
+        total_attacks: (data as any)?.total_attacks ?? 0,
+        total_threats_mitigated: (data as any)?.total_threats_mitigated ?? 0,
+        total_benign_blocked: (data as any)?.total_benign_blocked ?? 0,
+        action_distribution: (data as any)?.action_distribution ?? {},
+        dataset_format: (data as any)?.dataset_format ?? '',
+        n_samples: (data as any)?.n_samples ?? 0,
+      }).catch(() => {})
       updateNotice(nid, { status: 'completed', description: `${numEpisodes} episodes completed` })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Simulation failed')

@@ -103,6 +103,18 @@ def main():
         model = info["class"](dropout=0.1)
         train_model(model, X, y, epochs=80)
 
+        # SSL-GraphAnomaly needs its Mahalanobis centering buffers fitted on
+        # a benign sample after training. Without this the energy push is
+        # near-zero and predictions are dominated by random head outputs.
+        if model_id == "ssl_graph_anomaly" and hasattr(model, "fit_center"):
+            with torch.no_grad():
+                # Use surrogate-labelled "Benign" rows as the benign cohort.
+                benign_class = SurrogateIDS.CLASS_NAMES.index("Benign") if "Benign" in SurrogateIDS.CLASS_NAMES else 0
+                benign_mask = (y == benign_class)
+                benign_X = X[benign_mask] if benign_mask.sum() > 100 else X[:512]
+                model.fit_center(benign_X)
+            print(f"  fit_center on {len(benign_X)} benign-class rows — Mahalanobis buffers set.")
+
         # Save
         model.eval()
         torch.save(model.state_dict(), weight_path)

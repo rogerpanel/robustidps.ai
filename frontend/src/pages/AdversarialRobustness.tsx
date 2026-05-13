@@ -5,7 +5,7 @@ import {
   Layers, BarChart3, ArrowRightLeft, TrendingDown,
   FlaskConical,
 } from 'lucide-react'
-import { runAdversarialEval, runAdversarialMulti, fetchModels, createExperiment } from '../utils/api'
+import { runAdversarialEval, runAdversarialMulti, fetchModels, createExperiment, cachePageResult } from '../utils/api'
 import AutoTuneButton from '../components/AutoTuneButton'
 import ExportMenu from '../components/ExportMenu'
 import PageGuide from '../components/PageGuide'
@@ -212,6 +212,14 @@ export default function AdversarialRobustness() {
     try {
       const data = await runAdversarialEval(file, modelId)
       setResult(data)
+      cachePageResult('adversarial', {
+        model_id: modelId,
+        model_name: (data as any)?.model_name,
+        clean_accuracy: (data as any)?.clean_accuracy,
+        n_samples: (data as any)?.n_samples,
+        attacks: (data as any)?.attacks,
+        dataset_format: (data as any)?.dataset_format,
+      }).catch(() => {})
       updateNotice(nid, { status: 'completed', description: `Clean: ${data.clean_accuracy?.toFixed(1)}% — 6 attacks evaluated` })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Evaluation failed')

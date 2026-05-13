@@ -25,6 +25,18 @@ let _liveData: LiveCapturedData | null = null
 
 export function setLiveData(data: LiveCapturedData): void {
   _liveData = { ...data }
+  // Mirror a condensed summary to the SOC Copilot cache so the "Live Monitor"
+  // chip returns real data even when the user hasn't run a full upload-style
+  // analysis. Import lazily to avoid a circular dep with utils/api.
+  import('./api').then(({ cachePageResult }) => {
+    cachePageResult('live_monitor', {
+      source: data.source,
+      total_flows: data.totalFlows,
+      threat_count: data.threatCount,
+      benign_count: data.benignCount,
+      capture_timestamp: data.timestamp,
+    }).catch(() => {})
+  }).catch(() => {})
 }
 
 export function getLiveData(): LiveCapturedData | null {

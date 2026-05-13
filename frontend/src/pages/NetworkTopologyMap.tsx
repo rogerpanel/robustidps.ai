@@ -9,6 +9,7 @@ import ModelSelector from '../components/ModelSelector'
 import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
+import { registerSessionReset } from '../utils/sessionReset'
 
 /* ── Topology types ────────────────────────────────────────────────── */
 
@@ -33,6 +34,13 @@ const _store: {
   modelId: 'surrogate',
   selectedNode: null,
 }
+
+registerSessionReset(() => {
+  _store.file = null
+  _store.analysisResult = null
+  _store.modelId = 'surrogate'
+  _store.selectedNode = null
+})
 
 interface Topology {
   nodes: TopoNode[]; edges: TopoEdge[]

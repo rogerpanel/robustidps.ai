@@ -7,9 +7,14 @@
  * different user sessions on the same browser.
  */
 
+import { clearLiveData } from './liveDataStore'
+
 type ResetFn = () => void
 
-const _resetCallbacks: ResetFn[] = []
+const _resetCallbacks: ResetFn[] = [
+  // Always-on resets — kept here so they cannot be forgotten on a per-page basis.
+  clearLiveData,
+]
 
 /** Register a cleanup function to be called on logout / session reset. */
 export function registerSessionReset(fn: ResetFn): void {

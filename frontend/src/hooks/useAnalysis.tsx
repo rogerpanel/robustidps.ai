@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
-import { uploadAndPredict } from '../utils/api'
+import { uploadAndPredict, cachePageResult } from '../utils/api'
 import { authHeaders, getUser } from '../utils/auth'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -74,6 +74,19 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           localStorage.setItem(_key('robustidps_source'), 'upload')
         } catch { /* quota exceeded — keep results in memory only */ }
         setState({ loading: false, results: data, error: null, fileName: file.name, jobId, source: 'upload' })
+        const d = data as Record<string, any>
+        cachePageResult('upload', {
+          file_name: file.name,
+          n_flows: Array.isArray(d.predictions) ? d.predictions.length : (d.n_flows ?? 0),
+          n_threats: Array.isArray(d.predictions)
+            ? d.predictions.filter((p: any) => p.severity && p.severity !== 'benign').length
+            : (d.n_threats ?? 0),
+          model_used: d.model_used || modelName,
+          dataset_format: d.dataset_format || '',
+          accuracy: d.accuracy,
+          job_id: jobId,
+          source: 'upload',
+        }).catch(() => {})
       })
       .catch((err) => {
         if (thisRequest !== requestId.current) return
@@ -104,6 +117,16 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       jobId: null,
       source: 'live-monitor',
     })
+    const r = results as Record<string, any>
+    cachePageResult('live_monitor', {
+      source_file: fileName,
+      n_flows: Array.isArray(r.predictions) ? r.predictions.length : (r.n_flows ?? 0),
+      n_threats: Array.isArray(r.predictions)
+        ? r.predictions.filter((p: any) => p.severity && p.severity !== 'benign').length
+        : (r.n_threats ?? 0),
+      model_used: r.model_used || '',
+      source: 'live-monitor',
+    }).catch(() => {})
   }, [])
 
   const clearResults = useCallback(() => {

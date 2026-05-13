@@ -17,7 +17,7 @@ import AutoTuneButton from '../components/AutoTuneButton'
 import ModelSelector from '../components/ModelSelector'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
-import { runXai, runComparativeXai, runXaiMulti, fetchSampleData, fetchModels } from '../utils/api'
+import { runXai, runComparativeXai, runXaiMulti, fetchSampleData, fetchModels, cachePageResult } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
@@ -133,6 +133,13 @@ export default function ExplainabilityStudio() {
     try {
       const data = await runXai(file, method, nSamples, selectedModel)
       setResult(data)
+      cachePageResult('xai', {
+        method,
+        n_samples: nSamples,
+        model_used: (data as any)?.model_used || selectedModel,
+        top_features: (data as any)?.global_importance?.slice?.(0, 10) || (data as any)?.feature_importance?.slice?.(0, 10),
+        n_features_analyzed: (data as any)?.n_features || 83,
+      }).catch(() => {})
       updateNotice(nid, { status: 'completed', title: `Explainability complete: ${fileName}` })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'XAI analysis failed'

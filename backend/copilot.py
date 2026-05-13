@@ -455,6 +455,103 @@ def _summarise_page_result(page: str, result: dict) -> dict:
         summary["overall_detection_rate"] = result.get("overall_detection_rate", 0)
         summary["detectors_enabled"] = result.get("detectors_enabled", [])
         summary["critical_missed"] = result.get("critical_missed", 0)
+    elif page == "upload":
+        summary["file_name"] = result.get("file_name", "")
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_threats"] = result.get("n_threats", 0)
+        summary["model_used"] = result.get("model_used", "")
+        summary["dataset_format"] = result.get("dataset_format", "")
+        summary["accuracy"] = result.get("accuracy")
+        summary["job_id"] = result.get("job_id")
+    elif page == "live_monitor":
+        summary["source"] = result.get("source", "")
+        summary["total_flows"] = result.get("total_flows", 0)
+        summary["threat_count"] = result.get("threat_count", 0)
+        summary["benign_count"] = result.get("benign_count", 0)
+        summary["capture_timestamp"] = result.get("capture_timestamp")
+        summary["source_file"] = result.get("source_file", "")
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_threats"] = result.get("n_threats", 0)
+        summary["model_used"] = result.get("model_used", "")
+    elif page == "pq_crypto":
+        summary["algorithms_evaluated"] = result.get("algorithms_evaluated", [])
+        summary["recommended"] = result.get("recommended")
+        summary["risk_assessment"] = result.get("risk_assessment")
+        summary["benchmark"] = result.get("benchmark")
+    elif page == "zero_trust":
+        summary["trust_score"] = result.get("trust_score")
+        summary["policies_active"] = result.get("policies_active", 0)
+        summary["compliance"] = result.get("compliance", {})
+        summary["violations"] = result.get("violations", 0)
+    elif page == "supply_chain":
+        summary["models_scanned"] = result.get("models_scanned", 0)
+        summary["vulnerabilities"] = result.get("vulnerabilities", 0)
+        summary["risk_matrix"] = result.get("risk_matrix")
+        summary["high_risk"] = result.get("high_risk", 0)
+    elif page == "threat_response":
+        summary["active_playbooks"] = result.get("active_playbooks", 0)
+        summary["incidents_handled"] = result.get("incidents_handled", 0)
+        summary["response_time_avg_ms"] = result.get("response_time_avg_ms")
+        summary["auto_executed"] = result.get("auto_executed", 0)
+    elif page == "continual_learning":
+        summary["tasks_seen"] = result.get("tasks_seen", 0)
+        summary["fim_norm"] = result.get("fim_norm")
+        summary["last_update"] = result.get("last_update")
+        summary["accuracy_per_task"] = result.get("accuracy_per_task", [])
+        summary["forgetting"] = result.get("forgetting")
+    elif page == "alert_triage":
+        summary["alerts_total"] = result.get("alerts_total", 0)
+        summary["true_positives"] = result.get("true_positives", 0)
+        summary["false_positives"] = result.get("false_positives", 0)
+        summary["needs_review"] = result.get("needs_review", 0)
+        summary["model_used"] = result.get("model_used", "")
+    elif page == "attack_chain":
+        summary["n_chains_predicted"] = result.get("n_chains_predicted", 0)
+        summary["top_chain"] = result.get("top_chain")
+        summary["risk_score"] = result.get("risk_score")
+        summary["attack_types"] = result.get("attack_types", [])
+    elif page == "data_poisoning":
+        summary["scenarios_tested"] = result.get("scenarios_tested", 0)
+        summary["mitigation_rate"] = result.get("mitigation_rate")
+        summary["critical_findings"] = result.get("critical_findings", 0)
+        summary["defenses_active"] = result.get("defenses_active", [])
+    elif page == "autoencoder":
+        summary["model_used"] = result.get("model_used", "")
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_anomalies"] = result.get("n_anomalies", 0)
+        summary["anomaly_rate"] = result.get("anomaly_rate")
+        summary["threshold"] = result.get("threshold")
+        summary["reconstruction_error_mean"] = result.get("reconstruction_error_mean")
+    elif page == "causality_graph":
+        summary["n_alerts"] = result.get("n_alerts", 0)
+        summary["n_edges"] = result.get("n_edges", 0)
+        summary["root_causes"] = result.get("root_causes", [])
+        summary["isolated_clusters"] = result.get("isolated_clusters", 0)
+    elif page == "pq_traffic_lab":
+        summary["pqc_flows"] = result.get("pqc_flows", 0)
+        summary["algorithms_detected"] = result.get("algorithms_detected", [])
+        summary["handshake_count"] = result.get("handshake_count", 0)
+        summary["risk_assessment"] = result.get("risk_assessment")
+    elif page == "threat_intel":
+        summary["iocs_loaded"] = result.get("iocs_loaded", 0)
+        summary["iocs_matched"] = result.get("iocs_matched", 0)
+        summary["feeds_active"] = result.get("feeds_active", [])
+        summary["top_threats"] = result.get("top_threats", [])
+    elif page == "cve_mapper":
+        summary["cves_mapped"] = result.get("cves_mapped", 0)
+        summary["critical_cves"] = result.get("critical_cves", 0)
+        summary["affected_classes"] = result.get("affected_classes", [])
+        summary["highest_cvss"] = result.get("highest_cvss")
+    elif page == "executive_dashboard":
+        summary["network_health_score"] = result.get("network_health_score")
+        summary["threat_count"] = result.get("threat_count", 0)
+        summary["severity_distribution"] = result.get("severity_distribution", {})
+        summary["top_attacking_ips"] = result.get("top_attacking_ips", [])
+        summary["model_used"] = result.get("model_used", "")
+    elif page == "domain_transfer":
+        summary["selected_tab"] = result.get("selected_tab", "")
+        summary["domains_evaluated"] = result.get("domains_evaluated", [])
+        summary["accuracy_drop"] = result.get("accuracy_drop")
     return summary
 
 

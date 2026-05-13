@@ -6,6 +6,7 @@ import ModelSelector from '../components/ModelSelector'
 import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
+import { registerSessionReset } from '../utils/sessionReset'
 
 // Module-level store: survives component unmount on navigation
 const _store: {
@@ -17,6 +18,12 @@ const _store: {
   analysisResult: null,
   modelId: 'surrogate',
 }
+
+registerSessionReset(() => {
+  _store.file = null
+  _store.analysisResult = null
+  _store.modelId = 'surrogate'
+})
 
 /* ── Guide steps ── */
 const GUIDE_STEPS = [

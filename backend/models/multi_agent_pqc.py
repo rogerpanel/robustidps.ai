@@ -140,8 +140,13 @@ class MultiAgentPQCWrapper(nn.Module):
         super().__init__()
         self.model = MultiAgentPQCIDS(dropout=dropout)
 
-    def forward(self, x):
+    def forward(self, x, disabled_branches=None):
+        del disabled_branches  # no ablation surface for this wrapper
         return self.model(x)["attack_logits"]
 
     def forward_full(self, x):
         return self.model(x)
+
+    @classmethod
+    def severity_for(cls, label: str) -> str:
+        return SurrogateIDS.severity_for(label)

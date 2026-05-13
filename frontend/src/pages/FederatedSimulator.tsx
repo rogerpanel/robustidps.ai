@@ -15,7 +15,7 @@ import FileUpload from '../components/FileUpload'
 import AutoTuneButton from '../components/AutoTuneButton'
 import PageGuide from '../components/PageGuide'
 import ExportMenu from '../components/ExportMenu'
-import { runFederated, runFederatedMulti, runTransferAnalysis, fetchSampleData, fetchModels, type AutoTuneResult } from '../utils/api'
+import { runFederated, runFederatedMulti, runTransferAnalysis, fetchSampleData, fetchModels, cachePageResult, type AutoTuneResult } from '../utils/api'
 import { usePageState } from '../hooks/usePageState'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 
@@ -289,6 +289,19 @@ export default function FederatedSimulator() {
         dpEnabled, dpSigma, iid, modelName: selectedModel,
       })
       setResult(data)
+      cachePageResult('federated', {
+        n_nodes: nNodes,
+        rounds,
+        strategy,
+        local_epochs: localEpochs,
+        dp_enabled: dpEnabled,
+        dp_sigma: dpEnabled ? dpSigma : 0,
+        iid,
+        model_used: (data as any)?.model_used || selectedModel,
+        final_accuracy: (data as any)?.final_accuracy ?? (data as any)?.global_accuracy,
+        convergence_round: (data as any)?.convergence_round,
+        n_samples: (data as any)?.n_samples,
+      }).catch(() => {})
       updateNotice(nid, { status: 'completed', title: `Federated Learning complete: ${fileName}` })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Simulation failed'

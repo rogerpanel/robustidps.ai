@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
-import { runAblation } from '../utils/api'
+import { runAblation, cachePageResult } from '../utils/api'
 import { getUser } from '../utils/auth'
 
 function _storageKey(): string {
@@ -151,6 +151,15 @@ export function AblationProvider({ children }: { children: ReactNode }) {
           saveCache(updated)
           return updated
         })
+        cachePageResult('ablation', {
+          ablation: data.ablation,
+          pairwise: data.pairwise,
+          incremental: data.incremental,
+          branch_names: data.branch_names,
+          model_used: data.model_used,
+          n_branches_disabled: disabled.length,
+          disabled_branches: disabled,
+        }).catch(() => {})
       })
       .catch(() => {
         if (thisRequest !== requestId.current) return
