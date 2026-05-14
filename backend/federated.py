@@ -460,7 +460,7 @@ def _compute_distillation_metrics(
     n = len(node_models)
 
     with torch.no_grad():
-        teacher_logits = global_model(features)
+        teacher_logits = _batched_forward(global_model, features)
         teacher_probs = F.softmax(teacher_logits / temperature, dim=-1)
 
     kd_losses = []
@@ -790,7 +790,7 @@ def simulate_federated(
 
     model.eval()
     with torch.no_grad():
-        clean_logits = model(features)
+        clean_logits = _batched_forward(model, features)
         clean_preds = clean_logits.argmax(-1)
     if labels is None:
         labels = clean_preds.clone()
@@ -826,7 +826,7 @@ def simulate_federated(
     # ── Baseline accuracy ─────────────────────────────────────────────────
     with torch.no_grad():
         global_model.eval()
-        base_logits = global_model(features)
+        base_logits = _batched_forward(global_model, features)
         base_acc = (base_logits.argmax(-1) == labels).float().mean().item()
 
     round_history = []
@@ -851,23 +851,35 @@ def simulate_federated(
             local_y = nd["labels"]
             local_losses = []
 
+            # Mini-batch SGD so that graph models (SDE-TGNN, FedGTD,
+            # SSL-GraphAnomaly) don't build an O(B²) adjacency over the
+            # whole node partition. Without this, a 70K-flow node forwards
+            # through SDE-TGNN would request ~20 GB just for the adjacency
+            # and abort with the CPUAllocator OOM seen in the Multi-Dataset
+            # Federated path.
+            n_local = local_x.shape[0]
             for epoch in range(local_epochs):
-                optimizer.zero_grad()
-                logits = local_model(local_x)
-                loss = F.cross_entropy(logits, local_y)
-
-                if strategy == "fedprox":
-                    loss += fedprox_loss(local_model, global_model, mu=0.01)
-
-                loss.backward()
-                optimizer.step()
-                local_losses.append(loss.item())
+                perm = torch.randperm(n_local, device=local_x.device)
+                epoch_loss = 0.0
+                n_batches = 0
+                for start in range(0, n_local, _TRANSFER_BATCH):
+                    idx = perm[start:start + _TRANSFER_BATCH]
+                    optimizer.zero_grad()
+                    logits = local_model(local_x[idx])
+                    loss = F.cross_entropy(logits, local_y[idx])
+                    if strategy == "fedprox":
+                        loss = loss + fedprox_loss(local_model, global_model, mu=0.01)
+                    loss.backward()
+                    optimizer.step()
+                    epoch_loss += loss.item()
+                    n_batches += 1
+                local_losses.append(epoch_loss / max(n_batches, 1))
 
             local_model.eval()
             with torch.no_grad():
-                local_preds = local_model(local_x).argmax(-1)
+                local_preds = _batched_forward(local_model, local_x).argmax(-1)
                 local_acc = (local_preds == local_y).float().mean().item()
-                full_preds = local_model(features).argmax(-1)
+                full_preds = _batched_forward(local_model, features).argmax(-1)
                 full_acc = (full_preds == labels).float().mean().item()
 
             local_state = local_model.state_dict()
@@ -925,7 +937,7 @@ def simulate_federated(
         # Global evaluation after aggregation
         global_model.eval()
         with torch.no_grad():
-            global_logits = global_model(features)
+            global_logits = _batched_forward(global_model, features)
             global_preds = global_logits.argmax(-1)
             global_acc = (global_preds == labels).float().mean().item()
             global_conf = F.softmax(global_logits, dim=-1).max(-1).values.mean().item()
@@ -944,7 +956,7 @@ def simulate_federated(
     # ── Final per-class metrics ───────────────────────────────────────────
     global_model.eval()
     with torch.no_grad():
-        final_logits = global_model(features)
+        final_logits = _batched_forward(global_model, features)
         final_preds = final_logits.argmax(-1)
 
     per_class = {}

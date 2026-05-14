@@ -179,7 +179,7 @@ def run_arena(
 
     # ── Clean baseline ────────────────────────────────────────────────────
     with torch.no_grad():
-        clean_logits = model(features)
+        clean_logits = _batched_forward(model, features)
         clean_probs = F.softmax(clean_logits, dim=-1)
         clean_preds = clean_probs.argmax(-1)
         clean_conf = clean_probs.max(-1).values
