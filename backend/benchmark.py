@@ -14,6 +14,12 @@ can display rich research-grade charts without re-running training.
 import math
 
 # ── Model identifiers ──────────────────────────────────────────────────────
+# Benchmark tables (PERFORMANCE, ROBUSTNESS, MULTI_DATASET_PERFORMANCE, etc.)
+# contain pre-computed research-grade numbers for these 7 core models.
+# LipMamba, Multi-Agent PQC and SSL-GraphAnomaly are available as runtime
+# detectors but their full cross-dataset benchmark results are not yet
+# published; they appear in the Models page and every model-picker, just not
+# in this static benchmark bundle.
 MODEL_IDS = ["surrogate", "neural_ode", "optimal_transport", "fedgtd", "sde_tgnn", "cybersec_llm", "clrl_unified"]
 
 MODEL_DISPLAY = {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import {
   Eye, Loader2, BarChart3, Layers, Zap, Brain, Shield,
   ChevronDown, ChevronUp, Target, TrendingUp, GitCompare,
@@ -108,8 +108,22 @@ export default function ExplainabilityStudio() {
   const [multiView, setMultiView] = usePageState(PAGE, 'multiView', 'overview')
 
   const [showCTExplain, setShowCTExplain] = useState(false)
+  const [availableModels, setAvailableModels] = useState<{ id: string; name: string }[]>([])
   const resultsRef = useRef<HTMLDivElement>(null)
   const { addNotice, updateNotice } = useNoticeBoard()
+
+  // Load every registered model so the comparative + multi-dataset XAI
+  // pickers show all 14 (not just the hardcoded 7 from an earlier draft).
+  useEffect(() => {
+    fetchModels()
+      .then((data) => {
+        const enabled = (data.models ?? []).filter(
+          (m: any) => m.enabled !== false && m.weights_available,
+        )
+        setAvailableModels(enabled)
+      })
+      .catch(() => {})
+  }, [])
 
   const handleFileSelect = (f: File) => {
     setFileLoading(true)
@@ -369,17 +383,18 @@ export default function ExplainabilityStudio() {
                 <div className="mt-2 p-3 bg-bg-primary rounded-lg border border-bg-card space-y-2">
                   <p className="text-[11px] text-text-secondary">Select 2+ models to compare how they explain the same data:</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {['surrogate', 'neural_ode', 'optimal_transport', 'sde_tgnn', 'fedgtd', 'cybersec_llm', 'clrl_unified'].map(m => (
+                    {availableModels.map(m => (
                       <button
-                        key={m}
-                        onClick={() => toggleCompareModel(m)}
+                        key={m.id}
+                        onClick={() => toggleCompareModel(m.id)}
+                        title={m.name}
                         className={`px-2.5 py-1 rounded text-xs font-mono border transition-colors ${
-                          compareModels.includes(m)
+                          compareModels.includes(m.id)
                             ? 'bg-accent-blue/15 border-accent-blue/40 text-accent-blue'
                             : 'border-bg-card text-text-secondary hover:text-text-primary'
                         }`}
                       >
-                        {m}
+                        {m.id}
                       </button>
                     ))}
                   </div>
@@ -420,17 +435,18 @@ export default function ExplainabilityStudio() {
                   <div>
                     <p className="text-[11px] text-text-secondary mb-1.5">Models to analyse across datasets:</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {['surrogate', 'neural_ode', 'optimal_transport', 'sde_tgnn', 'fedgtd', 'cybersec_llm', 'clrl_unified'].map(m => (
+                      {availableModels.map(m => (
                         <button
-                          key={m}
-                          onClick={() => toggleMultiModel(m)}
+                          key={m.id}
+                          onClick={() => toggleMultiModel(m.id)}
+                          title={m.name}
                           className={`px-2.5 py-1 rounded text-xs font-mono border transition-colors ${
-                            multiModels.includes(m)
+                            multiModels.includes(m.id)
                               ? 'bg-accent-green/15 border-accent-green/40 text-accent-green'
                               : 'border-bg-card text-text-secondary hover:text-text-primary'
                           }`}
                         >
-                          {m}
+                          {m.id}
                         </button>
                       ))}
                     </div>

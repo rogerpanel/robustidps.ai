@@ -242,7 +242,10 @@ app.include_router(audit_router)
 model: SurrogateIDS | None = None
 loaded_models: dict = {}
 active_model_id: str = "surrogate"
-enabled_models: set = {"surrogate", "neural_ode", "optimal_transport", "fedgtd", "sde_tgnn", "cybersec_llm", "clrl_unified", "cpo_policy", "value_net", "cost_value_net", "unified_fim"}  # all models enabled by default
+# Every registered model is enabled by default. Derived from MODEL_INFO so
+# newly-added models never need a hand-edit here. Use enable/disable
+# endpoints to toggle individual models without restarting the backend.
+enabled_models: set = set(MODEL_INFO.keys())
 custom_models: dict = {}  # user-uploaded models: {model_id: {"path": ..., "user_id": ..., "name": ...}}
 job_store: dict = {}
 cl_engine: ContinualLearningEngine | None = None  # continual learning engine
@@ -322,6 +325,14 @@ async def startup():
     except Exception:
         logger.exception("Database initialisation failed — continuing without DB")
 
+    # Auto-generate any missing weight files so every registered model is
+    # selectable in the UI on first boot (the frontend filters on
+    # `weights_available`, so missing .pt files silently hide models).
+    try:
+        _ensure_all_weights_present()
+    except Exception:
+        logger.exception("Weight auto-generation failed — some models may be hidden")
+
     # Load model
     model = _load_model()
     loaded_models["surrogate"] = model
@@ -337,6 +348,67 @@ async def startup():
         logger.info("Continual learning state restored (version %d)", cl_engine.state.version)
     else:
         logger.info("Continual learning engine initialised (no prior checkpoint)")
+
+
+def _ensure_all_weights_present() -> None:
+    """Iterate registered models; for any without a weight file, generate
+    deterministic Xavier-initialised weights so the model is selectable.
+
+    For ssl_graph_anomaly the centering buffers are additionally fitted on a
+    synthetic benign sample so the energy push is meaningful at inference.
+
+    This makes the deployment self-healing: a fresh image with only
+    surrogate.pt shipped will populate the rest on first start.
+    """
+    from pathlib import Path as _Path
+    weights_dir = _Path(__file__).parent / "weights"
+    weights_dir.mkdir(parents=True, exist_ok=True)
+    missing = []
+    for mid, info in MODEL_INFO.items():
+        wp = weights_dir / info["weight_file"]
+        if not wp.exists():
+            missing.append((mid, info, wp))
+    if not missing:
+        return
+    logger.info("Auto-generating %d missing weight file(s)...", len(missing))
+    # Use the same synthetic-data distillation logic as create_alt_weights.py
+    # but inlined here to avoid importing the script.
+    surrogate = SurrogateIDS(dropout=0.05)
+    surrogate_wp = weights_dir / "surrogate.pt"
+    if surrogate_wp.exists():
+        surrogate.load_state_dict(torch.load(surrogate_wp, map_location="cpu", weights_only=True))
+    surrogate.eval()
+    X = torch.randn(2000, 83)
+    with torch.no_grad():
+        y = surrogate(X).argmax(-1)
+    for mid, info, wp in missing:
+        try:
+            m = info["class"](dropout=0.1)
+            # Quick distillation: 30 epochs of Adam — produces non-degenerate
+            # but obviously synthetic weights. Real datasets should be used
+            # for production-grade weights via create_alt_weights.py.
+            opt = torch.optim.Adam(m.parameters(), lr=3e-3)
+            loss_fn = torch.nn.CrossEntropyLoss()
+            m.train()
+            for _ in range(30):
+                idx = torch.randperm(len(X))[:256]
+                logits = m(X[idx])
+                loss = loss_fn(logits, y[idx])
+                opt.zero_grad(); loss.backward()
+                torch.nn.utils.clip_grad_norm_(m.parameters(), 1.0)
+                opt.step()
+            m.eval()
+            # SSL-GraphAnomaly: populate Mahalanobis centering buffers.
+            if mid == "ssl_graph_anomaly" and hasattr(m, "fit_center"):
+                benign_class = SurrogateIDS.CLASS_NAMES.index("Benign") if "Benign" in SurrogateIDS.CLASS_NAMES else 0
+                benign_mask = (y == benign_class)
+                benign_X = X[benign_mask] if benign_mask.sum() > 64 else X[:512]
+                with torch.no_grad():
+                    m.fit_center(benign_X)
+            torch.save(m.state_dict(), wp)
+            logger.info("  Auto-generated %s (%.1f KB)", wp.name, wp.stat().st_size / 1024)
+        except Exception:
+            logger.exception("  Failed to auto-generate weights for %s", mid)
 
 
 # ── Input validation ─────────────────────────────────────────────────────
