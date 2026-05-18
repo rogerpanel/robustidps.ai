@@ -1,0 +1,21 @@
+[package]
+name = "agent-features"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Pure-Rust PCAP feature extraction for RobustIDPS.ai (CICIDS2018-style 76+padded-83 feature vector)"
+
+[lib]
+name = "agent_features"
+path = "src/lib.rs"
+
+[dependencies]
+pcap-parser.workspace = true
+etherparse.workspace = true
+ahash.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+log.workspace = true
+itertools.workspace = true

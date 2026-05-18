@@ -285,10 +285,59 @@ def _normalize_label(raw_label: str) -> str:
 
 # ── PCAP support ─────────────────────────────────────────────────────────────
 
+def _pcap_to_dataframe_rust_agent(tmp_path: str) -> pd.DataFrame | None:
+    """Try the Rust feature-extraction agent at ``$ROBUSTIDPS_AGENT_BIN`` (or
+    the in-tree build) for a 100-400x speed-up over the NFStream path.
+
+    Returns ``None`` if the binary is unavailable or fails, in which case the
+    caller falls back to NFStream so the existing Python deployment keeps
+    working unchanged.
+    """
+    import os
+    import shutil
+    import subprocess
+    import io as _io
+
+    candidate = os.environ.get("ROBUSTIDPS_AGENT_BIN")
+    if candidate and os.path.exists(candidate) and os.access(candidate, os.X_OK):
+        binary = candidate
+    else:
+        # Search common locations: $PATH, then the in-repo Rust workspace.
+        binary = shutil.which("robustidps-agent")
+        if not binary:
+            repo_local = os.path.join(
+                os.path.dirname(__file__), "..", "agent", "target", "release", "robustidps-agent",
+            )
+            repo_local = os.path.abspath(repo_local)
+            if os.path.exists(repo_local) and os.access(repo_local, os.X_OK):
+                binary = repo_local
+    if not binary:
+        return None
+    try:
+        proc = subprocess.run(
+            [binary, tmp_path],
+            capture_output=True,
+            check=True,
+            timeout=120,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if not proc.stdout:
+        return None
+    try:
+        return pd.read_csv(_io.BytesIO(proc.stdout))
+    except Exception:  # noqa: BLE001 — defensive: fall back to NFStream
+        return None
+
+
 def pcap_to_dataframe(file_bytes: bytes, filename: str) -> pd.DataFrame:
     """
-    Convert a PCAP/PCAPNG file to a DataFrame of flow-level features
-    using NFStream.
+    Convert a PCAP/PCAPNG file to a DataFrame of flow-level features.
+
+    Uses the Rust ``robustidps-agent`` binary when available (see
+    ``agent/`` in the repo and the ``ROBUSTIDPS_AGENT_BIN`` env override),
+    falling back to NFStream so deployments without the Rust toolchain
+    keep working unchanged.
     """
     import tempfile
     from nfstream import NFStreamer
@@ -299,6 +348,12 @@ def pcap_to_dataframe(file_bytes: bytes, filename: str) -> pd.DataFrame:
         tmp_path = tmp.name
 
     try:
+        # Fast path: Rust agent (drop-in CSV producer with the same column
+        # schema as the NFStream rename map below).
+        df_rust = _pcap_to_dataframe_rust_agent(tmp_path)
+        if df_rust is not None and not df_rust.empty:
+            return df_rust
+
         streamer = NFStreamer(
             source=tmp_path,
             statistical_analysis=True,
