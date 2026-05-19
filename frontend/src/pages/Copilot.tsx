@@ -159,6 +159,9 @@ const PAGE_CONTEXTS = [
   { id: 'mcp_security', label: 'MCP Security', query: 'Get the MCP Security Test results. How many tests were run, what was the block rate, which categories had bypasses, and which critical-severity tests reached the model? List the defenses currently enabled.', icon: 'plug' },
   { id: 'investigation_chain', label: 'Investigation Chain', query: 'Get the autonomous Investigation Chain results. Summarise total flows, threats, incidents, hunt findings, top actors, recommendations, and which MITRE ATT&CK techniques were triggered end-to-end.', icon: 'git-merge' },
   { id: 'bas', label: 'BAS', query: 'Get the Breach & Attack Simulation results. Which scenarios were run, what was the overall detection rate, how many critical steps were missed, what was the mean time-to-detect, and which detectors were enabled?', icon: 'swords' },
+  { id: 'mambaguard', label: 'MambaGuard', query: 'Get the MambaGuard analysis results. How many LLM agent-protocol attacks were detected across MCP, ACP, A2A, ANP? Report macro-F1, mean latency, and the certified radius / Stackelberg value / Hedge regret bound from the three-layer certification.', icon: 'activity' },
+  { id: 'sode_guard', label: 'SODE-Guard', query: 'Get the SODE-Guard results. How many flows were classified, what was the chaos degree, mean anti-concentration certificate, tightest and loosest certificates? Which model was used?', icon: 'waves' },
+  { id: 'ssl_graph_anomaly_full', label: 'SSL-Graph Conformal', query: 'Get the SSL-GraphAnomaly conformal certification results. What is the current α target, calibration size, threshold, and empirical coverage bound (α + 1/(n+1))? How many flows were flagged anomalous?', icon: 'network' },
 ] as const
 
 // Safely parse JSON from localStorage

@@ -27,6 +27,9 @@ from .clrl_models import (
 from .multi_agent_pqc import MultiAgentPQCWrapper
 from .lipmamba import LipMambaWrapper
 from .ssl_anomaly import SSLGraphAnomalyWrapper
+from .mambaguard import MambaGuardWrapper
+from .sode_guard import SODEGuardWrapper
+from .ssl_graph_anomaly_full import SSLGraphAnomalyFullWrapper
 
 WEIGHTS_DIR = Path(__file__).parent.parent / "weights"
 
@@ -388,6 +391,36 @@ MODEL_INFO = {
         "weight_file": "multi_agent_pqc.pt",
         "has_ablation": False,
         "category": "pqc",
+    },
+    # ── MambaGuard (LLM agent-protocol detector + 3-layer certification) ─
+    "mambaguard": {
+        "name": "MambaGuard (LLM Agent-Protocol Detector)",
+        "description": "Selective state-space (Mamba) + GATv2 + protocol-aware pooling across the 4 LLM agent protocols (MCP, ACP, A2A, ANP). Three-layer certification: randomized smoothing + Stackelberg game + Hedge regret. Source: github.com/rogerpanel/MambaGuard-models.",
+        "paper": "MambaGuard: Certified Detection of LLM Agent-Protocol Attacks (IEEE TNNLS, in submission)",
+        "class": MambaGuardWrapper,
+        "weight_file": "mambaguard.pt",
+        "has_ablation": False,
+        "category": "llm_protocol",
+    },
+    # ── SODE-Guard (Itô SDE + anti-concentration certificate) ───────────
+    "sode_guard": {
+        "name": "SODE-Guard (Stochastic ODE + Anti-Concentration)",
+        "description": "Itô SDE with learned drift/diffusion + E-GraphSAGE encoder. Anti-concentration certificate bounds per-sample output concentration under bounded perturbation. Defends against adversarial perturbations (not extraction). Source: github.com/rogerpanel/SODE-ExtractGuard-Models.",
+        "paper": "SODE-Guard: Stochastic ODE Networks with Anti-Concentration Certification for NIDS (IEEE TNNLS, in submission)",
+        "class": SODEGuardWrapper,
+        "weight_file": "sode_guard.pt",
+        "has_ablation": False,
+        "category": "certified",
+    },
+    # ── SSL-GraphAnomaly Full (6-component pipeline + split-conformal) ──
+    "ssl_graph_anomaly_full": {
+        "name": "SSL-GraphAnomaly Full (Conformal Certified)",
+        "description": "Full 6-component pipeline from the source repo: temporal host graph → E-GraphSAGE → attention-gated streaming → discrepancy Transformer AE → Mahalanobis energy → split-conformal certifier. Trains on benign flows only; offers finite-sample distribution-free false-alarm bound at operator-chosen α. Source: github.com/rogerpanel/SSL-GraphAnomaly-Models.",
+        "paper": "Self-Supervised Graph Neural Networks for NIDS with Conformal Safety Certification (paper3)",
+        "class": SSLGraphAnomalyFullWrapper,
+        "weight_file": "ssl_graph_anomaly_full.pt",
+        "has_ablation": False,
+        "category": "self_supervised",
     },
 }
 

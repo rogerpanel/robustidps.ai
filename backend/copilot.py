@@ -160,7 +160,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual_learning, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, mitre_atlas, mcp_security, investigation_chain, bas, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper, executive_dashboard, device_discovery, network_map, domain_transfer"},
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual_learning, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, mitre_atlas, mcp_security, investigation_chain, bas, mambaguard, sode_guard, ssl_graph_anomaly_full, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper, executive_dashboard, device_discovery, network_map, domain_transfer"},
                 "job_id": {"type": "string", "description": "Optional specific job_id"},
             },
             "required": ["page"],
@@ -455,6 +455,32 @@ def _summarise_page_result(page: str, result: dict) -> dict:
         summary["overall_detection_rate"] = result.get("overall_detection_rate", 0)
         summary["detectors_enabled"] = result.get("detectors_enabled", [])
         summary["critical_missed"] = result.get("critical_missed", 0)
+    elif page == "mambaguard":
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_threats"] = result.get("n_threats", 0)
+        summary["macro_f1"] = result.get("macro_f1")
+        summary["latency_ms"] = result.get("latency_ms")
+        summary["model_used"] = result.get("model_used", "")
+        summary["smoothing_radius"] = result.get("smoothing_radius")
+        summary["stackelberg_value"] = result.get("stackelberg_value")
+        summary["hedge_regret_bound"] = result.get("hedge_regret_bound")
+        summary["protocols_covered"] = result.get("protocols_covered", [])
+    elif page == "sode_guard":
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_threats"] = result.get("n_threats", 0)
+        summary["chaos_degree"] = result.get("chaos_degree")
+        summary["mean_anti_concentration"] = result.get("mean_anti_concentration")
+        summary["tightest_cert"] = result.get("tightest_cert")
+        summary["loosest_cert"] = result.get("loosest_cert")
+        summary["model_used"] = result.get("model_used", "")
+    elif page == "ssl_graph_anomaly_full" or page == "ssl_graph_anomaly":
+        summary["n_flows"] = result.get("n_flows", 0)
+        summary["n_threats"] = result.get("n_threats", 0)
+        summary["alpha_target"] = result.get("alpha_target")
+        summary["calibration_n"] = result.get("calibration_n", 0)
+        summary["threshold"] = result.get("threshold")
+        summary["empirical_coverage_bound"] = result.get("empirical_coverage_bound")
+        summary["model_used"] = result.get("model_used", "")
     elif page == "upload":
         summary["file_name"] = result.get("file_name", "")
         summary["n_flows"] = result.get("n_flows", 0)

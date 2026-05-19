@@ -54,6 +54,8 @@ import {
   PieChart,
   Plug,
   Workflow,
+  Activity,
+  Waves,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
@@ -113,6 +115,9 @@ const MitreAtlasMapper = lazy(() => import('./pages/MitreAtlasMapper'))
 const MCPSecurity = lazy(() => import('./pages/MCPSecurity'))
 const InvestigationChain = lazy(() => import('./pages/InvestigationChain'))
 const BreachAttackSimulation = lazy(() => import('./pages/BreachAttackSimulation'))
+const MambaGuard = lazy(() => import('./pages/MambaGuard'))
+const SODEGuard = lazy(() => import('./pages/SODEGuard'))
+const SSLGraphAnomalyDetail = lazy(() => import('./pages/SSLGraphAnomalyDetail'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -157,6 +162,8 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/adversarial', label: 'Adversarial Eval', icon: Fingerprint },
       { to: '/xai', label: 'Explainability', icon: Eye },
       { to: '/autoencoder', label: 'Autoencoder Detector', icon: Layers },
+      { to: '/sode-guard', label: 'SODE-Guard', icon: Waves },
+      { to: '/ssl-graph-anomaly', label: 'SSL-GraphAnomaly', icon: Network },
     ],
   },
   {
@@ -192,6 +199,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/rag-poisoning', label: 'RAG Poisoning', icon: DatabaseBackup },
       { to: '/multi-agent', label: 'Multi-Agent Chain', icon: GitMerge },
       { to: '/mcp-security', label: 'MCP Security', icon: Plug },
+      { to: '/mambaguard', label: 'MambaGuard', icon: Activity },
       { to: '/data-poisoning', label: 'Data Poisoning Sim', icon: FlaskConical },
     ],
   },
@@ -761,6 +769,9 @@ export default function App() {
               <Route path="/mcp-security" element={<MCPSecurity />} />
               <Route path="/investigation-chain" element={<InvestigationChain />} />
               <Route path="/bas" element={<BreachAttackSimulation />} />
+              <Route path="/mambaguard" element={<MambaGuard />} />
+              <Route path="/sode-guard" element={<SODEGuard />} />
+              <Route path="/ssl-graph-anomaly" element={<SSLGraphAnomalyDetail />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
