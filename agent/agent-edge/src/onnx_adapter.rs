@@ -22,8 +22,15 @@ use crate::inference::{Classifier, Verdict};
 /// `Classifier` impl that delegates to an INT8 ONNX student model loaded
 /// at startup. Holds its own block list so the gRPC `UpdateConfig` RPC
 /// keeps working the same way it does with `StubClassifier`.
+///
+/// The underlying [`OnnxClassifier`] is kept behind a [`std::sync::RwLock`]
+/// so the daemon can atomically hot-swap it from the gRPC
+/// `ApplyModelUpdate` / `RefreshModel` handlers — see
+/// [`OnnxAdapter::replace_classifier`]. `classify` calls take only a read
+/// lock and release it before building the [`Verdict`], so a swap blocks
+/// only briefly even under load.
 pub struct OnnxAdapter {
-    inner: OnnxClassifier,
+    inner: std::sync::RwLock<OnnxClassifier>,
     block_list: RwLock<HashSet<IpNet>>,
 }
 
@@ -46,9 +53,27 @@ impl OnnxAdapter {
         let inner = OnnxClassifier::new(model_path, labels_path)?;
         let parsed = parse_block_list(&block_list)?;
         Ok(OnnxAdapter {
-            inner,
+            inner: std::sync::RwLock::new(inner),
             block_list: RwLock::new(parsed),
         })
+    }
+
+    /// Atomically replace the underlying ONNX classifier. Existing in-flight
+    /// `classify` calls finish under the old one; new calls see the new one.
+    ///
+    /// Returns an error if the write lock is poisoned — that's reported back
+    /// to the gRPC caller through `ApplyAck.reload_succeeded = false` rather
+    /// than panicking the daemon.
+    pub fn replace_classifier(
+        &self,
+        new_classifier: agent_inference::OnnxClassifier,
+    ) -> anyhow::Result<()> {
+        let mut guard = self
+            .inner
+            .write()
+            .map_err(|_| anyhow::anyhow!("OnnxAdapter inner lock poisoned during replace"))?;
+        *guard = new_classifier;
+        Ok(())
     }
 
     fn is_blocked(&self, ip: &IpAddr) -> bool {
@@ -73,7 +98,30 @@ impl Classifier for OnnxAdapter {
             };
         }
 
-        match self.inner.classify(&flow.features) {
+        // Hold the read lock only across the inference call itself, then
+        // drop before building the Verdict so a concurrent
+        // `replace_classifier` is blocked for the minimum possible window.
+        let result = match self.inner.read() {
+            Ok(guard) => {
+                let r = guard.classify(&flow.features);
+                drop(guard);
+                r
+            }
+            Err(_) => {
+                // Poisoned: don't panic — return a benign verdict with a
+                // diagnostic so upstream sees the failure mode rather than
+                // the daemon dying mid-stream.
+                return Verdict {
+                    predicted_label: "Benign".to_string(),
+                    confidence: 0.0,
+                    severity: "benign".to_string(),
+                    source_blocked: false,
+                    reason: "ONNX classifier lock poisoned".to_string(),
+                };
+            }
+        };
+
+        match result {
             Ok(OnnxVerdict { predicted_label, confidence, severity, top_k, latency_us }) => {
                 let mut reason = format!("ONNX student in {latency_us} µs");
                 if let Some((second_label, second_conf)) = top_k.get(1) {
@@ -148,5 +196,30 @@ mod tests {
     #[test]
     fn parse_block_list_rejects_garbage() {
         assert!(parse_block_list(&["not an ip".into()]).is_err());
+    }
+
+    #[test]
+    fn onnx_adapter_new_rejects_missing_model_files() {
+        // Drives the constructor signature: paths + block list -> Result.
+        // The underlying OnnxClassifier::new errors out on a non-existent
+        // file, which is exactly what we want here — we just need the type
+        // to compile against the RwLock-wrapped inner.
+        let res = OnnxAdapter::new(
+            Path::new("/nonexistent/model.onnx"),
+            Path::new("/nonexistent/labels.json"),
+            vec![],
+        );
+        assert!(res.is_err(), "missing model file must fail to load");
+    }
+
+    // Synthesizing a minimal-but-valid ONNX graph in-process is non-trivial
+    // (it would require either pulling in `onnx`/`prost` codegen for the
+    // ONNX schema or shipping a fixture). We exercise `replace_classifier`
+    // in the integration test that ships with a real student artefact;
+    // here we only document the type signature.
+    #[test]
+    #[ignore = "requires a real ONNX model fixture; covered by integration tests"]
+    fn onnx_adapter_replace_classifier_swaps_atomically() {
+        // Intentionally empty — see comment above.
     }
 }

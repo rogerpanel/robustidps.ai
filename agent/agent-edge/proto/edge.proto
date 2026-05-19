@@ -20,6 +20,74 @@ service EdgeAgent {
   // Single-flow classification helper. Used by the control plane for
   // ad-hoc "what would this agent classify this flow as?" lookups.
   rpc ClassifyFlow(FlowRecord) returns (Verdict);
+
+  // Stream a model artefact (ONNX bytes + optional labels JSON) to the
+  // agent in chunks. The agent writes the body to a temp file, verifies
+  // the SHA-256 against the header, and atomically hot-swaps the running
+  // classifier on success. Streams up the negotiated `ApplyAck` once the
+  // last chunk has been processed.
+  //
+  // The chunk-stream design keeps a single 10–100 MB model upload from
+  // requiring a special "large messages" gRPC config — every chunk
+  // stays under the default 4 MiB message ceiling.
+  rpc ApplyModelUpdate(stream ModelChunk) returns (ApplyAck);
+
+  // Trigger an in-process reload of an artefact already on disk
+  // (e.g. distributed via NFS / S3 / a shared model registry). Cheaper
+  // than ApplyModelUpdate for sites where the control plane and the
+  // agent share storage.
+  rpc RefreshModel(RefreshModelRequest) returns (ApplyAck);
+}
+
+// First chunk in an ApplyModelUpdate stream MUST set `header` and leave
+// `bytes` empty. Subsequent chunks MUST leave `header` unset and populate
+// `bytes` with up to ~3 MiB of payload each. The final chunk MUST set
+// `finalize = true` (may also include the last payload bytes).
+message ModelChunk {
+  ModelHeader header = 1;
+  bytes bytes = 2;
+  bool finalize = 3;
+}
+
+message ModelHeader {
+  // Logical artefact name — e.g. "student_int8.onnx". Used in logging
+  // and to derive the on-disk filename.
+  string artifact_name = 1;
+  // Total expected payload size in bytes. The agent rejects the upload
+  // if the actual byte total doesn't match.
+  uint64 total_bytes = 2;
+  // Hex-encoded SHA-256 of the payload. Integrity-checked before the
+  // hot-swap. Empty disables the check (not recommended in production).
+  string sha256 = 3;
+  // Optional labels JSON content. Written alongside the model so the
+  // OnnxClassifier can resolve class indices to display strings on
+  // hot-reload. Empty leaves the existing labels.json untouched.
+  string labels_json = 4;
+  // Subdirectory under the agent's model dir to land in. Empty = root.
+  // Sanitised: '/' is allowed, '..' is rejected.
+  string subpath = 5;
+}
+
+message ApplyAck {
+  bool accepted = 1;
+  string message = 2;
+  uint64 received_bytes = 3;
+  string applied_artifact_path = 4;
+  // True iff the agent successfully re-instantiated its classifier
+  // against the new artefact. A false here with `accepted = true` means
+  // "model file received and persisted, but reload failed — running on
+  // previous classifier" and is recoverable via RefreshModel.
+  bool reload_succeeded = 5;
+  // SHA-256 the agent computed on the received bytes (for the operator
+  // to cross-check against the source).
+  string computed_sha256 = 6;
+}
+
+message RefreshModelRequest {
+  // Absolute path to the ONNX model on the agent's filesystem.
+  string model_path = 1;
+  // Absolute path to the labels JSON on the agent's filesystem.
+  string labels_path = 2;
 }
 
 message StreamRequest {

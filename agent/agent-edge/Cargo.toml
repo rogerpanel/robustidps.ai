@@ -39,6 +39,7 @@ hostname.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 ipnet.workspace = true
+sha2.workspace = true
 ahash.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true

@@ -14,7 +14,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::Stream;
-use log::{info, warn};
+use log::{debug, info, warn};
+use sha2::{Digest, Sha256};
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{broadcast, mpsc, RwLock};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
@@ -45,13 +47,36 @@ pub struct RuntimeConfig {
     /// Source-IP / CIDR block list. Replaces the previous list entirely on
     /// every `UpdateConfig`.
     pub block_ips: Vec<String>,
+    /// Where `ApplyModelUpdate` writes new model artefacts. Defaults to
+    /// `/var/lib/robustidps/edge/models`. Override via daemon flag
+    /// (`--model-dir`) at startup; not mutable over `UpdateConfig`.
+    pub model_dir: std::path::PathBuf,
 }
+
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        RuntimeConfig {
+            bpf_filter: String::new(),
+            min_severity: "benign".to_string(),
+            block_ips: Vec::new(),
+            model_dir: std::path::PathBuf::from("/var/lib/robustidps/edge/models"),
+        }
+    }
+}
+
+/// Type alias for the model-reload hook installed by `main` when an ONNX
+/// classifier is in use.
+pub type ReloadHook = std::sync::Arc<
+    dyn Fn(&std::path::Path, &std::path::Path) -> anyhow::Result<()>
+        + Send
+        + Sync
+        + 'static,
+>;
 
 /// Shared service-side handle bundling everything the gRPC handlers touch.
 ///
 /// Constructed by the daemon's `main` once at startup and handed to
 /// [`serve`] (and any other entry points) wrapped in `Arc`.
-#[derive(Debug)]
 pub struct ServiceState {
     /// Stable agent identifier (defaults to hostname, see `AgentConfig`).
     pub agent_id: String,
@@ -78,6 +103,24 @@ pub struct ServiceState {
     /// main can mutate it on `UpdateConfig` while readers (e.g. the stream
     /// filter) snapshot it under a read lock.
     pub runtime: Arc<RwLock<RuntimeConfig>>,
+    /// Optional reload hook installed by main() when an ONNX classifier is
+    /// in use. Called with (model_path, labels_path) after a successful
+    /// `ApplyModelUpdate` or `RefreshModel`. `None` means the daemon has no
+    /// classifier wired and the new file is just written to disk.
+    pub on_reload_model: Option<ReloadHook>,
+}
+
+impl std::fmt::Debug for ServiceState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServiceState")
+            .field("agent_id", &self.agent_id)
+            .field("hostname", &self.hostname)
+            .field("mode_str", &self.mode_str)
+            .field("interface_str", &self.interface_str)
+            .field("stats", &self.stats)
+            .field("on_reload_model", &self.on_reload_model.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 /// The gRPC service object — a thin wrapper around `Arc<ServiceState>` so
@@ -246,12 +289,273 @@ impl EdgeAgent for EdgeAgentService {
         };
 
         let runtime = self.state.runtime.read().await;
+        // Surface model_dir to the operator log so they can confirm where
+        // future ApplyModelUpdate streams will land. Read-only — the proto
+        // doesn't expose it for mutation.
+        debug!(
+            "UpdateConfig ack: model_dir={} (set at startup, not runtime-mutable)",
+            runtime.model_dir.display()
+        );
         Ok(Response::new(pb::ConfigAck {
             accepted: true,
             message,
             effective_block_count: new_count as u32,
             effective_bpf_filter: runtime.bpf_filter.clone(),
             effective_min_severity: runtime.min_severity.clone(),
+        }))
+    }
+
+    /// Stream a model artefact (ONNX bytes + optional `labels.json`) to
+    /// the agent. See proto for the per-chunk contract. On success the
+    /// artefact is renamed into place atomically and (if a reload hook is
+    /// wired) the in-process classifier is hot-swapped.
+    ///
+    /// Verification failures (size mismatch, SHA mismatch, body without a
+    /// leading header chunk) are surfaced via `ApplyAck.accepted = false`,
+    /// not as a `tonic::Status`, so the operator can read the reason out
+    /// of the response body. Only the case "first chunk had no header"
+    /// returns `Status::invalid_argument` — that's a protocol violation,
+    /// not a content error.
+    async fn apply_model_update(
+        &self,
+        request: Request<tonic::Streaming<pb::ModelChunk>>,
+    ) -> Result<Response<pb::ApplyAck>, Status> {
+        let mut stream = request.into_inner();
+
+        // --- 1. Header chunk ---
+        let first = match stream.message().await {
+            Ok(Some(c)) => c,
+            Ok(None) => {
+                return Err(Status::invalid_argument(
+                    "ApplyModelUpdate stream closed before any chunk arrived",
+                ))
+            }
+            Err(e) => return Err(Status::internal(format!("stream read error: {e}"))),
+        };
+        let header = match first.header.as_ref() {
+            Some(h) => h.clone(),
+            None => {
+                return Err(Status::invalid_argument(
+                    "first chunk must carry a header",
+                ))
+            }
+        };
+
+        // --- 2. Validate header ---
+        if let Err(msg) = validate_header(&header) {
+            return Err(Status::invalid_argument(msg));
+        }
+
+        // --- 3. Resolve destination directory ---
+        let dest_dir = {
+            let runtime = self.state.runtime.read().await;
+            let mut d = runtime.model_dir.clone();
+            if !header.subpath.is_empty() {
+                d.push(&header.subpath);
+            }
+            d
+        };
+        if let Err(e) = tokio::fs::create_dir_all(&dest_dir).await {
+            return Err(Status::internal(format!(
+                "failed to create model dir {}: {e}",
+                dest_dir.display()
+            )));
+        }
+
+        // --- 4. Open the temp file ---
+        let tmp_name = format!(
+            "{}.tmp.{}.{}",
+            header.artifact_name,
+            std::process::id(),
+            random_suffix()
+        );
+        let tmp_path = dest_dir.join(&tmp_name);
+        let final_path = dest_dir.join(&header.artifact_name);
+
+        info!(
+            "ApplyModelUpdate start: artifact={} total_bytes={} sha256={} dest={}",
+            header.artifact_name,
+            header.total_bytes,
+            if header.sha256.is_empty() {
+                "<none>"
+            } else {
+                header.sha256.as_str()
+            },
+            dest_dir.display()
+        );
+        if header.sha256.is_empty() {
+            warn!(
+                "ApplyModelUpdate received empty sha256 for {} — integrity check disabled",
+                header.artifact_name
+            );
+        }
+
+        let mut file = match tokio::fs::File::create(&tmp_path).await {
+            Ok(f) => f,
+            Err(e) => {
+                return Err(Status::internal(format!(
+                    "failed to open temp file {}: {e}",
+                    tmp_path.display()
+                )))
+            }
+        };
+
+        // --- 5/6. Stream chunks, hash, write ---
+        let (received, computed) =
+            match ingest_chunks(&mut stream, &mut file, first, &header, &tmp_path).await {
+                Ok(out) => out,
+                Err(rejection) => return Ok(Response::new(rejection)),
+            };
+        // Release the OS-level handle so the rename below is a clean
+        // metadata-only operation on every supported FS.
+        drop(file);
+
+        // --- 7. Verify size + sha ---
+        if received != header.total_bytes {
+            return reject_post_hash(
+                &tmp_path,
+                format!(
+                    "size mismatch: expected {} bytes, received {}",
+                    header.total_bytes, received
+                ),
+                received,
+                computed,
+            )
+            .await;
+        }
+        if !header.sha256.is_empty() && header.sha256 != computed {
+            return reject_post_hash(
+                &tmp_path,
+                format!("sha256 mismatch: expected {} got {}", header.sha256, computed),
+                received,
+                computed,
+            )
+            .await;
+        }
+
+        // --- 8. Atomic rename + optional labels.json ---
+        if let Err(e) = tokio::fs::rename(&tmp_path, &final_path).await {
+            return reject_post_hash(
+                &tmp_path,
+                format!(
+                    "failed to rename {} -> {}: {e}",
+                    tmp_path.display(),
+                    final_path.display()
+                ),
+                received,
+                computed,
+            )
+            .await;
+        }
+        info!(
+            "ApplyModelUpdate renamed temp to {} ({} bytes)",
+            final_path.display(),
+            received
+        );
+
+        let labels_path = dest_dir.join("labels.json");
+        if !header.labels_json.is_empty() {
+            if let Err(e) = write_labels_atomic(&dest_dir, &header.labels_json).await {
+                // Model is on disk but labels failed — surface it but
+                // don't roll back the model.
+                return Ok(Response::new(pb::ApplyAck {
+                    accepted: true,
+                    message: format!("model written but labels.json update failed: {e}"),
+                    received_bytes: received,
+                    applied_artifact_path: final_path.display().to_string(),
+                    reload_succeeded: false,
+                    computed_sha256: computed,
+                }));
+            }
+        }
+
+        // --- 9. Trigger reload ---
+        let (reload_succeeded, reload_msg) =
+            run_reload_hook(&self.state.on_reload_model, &final_path, &labels_path);
+
+        let message = if reload_succeeded {
+            "applied".to_string()
+        } else {
+            reload_msg
+        };
+
+        info!(
+            "ApplyModelUpdate complete: artifact={} bytes={} reload_succeeded={}",
+            header.artifact_name, received, reload_succeeded
+        );
+
+        Ok(Response::new(pb::ApplyAck {
+            accepted: true,
+            message,
+            received_bytes: received,
+            applied_artifact_path: final_path.display().to_string(),
+            reload_succeeded,
+            computed_sha256: computed,
+        }))
+    }
+
+    /// Trigger an in-process reload of an artefact already on disk. Returns
+    /// `ApplyAck.accepted = false` (not a `Status`) when a supplied path is
+    /// missing on disk so the operator gets the diagnosis in the response
+    /// body. Empty path arguments are a protocol error and yield
+    /// `Status::invalid_argument`.
+    async fn refresh_model(
+        &self,
+        request: Request<pb::RefreshModelRequest>,
+    ) -> Result<Response<pb::ApplyAck>, Status> {
+        let req = request.into_inner();
+        if req.model_path.is_empty() {
+            return Err(Status::invalid_argument("model_path is required"));
+        }
+        if req.labels_path.is_empty() {
+            return Err(Status::invalid_argument("labels_path is required"));
+        }
+        let model_path = std::path::PathBuf::from(&req.model_path);
+        let labels_path = std::path::PathBuf::from(&req.labels_path);
+
+        if tokio::fs::metadata(&model_path).await.is_err() {
+            return Ok(Response::new(pb::ApplyAck {
+                accepted: false,
+                message: format!("model file not found: {}", model_path.display()),
+                received_bytes: 0,
+                applied_artifact_path: String::new(),
+                reload_succeeded: false,
+                computed_sha256: String::new(),
+            }));
+        }
+        if tokio::fs::metadata(&labels_path).await.is_err() {
+            return Ok(Response::new(pb::ApplyAck {
+                accepted: false,
+                message: format!("labels file not found: {}", labels_path.display()),
+                received_bytes: 0,
+                applied_artifact_path: String::new(),
+                reload_succeeded: false,
+                computed_sha256: String::new(),
+            }));
+        }
+
+        info!(
+            "RefreshModel request: model={} labels={}",
+            model_path.display(),
+            labels_path.display()
+        );
+
+        let (reload_succeeded, reload_msg) =
+            run_reload_hook(&self.state.on_reload_model, &model_path, &labels_path);
+
+        let message = if reload_succeeded {
+            "reloaded".to_string()
+        } else {
+            reload_msg
+        };
+
+        Ok(Response::new(pb::ApplyAck {
+            accepted: true,
+            message,
+            received_bytes: 0,
+            applied_artifact_path: model_path.display().to_string(),
+            reload_succeeded,
+            computed_sha256: String::new(),
         }))
     }
 
@@ -344,6 +648,326 @@ pub fn flow_record_to_classify(r: &pb::FlowRecord) -> FlowToClassify {
     }
 }
 
+// --- ApplyModelUpdate / RefreshModel helpers ---
+
+/// Maximum total payload size we accept in a single `ApplyModelUpdate`
+/// upload. Sized to comfortably fit any of the INT8 student models we
+/// expect to ship; rejects accidental or malicious oversize streams.
+const MAX_MODEL_BYTES: u64 = 256 * 1024 * 1024;
+
+/// Validate the header on the first chunk of an `ApplyModelUpdate`
+/// stream. Returns a human-readable reason on rejection.
+fn validate_header(h: &pb::ModelHeader) -> Result<(), String> {
+    if h.artifact_name.is_empty() {
+        return Err("artifact_name must not be empty".to_string());
+    }
+    if h.artifact_name.contains('/') {
+        return Err(format!(
+            "artifact_name must not contain '/': {}",
+            h.artifact_name
+        ));
+    }
+    if h.artifact_name.split('/').any(|c| c == "..")
+        || h.artifact_name.contains("..")
+    {
+        return Err(format!(
+            "artifact_name must not contain '..': {}",
+            h.artifact_name
+        ));
+    }
+    if !h.subpath.is_empty() {
+        let p = std::path::Path::new(&h.subpath);
+        if p.is_absolute() {
+            return Err(format!("subpath must be relative: {}", h.subpath));
+        }
+        for comp in p.components() {
+            if matches!(comp, std::path::Component::ParentDir) {
+                return Err(format!(
+                    "subpath must not contain '..': {}",
+                    h.subpath
+                ));
+            }
+        }
+    }
+    if h.total_bytes == 0 {
+        return Err("total_bytes must be > 0".to_string());
+    }
+    if h.total_bytes > MAX_MODEL_BYTES {
+        return Err(format!(
+            "total_bytes {} exceeds maximum {} ({} MiB)",
+            h.total_bytes,
+            MAX_MODEL_BYTES,
+            MAX_MODEL_BYTES / (1024 * 1024)
+        ));
+    }
+    if !h.sha256.is_empty() {
+        if h.sha256.len() != 64 {
+            return Err(format!(
+                "sha256 must be 64 hex chars, got {}",
+                h.sha256.len()
+            ));
+        }
+        if !h.sha256.chars().all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)) {
+            return Err(
+                "sha256 must be 64 lowercase hex chars (0-9 a-f)".to_string()
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Encode a digest as a lowercase hex string. Avoids pulling in `hex` as
+/// an extra workspace dep for this single use site.
+fn hex_lower(digest: &[u8]) -> String {
+    let mut s = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        s.push_str(&format!("{:02x}", byte));
+    }
+    s
+}
+
+/// Generate a short random suffix for the temp-file name. Uses the
+/// nanosecond field of `SystemTime` plus a per-process atomic counter so
+/// concurrent uploads of the same artifact don't collide on the temp
+/// path. Not cryptographically random — and doesn't need to be.
+fn random_suffix() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos() as u64)
+        .unwrap_or(0);
+    format!("{:x}{:x}", nanos, n)
+}
+
+/// Write a chunk's bytes to the temp file, hash them in-place, and
+/// enforce the running cap against `total_bytes`. On error returns a
+/// human-readable reason that the caller will surface via `ApplyAck`.
+async fn write_chunk_bytes(
+    file: &mut tokio::fs::File,
+    hasher: &mut Sha256,
+    received: &mut u64,
+    bytes: &[u8],
+    total_bytes: u64,
+) -> Result<(), String> {
+    if bytes.is_empty() {
+        return Ok(());
+    }
+    let next = received
+        .checked_add(bytes.len() as u64)
+        .ok_or_else(|| "received byte count overflowed u64".to_string())?;
+    if next > total_bytes {
+        return Err(format!(
+            "received bytes exceeded header.total_bytes: would be {} > {}",
+            next, total_bytes
+        ));
+    }
+    file.write_all(bytes)
+        .await
+        .map_err(|e| format!("temp file write failed: {e}"))?;
+    hasher.update(bytes);
+    *received = next;
+    Ok(())
+}
+
+/// Drive the chunk-streaming + hashing + write loop for
+/// `apply_model_update`. Returns `(received_bytes, computed_sha_hex)` on
+/// success, or an already-populated rejected `ApplyAck` on any failure
+/// (in which case the temp file has already been cleaned up).
+///
+/// Factoring this out keeps the main RPC body comfortably under the
+/// per-method line budget while still letting the caller handle the
+/// final size/sha verification, rename, and reload-hook bookkeeping.
+async fn ingest_chunks(
+    stream: &mut tonic::Streaming<pb::ModelChunk>,
+    file: &mut tokio::fs::File,
+    first: pb::ModelChunk,
+    header: &pb::ModelHeader,
+    tmp_path: &std::path::Path,
+) -> Result<(u64, String), pb::ApplyAck> {
+    let mut hasher = Sha256::new();
+    let mut received: u64 = 0;
+    let mut next_log_mark: u64 = 1024 * 1024;
+
+    if !first.bytes.is_empty() {
+        if let Err(reason) =
+            write_chunk_bytes(file, &mut hasher, &mut received, &first.bytes, header.total_bytes)
+                .await
+        {
+            return Err(build_rejection(tmp_path, reason, received, hasher).await);
+        }
+    }
+    let mut finalize = first.finalize;
+    drop(first);
+
+    while !finalize {
+        let chunk = match stream.message().await {
+            Ok(Some(c)) => c,
+            Ok(None) => break,
+            Err(e) => {
+                return Err(build_rejection(
+                    tmp_path,
+                    format!("stream read error: {e}"),
+                    received,
+                    hasher,
+                )
+                .await);
+            }
+        };
+        if chunk.header.is_some() {
+            return Err(build_rejection(
+                tmp_path,
+                "subsequent chunks must not carry a header".to_string(),
+                received,
+                hasher,
+            )
+            .await);
+        }
+        if let Err(reason) =
+            write_chunk_bytes(file, &mut hasher, &mut received, &chunk.bytes, header.total_bytes)
+                .await
+        {
+            return Err(build_rejection(tmp_path, reason, received, hasher).await);
+        }
+        if received >= next_log_mark {
+            debug!(
+                "ApplyModelUpdate progress: {} bytes received for {}",
+                received, header.artifact_name
+            );
+            next_log_mark = received + 1024 * 1024;
+        }
+        finalize = chunk.finalize;
+    }
+
+    if let Err(e) = file.flush().await {
+        return Err(
+            build_rejection(tmp_path, format!("flush failed: {e}"), received, hasher).await,
+        );
+    }
+
+    Ok((received, hex_lower(&hasher.finalize())))
+}
+
+/// Delete the temp file (best-effort) and build the rejected
+/// `ApplyAck` body. Used by the in-stream failure paths of
+/// [`ingest_chunks`].
+async fn build_rejection(
+    tmp_path: &std::path::Path,
+    reason: String,
+    received: u64,
+    hasher: Sha256,
+) -> pb::ApplyAck {
+    let _ = tokio::fs::remove_file(tmp_path).await;
+    let computed = hex_lower(&hasher.finalize());
+    warn!(
+        "ApplyModelUpdate rejected ({}): tmp={} received={} computed_sha={}",
+        reason,
+        tmp_path.display(),
+        received,
+        computed
+    );
+    pb::ApplyAck {
+        accepted: false,
+        message: reason,
+        received_bytes: received,
+        applied_artifact_path: String::new(),
+        reload_succeeded: false,
+        computed_sha256: computed,
+    }
+}
+
+/// Like [`cleanup_and_reject`] but takes the already-finalized computed
+/// digest rather than the live hasher — used for post-hash failure paths
+/// (size mismatch, sha mismatch, final rename failure).
+async fn reject_post_hash(
+    tmp_path: &std::path::Path,
+    reason: String,
+    received: u64,
+    computed: String,
+) -> Result<Response<pb::ApplyAck>, Status> {
+    let _ = tokio::fs::remove_file(tmp_path).await;
+    warn!(
+        "ApplyModelUpdate rejected ({}): tmp={} received={} computed_sha={}",
+        reason,
+        tmp_path.display(),
+        received,
+        computed
+    );
+    Ok(Response::new(pb::ApplyAck {
+        accepted: false,
+        message: reason,
+        received_bytes: received,
+        applied_artifact_path: String::new(),
+        reload_succeeded: false,
+        computed_sha256: computed,
+    }))
+}
+
+/// Atomically write `contents` into `<dest_dir>/labels.json` by going
+/// through a `.tmp` sibling and renaming. Same atomicity guarantee as the
+/// main model artefact.
+async fn write_labels_atomic(
+    dest_dir: &std::path::Path,
+    contents: &str,
+) -> anyhow::Result<()> {
+    let final_path = dest_dir.join("labels.json");
+    let tmp_path = dest_dir.join(format!(
+        "labels.json.tmp.{}.{}",
+        std::process::id(),
+        random_suffix()
+    ));
+    {
+        let mut f = tokio::fs::File::create(&tmp_path).await?;
+        f.write_all(contents.as_bytes()).await?;
+        f.flush().await?;
+    }
+    tokio::fs::rename(&tmp_path, &final_path).await?;
+    Ok(())
+}
+
+/// Invoke the (optional) reload hook and convert its result into the
+/// `(reload_succeeded, ack_message)` pair the gRPC handlers need.
+fn run_reload_hook(
+    hook: &Option<ReloadHook>,
+    model_path: &std::path::Path,
+    labels_path: &std::path::Path,
+) -> (bool, String) {
+    match hook {
+        Some(f) => match f(model_path, labels_path) {
+            Ok(()) => (true, "applied".to_string()),
+            Err(e) => {
+                warn!(
+                    "reload hook failed for model={} labels={}: {e}",
+                    model_path.display(),
+                    labels_path.display()
+                );
+                (
+                    false,
+                    format!(
+                        "artefact saved to {} but reload failed: {e}",
+                        model_path.display()
+                    ),
+                )
+            }
+        },
+        None => {
+            warn!(
+                "no ONNX classifier configured — file saved at {} but reload \
+                 skipped",
+                model_path.display()
+            );
+            (
+                false,
+                format!(
+                    "no ONNX classifier configured — file saved at {}",
+                    model_path.display()
+                ),
+            )
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,5 +1028,98 @@ mod tests {
         assert_eq!(back.key.dst_ip, c.flow.key.dst_ip);
         assert_eq!(back.key.src_port, c.flow.key.src_port);
         assert_eq!(back.features, c.flow.features);
+    }
+
+    fn dummy_header() -> pb::ModelHeader {
+        pb::ModelHeader {
+            artifact_name: "student_int8.onnx".to_string(),
+            total_bytes: 1024,
+            sha256: "0".repeat(64),
+            labels_json: String::new(),
+            subpath: String::new(),
+        }
+    }
+
+    #[test]
+    fn validate_header_accepts_well_formed() {
+        assert!(validate_header(&dummy_header()).is_ok());
+    }
+
+    #[test]
+    fn validate_header_rejects_slash_in_artifact() {
+        let mut h = dummy_header();
+        h.artifact_name = "subdir/student.onnx".to_string();
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_rejects_parent_traversal_in_artifact() {
+        let mut h = dummy_header();
+        h.artifact_name = "..".to_string();
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_rejects_parent_traversal_in_subpath() {
+        let mut h = dummy_header();
+        h.subpath = "ok/../etc".to_string();
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_rejects_absolute_subpath() {
+        let mut h = dummy_header();
+        h.subpath = "/etc".to_string();
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_rejects_zero_total_bytes() {
+        let mut h = dummy_header();
+        h.total_bytes = 0;
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_rejects_oversize() {
+        let mut h = dummy_header();
+        h.total_bytes = MAX_MODEL_BYTES + 1;
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_rejects_bad_sha_length() {
+        let mut h = dummy_header();
+        h.sha256 = "abcd".to_string();
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_rejects_uppercase_sha() {
+        let mut h = dummy_header();
+        h.sha256 = "A".repeat(64);
+        assert!(validate_header(&h).is_err());
+    }
+
+    #[test]
+    fn validate_header_allows_empty_sha() {
+        let mut h = dummy_header();
+        h.sha256 = String::new();
+        assert!(validate_header(&h).is_ok());
+    }
+
+    #[test]
+    fn hex_lower_round_trips() {
+        assert_eq!(hex_lower(&[0x00, 0xff, 0x10, 0xab]), "00ff10ab");
+        assert_eq!(hex_lower(&[]), "");
+    }
+
+    #[test]
+    fn runtime_config_default_model_dir() {
+        let rc = RuntimeConfig::default();
+        assert_eq!(
+            rc.model_dir,
+            std::path::PathBuf::from("/var/lib/robustidps/edge/models")
+        );
     }
 }

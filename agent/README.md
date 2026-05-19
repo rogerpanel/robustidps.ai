@@ -205,7 +205,7 @@ The agent is part of the 6-step edge-agent migration:
 3. **Edge agent MVP — gRPC + capture + flow assembly + stub classifier ← (shipped)**
 4. **Student-model distillation + INT8 inference ← (shipped)**
 5. **eBPF/XDP drop helper ← (shipped — kernel-runtime verification pending on Hetzner)**
-6. Online model update channel
+6. **Online model update channel ← (shipped) — `ApplyModelUpdate` stream + `RefreshModel` RPCs, Python fleet client at `backend/edge_fleet.py`**
 
 Each step lands as additional crates in this workspace.
 

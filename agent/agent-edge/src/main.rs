@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use agent_edge::{
     config::{AgentConfig, CaptureMode, FlowConfig, GrpcConfig, InferenceConfig},
-    grpc_service::{serve, RuntimeConfig, ServiceState},
+    grpc_service::{serve, ServiceState},
     inference::{Classifier, ClassifiedFlow, StubClassifier},
     SharedStats,
 };
@@ -56,6 +56,10 @@ struct Cli {
     /// supplied without an explicit labels path.
     #[arg(long)]
     onnx_labels: Option<PathBuf>,
+    /// Directory where `ApplyModelUpdate` writes new ONNX model artefacts.
+    /// Defaults to `/var/lib/robustidps/edge/models`.
+    #[arg(long)]
+    model_dir: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -75,7 +79,10 @@ async fn main() -> Result<()> {
     info!("robustidps-edge starting (id={agent_id} host={host} mode={mode_str} iface={iface_str})");
 
     let stats = SharedStats::default();
-    let classifier = build_classifier(&cli, &cfg)?;
+    let built = build_classifier(&cli, &cfg)?;
+    let classifier = built.dyn_view;
+    #[cfg(feature = "onnx")]
+    let onnx_handle = built.onnx_handle;
     stats.set_block_count(classifier_block_count(&classifier) as u64);
 
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -85,11 +92,46 @@ async fn main() -> Result<()> {
     let (flow_tx, flow_rx) = mpsc::channel::<agent_edge::flow_streamer::FlowToClassify>(4096);
     let (classified_tx, _classified_rx) = broadcast::channel::<ClassifiedFlow>(2048);
 
-    let runtime = Arc::new(RwLock::new(RuntimeConfig {
-        bpf_filter: String::new(),
-        min_severity: cfg.inference.min_severity.clone(),
-        block_ips: cfg.inference.block_ips.clone(),
-    }));
+    let model_dir = cli
+        .model_dir
+        .clone()
+        .unwrap_or_else(|| std::path::PathBuf::from("/var/lib/robustidps/edge/models"));
+
+    let runtime = Arc::new(RwLock::new(
+        agent_edge::grpc_service::RuntimeConfig {
+            bpf_filter: String::new(),
+            min_severity: cfg.inference.min_severity.clone(),
+            block_ips: cfg.inference.block_ips.clone(),
+            model_dir: model_dir.clone(),
+        },
+    ));
+
+    // The reload hook is wired only when an OnnxAdapter is in play (under
+    // `--features onnx` AND `--onnx-model` supplied). `build_classifier`
+    // returns the typed handle alongside the `dyn Classifier` view so we
+    // don't have to downcast at runtime.
+    let on_reload_model: Option<agent_edge::grpc_service::ReloadHook> = {
+        #[cfg(feature = "onnx")]
+        {
+            onnx_handle.as_ref().map(|adapter: &std::sync::Arc<agent_edge::onnx_adapter::OnnxAdapter>| {
+                let adapter = adapter.clone();
+                std::sync::Arc::new(
+                    move |model_path: &std::path::Path,
+                          labels_path: &std::path::Path|
+                          -> anyhow::Result<()> {
+                        let new_inner =
+                            agent_inference::OnnxClassifier::new(model_path, labels_path)?;
+                        adapter.replace_classifier(new_inner)?;
+                        Ok(())
+                    },
+                ) as agent_edge::grpc_service::ReloadHook
+            })
+        }
+        #[cfg(not(feature = "onnx"))]
+        {
+            None
+        }
+    };
 
     let state = Arc::new(ServiceState {
         agent_id: agent_id.clone(),
@@ -100,6 +142,7 @@ async fn main() -> Result<()> {
         classifier: classifier.clone(),
         broadcast_tx: classified_tx.clone(),
         runtime: runtime.clone(),
+        on_reload_model,
     });
 
     // ── capture task ───────────────────────────────────────────────────────
@@ -232,31 +275,44 @@ fn resolve_config(cli: &Cli) -> Result<AgentConfig> {
 /// Default path is always `StubClassifier`. When the `onnx` feature is
 /// compiled in AND both `--onnx-model` and a resolvable labels JSON exist,
 /// an [`agent_edge::onnx_adapter::OnnxAdapter`] is used instead.
-fn build_classifier(cli: &Cli, cfg: &AgentConfig) -> Result<Arc<dyn Classifier>> {
+/// Container returned by [`build_classifier`] — carries the trait-object
+/// view used by the rest of the daemon plus an optional typed handle to
+/// the OnnxAdapter (when the `onnx` feature is enabled AND `--onnx-model`
+/// was supplied). The typed handle lets `main` build a reload hook
+/// without any `Any`-based downcast.
+struct BuiltClassifier {
+    dyn_view: Arc<dyn Classifier>,
+    #[cfg(feature = "onnx")]
+    onnx_handle: Option<Arc<agent_edge::onnx_adapter::OnnxAdapter>>,
+}
+
+fn build_classifier(cli: &Cli, cfg: &AgentConfig) -> Result<BuiltClassifier> {
     #[cfg(feature = "onnx")]
     {
         if let Some(model) = &cli.onnx_model {
-            let labels = cli
-                .onnx_labels
-                .clone()
-                .unwrap_or_else(|| {
-                    model
-                        .parent()
-                        .map(|d| d.join("labels.json"))
-                        .unwrap_or_else(|| std::path::PathBuf::from("labels.json"))
-                });
+            let labels = cli.onnx_labels.clone().unwrap_or_else(|| {
+                model
+                    .parent()
+                    .map(|d| d.join("labels.json"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("labels.json"))
+            });
             info!(
                 "loading ONNX classifier: model={} labels={}",
                 model.display(),
                 labels.display()
             );
-            let adapter = agent_edge::onnx_adapter::OnnxAdapter::new(
-                model,
-                &labels,
-                cfg.inference.block_ips.clone(),
-            )
-            .context("constructing OnnxAdapter")?;
-            return Ok(Arc::new(adapter));
+            let adapter = Arc::new(
+                agent_edge::onnx_adapter::OnnxAdapter::new(
+                    model,
+                    &labels,
+                    cfg.inference.block_ips.clone(),
+                )
+                .context("constructing OnnxAdapter")?,
+            );
+            return Ok(BuiltClassifier {
+                dyn_view: adapter.clone() as Arc<dyn Classifier>,
+                onnx_handle: Some(adapter),
+            });
         }
     }
     #[cfg(not(feature = "onnx"))]
@@ -270,7 +326,11 @@ fn build_classifier(cli: &Cli, cfg: &AgentConfig) -> Result<Arc<dyn Classifier>>
     }
     let stub = StubClassifier::new(cfg.inference.block_ips.clone())
         .context("constructing initial StubClassifier")?;
-    Ok(Arc::new(stub))
+    Ok(BuiltClassifier {
+        dyn_view: Arc::new(stub),
+        #[cfg(feature = "onnx")]
+        onnx_handle: None,
+    })
 }
 
 fn classifier_block_count(c: &Arc<dyn Classifier>) -> usize {
