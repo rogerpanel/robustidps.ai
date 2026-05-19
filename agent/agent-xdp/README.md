@@ -83,6 +83,8 @@ Required kernel features (verify with the checklist below):
 Build-time deps:
 
 - `clang ≥ 14` (we use clang 18 in CI).
+- `llvm` (provides `llvm-strip`; required to remove DWARF debug sections
+  before BTF generation — see runtime verification notes below).
 - `dwarves` (provides `pahole` for BTF generation).
 - `libbpf-dev`, `linux-libc-dev`, `gcc-multilib` (for the `<asm/types.h>`
   pulled in by `<linux/bpf.h>`).
@@ -153,7 +155,11 @@ operations. On older kernels substitute `CAP_SYS_ADMIN`.
 ```bash
 sudo apt-get update
 sudo apt-get install -y clang llvm libbpf-dev linux-libc-dev gcc-multilib \
-                        dwarves bpftool pkg-config build-essential
+                        dwarves pkg-config build-essential
+# Optional but useful for runtime debugging of loaded XDP programs:
+sudo apt-get install -y "linux-tools-$(uname -r)" linux-tools-generic
+# (Don't list bare `bpftool` — on Ubuntu 24.04 it's only inside the
+#  kernel-versioned linux-tools-<kver> package.)
 # Rust (if not already installed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source $HOME/.cargo/env
@@ -187,6 +193,25 @@ sudo ./target/release/robustidps-xdp --interface eth0 --mode auto \
     --blocks-file /etc/robustidps/blocks.txt --stats-interval 60
 # (--blocks-file is a step-6 follow-on; for now use comma-separated --blocks)
 ```
+
+## Runtime-verified on Hetzner CCX23
+
+Verified end-to-end on a Hetzner Cloud CCX23 running Ubuntu 24.04 LTS with
+kernel `6.8.0-106-generic` and a `virtio_net` NIC. Notable findings:
+
+- `aya 0.13` rejects BPF objects that carry **both** DWARF debug info **and**
+  BTF — its relocator gets confused by section-index drift and fails with
+  `section \`N\` not found, referenced by symbol \`<map_name\`>`. The
+  `build.rs` runs `llvm-strip -g` between the `clang` and `pahole` steps
+  to remove the DWARF and keep the BTF. Object size drops from ~16 KB to
+  ~7.8 KB and aya loads it cleanly.
+- The `aya_log::EbpfLogger::init failed: log event array AYA_LOGS doesn't
+  exist` line at startup is **expected and non-fatal** — the C-based BPF
+  program here doesn't use the aya-log macros, so the `AYA_LOGS` map is
+  not present in the object. The loader logs a `WARN` and continues.
+- SKB mode (generic XDP) attach to `lo` works out of the box on this
+  kernel; native-driver attach to `eth0` (virtio_net) is supported from
+  kernel ≥ 5.4 and works without further configuration.
 
 ## Local-dev / CI behaviour
 

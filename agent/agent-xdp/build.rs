@@ -121,6 +121,34 @@ fn compile_bpf(src: &Path, dst: &Path) -> Result<(), String> {
         return Err(format!("{clang} did not produce {}", dst.display()));
     }
 
+    // Strip DWARF debug info before BTF generation. aya 0.13's relocator
+    // gets confused by section-index drift when both DWARF and BTF are
+    // present, manifesting at load time as
+    //     "section `N` not found, referenced by symbol `<map_name>`".
+    // Stripping DWARF keeps the `.BTF` section that the kernel verifier
+    // needs while removing the `.debug_*` sections aya can't reconcile.
+    // Verified on Ubuntu 24.04 / kernel 6.8 / clang 18 / aya 0.13.
+    let strip = env::var("BPF_LLVM_STRIP").unwrap_or_else(|_| "llvm-strip".to_string());
+    if is_on_path(&strip) {
+        let out = Command::new(&strip)
+            .arg("-g")
+            .arg(dst)
+            .output()
+            .map_err(|e| format!("failed to spawn `{strip}`: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "{strip} -g failed ({}): stderr=\n{}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            ));
+        }
+    } else {
+        return Err(format!(
+            "`{strip}` not on $PATH — install LLVM (Debian/Ubuntu: apt-get install llvm) \
+             for DWARF stripping. Without it, aya's loader rejects the BPF object."
+        ));
+    }
+
     // Post-process: embed BTF info via `pahole -J`. aya's loader requires
     // a `.BTF` section in the BPF object; clang only emits DWARF debug
     // info, which pahole converts. Without this step the loader fails
