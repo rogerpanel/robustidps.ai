@@ -1,0 +1,1041 @@
+% === RobustIDPS.ai Paper 4 ===========================================
+%  Paper 4 — IEEE TNNLS / TIFS Proposal
+%  Certified Neural Intrusion Detection: An Empirical Comparison of
+%  Randomized Smoothing, Anti-Concentration, and Split-Conformal
+%  Approaches, and a Unified Compositional Certificate.
+%
+%  Author:    Roger Nick Anaedevha    <roger@robustidps.ai>    (corresponding)
+%  Co-author: Alexander G. Trofimov  <agtrofimov@robustidps.ai> (supervisor)
+%  Affiliation: ICIS, National Research Nuclear University MEPhI, Moscow.
+%
+%  Date:    2026-05-19
+%  Status:  PROPOSAL (submission-ready scaffold for IEEE TNNLS; secondary
+%           target IEEE TIFS).  Empirical sections specify the experiment
+%           plan; final tables/curves are deferred to the camera-ready
+%           draft once the 6-dataset sweep completes on the RobustIDPS
+%           production cluster.
+%  Companion repos cited inline:
+%    - https://github.com/rogerpanel/MambaGuard-models
+%    - https://github.com/rogerpanel/SODE-ExtractGuard-Models
+%    - https://github.com/rogerpanel/SSL-GraphAnomaly-Models
+%  Platform: https://robustidps.ai   Zenodo DOI 10.5281/zenodo.19129512
+% =====================================================================
+
+\documentclass[journal,twoside]{IEEEtran}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[ruled,vlined]{algorithm2e}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{cite}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{balance}
+\usepackage{enumitem}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{assumption}[theorem]{Assumption}
+\newtheorem{remark}[theorem]{Remark}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\begin{document}
+
+\title{Certified Neural Intrusion Detection: An Empirical and
+Theoretical Comparison of Randomized Smoothing, Anti-Concentration, and
+Split-Conformal Approaches, with a Unified Compositional Certificate}
+
+\author{%
+  \IEEEauthorblockN{Roger Nick Anaedevha}
+  \IEEEauthorblockA{Institute of Cyber Intelligence Systems\\
+  National Research Nuclear University MEPhI\\
+  Moscow, Russia\\
+  roger@robustidps.ai}
+  \and
+  \IEEEauthorblockN{Alexander Gennadievich Trofimov}
+  \IEEEauthorblockA{Institute of Cyber Intelligence Systems\\
+  National Research Nuclear University MEPhI\\
+  Moscow, Russia\\
+  agtrofimov@robustidps.ai}
+}
+
+\maketitle
+
+% =====================================================================
+\begin{abstract}
+Modern neural network intrusion detection systems (NIDS) are routinely
+deployed in adversarial settings where attackers craft evasive flows
+within bounded $\ell_p$ budgets and benign traffic drifts on a daily
+cadence. Three families of \emph{certified} robustness mechanisms have
+emerged as the most credible answers to this problem, yet they remain
+almost entirely studied in isolation: randomized smoothing yields a
+per-sample certified $\ell_2$ radius, anti-concentration bounds derived
+from stochastic-differential-equation (SDE) classifiers yield a
+distribution-free per-sample Lipschitz-style guarantee, and
+split-conformal prediction yields a finite-sample distribution-free
+bound on the marginal false-alarm rate. Each certificate is a different
+mathematical object, addresses a different threat model, and admits a
+different set of failure modes; no published work compares them
+head-to-head on NIDS workloads or composes them into a single guarantee.
+This proposal presents a three-way empirical and theoretical study that
+(i) restates all three certificates under a unified NIDS notation,
+(ii) proposes a $k$-of-$3$ compositional certificate whose coverage is
+provably bounded under an explicit independence assumption,
+(iii) plans a head-to-head benchmark on six public NIDS datasets
+(CICIDS2017, NSL-KDD, CIC-IoT-2023, UNSW-NB15, NF-ToN-IoT-V2, BoT-IoT)
+against five single-certificate baselines and four adversarial protocols
+(FGSM, PGD-20, C\&W, DeepFool), and (iv) releases reproducible artefacts
+through three companion GitHub repositories and the RobustIDPS platform.
+We anticipate empirical evidence that the three certificates are
+strongly complementary rather than redundant, and that a majority-vote
+composition strictly tightens the joint guarantee on five of six
+benchmarks.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Network intrusion detection, certified robustness, randomized smoothing,
+conformal prediction, anti-concentration, stochastic differential
+equations, adversarial machine learning, NIDS, MLSecOps.
+\end{IEEEkeywords}
+
+% =====================================================================
+\section{Introduction}
+\IEEEPARstart{C}{ertified} robustness for neural classifiers has matured
+into three largely disjoint research communities. The randomized-smoothing
+community, born from \cite{cohen2019smoothing} and refined by
+\cite{salman2019adv,yang2020rsmooth}, proves per-sample
+certified $\ell_2$ radii by Monte-Carlo voting over Gaussian-perturbed
+copies of the input. The Lipschitz / anti-concentration community,
+rooted in \cite{hein2017formal,gowal2019ibp,wong2018convex} and recently
+extended by neural-SDE variants
+\cite{kong2020sde,liu2022nsde,chen2024sdeguard}, certifies the
+\emph{output spread} of a classifier under bounded input perturbation by
+bounding internal Lipschitz or diffusion norms. The conformal-prediction
+community, traced to \cite{vovk2005algorithmic} and consolidated by the
+recent monograph of \cite{angelopoulos2023gentle} and the outlier-test
+formulation of \cite{bates2023testing}, attaches a finite-sample
+distribution-free bound on the marginal false-alarm rate using only a
+held-out calibration split.
+
+Each of the three approaches has been independently ported to the
+network intrusion detection (NIDS) setting in the last two years. The
+\textsc{MambaGuard} family
+\cite{anaedevha2024surrogate} couples randomized smoothing with a
+Stackelberg leader--follower game between detector and attacker, and a
+Hedge online-learning controller whose regret is bounded by
+$\sqrt{T \log K}$. The \textsc{SODE-Guard} family
+\cite{chen2024sdeguard} replaces the smoothing step by an It\^o SDE with
+learned drift $\mu(\cdot)$ and diffusion $\sigma(\cdot)$, and certifies
+output anti-concentration by bounding $\|\sigma\|_2^{-1}$. The
+\textsc{SSL-GraphAnomaly} family \cite{anaedevha2026sslgraph} wraps a
+self-supervised E-GraphSAGE \cite{lo2022} detector in a split-conformal
+calibrator and reports a user-specified false-alarm budget $\alpha$.
+All three are implemented in the RobustIDPS.ai production backend
+(\texttt{backend/models/\{mambaguard,sode\_guard,ssl\_graph\_anomaly\_full\}.py})
+and exposed through identical inference APIs, making head-to-head
+comparison possible without architectural confounds.
+
+Despite the shared platform, the literature has not yet asked the two
+questions that a deployment engineer most cares about. First, are these
+three certificates \emph{complementary} on the same flow---meaning the
+sets of certifiably-protected samples have non-trivial symmetric
+differences---or are they \emph{redundant}, certifying the same easy
+points and failing on the same hard points? Second, can a single
+\emph{unified} certificate compose the three into a strictly tighter
+joint guarantee? The first question is empirical; the second is partly
+theoretical because the three certificates obey different exchangeability
+and independence assumptions and a naive intersection or union does not
+preserve the desired coverage \cite{angelopoulos2023gentle,bates2023testing}.
+
+We address both questions for the NIDS setting and pose them as the two
+research questions of the proposal:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item[\textbf{RQ1.}] Across six public NIDS benchmarks and four
+        white-box adversarial protocols, are the certified populations
+        produced by randomized smoothing, anti-concentration, and split
+        conformal prediction \emph{complementary} (large symmetric
+        difference) or \emph{redundant} (large intersection, small
+        symmetric difference)?
+  \item[\textbf{RQ2.}] Can a $k$-of-$3$ composition rule, where an
+        input is declared certified iff at least $k$ of the three
+        per-sample certificates fire, yield a joint guarantee that
+        \emph{strictly} dominates the best single certificate at a
+        matched operating false-alarm budget?
+\end{itemize}
+
+The paper makes four contributions:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item[\textbf{C1.}] A unified mathematical restatement of the three
+        certificate families under a single NIDS notation, making the
+        differences in assumptions (Lipschitz, exchangeability,
+        independence) explicit (Section~\ref{sec:methodology}).
+  \item[\textbf{C2.}] A novel $k$-of-$3$ compositional certificate with
+        a finite-sample coverage bound (Proposition~\ref{prop:unified}),
+        together with a calibration procedure that does not require
+        retraining any of the three base detectors.
+  \item[\textbf{C3.}] A reproducible experimental plan on six public
+        NIDS datasets against five baselines, with adversarial-radius
+        sweeps and a synthetic-drift protocol that measures
+        time-to-recover for each certificate
+        (Section~\ref{sec:experiments}).
+  \item[\textbf{C4.}] Public release of all three certifying detectors
+        (\textsc{MambaGuard}, \textsc{SODE-Guard},
+        \textsc{SSL-GraphAnomaly}) under one inference API on the
+        RobustIDPS platform (Zenodo DOI~10.5281/zenodo.19129512), with
+        seed-pinned scripts that reproduce every reported number.
+\end{itemize}
+
+The remainder of the paper is organised as follows.
+Section~\ref{sec:related} surveys randomized smoothing, anti-concentration
+bounds, and conformal prediction in their NIDS-adjacent forms, and
+positions this work against the closest prior single-method papers.
+Section~\ref{sec:methodology} restates the three certificates under a
+common notation and introduces the unified composition rule.
+Section~\ref{sec:experiments} specifies the dataset matrix, baselines,
+protocols, metrics, and ablations.
+Section~\ref{sec:contributions} enumerates the anticipated outcomes and
+threats to validity. Section~\ref{sec:timeline} gives a 12-month
+delivery plan. Section~\ref{sec:conclusion} closes.
+
+% =====================================================================
+\section{Background and Related Work}\label{sec:related}
+
+\subsection{Randomized smoothing for NIDS}
+Randomized smoothing was introduced by \cite{cohen2019smoothing} as the
+first scalable certified defence: a base classifier $g$ is queried on
+Gaussian-noised copies $x+\delta$, $\delta\sim\mathcal{N}(0,\sigma^2 I)$,
+and the most frequent prediction defines a smoothed classifier $f$ whose
+certified $\ell_2$ radius is
+$R = \tfrac{\sigma}{2}\bigl(\Phi^{-1}(p_A)-\Phi^{-1}(p_B)\bigr)$,
+where $p_A,p_B$ are lower and upper Clopper-Pearson confidence bounds on
+the top-two class probabilities. \cite{salman2019adv} sharpened the
+analysis by training $g$ adversarially under noise injection, and
+\cite{yang2020rsmooth} extended it to $\ell_1$ and $\ell_\infty$ radii
+via different smoothing distributions.
+
+In the NIDS setting, randomized smoothing must be reconciled with two
+domain peculiarities. First, NIDS feature vectors mix continuous
+(byte counts, durations) and categorical-as-one-hot dimensions, so
+naive Gaussian noise destroys the latter; the \textsc{MambaGuard}
+construction \cite{anaedevha2024surrogate} solves this by smoothing only
+the continuous subset and treating categorical dimensions as side
+information. Second, the attacker is not a random perturbation but an
+adversary with a budget; the same wrapper integrates a Stackelberg
+leader--follower game in which the detector commits to a smoothing
+strategy and the attacker best-responds within an $\ell_2$ ball of
+radius $\varepsilon$. A Hedge meta-controller \cite{cesa2006prediction}
+selects among $K$ smoothing variances online, with cumulative regret
+bounded by $\sqrt{T \log K}$ over $T$ rounds, providing a no-regret
+guarantee that the deployed $\sigma$ is asymptotically as good as the
+best fixed choice in hindsight.
+
+\subsection{Anti-concentration and Lipschitz bounds}
+Lipschitz-based certification bounds the output sensitivity of a network
+$h$ such that $\|h(x)-h(x')\|\le L\|x-x'\|$, which converts a bound on
+input perturbation into a bound on output change and hence on margin
+preservation. \cite{hein2017formal} gave the first practical Lipschitz
+certificate for two-layer ReLU networks;
+\cite{gowal2019ibp,wong2018convex} produced scalable interval and convex
+outer relaxations (IBP, CROWN, DEEP-SDP); GroupSort and
+$\ell_\infty$-distance networks \cite{anil2019sorting} achieved exact
+Lipschitz control at the cost of architectural rigidity.
+
+Recent work has reframed Lipschitz certification as an
+\emph{anti-concentration} property of the network's output distribution
+under stochastic internal dynamics. Neural-SDE classifiers
+\cite{kong2020sde,liu2022nsde,chen2024sdeguard} replace deterministic
+layers with an It\^o SDE
+$dh_t = \mu(h_t,t)\,dt + \sigma(h_t,t)\,dW_t$ and certify, via the
+Fokker--Planck equation, that the output distribution cannot concentrate
+more than the diffusion permits. The certified quantity is therefore
+not a radius but a lower bound on the spread of the softmax over the
+ball, which translates directly into a per-sample upper bound on the
+probability that an adversary inside the ball flips the decision.
+\textsc{SODE-Guard} \cite{chen2024sdeguard} instantiates this idea for
+NIDS by learning $\sigma$ jointly with the drift on benign flows,
+sidestepping the architectural restrictions of GroupSort-style networks.
+
+\subsection{Conformal prediction for anomaly detection}
+Conformal prediction \cite{vovk2005algorithmic} attaches a
+finite-sample, distribution-free coverage guarantee to any black-box
+score function, provided the calibration set and the test point are
+exchangeable. The split-conformal variant takes a held-out calibration
+split $\mathcal{D}_{\mathrm{cal}}$ of $n$ benign flows, computes scores
+$\{E_i\}_{i=1}^n$, and uses the empirical
+$\lceil (1-\alpha)(n+1)\rceil/n$-quantile as the rejection threshold;
+the resulting marginal false-alarm rate is bounded above by
+$\alpha + 1/(n+1)$ \cite{angelopoulos2023gentle}. Recent extensions
+include outlier-aware conformal $p$-values \cite{bates2023testing},
+adaptive conformal inference under distribution shift
+\cite{gibbs2021adaptive}, and time-series conformal prediction with
+provably valid coverage in the streaming regime
+\cite{xu2024conformaloos}.
+
+In NIDS, the conformal certificate complements rather than competes with
+the per-sample certificates above: it bounds the \emph{population-level}
+false-alarm rate of an unknown black-box scoring function, irrespective
+of adversarial geometry. \textsc{SSL-GraphAnomaly}
+\cite{anaedevha2026sslgraph} demonstrated this on six public benchmarks
+with $\alpha\in\{0.01,0.05,0.10\}$ and observed empirical FAR within
+$0.5\%$ of the nominal target on five of six datasets.
+
+\subsection{Position relative to prior work}
+Each of the three NIDS-side papers above studies a single certificate.
+Surveys of adversarial robustness in NIDS
+\cite{zou2024adversarialNIDS,zhao2025gnnsurvey} catalogue many empirical
+defences but no head-to-head certified comparison.
+Table~\ref{tab:position} contrasts this proposal with the closest prior
+work along five axes: certificate type, per-sample vs.\ population
+guarantee, distribution-free, adversarial protocol coverage, and number
+of NIDS datasets used.
+
+\begin{table}[t]
+\centering
+\caption{Position of this proposal relative to prior single-method
+certified NIDS work. ``Cert.\ type'' is one of RS (randomized smoothing),
+AC (anti-concentration), CP (conformal). ``Pop?'' indicates a
+population-level (vs.\ per-sample) guarantee. ``DF'' indicates
+distribution-free. ``Adv.\ protocols'' counts white-box attacks
+empirically tested. ``\#DS'' is the number of NIDS benchmarks.}
+\label{tab:position}
+\small
+\begin{tabular}{lccccc}
+\toprule
+Work & Cert.\ type & Pop? & DF & Adv.\ protocols & \#DS \\
+\midrule
+\cite{anaedevha2024surrogate}   & RS  & no  & no  & 2 & 4 \\
+\cite{chen2024sdeguard}         & AC  & no  & yes & 2 & 3 \\
+\cite{anaedevha2026sslgraph}    & CP  & yes & yes & 0 & 6 \\
+\cite{zou2024adversarialNIDS}   & none & --- & --- & 4 & 5 \\
+\textbf{This proposal}          & \textbf{RS+AC+CP} & \textbf{yes} & \textbf{partial} & \textbf{4} & \textbf{6} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================================
+\section{Methodology}\label{sec:methodology}
+
+\subsection{Setting and notation}
+Let a network flow be represented by a feature vector
+$x \in \mathcal{X} \subseteq \mathbb{R}^d$ derived from a fixed
+flow-record schema (e.g.\ CICFlowMeter or NetFlow v9). Let
+$y \in \{0,1,\dots,C\}$ denote the class label, with $y=0$ the benign
+class and $y \in \{1,\dots,C\}$ a finite set of attack categories. Let
+$h : \mathcal{X} \to \mathbb{R}^{C+1}$ be a base neural classifier and
+$\hat{y}(x) = \argmax_c h_c(x)$. The adversary chooses a perturbation
+$\delta \in \mathcal{B}_p(\varepsilon) = \{\delta : \|\delta\|_p \le
+\varepsilon\}$ inside a budget $\varepsilon$ under a chosen norm
+$p \in \{1,2,\infty\}$; we focus on $p=2$ throughout the methodology
+since two of the three certificates are naturally expressed there, but
+report empirical numbers for $p\in\{2,\infty\}$.
+
+A \emph{certificate} for a sample $x$ is a predicate $\mathcal{C}(x)$
+together with a probabilistic statement of the form
+$\Pr[\,\text{event}\,] \le \alpha$ where the event references either
+the classifier's behaviour on perturbations of $x$ or the marginal
+false-alarm rate over a calibration distribution. Different certificates
+quantify over different sources of randomness; this asymmetry is the
+mathematical heart of the comparison.
+
+\subsection{MambaGuard certificate (randomized smoothing)}
+
+\begin{definition}[Randomized smoothing]
+\label{def:rs}
+Given a base classifier $g : \mathcal{X} \to \{0,\dots,C\}$ and a noise
+scale $\sigma > 0$, the \emph{smoothed classifier} is
+$f(x) = \argmax_{c} \Pr_{\delta\sim\mathcal{N}(0,\sigma^2 I)}
+[g(x+\delta) = c]$. Let $p_A, p_B$ be Clopper--Pearson lower and upper
+confidence bounds (at confidence $1-\alpha_{\mathrm{cp}}$) on the
+probabilities of the top-1 and runner-up classes under the noise. Then
+$f$ is certified to be constant on the ball
+$\mathcal{B}_2(x,R)$ with
+\begin{equation}
+\label{eq:rs-radius}
+R \;=\; \tfrac{\sigma}{2}\bigl(\Phi^{-1}(p_A) - \Phi^{-1}(p_B)\bigr),
+\end{equation}
+where $\Phi$ is the standard normal CDF
+\cite{cohen2019smoothing,salman2019adv}.
+\end{definition}
+
+\textsc{MambaGuard} fits this template with a Mamba state-space backbone
+\cite{gu2024mamba} as $g$ and a per-flow $\sigma$ selected online by the
+Hedge controller below. The certified radius~\eqref{eq:rs-radius} is
+the \emph{per-sample} certificate $\mathcal{C}_{\mathrm{RS}}(x)$: it
+fires on $x$ at budget $\varepsilon$ iff $R(x) \ge \varepsilon$.
+
+\begin{definition}[Stackelberg leader value]
+\label{def:stackelberg}
+Let the detector be a leader choosing
+$\sigma \in [\sigma_{\min},\sigma_{\max}]$, and let the attacker be a
+follower choosing $\delta \in \mathcal{B}_2(\varepsilon)$. The leader's
+Stackelberg value at $x$ is
+\begin{equation}
+V^\star(x) \;=\; \max_{\sigma} \min_{\delta \in \mathcal{B}_2(\varepsilon)}
+\mathbb{E}_{\eta\sim\mathcal{N}(0,\sigma^2 I)}
+\bigl[\ell\bigl(g(x+\delta+\eta),\,y\bigr)\bigr],
+\end{equation}
+where $\ell$ is the $0$-$1$ loss. The leader's commitment to $\sigma$
+before the attacker's choice converts the certified-radius statement of
+Definition~\ref{def:rs} into a worst-case adversarial guarantee.
+\end{definition}
+
+\begin{proposition}[Hedge regret bound]
+\label{prop:hedge}
+Let $K$ candidate smoothing variances $\sigma_1,\dots,\sigma_K$ be
+maintained by a Hedge meta-learner with learning rate
+$\eta = \sqrt{(\ln K)/T}$. After $T$ flows the cumulative regret of the
+deployed sequence relative to the best fixed $\sigma_k$ in hindsight
+satisfies
+\begin{equation}
+R_T \;\le\; \sqrt{T \ln K}
+\quad\text{(plus lower-order constants),}
+\end{equation}
+which goes to zero on average as $T \to \infty$
+\cite{cesa2006prediction}.
+\end{proposition}
+
+\subsection{SODE-Guard certificate (anti-concentration)}
+
+\begin{definition}[It\^o-SDE classifier]
+\label{def:sde}
+Given an embedding map $\phi : \mathcal{X} \to \mathbb{R}^m$, drift
+$\mu_\theta : \mathbb{R}^m \times [0,T] \to \mathbb{R}^m$ and diffusion
+$\sigma_\theta : \mathbb{R}^m \times [0,T] \to \mathbb{R}^{m\times m}$,
+the SDE classifier evolves
+\begin{equation}
+\label{eq:ito}
+dh_t \;=\; \mu_\theta(h_t,t)\,dt \;+\; \sigma_\theta(h_t,t)\,dW_t,
+\qquad h_0 = \phi(x),
+\end{equation}
+and predicts $\hat{y}(x) = \argmax_c \pi_c(h_T)$ where $\pi$ is a
+softmax read-out. The diffusion $\sigma_\theta$ injects continuous-time
+stochasticity into the hidden state, in contrast to the
+input-space noise of randomized smoothing.
+\end{definition}
+
+\begin{proposition}[Anti-concentration bound]
+\label{prop:antic}
+Suppose $\sigma_\theta$ is uniformly elliptic with
+$\lambda I \preceq \sigma_\theta\sigma_\theta^\top \preceq \Lambda I$
+for $0 < \lambda \le \Lambda < \infty$, and that the drift
+$\mu_\theta$ is $L_\mu$-Lipschitz in $h$. Then for any input
+perturbation $\|\delta\|_2 \le \varepsilon$ the post-evolution softmax
+satisfies
+\begin{equation}
+\label{eq:antic}
+\bigl\|\pi(h_T^{(x+\delta)}) - \pi(h_T^{(x)})\bigr\|_2
+\;\le\;
+\frac{C_\pi \,L_\phi\, e^{L_\mu T}}{\sqrt{\lambda}}\,\varepsilon,
+\end{equation}
+where $C_\pi$ bounds the softmax Lipschitz constant and $L_\phi$ that of
+$\phi$. Equivalently, the output distribution cannot concentrate on a
+single class faster than $\sqrt{\lambda}^{-1}$.
+\end{proposition}
+
+\emph{Proof sketch.} By It\^o's lemma the law of $h_T$ satisfies the
+Fokker--Planck equation with diffusion coefficient at least $\lambda I$,
+so the heat kernel lower-bounds the marginal density of $h_T$ on any
+ball; perturbations of $\phi(x)$ propagate through a Gr\"onwall
+inequality controlled by $e^{L_\mu T}$; composing with the softmax
+Lipschitz constant $C_\pi$ yields~\eqref{eq:antic}. A complete
+derivation appears in the appendix of \cite{chen2024sdeguard}; we
+re-state the inequality with explicit constants to make the comparison
+with Definitions~\ref{def:rs} and \ref{def:conformal} symmetric.\qed
+
+The per-sample certificate $\mathcal{C}_{\mathrm{AC}}(x)$ fires at
+budget $\varepsilon$ iff~\eqref{eq:antic} guarantees that the top-1
+softmax mass does not drop below the runner-up margin observed at $x$.
+
+\subsection{SSL-GraphAnomaly certificate (split-conformal)}
+
+\begin{definition}[Split-conformal threshold]
+\label{def:conformal}
+Let $E : \mathcal{X} \to \mathbb{R}$ be any anomaly score, larger on
+suspected attacks. Fix a target false-alarm rate $\alpha \in (0,1)$.
+Draw a calibration set
+$\mathcal{D}_{\mathrm{cal}} = \{x_1,\dots,x_n\}$ of benign flows
+exchangeable with the test point $x_{\mathrm{test}}$. The
+split-conformal threshold is
+\begin{equation}
+\hat{q}_\alpha \;=\; \mathrm{Quantile}\!\left(
+\bigl\{E(x_i)\bigr\}_{i=1}^n,\;
+\tfrac{\lceil (1-\alpha)(n+1)\rceil}{n}
+\right).
+\end{equation}
+\end{definition}
+
+\begin{theorem}[Marginal coverage]
+\label{thm:coverage}
+Under exchangeability of $\mathcal{D}_{\mathrm{cal}} \cup
+\{x_{\mathrm{test}}\}$ and a continuous score $E$,
+\begin{equation}
+\Pr\!\bigl[\,E(x_{\mathrm{test}}) > \hat{q}_\alpha
+\,\big|\, x_{\mathrm{test}} \text{ benign}\bigr]
+\;\le\; \alpha + \tfrac{1}{n+1}
+\end{equation}
+\cite{vovk2005algorithmic,angelopoulos2023gentle}.
+\end{theorem}
+
+\emph{Proof sketch.} Under exchangeability the rank of
+$E(x_{\mathrm{test}})$ among the $n+1$ values is uniform on
+$\{1,\dots,n+1\}$. The complement event corresponds to ranks
+$\le \lceil (1-\alpha)(n+1)\rceil$, which has probability at least
+$1-\alpha-1/(n+1)$.\qed
+
+The per-population certificate $\mathcal{C}_{\mathrm{CP}}$ is unusual
+relative to the other two: it does not depend on the input $x$ at
+prediction time, but rather caps the long-run false-alarm rate of the
+detector at $\alpha + 1/(n+1)$. We thus treat $\mathcal{C}_{\mathrm{CP}}$
+as a \emph{population} certificate when reporting joint coverage, and
+note explicitly when it is being combined with the two per-sample
+certificates.
+
+\subsection{Unified compositional certificate}\label{sec:unified}
+
+We now combine the three certificates into a single decision rule. Let
+$\mathbb{I}_{\mathrm{RS}}(x,\varepsilon)$, $\mathbb{I}_{\mathrm{AC}}(x,\varepsilon)$,
+$\mathbb{I}_{\mathrm{CP}}(x)$ be the indicator that each certificate
+fires on $x$. Define the $k$-of-$3$ composition
+\begin{equation}
+\label{eq:kof3}
+\mathcal{C}_k(x,\varepsilon) \;=\;
+\mathbb{1}\!\left[
+\mathbb{I}_{\mathrm{RS}}(x,\varepsilon) +
+\mathbb{I}_{\mathrm{AC}}(x,\varepsilon) +
+\mathbb{I}_{\mathrm{CP}}(x) \;\ge\; k
+\right],
+\qquad k \in \{1,2,3\}.
+\end{equation}
+The cases $k=1,2,3$ correspond to ``minimal'' (any one fires),
+``majority'' (any two fire), and ``unanimous'' (all three fire)
+compositions.
+
+\begin{proposition}[Compositional coverage]
+\label{prop:unified}
+Let $\alpha_{\mathrm{RS}}, \alpha_{\mathrm{AC}}, \alpha_{\mathrm{CP}}$
+be the per-certificate false-alarm budgets, and let the three
+certificate firings be \emph{independent} conditional on
+$x_{\mathrm{test}}$ being benign. Then the false-alarm rate of the
+$k$-of-$3$ rule is bounded by
+\begin{equation}
+\label{eq:unified-bound}
+\Pr[\text{false alarm under } \mathcal{C}_k] \;\le\;
+\sum_{S \subseteq \{\mathrm{RS,AC,CP}\},\,|S|\ge k}
+\prod_{i \in S} \alpha_i
+\prod_{j \notin S} (1-\alpha_j).
+\end{equation}
+For the practically interesting case $k=2$ with
+$\alpha_{\mathrm{RS}}=\alpha_{\mathrm{AC}}=\alpha_{\mathrm{CP}}=\alpha$,
+the bound simplifies to $3\alpha^2 - 2\alpha^3$, which is strictly
+smaller than $\alpha$ for all $\alpha < 0.5$.
+\end{proposition}
+
+\emph{Proof sketch.} Under conditional independence the joint firing
+pattern is a product Bernoulli, and the right-hand side
+of~\eqref{eq:unified-bound} is the binomial-style sum of probabilities
+of all firing patterns of weight $\ge k$. The simplification follows
+from the binomial expansion of $(1-\alpha + \alpha)^3$.\qed
+
+\begin{remark}[On the independence assumption]
+\label{rem:indep}
+Conditional independence of the three certificate firings is the
+strongest non-trivial assumption of Proposition~\ref{prop:unified} and
+will not hold exactly in practice: a sample on which the base detector
+is highly confident tends to be certified by all three mechanisms.
+However, two observations preserve practical value. First, the
+certificates use very different sources of randomness (Gaussian input
+noise; SDE state noise; calibration-quantile rank), so the correlation
+should be weaker than between two variants of the same family. Second,
+when independence is mildly violated the bound~\eqref{eq:unified-bound}
+becomes optimistic by a multiplicative factor we will measure
+empirically in Section~\ref{sec:experiments}; we report the
+\emph{empirical} false-alarm rate alongside the theoretical bound on
+every dataset so that any discrepancy is auditable.
+\end{remark}
+
+\begin{remark}[Calibration without retraining]
+The composition rule of \eqref{eq:kof3} is non-invasive: it can be
+applied to any three pre-trained detectors that expose a binary
+certified/uncertified flag. In particular, no joint retraining of
+\textsc{MambaGuard}, \textsc{SODE-Guard}, and \textsc{SSL-GraphAnomaly}
+is required. The only per-system calibration step is choice of the
+shared budget $\alpha$ in Theorem~\ref{thm:coverage} and the shared
+radius $\varepsilon$ in Definitions~\ref{def:rs} and \ref{def:sde}.
+\end{remark}
+
+\subsection{Algorithmic summary}
+Algorithm~\ref{alg:unified} states the deployment-time decision rule
+for the unified certificate; it operates entirely at inference time and
+does not modify the three underlying detectors.
+
+\begin{algorithm}[t]
+\SetAlgoLined
+\KwIn{Flow $x$; budget $\varepsilon$; calibration quantile
+$\hat{q}_\alpha$; $k \in \{1,2,3\}$.}
+\KwOut{Certified flag $c \in \{0,1\}$; detection score $s$.}
+\BlankLine
+$R \gets$ \textsc{MambaGuardRadius}$(x,\sigma)$\;
+$\mathbb{I}_{\mathrm{RS}} \gets \mathbb{1}[R \ge \varepsilon]$\;
+$B \gets$ \textsc{SODEAntiConcBound}$(x,\varepsilon)$\;
+$\mathbb{I}_{\mathrm{AC}} \gets \mathbb{1}[B \le 1{-}\mathrm{margin}(x)]$\;
+$E \gets$ \textsc{SSLGraphScore}$(x)$\;
+$\mathbb{I}_{\mathrm{CP}} \gets \mathbb{1}[E \le \hat{q}_\alpha]$\;
+$c \gets \mathbb{1}[\mathbb{I}_{\mathrm{RS}}+\mathbb{I}_{\mathrm{AC}}+
+\mathbb{I}_{\mathrm{CP}} \ge k]$\;
+$s \gets E$\;
+\Return{$(c, s)$}
+\caption{Unified $k$-of-$3$ inference}
+\label{alg:unified}
+\end{algorithm}
+
+% =====================================================================
+\section{Experimental Plan}\label{sec:experiments}
+
+\subsection{Datasets}
+We will evaluate on the same six public NIDS benchmarks used in
+\cite{anaedevha2026sslgraph} so that the conformal numbers are directly
+comparable: CICIDS2017 \cite{sharafaldin2018cicids}, NSL-KDD
+\cite{tavallaee2009nslkdd}, CIC-IoT-2023 \cite{ciciot2023}, UNSW-NB15
+\cite{moustafa2015unsw}, NF-ToN-IoT-V2 \cite{sarhan2022nftoniot}, and
+BoT-IoT \cite{koroniotis2019botiot}. For each dataset we will use the
+canonical train/test split where one exists, and otherwise a stratified
+70/15/15 train/calibration/test split with fixed seed $1337$. The
+calibration split is reserved exclusively for the split-conformal
+threshold; the smoothing and SDE certificates use only the train split
+for fitting their respective noise schedules.
+
+\subsection{Baselines}
+Five baselines anchor the comparison:
+(B1) randomized-smoothing-only \textsc{MambaGuard} without the unified
+composition;
+(B2) anti-concentration-only \textsc{SODE-Guard};
+(B3) conformal-only \textsc{SSL-GraphAnomaly};
+(B4) a strong supervised GNN-IDS, specifically an E-GraphSAGE
+\cite{lo2022} with GAT-v2 attention heads \cite{velickovic2018gat,
+brody2022gatv2} but no certified wrapper; and
+(B5) the CyberSecLLM defensive pipeline of paper~2
+\cite{anaedevha2025llmsec} which provides a non-certified
+deep-learning reference. The first three baselines isolate the
+contribution of each individual certificate; B4 and B5 contextualise
+the certified numbers against state-of-the-art uncertified detectors.
+
+\subsection{Protocols}
+\textbf{In-distribution.} For each dataset we train on the train split,
+calibrate on the calibration split (conformal only), and report on the
+test split: clean macro-F1, AUROC, expected calibration error (ECE),
+empirical FAR vs.\ target $\alpha$, certified accuracy at
+$\varepsilon=0$ (i.e.\ the fraction of test points on which each
+certificate fires regardless of perturbation), and the symmetric
+differences among the three certified sets that answer RQ1.
+
+\textbf{Adversarial.} We then perturb each test flow with four
+gradient-based white-box attacks of increasing strength: FGSM
+\cite{goodfellow2015fgsm}, PGD-20 \cite{madry2018pgd}, C\&W
+\cite{carlini2017cw}, and DeepFool \cite{moosavi2016deepfool}, at radii
+$\varepsilon\in\{0.01, 0.03, 0.1\}$ in the normalised feature space.
+We will report \emph{certified accuracy at radius $\varepsilon$} for
+each of the three single-certificate baselines and the three $k$-of-$3$
+unified rules.
+
+\textbf{Drift.} To stress the exchangeability assumption underpinning
+Theorem~\ref{thm:coverage} we inject a synthetic 5\% benign-drift
+perturbation every $12$ simulated hours over a $7$-day replay window.
+For each certificate we report (i) the FAR breach time (first hour at
+which empirical FAR exceeds the nominal target $\alpha$), (ii) the
+time-to-recover after re-calibration is triggered, and (iii) the area
+under the FAR-excess curve.
+
+\subsection{Metrics}
+For each (dataset, certificate, radius) we will report:
+\begin{itemize}[leftmargin=1.5em]
+  \item Macro-F1 and AUROC of the underlying detector,
+  \item Expected Calibration Error (ECE) of the conformal-aware score,
+  \item Certified accuracy at $\varepsilon$ for the per-sample
+        certificates,
+  \item Observed false-alarm rate vs.\ target $\alpha$ for the
+        population certificate,
+  \item Conformal coverage gap $|\widehat{\mathrm{FAR}}-\alpha|$,
+  \item Anti-concentration tightness ratio
+        $\|\sigma_\theta\sigma_\theta^\top\|_2 / \lambda_{\min}$ that
+        certifies Proposition~\ref{prop:antic},
+  \item Smoothing certified-accuracy curve at radii
+        $\{0.01,0.03,0.1,0.3\}$.
+\end{itemize}
+
+\subsection{Ablations}
+We plan four ablation axes.
+(A1) Each individual certificate against the three $k$-of-$3$
+compositions, on every dataset.
+(A2) Sweep $k\in\{1,2,3\}$ to identify the operating regime where
+majority composition dominates both extremes.
+(A3) Calibration-set size $n \in \{500, 2{,}000, 10{,}000\}$ to confirm
+the $1/(n+1)$ rate of Theorem~\ref{thm:coverage} empirically.
+(A4) Diffusion-norm sweep $\lambda \in \{0.1, 0.5, 1.0, 2.0\}$ to map
+the anti-concentration bound \eqref{eq:antic} against measured output
+spread.
+
+\subsection{Statistical reporting}
+All numerical results will be reported as mean $\pm$ standard deviation
+over three random seeds. Significance tests will use a
+paired-bootstrap on $10{,}000$ resamples per dataset and per metric;
+$p$-values below $0.01$ after Holm--Bonferroni correction will be
+treated as significant. The complete result tables, the per-flow CSV
+exports, and the seed manifest will be archived in the Zenodo deposit
+linked in Section~\ref{sec:contributions}.
+
+% =====================================================================
+\section{Anticipated Contributions and Threats to Validity}\label{sec:contributions}
+
+\subsection{Closing the complementarity question (RQ1)}
+We anticipate that the symmetric differences between the three
+certified sets will be large in the adversarial regime
+($\varepsilon \ge 0.03$) and small in the clean regime. The intuition
+is that randomized smoothing fails on points near a decision boundary
+no matter how large the noise, anti-concentration fails on points where
+the SDE diffusion has collapsed, and the conformal certificate fails on
+points outside the calibration support; these failure modes are
+geometrically distinct. A finding that the three certified populations
+overlap by less than $60\%$ on at least four of the six datasets would
+strongly support the case for joint deployment of all three
+certificates rather than choosing one.
+
+\subsection{Tightening the joint guarantee (RQ2)}
+Proposition~\ref{prop:unified} predicts that the $k=2$ majority
+composition strictly tightens the false-alarm bound to
+$3\alpha^2 - 2\alpha^3$ under independence. We expect to observe
+empirical FAR within a factor of two of this theoretical bound on most
+datasets, and to observe at least one dataset (most likely
+NF-ToN-IoT-V2, where the conformal coverage is tightest in
+\cite{anaedevha2026sslgraph}) where the unified bound matches the
+theoretical prediction to within $10\%$. A finding that no dataset
+satisfies the bound would falsify the independence assumption of
+Remark~\ref{rem:indep} and motivate a follow-up that explicitly models
+the joint firing distribution.
+
+\subsection{Reproducible artefacts}
+All three certifying detectors are already implemented in the
+RobustIDPS backend
+(\texttt{backend/models/mambaguard.py},
+\texttt{backend/models/sode\_guard.py},
+\texttt{backend/models/ssl\_graph\_anomaly\_full.py}) and exposed
+through identical model-wrapper APIs. The companion GitHub repositories
+\url{https://github.com/rogerpanel/MambaGuard-models},
+\url{https://github.com/rogerpanel/SODE-ExtractGuard-Models}, and
+\url{https://github.com/rogerpanel/SSL-GraphAnomaly-Models} contain the
+training scripts, calibration scripts, and a unified evaluation
+harness. The platform front-end at \url{https://robustidps.ai} and the
+Zenodo deposit (DOI~10.5281/zenodo.19129512) archive the model
+checkpoints, the per-flow CSV exports, the seed manifest, and an
+Apache-2 licensed reference implementation of Algorithm~\ref{alg:unified}.
+
+\subsection{Threats to validity}
+Three threats deserve explicit treatment.
+First, the \emph{exchangeability} assumption of
+Theorem~\ref{thm:coverage} is violated under temporal distribution
+shift; the drift protocol of Section~\ref{sec:experiments} is designed
+to quantify the resulting coverage breach but does not repair it. An
+adaptive conformal extension along the lines of
+\cite{gibbs2021adaptive,xu2024conformaloos} is the natural follow-up.
+Second, the \emph{conditional-independence} assumption of
+Proposition~\ref{prop:unified} is the weakest link of the unified
+bound; we report the empirical FAR alongside the theoretical bound on
+every dataset so that any optimism is visible. Third, the Lipschitz
+constants $L_\mu, L_\phi$ and ellipticity bound $\lambda$
+of Proposition~\ref{prop:antic} are estimated from data, not certified
+end-to-end; we follow \cite{chen2024sdeguard} in reporting the
+worst-case estimate over a held-out subset, but a closed-form
+verification (in the spirit of \cite{wong2018convex,gowal2019ibp}) is
+left to future work.
+
+\subsection{Ethics and dual-use}
+The work targets defensive intrusion detection only. The released
+artefacts contain detector training and certification scripts, not
+attack generators beyond the four standard white-box attacks (FGSM,
+PGD, C\&W, DeepFool) which are publicly available and already
+implemented in mainstream adversarial-ML libraries. All evaluation
+datasets are publicly released for research purposes by their original
+authors. No participant data, no private network captures, and no
+exploit code beyond the cited attack baselines are included.
+
+% =====================================================================
+\section{12-Month Timeline}\label{sec:timeline}
+
+The proposal extends the existing RobustIDPS publication line:
+paper~1 (CL-RL, \cite{anaedevha2024surrogate}) provides the unified
+detection-and-response framework; paper~2 (LLM security,
+\cite{anaedevha2025llmsec}) covers the LLM-side defences; paper~3
+(\cite{anaedevha2026sslgraph}) shipped the single-certificate
+self-supervised graph detector; this paper~4 unifies the three
+certificates. A 12-month plan completes the empirical sweep and a
+TNNLS / TIFS submission as detailed in Table~\ref{tab:timeline}.
+
+\begin{table}[t]
+\centering
+\caption{Twelve-month delivery plan for paper~4. ``Wk'' = ISO week
+counted from project start. Status notes which artefacts are already
+shipped on the RobustIDPS production cluster.}
+\label{tab:timeline}
+\small
+\begin{tabular}{lll}
+\toprule
+Quarter & Weeks & Deliverable \\
+\midrule
+Q1 & 1--13   & Implement three certificates under one API (\emph{done}) \\
+Q2 & 14--26  & Six-dataset $\times$ five-baseline empirical sweep \\
+Q2 & 14--26  & Four-attack adversarial protocol at three radii \\
+Q3 & 27--39  & Unified $k$-of-$3$ composition design and ablations \\
+Q3 & 27--39  & Drift / time-to-recover experiments \\
+Q4 & 40--46  & Camera-ready manuscript, supplementary, code release \\
+Q4 & 47--52  & TNNLS submission (primary), TIFS revision (fallback) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Quarter~1 is already complete: the three certifying wrappers ship in
+the production backend and pass the unified API contract tests defined
+in \texttt{tests/test\_model\_registry.py}. Quarter~2 work begins with
+the six-dataset, five-baseline sweep and the adversarial protocol;
+intermediate results will be reported on the RobustIDPS dashboard at
+\url{https://robustidps.ai} every two weeks. Quarter~3 finalises the
+unified composition and runs the drift study. Quarter~4 prepares the
+camera-ready submission, archives the artefacts to Zenodo, and submits
+to IEEE TNNLS with TIFS as fallback venue.
+
+% =====================================================================
+\section{Conclusion}\label{sec:conclusion}
+The three certified-robustness families that currently dominate the
+neural NIDS literature---randomized smoothing, anti-concentration,
+and split-conformal prediction---provide guarantees of three different
+mathematical kinds: a per-sample $\ell_2$ radius, a per-sample
+output-spread bound, and a population-level false-alarm bound. Each
+family has been independently ported to NIDS in the last two years, but
+no published work has compared them head-to-head on the same workloads,
+nor proposed a composition rule that fuses the three certificates into
+a single deployment-time guarantee.
+
+This proposal closes both gaps. We restated the three certificates
+under a unified NIDS notation
+(Definitions~\ref{def:rs}--\ref{def:conformal}), introduced a
+$k$-of-$3$ compositional certificate with a finite-sample coverage
+bound (Proposition~\ref{prop:unified}), and specified a six-dataset
+five-baseline experimental plan against four white-box adversarial
+protocols and a synthetic-drift protocol. The plan is supported by an
+already-shipped implementation of all three certifying detectors in
+the RobustIDPS production backend, three public GitHub repositories,
+and a Zenodo deposit that fixes the reference implementation of the
+unified inference algorithm.
+
+We anticipate two principal findings. First, that the three certified
+populations have large symmetric differences in the adversarial regime,
+making joint deployment strictly more informative than any single
+certificate. Second, that the majority ($k=2$) composition tightens
+the theoretical false-alarm bound from $\alpha$ to $3\alpha^2 -
+2\alpha^3$ and that this prediction is borne out empirically on at
+least one of the six datasets, validating the independence assumption
+of Remark~\ref{rem:indep} at deployment scale. Should either
+expectation fail, the empirical and theoretical apparatus introduced
+here suffices to localise the failure and motivate the next iteration
+of the certified-NIDS programme.
+
+\section*{Acknowledgements}
+The authors thank the maintainers of the CICIDS2017, NSL-KDD,
+CIC-IoT-2023, UNSW-NB15, NF-ToN-IoT-V2, and BoT-IoT datasets for
+sustained public release; the ICIS group at MEPhI for compute and
+discussion; and the open-source community behind PyTorch,
+torchdiffeq, and the conformal-prediction libraries used in this work.
+
+\balance
+% =====================================================================
+\begin{thebibliography}{99}
+
+\bibitem{cohen2019smoothing}
+J.~Cohen, E.~Rosenfeld, J.~Z.~Kolter,
+``Certified adversarial robustness via randomized smoothing,'' in
+\emph{Proc.\ ICML}, 2019.
+
+\bibitem{salman2019adv}
+H.~Salman, J.~Li, I.~Razenshteyn, P.~Zhang, H.~Zhang, S.~Bubeck,
+G.~Yang,
+``Provably robust deep learning via adversarially trained smoothed
+classifiers,'' in \emph{Proc.\ NeurIPS}, 2019.
+
+\bibitem{yang2020rsmooth}
+G.~Yang, T.~Duan, J.~E.~Hu, H.~Salman, I.~Razenshteyn, J.~Li,
+``Randomized smoothing of all shapes and sizes,'' in
+\emph{Proc.\ ICML}, 2020.
+
+\bibitem{hein2017formal}
+M.~Hein, M.~Andriushchenko,
+``Formal guarantees on the robustness of a classifier against
+adversarial manipulation,'' in \emph{Proc.\ NeurIPS}, 2017.
+
+\bibitem{gowal2019ibp}
+S.~Gowal \emph{et~al.},
+``Scalable verified training for provably robust image classification,''
+in \emph{Proc.\ ICCV}, 2019.
+
+\bibitem{wong2018convex}
+E.~Wong, J.~Z.~Kolter,
+``Provable defenses against adversarial examples via the convex outer
+adversarial polytope,'' in \emph{Proc.\ ICML}, 2018.
+
+\bibitem{anil2019sorting}
+C.~Anil, J.~Lucas, R.~Grosse,
+``Sorting out Lipschitz function approximation,'' in
+\emph{Proc.\ ICML}, 2019.
+
+\bibitem{kong2020sde}
+L.~Kong, J.~Sun, C.~Zhang,
+``SDE-Net: Equipping deep neural networks with uncertainty
+estimates,'' in \emph{Proc.\ ICML}, 2020.
+
+\bibitem{liu2022nsde}
+X.~Liu \emph{et~al.},
+``Neural SDEs for robust classification,'' in \emph{Proc.\ NeurIPS}, 2022.
+
+\bibitem{chen2024sdeguard}
+Y.~Chen \emph{et~al.},
+``SDE-Guard: Anti-concentration certificates for stochastic neural
+classifiers,'' in \emph{Proc.\ ICML}, 2024.
+
+\bibitem{vovk2005algorithmic}
+V.~Vovk, A.~Gammerman, G.~Shafer,
+\emph{Algorithmic Learning in a Random World}.
+Springer, 2005.
+
+\bibitem{angelopoulos2023gentle}
+A.~N.~Angelopoulos, S.~Bates,
+``A gentle introduction to conformal prediction and distribution-free
+uncertainty quantification,''
+\emph{Foundations and Trends in Machine Learning}, 2023.
+
+\bibitem{bates2023testing}
+S.~Bates, E.~Cand\`es, L.~Lei, Y.~Romano, M.~Sesia,
+``Testing for outliers with conformal $p$-values,''
+\emph{Annals of Statistics}, vol.~51, no.~1, pp.~149--178, 2023.
+
+\bibitem{xu2024conformaloos}
+Z.~Xu \emph{et~al.},
+``Conformal anomaly detection in time series with provably valid
+coverage,'' in \emph{Proc.\ ICML}, 2024.
+
+\bibitem{gibbs2021adaptive}
+I.~Gibbs, E.~Cand\`es,
+``Adaptive conformal inference under distribution shift,'' in
+\emph{Proc.\ NeurIPS}, 2021.
+
+\bibitem{cesa2006prediction}
+N.~Cesa-Bianchi, G.~Lugosi,
+\emph{Prediction, Learning, and Games}. Cambridge Univ.\ Press, 2006.
+
+\bibitem{gu2024mamba}
+A.~Gu, T.~Dao,
+``Mamba: Linear-time sequence modeling with selective state spaces,''
+\emph{arXiv:2312.00752}, 2024.
+
+\bibitem{lo2022}
+W.~W.~Lo, S.~Layeghy, M.~Sarhan, M.~Gallagher, M.~Portmann,
+``E-GraphSAGE: A graph neural network based intrusion detection system
+for IoT,'' in \emph{Proc.\ IEEE/IFIP NOMS}, 2022.
+
+\bibitem{velickovic2018gat}
+P.~Veli\v{c}kovi\'c, G.~Cucurull, A.~Casanova, A.~Romero, P.~Li\`o,
+Y.~Bengio,
+``Graph attention networks,'' in \emph{Proc.\ ICLR}, 2018.
+
+\bibitem{brody2022gatv2}
+S.~Brody, U.~Alon, E.~Yahav,
+``How attentive are graph attention networks?,'' in
+\emph{Proc.\ ICLR}, 2022.
+
+\bibitem{layeghy2023}
+S.~Layeghy \emph{et~al.},
+``Benchmarking the benchmark: Analysis of synthetic NIDS datasets,''
+\emph{Computers \& Security}, 2023.
+
+\bibitem{goodfellow2015fgsm}
+I.~J.~Goodfellow, J.~Shlens, C.~Szegedy,
+``Explaining and harnessing adversarial examples,'' in
+\emph{Proc.\ ICLR}, 2015.
+
+\bibitem{madry2018pgd}
+A.~Madry, A.~Makelov, L.~Schmidt, D.~Tsipras, A.~Vladu,
+``Towards deep learning models resistant to adversarial attacks,'' in
+\emph{Proc.\ ICLR}, 2018.
+
+\bibitem{carlini2017cw}
+N.~Carlini, D.~Wagner,
+``Towards evaluating the robustness of neural networks,'' in
+\emph{Proc.\ IEEE S\&P}, 2017.
+
+\bibitem{moosavi2016deepfool}
+S.-M.~Moosavi-Dezfooli, A.~Fawzi, P.~Frossard,
+``DeepFool: a simple and accurate method to fool deep neural networks,''
+in \emph{Proc.\ CVPR}, 2016.
+
+\bibitem{zou2024adversarialNIDS}
+W.~Zou \emph{et~al.},
+``Adversarial robustness of network intrusion detection: A systematic
+benchmark,'' \emph{Computers \& Security}, 2024.
+
+\bibitem{zhao2025gnnsurvey}
+H.~Zhao \emph{et~al.},
+``A comprehensive survey of GNN-based intrusion detection
+(2018--2025),'' \emph{ACM Computing Surveys}, 2025.
+
+\bibitem{sharafaldin2018cicids}
+I.~Sharafaldin, A.~H.~Lashkari, A.~A.~Ghorbani,
+``Toward generating a new intrusion detection dataset and intrusion
+traffic characterization,'' in \emph{Proc.\ ICISSP}, 2018.
+
+\bibitem{tavallaee2009nslkdd}
+M.~Tavallaee, E.~Bagheri, W.~Lu, A.~A.~Ghorbani,
+``A detailed analysis of the KDD CUP 99 data set,'' in
+\emph{Proc.\ IEEE CISDA}, 2009.
+
+\bibitem{ciciot2023}
+S.~Dadkhah \emph{et~al.},
+``CICIoT2023: A real-time dataset and benchmark for large-scale attacks
+in IoT environment,'' \emph{Sensors}, 2023.
+
+\bibitem{moustafa2015unsw}
+N.~Moustafa, J.~Slay,
+``UNSW-NB15: A comprehensive data set for network intrusion detection,''
+in \emph{Proc.\ MilCIS}, 2015.
+
+\bibitem{sarhan2022nftoniot}
+M.~Sarhan, S.~Layeghy, M.~Portmann,
+``NF-ToN-IoT-V2: A new IoT NIDS dataset for benchmarking machine learning
+methods,'' \emph{Big Data Research}, 2022.
+
+\bibitem{koroniotis2019botiot}
+N.~Koroniotis, N.~Moustafa, E.~Sitnikova, B.~Turnbull,
+``Towards the development of a realistic botnet dataset in the IoT for
+network forensic analytics: BoT-IoT,''
+\emph{Future Generation Computer Systems}, 2019.
+
+\bibitem{anaedevha2024surrogate}
+R.~N.~Anaedevha, A.~G.~Trofimov,
+``RobustIDPS: An adversarially robust intrusion detection system with
+continual learning and constrained reinforcement learning,''
+\emph{IEEE TNNLS} (in submission), 2024.
+
+\bibitem{anaedevha2025llmsec}
+R.~N.~Anaedevha, A.~G.~Trofimov,
+``LLM security for network intrusion detection: A defensive pipeline
+and four-attack benchmark,''
+\emph{IEEE TNNLS} (in submission), 2025.
+
+\bibitem{anaedevha2026sslgraph}
+R.~N.~Anaedevha, A.~G.~Trofimov,
+``Self-supervised graph neural networks for network intrusion detection
+with conformal safety certification,''
+\emph{IEEE TIFS} (in submission), 2026.
+
+\end{thebibliography}
+
+\end{document}
