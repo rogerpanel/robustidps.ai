@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["agent-features", "agent-cli", "agent-netfilter"]
+members = ["agent-features", "agent-cli", "agent-netfilter", "agent-edge"]
 
 [workspace.package]
 version = "0.1.0"
@@ -36,6 +36,19 @@ serde_json = "1.0"
 ipnet = "2.10"
 # Process-spawning helpers and timeouts
 which = "7.0"
+# Async runtime + gRPC for the edge agent
+tokio = { version = "1.41", features = ["rt-multi-thread", "macros", "signal", "sync", "time", "fs", "io-util", "net"] }
+tokio-stream = "0.1"
+tonic = "0.12"
+tonic-build = "0.12"
+prost = "0.13"
+futures = "0.3"
+# Live packet capture
+pcap = "2.2"
+# Config loading
+toml = "0.8"
+# Hostname resolution for agent identity
+hostname = "0.4"
 
 [profile.release]
 opt-level = 3

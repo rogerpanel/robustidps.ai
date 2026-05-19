@@ -12,6 +12,7 @@ edge-agent roadmap (see `papers/robustidps_documentation_v3.tex`
 | `agent-features` | Library: pure-Rust PCAP/PCAPNG parser → bidirectional flow assembly → CICIDS2018-style 77-column feature vector. |
 | `agent-cli` | Thin CLI driver shipping the `robustidps-agent` binary. |
 | `agent-netfilter` | Library + `robustidps-netfilter` binary: safe, batched, atomic firewall-rule applier. Reads JSON `TransactionRequest`, renders a single `iptables-restore -n` / `nft -f -` payload, applies in one process spawn. |
+| `agent-edge` | Library + `robustidps-edge` daemon: live or PCAP-replay capture → streaming flow assembly → stub classifier → gRPC `EdgeAgent` service streaming `FlowRecord`s upstream. Built on tokio + tonic. |
 
 ## Build
 
@@ -116,13 +117,60 @@ Security properties:
 * On non-zero exit / timeout, the agent emits a `failed` response with
   process status and captured stderr — never silently succeeds.
 
+## `robustidps-edge` daemon usage
+
+```bash
+# One-shot PCAP-replay smoke test, no gRPC, prints stats to stderr
+./target/release/robustidps-edge --pcap sample_data/adversarial_benchmark.pcap --no-grpc
+
+# Long-running daemon with gRPC server bound to :50090
+./target/release/robustidps-edge --config /etc/robustidps/edge.toml
+```
+
+Minimal `edge.toml`:
+
+```toml
+agent_id = "edge-01"
+
+[capture]
+mode = "live"
+interface = "eth0"
+snaplen = 1600
+promisc = true
+
+[grpc]
+bind = "0.0.0.0:50090"
+
+[flow]
+idle_timeout_secs = 15
+active_timeout_secs = 120
+sweep_interval_secs = 2
+max_flows = 200000
+
+[inference]
+block_ips = ["203.0.113.0/24"]
+min_severity = "low"
+```
+
+The agent exposes a `robustidps.edge.v1.EdgeAgent` gRPC service:
+
+| RPC | Direction | Purpose |
+|---|---|---|
+| `StreamFlows(StreamRequest) -> stream FlowRecord` | server-streaming | continuous push of finalised + classified flows |
+| `GetStats(StatsRequest) -> AgentStats` | unary | counters (packets, flows, verdicts by severity, uptime) |
+| `UpdateConfig(ConfigUpdate) -> ConfigAck` | unary | hot-swap block list + min-severity threshold |
+| `ClassifyFlow(FlowRecord) -> Verdict` | unary | one-off classification for a control-plane-supplied flow |
+
+The proto schema lives at `agent-edge/proto/edge.proto`; the Python control
+plane should `protoc`-generate a client matching that schema.
+
 ## Roadmap
 
 The agent is part of the 6-step edge-agent migration:
 
 1. **Rust feature-extraction CLI ← (shipped)**
 2. **Rust netfilter wrapper ← (shipped)**
-3. Edge agent MVP (gRPC + zero-copy packet capture)
+3. **Edge agent MVP — gRPC + capture + flow assembly + stub classifier ← (shipped)**
 4. Student-model distillation + INT8 inference
 5. eBPF/XDP drop helper
 6. Online model update channel
