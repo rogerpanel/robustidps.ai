@@ -14,6 +14,7 @@ edge-agent roadmap (see `papers/robustidps_documentation_v3.tex`
 | `agent-netfilter` | Library + `robustidps-netfilter` binary: safe, batched, atomic firewall-rule applier. Reads JSON `TransactionRequest`, renders a single `iptables-restore -n` / `nft -f -` payload, applies in one process spawn. |
 | `agent-edge` | Library + `robustidps-edge` daemon: live or PCAP-replay capture → streaming flow assembly → stub classifier → gRPC `EdgeAgent` service streaming `FlowRecord`s upstream. Built on tokio + tonic. Optional `onnx` feature swaps in `agent-inference`. |
 | `agent-inference` | INT8 ONNX student-model classifier (`OnnxClassifier`). Standalone — no dep on `agent-edge`. Loaded by `agent-edge` via the `onnx` feature + a thin adapter that implements the `Classifier` trait. |
+| `agent-xdp` | Kernel-level XDP fast-path drop. C eBPF program + `aya` userspace loader. See [agent-xdp/README.md](agent-xdp/README.md) for the Hetzner deployment checklist. |
 
 ## Build
 
@@ -203,7 +204,7 @@ The agent is part of the 6-step edge-agent migration:
 2. **Rust netfilter wrapper ← (shipped)**
 3. **Edge agent MVP — gRPC + capture + flow assembly + stub classifier ← (shipped)**
 4. **Student-model distillation + INT8 inference ← (shipped)**
-5. eBPF/XDP drop helper
+5. **eBPF/XDP drop helper ← (shipped — kernel-runtime verification pending on Hetzner)**
 6. Online model update channel
 
 Each step lands as additional crates in this workspace.
