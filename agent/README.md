@@ -11,6 +11,7 @@ edge-agent roadmap (see `papers/robustidps_documentation_v3.tex`
 |---|---|
 | `agent-features` | Library: pure-Rust PCAP/PCAPNG parser → bidirectional flow assembly → CICIDS2018-style 77-column feature vector. |
 | `agent-cli` | Thin CLI driver shipping the `robustidps-agent` binary. |
+| `agent-netfilter` | Library + `robustidps-netfilter` binary: safe, batched, atomic firewall-rule applier. Reads JSON `TransactionRequest`, renders a single `iptables-restore -n` / `nft -f -` payload, applies in one process spawn. |
 
 ## Build
 
@@ -79,12 +80,48 @@ A `--features-binary` knob in `backend/config.py` will toggle between the
 existing NFStream path and the Rust agent in a future change; until then the
 agent ships alongside the Python fallback rather than replacing it.
 
+## `robustidps-netfilter` usage
+
+```bash
+# Dry-run a batch of 3 rules
+cat <<EOF | ./target/release/robustidps-netfilter --verbose
+{
+  "transaction": {
+    "rule_type": "iptables",
+    "transaction_id": "batch-001",
+    "rules": [
+      {"source": "203.0.113.42", "action": "drop", "protocol": "tcp", "dst_port": 22, "comment": "ssh-brute"},
+      {"source": "198.51.100.0/24", "action": "reject"},
+      {"source": "2001:db8::/32", "action": "drop"}
+    ]
+  },
+  "dry_run": true
+}
+EOF
+```
+
+On hosts with `iptables-restore` / `nft` installed, set `"dry_run": false`
+to apply atomically — one process spawn for N rules, the kernel either
+accepts the whole transaction or rejects it.
+
+Security properties:
+
+* Source IP / CIDR must parse via `ipnet::IpNet::from_str`; anything else
+  (including shell-metacharacter payloads) is rejected with a structured
+  `failed` response.
+* No raw shell command strings — callers describe intent (action + source +
+  optional protocol/dport), the binary renders the kernel-bound payload.
+* Comments are sanitised: control characters and quote characters are
+  stripped, length capped at 64 chars.
+* On non-zero exit / timeout, the agent emits a `failed` response with
+  process status and captured stderr — never silently succeeds.
+
 ## Roadmap
 
 The agent is part of the 6-step edge-agent migration:
 
-1. **Rust feature-extraction CLI ← (this crate, shipped)**
-2. Rust netfilter wrapper (replaces `backend/prevention.py::_execute_iptables_rule`)
+1. **Rust feature-extraction CLI ← (shipped)**
+2. **Rust netfilter wrapper ← (shipped)**
 3. Edge agent MVP (gRPC + zero-copy packet capture)
 4. Student-model distillation + INT8 inference
 5. eBPF/XDP drop helper
