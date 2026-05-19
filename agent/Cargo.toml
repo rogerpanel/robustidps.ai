@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["agent-features", "agent-cli", "agent-netfilter", "agent-edge"]
+members = ["agent-features", "agent-cli", "agent-netfilter", "agent-edge", "agent-inference"]
 
 [workspace.package]
 version = "0.1.0"
@@ -49,6 +49,12 @@ pcap = "2.2"
 toml = "0.8"
 # Hostname resolution for agent identity
 hostname = "0.4"
+# ONNX Runtime bindings. Pin to exactly rc.10 — rc.11/rc.12 hit a build
+# failure on the VitisAI execution provider when the host's libonnxruntime
+# is older than that EP. rc.10 is the most recent rc that builds cleanly
+# against the libonnxruntime shipped on Debian / Ubuntu 24.04.
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["load-dynamic", "ndarray"] }
+ndarray = "0.16"
 
 [profile.release]
 opt-level = 3

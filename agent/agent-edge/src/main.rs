@@ -46,6 +46,16 @@ struct Cli {
     /// Run without starting the gRPC server (pcap mode only).
     #[arg(long)]
     no_grpc: bool,
+    /// Path to an INT8 ONNX student model produced by
+    /// `backend/distill_student.py`. Requires the binary to have been
+    /// built with `--features onnx`; otherwise the flag is a no-op.
+    #[arg(long)]
+    onnx_model: Option<PathBuf>,
+    /// Path to the labels JSON that accompanies `--onnx-model`.
+    /// Defaults to `<model-dir>/labels.json` when `--onnx-model` is
+    /// supplied without an explicit labels path.
+    #[arg(long)]
+    onnx_labels: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -65,11 +75,8 @@ async fn main() -> Result<()> {
     info!("robustidps-edge starting (id={agent_id} host={host} mode={mode_str} iface={iface_str})");
 
     let stats = SharedStats::default();
-    let classifier = Arc::new(
-        StubClassifier::new(cfg.inference.block_ips.clone())
-            .context("constructing initial StubClassifier")?,
-    );
-    stats.set_block_count(classifier.block_count() as u64);
+    let classifier = build_classifier(&cli, &cfg)?;
+    stats.set_block_count(classifier_block_count(&classifier) as u64);
 
     let shutdown = Arc::new(AtomicBool::new(false));
     install_signal_handler(shutdown.clone());
@@ -218,6 +225,56 @@ fn resolve_config(cli: &Cli) -> Result<AgentConfig> {
         flow: FlowConfig::default(),
         inference: InferenceConfig::default(),
     })
+}
+
+/// Pick a classifier implementation based on CLI flags + Cargo features.
+///
+/// Default path is always `StubClassifier`. When the `onnx` feature is
+/// compiled in AND both `--onnx-model` and a resolvable labels JSON exist,
+/// an [`agent_edge::onnx_adapter::OnnxAdapter`] is used instead.
+fn build_classifier(cli: &Cli, cfg: &AgentConfig) -> Result<Arc<dyn Classifier>> {
+    #[cfg(feature = "onnx")]
+    {
+        if let Some(model) = &cli.onnx_model {
+            let labels = cli
+                .onnx_labels
+                .clone()
+                .unwrap_or_else(|| {
+                    model
+                        .parent()
+                        .map(|d| d.join("labels.json"))
+                        .unwrap_or_else(|| std::path::PathBuf::from("labels.json"))
+                });
+            info!(
+                "loading ONNX classifier: model={} labels={}",
+                model.display(),
+                labels.display()
+            );
+            let adapter = agent_edge::onnx_adapter::OnnxAdapter::new(
+                model,
+                &labels,
+                cfg.inference.block_ips.clone(),
+            )
+            .context("constructing OnnxAdapter")?;
+            return Ok(Arc::new(adapter));
+        }
+    }
+    #[cfg(not(feature = "onnx"))]
+    {
+        if cli.onnx_model.is_some() {
+            warn!(
+                "--onnx-model supplied but binary was built without the `onnx` Cargo \
+                 feature; falling back to StubClassifier"
+            );
+        }
+    }
+    let stub = StubClassifier::new(cfg.inference.block_ips.clone())
+        .context("constructing initial StubClassifier")?;
+    Ok(Arc::new(stub))
+}
+
+fn classifier_block_count(c: &Arc<dyn Classifier>) -> usize {
+    c.block_count()
 }
 
 fn describe_mode(m: &CaptureMode) -> (&'static str, String) {

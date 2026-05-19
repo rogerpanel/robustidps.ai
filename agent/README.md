@@ -12,7 +12,8 @@ edge-agent roadmap (see `papers/robustidps_documentation_v3.tex`
 | `agent-features` | Library: pure-Rust PCAP/PCAPNG parser → bidirectional flow assembly → CICIDS2018-style 77-column feature vector. |
 | `agent-cli` | Thin CLI driver shipping the `robustidps-agent` binary. |
 | `agent-netfilter` | Library + `robustidps-netfilter` binary: safe, batched, atomic firewall-rule applier. Reads JSON `TransactionRequest`, renders a single `iptables-restore -n` / `nft -f -` payload, applies in one process spawn. |
-| `agent-edge` | Library + `robustidps-edge` daemon: live or PCAP-replay capture → streaming flow assembly → stub classifier → gRPC `EdgeAgent` service streaming `FlowRecord`s upstream. Built on tokio + tonic. |
+| `agent-edge` | Library + `robustidps-edge` daemon: live or PCAP-replay capture → streaming flow assembly → stub classifier → gRPC `EdgeAgent` service streaming `FlowRecord`s upstream. Built on tokio + tonic. Optional `onnx` feature swaps in `agent-inference`. |
+| `agent-inference` | INT8 ONNX student-model classifier (`OnnxClassifier`). Standalone — no dep on `agent-edge`. Loaded by `agent-edge` via the `onnx` feature + a thin adapter that implements the `Classifier` trait. |
 
 ## Build
 
@@ -164,6 +165,36 @@ The agent exposes a `robustidps.edge.v1.EdgeAgent` gRPC service:
 The proto schema lives at `agent-edge/proto/edge.proto`; the Python control
 plane should `protoc`-generate a client matching that schema.
 
+## INT8 ONNX student model (step 4)
+
+Build the daemon with the `onnx` feature and pass `--onnx-model`:
+
+```bash
+# Build host: torch + onnxruntime + onnx-python required
+python3 backend/distill_student.py --epochs 50 --n-train 20000
+
+# Build the Rust daemon with the optional ONNX backend
+cd agent && cargo build --release -p agent-edge --features onnx
+
+# Run with the INT8 student loaded
+RUST_LOG=info ./target/release/robustidps-edge \
+  --pcap ../sample_data/adversarial_benchmark.pcap --no-grpc \
+  --onnx-model agent-inference/weights/student_int8.onnx
+# (labels.json sibling is found automatically)
+```
+
+The `agent-inference` crate is a standalone library — no dependency on
+`agent-edge`. The two are bridged by `agent-edge/src/onnx_adapter.rs`
+(behind `#[cfg(feature = "onnx")]`) which implements the
+`agent_edge::inference::Classifier` trait on top of
+`agent_inference::OnnxClassifier`. The block-list match keeps priority
+over the ML verdict — same semantics as the StubClassifier path.
+
+Required host packages at runtime: `libonnxruntime.so` reachable via the
+dynamic linker (e.g. `apt-get install onnxruntime` on Debian/Ubuntu, or
+`LD_LIBRARY_PATH=/path/to/onnxruntime/lib`). Without it the daemon fails
+fast at startup with a friendly error.
+
 ## Roadmap
 
 The agent is part of the 6-step edge-agent migration:
@@ -171,7 +202,7 @@ The agent is part of the 6-step edge-agent migration:
 1. **Rust feature-extraction CLI ← (shipped)**
 2. **Rust netfilter wrapper ← (shipped)**
 3. **Edge agent MVP — gRPC + capture + flow assembly + stub classifier ← (shipped)**
-4. Student-model distillation + INT8 inference
+4. **Student-model distillation + INT8 inference ← (shipped)**
 5. eBPF/XDP drop helper
 6. Online model update channel
 

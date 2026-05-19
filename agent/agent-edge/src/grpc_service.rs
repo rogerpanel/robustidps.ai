@@ -20,7 +20,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
 use crate::flow_streamer::FlowToClassify;
-use crate::inference::{severity_rank, ClassifiedFlow, Classifier, StubClassifier};
+use crate::inference::{severity_rank, ClassifiedFlow, Classifier};
 use crate::pb;
 use crate::pb::edge_agent_server::{EdgeAgent, EdgeAgentServer};
 
@@ -65,9 +65,11 @@ pub struct ServiceState {
     /// Atomically-updated counters used by both the capture/inference
     /// pipelines and by `GetStats`.
     pub stats: crate::SharedStats,
-    /// Local classifier. Wrapped in `Arc` because both the inference task
-    /// and the `ClassifyFlow` / `UpdateConfig` handlers need it.
-    pub classifier: Arc<StubClassifier>,
+    /// Local classifier. Wrapped in `Arc<dyn Classifier>` so the daemon can
+    /// swap concrete implementations (StubClassifier, OnnxAdapter under
+    /// `--features onnx`, future eBPF-backed variants) without changes
+    /// here.
+    pub classifier: Arc<dyn Classifier>,
     /// Broadcast channel of classified flows produced by the inference
     /// task. Each `StreamFlows` subscriber gets a fresh `subscribe()`
     /// receiver.

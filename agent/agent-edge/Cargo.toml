@@ -15,8 +15,17 @@ path = "src/lib.rs"
 name = "robustidps-edge"
 path = "src/main.rs"
 
+[features]
+default = []
+# Enables the OnnxClassifier path via agent-inference. Requires
+# libonnxruntime.so on the deploy host (apt-get install onnxruntime, or
+# bundle it next to the binary). Without this feature the daemon falls
+# back to StubClassifier and ignores any --onnx-model CLI flag.
+onnx = ["dep:agent-inference"]
+
 [dependencies]
 agent-features = { path = "../agent-features" }
+agent-inference = { path = "../agent-inference", optional = true }
 
 tokio.workspace = true
 tokio-stream.workspace = true

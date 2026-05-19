@@ -55,9 +55,20 @@ pub struct ClassifiedFlow {
 }
 
 /// Trait implemented by any local classifier the edge agent can plug in.
+///
+/// `update_block_list` + `block_count` are part of the trait so the gRPC
+/// `UpdateConfig` RPC can target any concrete classifier interchangeably
+/// (Stub, ONNX adapter, future eBPF-backed variants).
 pub trait Classifier: Send + Sync + std::fmt::Debug {
     /// Classify a single completed flow.
     fn classify(&self, flow: &crate::flow_streamer::FlowToClassify) -> Verdict;
+
+    /// Replace the source-IP block list. Returns the new count or an error
+    /// if any entry failed to parse as `IpNet` / `IpAddr`.
+    fn update_block_list(&self, new_list: Vec<String>) -> anyhow::Result<usize>;
+
+    /// Current block-list size.
+    fn block_count(&self) -> usize;
 }
 
 /// Deterministic heuristic stub classifier.
@@ -77,25 +88,6 @@ impl StubClassifier {
         Ok(Self {
             block_list: Arc::new(RwLock::new(parse_block_list(&block_list)?)),
         })
-    }
-
-    /// Replace the current block list. Returns the new entry count.
-    pub fn update_block_list(&self, new_list: Vec<String>) -> Result<usize> {
-        let parsed = parse_block_list(&new_list)?;
-        let mut guard = self
-            .block_list
-            .write()
-            .map_err(|_| anyhow::anyhow!("block list lock poisoned"))?;
-        *guard = parsed;
-        Ok(guard.len())
-    }
-
-    /// Cheap read of the current block-list size.
-    pub fn block_count(&self) -> usize {
-        self.block_list
-            .read()
-            .map(|g| g.len())
-            .unwrap_or_else(|p| p.into_inner().len())
     }
 
     /// True if any block-list entry contains `ip`.
@@ -173,6 +165,23 @@ impl Classifier for StubClassifier {
 
         // 7. Default: benign.
         v("Benign", 0.5, "benign", "no rule matched")
+    }
+
+    fn update_block_list(&self, new_list: Vec<String>) -> Result<usize> {
+        let parsed = parse_block_list(&new_list)?;
+        let mut guard = self
+            .block_list
+            .write()
+            .map_err(|_| anyhow::anyhow!("block list lock poisoned"))?;
+        *guard = parsed;
+        Ok(guard.len())
+    }
+
+    fn block_count(&self) -> usize {
+        self.block_list
+            .read()
+            .map(|g| g.len())
+            .unwrap_or_else(|p| p.into_inner().len())
     }
 }
 

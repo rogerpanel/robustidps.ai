@@ -22,6 +22,9 @@ pub mod grpc_service;
 pub mod inference;
 pub mod stats;
 
+#[cfg(feature = "onnx")]
+pub mod onnx_adapter;
+
 /// gRPC types generated from `proto/edge.proto`.
 pub mod pb {
     tonic::include_proto!("robustidps.edge.v1");
