@@ -10,6 +10,7 @@ import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import { registerSessionReset } from '../utils/sessionReset'
+import MultiRunPanel from '../components/MultiRunPanel'
 
 /* ── Types & Static Data ──────────────────────────────────────────────── */
 const LLM_PROTOCOLS = ['MCP', 'ACP', 'A2A', 'ANP'] as const
@@ -88,6 +89,7 @@ const GUIDE_STEPS = [
 ]
 
 interface MambaStore {
+  mode: 'single' | 'multi'
   selectedProtocol: Protocol | 'ALL'
   expandedAttack: string | null
   certRadius: number
@@ -99,6 +101,7 @@ interface MambaStore {
 }
 
 const _store: MambaStore = {
+  mode: 'single',
   selectedProtocol: 'ALL',
   expandedAttack: null,
   certRadius: 0.1,
@@ -110,6 +113,7 @@ const _store: MambaStore = {
 }
 
 registerSessionReset(() => {
+  _store.mode = 'single'
   _store.selectedProtocol = 'ALL'
   _store.expandedAttack = null
   _store.certRadius = 0.1
@@ -121,6 +125,8 @@ registerSessionReset(() => {
 })
 
 export default function MambaGuard() {
+  const [mode, _setMode] = useState<'single' | 'multi'>(_store.mode)
+  const setMode = (v: 'single' | 'multi') => { _store.mode = v; _setMode(v) }
   const [selectedProtocol, _setProto] = useState<Protocol | 'ALL'>(_store.selectedProtocol)
   const [expandedAttack, _setExp] = useState<string | null>(_store.expandedAttack)
   const [certRadius, _setRad] = useState(_store.certRadius)
@@ -251,9 +257,41 @@ export default function MambaGuard() {
         <ExportMenu filename="mambaguard" />
       </div>
 
+      {/* Mode toggle — single dataset vs multi-dataset/multi-model */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-bg-card pb-3">
+        <button
+          onClick={() => setMode('single')}
+          className={`px-3 py-2 rounded-lg text-xs font-medium min-h-10 transition-colors ${
+            mode === 'single'
+              ? 'bg-accent-orange/15 text-accent-orange border border-accent-orange/30'
+              : 'bg-bg-secondary text-text-secondary border border-bg-card hover:text-text-primary'
+          }`}
+        >
+          Single dataset
+        </button>
+        <button
+          onClick={() => setMode('multi')}
+          className={`px-3 py-2 rounded-lg text-xs font-medium min-h-10 transition-colors ${
+            mode === 'multi'
+              ? 'bg-accent-orange/15 text-accent-orange border border-accent-orange/30'
+              : 'bg-bg-secondary text-text-secondary border border-bg-card hover:text-text-primary'
+          }`}
+        >
+          Multi-dataset / multi-model
+        </button>
+        <span className="text-[10px] text-text-secondary/60 ml-2">
+          Multi-mode runs MambaGuard alongside any other registered models across up to 3 datasets.
+        </span>
+      </div>
+
       <PageGuide title="How to use MambaGuard" steps={GUIDE_STEPS}
         tip="Mamba’s selective scan is linear in sequence length — long agent traces stay tractable." />
 
+      {mode === 'multi' && (
+        <MultiRunPanel pageKey="mambaguard" defaultModel="mambaguard" accent="orange" />
+      )}
+
+      {mode === 'single' && (<>
       {/* Upload + Model */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
@@ -553,6 +591,8 @@ export default function MambaGuard() {
           </>
         )}
       </div>
+
+      </>)}
 
       {/* Cross-Page Navigation */}
       <div className="flex flex-wrap gap-2 pt-4 border-t border-bg-card">

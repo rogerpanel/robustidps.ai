@@ -10,6 +10,7 @@ import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import { registerSessionReset } from '../utils/sessionReset'
+import MultiRunPanel from '../components/MultiRunPanel'
 
 /* ── Static config ────────────────────────────────────────────────────── */
 const GUIDE_STEPS = [
@@ -57,6 +58,7 @@ const DEMO_FLOWS = seedFlows()
 
 /* ── Module store ─────────────────────────────────────────────────────── */
 interface SODEStore {
+  mode: 'single' | 'multi'
   chaosDegree: number
   epsilon: number
   expanded: { cert: boolean; field: boolean }
@@ -66,6 +68,7 @@ interface SODEStore {
 }
 
 const _store: SODEStore = {
+  mode: 'single',
   chaosDegree: 4,
   epsilon: 0.02,
   expanded: { cert: true, field: false },
@@ -75,6 +78,7 @@ const _store: SODEStore = {
 }
 
 registerSessionReset(() => {
+  _store.mode = 'single'
   _store.chaosDegree = 4
   _store.epsilon = 0.02
   _store.expanded = { cert: true, field: false }
@@ -84,6 +88,8 @@ registerSessionReset(() => {
 })
 
 export default function SODEGuard() {
+  const [mode, _setMode] = useState<'single' | 'multi'>(_store.mode)
+  const setMode = (v: 'single' | 'multi') => { _store.mode = v; _setMode(v) }
   const [chaosDegree, _setChaos] = useState(_store.chaosDegree)
   const [epsilon, _setEps] = useState(_store.epsilon)
   const [expanded, _setExp] = useState(_store.expanded)
@@ -211,9 +217,41 @@ export default function SODEGuard() {
         <ExportMenu filename="sode-guard" />
       </div>
 
+      {/* Mode toggle — single dataset vs multi-dataset/multi-model */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-bg-card pb-3">
+        <button
+          onClick={() => setMode('single')}
+          className={`px-3 py-2 rounded-lg text-xs font-medium min-h-10 transition-colors ${
+            mode === 'single'
+              ? 'bg-accent-blue/15 text-accent-blue border border-accent-blue/30'
+              : 'bg-bg-secondary text-text-secondary border border-bg-card hover:text-text-primary'
+          }`}
+        >
+          Single dataset
+        </button>
+        <button
+          onClick={() => setMode('multi')}
+          className={`px-3 py-2 rounded-lg text-xs font-medium min-h-10 transition-colors ${
+            mode === 'multi'
+              ? 'bg-accent-blue/15 text-accent-blue border border-accent-blue/30'
+              : 'bg-bg-secondary text-text-secondary border border-bg-card hover:text-text-primary'
+          }`}
+        >
+          Multi-dataset / multi-model
+        </button>
+        <span className="text-[10px] text-text-secondary/60 ml-2">
+          Multi-mode runs SODE-Guard alongside any other registered models across up to 3 datasets.
+        </span>
+      </div>
+
       <PageGuide title="How to use SODE-Guard" steps={GUIDE_STEPS}
         tip="Anti-concentration ≥ ε implies the prediction is provably stable to all L_∞ perturbations of magnitude ≤ ε." />
 
+      {mode === 'multi' && (
+        <MultiRunPanel pageKey="sode_guard" defaultModel="sode_guard" accent="blue" />
+      )}
+
+      {mode === 'single' && (<>
       {/* Upload + Model + Chaos Dial */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
@@ -478,6 +516,8 @@ export default function SODEGuard() {
           </div>
         )}
       </div>
+
+      </>)}
 
       {/* Cross-Page Navigation */}
       <div className="flex flex-wrap gap-2 pt-4 border-t border-bg-card">

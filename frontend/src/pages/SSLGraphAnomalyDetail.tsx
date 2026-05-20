@@ -10,6 +10,7 @@ import { analyseFile, cachePageResult } from '../utils/api'
 import { useNoticeBoard } from '../hooks/useNoticeBoard'
 import { getLiveData, hasLiveData } from '../utils/liveDataStore'
 import { registerSessionReset } from '../utils/sessionReset'
+import MultiRunPanel from '../components/MultiRunPanel'
 
 /* ── Static config ────────────────────────────────────────────────────── */
 const GUIDE_STEPS = [
@@ -66,6 +67,7 @@ const DEMO_FLOWS = seedFlows()
 
 /* ── Module store ─────────────────────────────────────────────────────── */
 interface SSLStore {
+  mode: 'single' | 'multi'
   alpha: number
   expandedStage: string | null
   expanded: { conformal: boolean; energy: boolean }
@@ -77,6 +79,7 @@ interface SSLStore {
 }
 
 const _store: SSLStore = {
+  mode: 'single',
   alpha: 0.05,
   expandedStage: null,
   expanded: { conformal: true, energy: true },
@@ -88,6 +91,7 @@ const _store: SSLStore = {
 }
 
 registerSessionReset(() => {
+  _store.mode = 'single'
   _store.alpha = 0.05
   _store.expandedStage = null
   _store.expanded = { conformal: true, energy: true }
@@ -99,6 +103,8 @@ registerSessionReset(() => {
 })
 
 export default function SSLGraphAnomalyDetail() {
+  const [mode, _setMode] = useState<'single' | 'multi'>(_store.mode)
+  const setMode = (v: 'single' | 'multi') => { _store.mode = v; _setMode(v) }
   const [alpha, _setAlpha] = useState(_store.alpha)
   const [expandedStage, _setStage] = useState<string | null>(_store.expandedStage)
   const [expanded, _setExp] = useState(_store.expanded)
@@ -249,9 +255,41 @@ export default function SSLGraphAnomalyDetail() {
         <ExportMenu filename="ssl-graph-anomaly" />
       </div>
 
+      {/* Mode toggle — single dataset vs multi-dataset/multi-model */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-bg-card pb-3">
+        <button
+          onClick={() => setMode('single')}
+          className={`px-3 py-2 rounded-lg text-xs font-medium min-h-10 transition-colors ${
+            mode === 'single'
+              ? 'bg-accent-green/15 text-accent-green border border-accent-green/30'
+              : 'bg-bg-secondary text-text-secondary border border-bg-card hover:text-text-primary'
+          }`}
+        >
+          Single dataset
+        </button>
+        <button
+          onClick={() => setMode('multi')}
+          className={`px-3 py-2 rounded-lg text-xs font-medium min-h-10 transition-colors ${
+            mode === 'multi'
+              ? 'bg-accent-green/15 text-accent-green border border-accent-green/30'
+              : 'bg-bg-secondary text-text-secondary border border-bg-card hover:text-text-primary'
+          }`}
+        >
+          Multi-dataset / multi-model
+        </button>
+        <span className="text-[10px] text-text-secondary/60 ml-2">
+          Multi-mode runs SSL-GraphAnomaly alongside any other registered models across up to 3 datasets.
+        </span>
+      </div>
+
       <PageGuide title="How to use SSL-GraphAnomaly" steps={GUIDE_STEPS}
         tip="Conformal prediction gives a marginal-coverage guarantee — assumes the calibration set is exchangeable with future benign flows." />
 
+      {mode === 'multi' && (
+        <MultiRunPanel pageKey="ssl_graph_anomaly" defaultModel="ssl_graph_anomaly_full" accent="green" />
+      )}
+
+      {mode === 'single' && (<>
       {/* Upload + Model */}
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h2 className="text-lg font-display font-semibold flex items-center gap-2 mb-3">
@@ -527,6 +565,8 @@ export default function SSLGraphAnomalyDetail() {
           Calls <code className="font-mono">/api/ssl-graph-anomaly/calibrate</code> (simulated; logs to Notice Board).
         </p>
       </div>
+
+      </>)}
 
       {/* Cross-Page Navigation */}
       <div className="flex flex-wrap gap-2 pt-4 border-t border-bg-card">

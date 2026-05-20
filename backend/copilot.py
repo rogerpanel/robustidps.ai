@@ -481,6 +481,16 @@ def _summarise_page_result(page: str, result: dict) -> dict:
         summary["threshold"] = result.get("threshold")
         summary["empirical_coverage_bound"] = result.get("empirical_coverage_bound")
         summary["model_used"] = result.get("model_used", "")
+    elif page.endswith("_multi"):
+        # Multi-dataset/multi-model runs from the MultiRunPanel on the three
+        # new model pages (mambaguard_multi, sode_guard_multi,
+        # ssl_graph_anomaly_multi). Same shape on every page so a single
+        # handler covers them all.
+        summary["base_page"] = page.removesuffix("_multi")
+        summary["n_runs"] = result.get("n_runs", 0)
+        summary["models"] = result.get("models", [])
+        summary["n_datasets"] = result.get("n_datasets", 0)
+        summary["per_run_summary"] = result.get("per_run_summary", [])
     elif page == "upload":
         summary["file_name"] = result.get("file_name", "")
         summary["n_flows"] = result.get("n_flows", 0)
