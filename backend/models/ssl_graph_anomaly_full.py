@@ -483,10 +483,8 @@ class SSLGraphAnomalyFullModel(nn.Module):
     # ------------------------------------------------------------------
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         h = self.embed(x)
-        h_in = x
         for layer in self.graph_layers:
-            h = h + layer(h_in)
-            h_in = h
+            h = h + layer(x)
         # Parallel attention-gated streaming skip path summed back into trunk.
         h_stream = self.streaming_block(h)
         h = h + h_stream
