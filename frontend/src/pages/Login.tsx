@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ShieldCheck, LogIn, UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import ThemeToggle from '../components/ThemeToggle'
 import { setAuth, type AuthUser } from '../utils/auth'
 import { setSessionId, broadcastLogin } from '../utils/sessionManager'
 
@@ -97,7 +98,10 @@ export default function Login({ onLogin }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary flex items-center justify-center p-4">
+    <div className="min-h-screen bg-bg-primary flex items-center justify-center p-4 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">

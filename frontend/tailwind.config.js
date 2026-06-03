@@ -5,21 +5,21 @@ export default {
     extend: {
       colors: {
         bg: {
-          primary: '#0F172A',
-          secondary: '#1E293B',
-          card: '#334155',
+          primary: 'rgb(var(--color-bg-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--color-bg-secondary) / <alpha-value>)',
+          card: 'rgb(var(--color-bg-card) / <alpha-value>)',
         },
         text: {
-          primary: '#F8FAFC',
-          secondary: '#94A3B8',
+          primary: 'rgb(var(--color-text-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--color-text-secondary) / <alpha-value>)',
         },
         accent: {
-          blue: '#3B82F6',
-          red: '#EF4444',
-          amber: '#F59E0B',
-          green: '#22C55E',
-          purple: '#A855F7',
-          orange: '#F97316',
+          blue: 'rgb(var(--color-accent-blue) / <alpha-value>)',
+          red: 'rgb(var(--color-accent-red) / <alpha-value>)',
+          amber: 'rgb(var(--color-accent-amber) / <alpha-value>)',
+          green: 'rgb(var(--color-accent-green) / <alpha-value>)',
+          purple: 'rgb(var(--color-accent-purple) / <alpha-value>)',
+          orange: 'rgb(var(--color-accent-orange) / <alpha-value>)',
         },
       },
       fontFamily: {

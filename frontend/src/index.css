@@ -19,10 +19,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────
+   Theme palettes — values are space-separated R G B triplets so the
+   Tailwind tokens can use them via rgb(var(--*) / <alpha-value>).
+
+   :root            -> Dark (analyst default, working interface)
+   :root[data-theme="print"] -> Print (ivory canvas, navy/gold accents;
+                                       optimised for screenshots in the
+                                       dissertation manuscript)
+   ───────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Dark palette (original) */
+  --color-bg-primary:    15 23 42;     /* #0F172A slate-950 */
+  --color-bg-secondary:  30 41 59;     /* #1E293B slate-800 */
+  --color-bg-card:       51 65 85;     /* #334155 slate-700 */
+  --color-text-primary:  248 250 252;  /* #F8FAFC */
+  --color-text-secondary: 148 163 184; /* #94A3B8 */
+  --color-accent-blue:   59 130 246;   /* #3B82F6 */
+  --color-accent-red:    239 68 68;    /* #EF4444 */
+  --color-accent-amber:  245 158 11;   /* #F59E0B */
+  --color-accent-green:  34 197 94;    /* #22C55E */
+  --color-accent-purple: 168 85 247;   /* #A855F7 */
+  --color-accent-orange: 249 115 22;   /* #F97316 */
+
+  /* Surface tokens used by raw CSS rules below. */
+  --surface-page:    rgb(15 23 42);
+  --surface-text:    rgb(248 250 252);
+  --scrollbar-track: rgb(30 41 59);
+  --scrollbar-thumb: rgb(51 65 85);
+}
+
+:root[data-theme="print"] {
+  /* Ivory / parchment canvas with darker brand colors so they read
+     sharply at 300 dpi. The accent reds/greens/ambers/purples are
+     also darkened one step — they're status indicators, so they need
+     to stay distinguishable on white. */
+  --color-bg-primary:    248 250 252;  /* #F8FAFC ivory */
+  --color-bg-secondary:  238 242 247;  /* #EEF2F7 soft mist (sidebar / panel) */
+  --color-bg-card:       255 255 255;  /* #FFFFFF card body */
+  --color-text-primary:  15 23 42;     /* #0F172A deep navy */
+  --color-text-secondary: 71 85 105;   /* #475569 slate-600 */
+  --color-accent-blue:   29 78 216;    /* #1D4ED8 royal blue */
+  --color-accent-red:    185 28 28;    /* #B91C1C */
+  --color-accent-amber:  180 83 9;     /* #B45309 */
+  --color-accent-green:  21 128 61;    /* #15803D */
+  --color-accent-purple: 126 34 206;   /* #7E22CE */
+  --color-accent-orange: 180 83 9;     /* #B45309 burnished gold */
+
+  --surface-page:    rgb(248 250 252);
+  --surface-text:    rgb(15 23 42);
+  --scrollbar-track: rgb(238 242 247);
+  --scrollbar-thumb: rgb(203 213 225);
+}
+
 body {
   margin: 0;
-  background-color: #0F172A;
-  color: #F8FAFC;
+  background-color: var(--surface-page);
+  color: var(--surface-text);
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -37,10 +91,10 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #1E293B;
+  background: var(--scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
@@ -62,43 +116,104 @@ body {
 
 /* Subtle top-border accent for cards — adds visual rhythm */
 .card-accent-blue {
-  border-top: 2px solid rgba(59, 130, 246, 0.3);
+  border-top: 2px solid rgb(var(--color-accent-blue) / 0.3);
 }
 .card-accent-orange {
-  border-top: 2px solid rgba(249, 115, 22, 0.3);
+  border-top: 2px solid rgb(var(--color-accent-orange) / 0.3);
 }
 
-/* Section divider with gradient — replaces plain gray borders */
+/* Print-mode card accent: 2 px gold top-bar + thin navy hairline border.
+   Auto-applies to the platform's standard card pattern (any rounded
+   element painted with bg-bg-card) so individual pages don't need
+   per-component edits. Opt-out by adding the .no-print-accent class;
+   opt-in on a non-standard element by adding .print-card-accent. */
+:root[data-theme="print"] .bg-bg-card.rounded-xl,
+:root[data-theme="print"] .bg-bg-card.rounded-lg,
+:root[data-theme="print"] .bg-bg-card.rounded-2xl,
+:root[data-theme="print"] .bg-bg-card.rounded-md,
+:root[data-theme="print"] .print-card-accent {
+  border-top: 2px solid rgb(var(--color-accent-orange));
+  border-left: 1px solid rgb(var(--color-accent-blue) / 0.18);
+  border-right: 1px solid rgb(var(--color-accent-blue) / 0.18);
+  border-bottom: 1px solid rgb(var(--color-accent-blue) / 0.18);
+  background-color: rgb(255 255 255);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+:root[data-theme="print"] .no-print-accent {
+  border: 1px solid rgb(var(--color-bg-card)) !important;
+  box-shadow: none !important;
+}
+
+/* Print mode: section headings get gold underline rhythm. */
+:root[data-theme="print"] h1,
+:root[data-theme="print"] h2 {
+  color: rgb(var(--color-accent-blue));
+}
+:root[data-theme="print"] h2 {
+  border-bottom: 1px solid rgb(var(--color-accent-orange) / 0.4);
+  padding-bottom: 4px;
+}
+
+/* Section divider with gradient — stays brand-coloured on both themes */
 .section-divider {
   height: 1px;
-  background: linear-gradient(to right, transparent, rgba(59, 130, 246, 0.2), rgba(249, 115, 22, 0.2), transparent);
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgb(var(--color-accent-blue) / 0.25),
+    rgb(var(--color-accent-orange) / 0.25),
+    transparent
+  );
 }
 
 /* Hover glow effect for interactive cards */
 .hover-glow-blue:hover {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.08);
+  box-shadow: 0 0 20px rgb(var(--color-accent-blue) / 0.08);
 }
 .hover-glow-orange:hover {
-  box-shadow: 0 0 20px rgba(249, 115, 22, 0.08);
+  box-shadow: 0 0 20px rgb(var(--color-accent-orange) / 0.08);
 }
 
 /* Page section background with subtle blue tint */
 .bg-section-alt {
-  background-color: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(51, 65, 85, 0.5);
+  background-color: rgb(var(--color-bg-secondary) / 0.5);
+  border: 1px solid rgb(var(--color-bg-card) / 0.5);
 }
 
 /* Scrollbar with blue tint on hover */
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.4);
+  background: rgb(var(--color-accent-blue) / 0.4);
 }
 
 /* Focus ring — orange for primary actions, blue for secondary */
 .focus-ring-orange:focus-visible {
-  outline: 2px solid rgba(249, 115, 22, 0.5);
+  outline: 2px solid rgb(var(--color-accent-orange) / 0.6);
   outline-offset: 2px;
 }
 .focus-ring-blue:focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline: 2px solid rgb(var(--color-accent-blue) / 0.6);
   outline-offset: 2px;
+}
+
+/* ── Native browser print fallback ────────────────────────────────
+   Even if a screenshot is taken in dark mode, hitting Cmd+P will
+   render the page on an ivory canvas with brand-coloured headings
+   and borders so the PDF dropped into the dissertation reads cleanly.
+   ───────────────────────────────────────────────────────────────── */
+@media print {
+  :root {
+    --color-bg-primary:    248 250 252;
+    --color-bg-secondary:  238 242 247;
+    --color-bg-card:       255 255 255;
+    --color-text-primary:  15 23 42;
+    --color-text-secondary: 71 85 105;
+    --color-accent-blue:   29 78 216;
+    --color-accent-orange: 180 83 9;
+    --surface-page: rgb(255 255 255);
+    --surface-text: rgb(15 23 42);
+  }
+  body { background: white !important; color: #0F172A !important; }
+  /* Hide chrome we don't want on paper. */
+  aside, nav, .no-print { display: none !important; }
+  main { overflow: visible !important; }
 }

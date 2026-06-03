@@ -58,6 +58,7 @@ import {
   Waves,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
+import ThemeToggle from './components/ThemeToggle'
 // ── Lazy-loaded page components (route-based code splitting) ─────────────
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const EthicalUseAgreement = lazy(() => import('./components/EthicalUseAgreement'))
@@ -520,13 +521,16 @@ export default function App() {
           <span className="text-text-secondary text-[10px]">Read-only</span>
         </div>
       )}
-      <button
-        onClick={handleLogout}
-        className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent-red transition-colors w-full"
-      >
-        <LogOut className="w-3.5 h-3.5" />
-        {demoMode && !authed ? 'Exit Demo' : 'Sign Out'}
-      </button>
+      <div className="flex items-center justify-between gap-2">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent-red transition-colors"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          {demoMode && !authed ? 'Exit Demo' : 'Sign Out'}
+        </button>
+        <ThemeToggle />
+      </div>
 
       {analysisRunning && (
         <div className="flex items-center gap-2 text-xs text-accent-blue">
@@ -672,6 +676,7 @@ export default function App() {
           <ShieldCheck className="w-5 h-5 text-accent-blue" />
           <span className="font-display font-bold text-sm">RobustIDPS<span className="text-accent-blue">.AI</span></span>
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle compact />
             {analysisRunning && <Loader2 className="w-3.5 h-3.5 animate-spin text-accent-blue" />}
             {online === true ? (
               <Wifi className="w-3.5 h-3.5 text-accent-green" />
