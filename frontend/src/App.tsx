@@ -56,6 +56,8 @@ import {
   Workflow,
   Activity,
   Waves,
+  Plane,
+  Radar,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 import ThemeToggle from './components/ThemeToggle'
@@ -119,6 +121,13 @@ const BreachAttackSimulation = lazy(() => import('./pages/BreachAttackSimulation
 const MambaGuard = lazy(() => import('./pages/MambaGuard'))
 const SODEGuard = lazy(() => import('./pages/SODEGuard'))
 const SSLGraphAnomalyDetail = lazy(() => import('./pages/SSLGraphAnomalyDetail'))
+// UAV / Aerial Defense plugin (chapter 6)
+const UAVMonitor = lazy(() => import('./plugins/uav/pages/UAVMonitor'))
+const UAVPerceptionTester = lazy(() => import('./plugins/uav/pages/PerceptionTester'))
+const UAVGNSSSpoofMonitor = lazy(() => import('./plugins/uav/pages/GNSSSpoofMonitor'))
+const UAVCertificationDashboard = lazy(() => import('./plugins/uav/pages/CertificationDashboard'))
+const UAVSwarmGraphPage = lazy(() => import('./plugins/uav/pages/SwarmGraphPage'))
+const UAVMissionPlanReview = lazy(() => import('./plugins/uav/pages/MissionPlanReview'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -175,6 +184,17 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/copilot', label: 'SOC Copilot', icon: Sparkles },
       { to: '/federated', label: 'Federated Learning', icon: Network },
       { to: '/attack-chain', label: 'Attack Chain Predictor', icon: TrendingUp },
+    ],
+  },
+  {
+    heading: 'UAV / Aerial Defense',
+    items: [
+      { to: '/uav', label: 'UAV Monitor', icon: Plane },
+      { to: '/uav/perception', label: 'Perception Tester', icon: Eye },
+      { to: '/uav/gnss', label: 'GNSS Spoof Monitor', icon: Radar },
+      { to: '/uav/certification', label: 'Certification Dashboard', icon: ShieldCheck },
+      { to: '/uav/swarm', label: 'Swarm Graph', icon: Network },
+      { to: '/uav/mission-plan', label: 'Mission Plan Review', icon: ClipboardCheck },
     ],
   },
   {
@@ -777,6 +797,12 @@ export default function App() {
               <Route path="/mambaguard" element={<MambaGuard />} />
               <Route path="/sode-guard" element={<SODEGuard />} />
               <Route path="/ssl-graph-anomaly" element={<SSLGraphAnomalyDetail />} />
+              <Route path="/uav" element={<UAVMonitor />} />
+              <Route path="/uav/perception" element={<UAVPerceptionTester />} />
+              <Route path="/uav/gnss" element={<UAVGNSSSpoofMonitor />} />
+              <Route path="/uav/certification" element={<UAVCertificationDashboard />} />
+              <Route path="/uav/swarm" element={<UAVSwarmGraphPage />} />
+              <Route path="/uav/mission-plan" element={<UAVMissionPlanReview />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>

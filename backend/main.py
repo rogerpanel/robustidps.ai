@@ -118,6 +118,7 @@ from workspaces import router as workspaces_router
 from prevention import router as prevention_router
 from sessions import router as sessions_router
 from llm_attacks import router as llm_attacks_router
+from plugins.uav import router as uav_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -236,6 +237,7 @@ app.include_router(prevention_router)
 app.include_router(sessions_router)
 app.include_router(llm_attacks_router)
 app.include_router(audit_router)
+app.include_router(uav_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
