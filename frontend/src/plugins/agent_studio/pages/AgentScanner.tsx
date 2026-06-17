@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  ShieldCheck, Play, Loader2, AlertCircle, CheckCircle2, FileSearch,
+  ShieldCheck, Play, Loader2, AlertCircle, CheckCircle2, FileSearch, FileText,
 } from 'lucide-react'
 import { runAgentScan, fetchSKUCatalog } from '../api'
 import type { ScanReport, InputKind, Severity, SKU } from '../api'
@@ -82,9 +83,15 @@ export default function AgentScanner() {
             this is the top-of-funnel wedge for the Agent Studio + Agent Security commercial vertical.
           </p>
         </div>
-        <div className="text-right text-[10px] text-text-secondary font-mono">
-          plugin: <span className="text-text-primary">plugins/agent_studio/</span><br/>
-          tier: free / public
+        <div className="flex flex-col items-end gap-2">
+          <Link to="/dossier?vertical=agent_studio"
+                className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-md bg-accent-blue/15 text-accent-blue border border-accent-blue/30 hover:bg-accent-blue/25">
+            <FileText className="w-3.5 h-3.5" /> Generate dossier
+          </Link>
+          <div className="text-right text-[10px] text-text-secondary font-mono">
+            plugin: <span className="text-text-primary">plugins/agent_studio/</span><br/>
+            tier: free / public
+          </div>
         </div>
       </div>
 

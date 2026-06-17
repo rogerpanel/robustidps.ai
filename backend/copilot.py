@@ -301,6 +301,19 @@ TOOLS = [
         "description": "Get the Agent Studio + Agent Security five-SKU catalog: Agent Lab, Agent Factory, Agent Red Team, Continuous Defense, and the flywheel Secure-by-Design Build SKU. Use when the user asks about Agent Studio pricing, deliverables, durations, or the flywheel.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    # ── Assurance dossier (shared by both verticals) ────────────────────
+    {
+        "name": "assemble_dossier",
+        "description": "Assemble a canonical assurance dossier for either vertical (UAV or Agent Studio). The dossier bundles certificates, attack coverage, industry position, regulatory mapping (EU AI Act Art. 15, NIST AI RMF, DO-326A, ISO 42001, OWASP Agentic Top 10), and reproducibility. Use whenever the user asks for a dossier, assurance pack, audit pack, evidence pack, certification report, or wants something paper-ready for a regulator/auditor/investor. Tell the user they can navigate to /dossier?vertical=<v> in the UI and Cmd-P for a printed PDF.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "vertical": {"type": "string", "enum": ["uav", "agent_studio"]},
+                "audience": {"type": "string", "enum": ["operator", "auditor", "investor"], "default": "auditor"},
+            },
+            "required": ["vertical"],
+        },
+    },
 ]
 
 
@@ -1058,6 +1071,13 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
             from plugins.agent_studio.api import SKU_CATALOG as _skus
             return json.dumps({"skus": _skus})
 
+        elif name == "assemble_dossier":
+            from plugins.dossier import assemble_dossier as _assemble
+            return json.dumps(_assemble(
+                vertical=args["vertical"],
+                audience=args.get("audience", "auditor"),
+            ))
+
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
         logger.exception("Tool %s failed", name)
@@ -1213,29 +1233,55 @@ def _tools_to_openai_functions() -> list:
     return funcs
 
 
-async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
+async def _openai_compatible_call(
+    messages: list[ChatMessage],
+    api_key: str,
+    model: str,
+    db: Session,
+    base_url: str | None,
+    default_model: str,
+    active_ids_models: list[str] = None,
+    user: Optional["User"] = None,
+    supports_tools: bool = True,
+) -> str:
+    """Shared OpenAI-compatible chat completion + tool-loop.
+
+    Used by OpenAI, Google Gemini (via the OpenAI-compatible Gemini endpoint),
+    and DeepSeek. Falls back to a tool-less single round if `supports_tools`
+    is False or if the provider returns an error on the `tools` field.
+    """
     import openai
 
-    client = openai.OpenAI(api_key=api_key)
+    client = openai.OpenAI(api_key=api_key, base_url=base_url) if base_url \
+             else openai.OpenAI(api_key=api_key)
     system_prompt = _build_system_prompt(active_ids_models)
     api_messages = [{"role": "system", "content": system_prompt}]
     api_messages += [{"role": m.role, "content": m.content} for m in messages]
-    tools = _tools_to_openai_functions()
+    tools = _tools_to_openai_functions() if supports_tools else None
 
-    response = client.chat.completions.create(
-        model=model or PROVIDER_DEFAULTS["openai"],
-        messages=api_messages,
-        tools=tools,
-        max_tokens=4096,
-    )
+    def _call(msgs):
+        kwargs = {"model": model or default_model, "messages": msgs, "max_tokens": 4096}
+        if tools is not None:
+            kwargs["tools"] = tools
+        return client.chat.completions.create(**kwargs)
+
+    try:
+        response = _call(api_messages)
+    except Exception:
+        if tools is None:
+            raise
+        # Provider rejected tools — retry once without
+        kwargs = {"model": model or default_model, "messages": api_messages, "max_tokens": 4096}
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content or ""
 
     for _ in range(5):
         choice = response.choices[0]
-        if choice.finish_reason != "tool_calls" or not choice.message.tool_calls:
+        tool_calls = getattr(choice.message, "tool_calls", None)
+        if choice.finish_reason != "tool_calls" or not tool_calls:
             break
-
         api_messages.append(choice.message)
-        for tc in choice.message.tool_calls:
+        for tc in tool_calls:
             args = json.loads(tc.function.arguments) if tc.function.arguments else {}
             result = _exec_tool(tc.function.name, args, db, user=user)
             api_messages.append({
@@ -1243,65 +1289,46 @@ async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, 
                 "tool_call_id": tc.id,
                 "content": result,
             })
+        response = _call(api_messages)
 
-        response = client.chat.completions.create(
-            model=model or PROVIDER_DEFAULTS["openai"],
-            messages=api_messages,
-            tools=tools,
-            max_tokens=4096,
-        )
+    return response.choices[0].message.content or ""
 
-    content = response.choices[0].message.content or ""
+
+async def _openai_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
+    content = await _openai_compatible_call(
+        messages, api_key, model, db,
+        base_url=None,
+        default_model=PROVIDER_DEFAULTS["openai"],
+        active_ids_models=active_ids_models, user=user, supports_tools=True,
+    )
     yield content
 
 
 # ---------------------------------------------------------------------------
-# Provider: Google Gemini
+# Provider: Google Gemini (OpenAI-compatible endpoint, supports tools)
 # ---------------------------------------------------------------------------
 
 async def _google_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
-    import openai  # Google Gemini supports OpenAI-compatible API
-
-    client = openai.OpenAI(
-        api_key=api_key,
+    content = await _openai_compatible_call(
+        messages, api_key, model, db,
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        default_model=PROVIDER_DEFAULTS["google"],
+        active_ids_models=active_ids_models, user=user, supports_tools=True,
     )
-    system_prompt = _build_system_prompt(active_ids_models)
-    api_messages = [{"role": "system", "content": system_prompt}]
-    api_messages += [{"role": m.role, "content": m.content} for m in messages]
-
-    response = client.chat.completions.create(
-        model=model or PROVIDER_DEFAULTS["google"],
-        messages=api_messages,
-        max_tokens=4096,
-    )
-
-    content = response.choices[0].message.content or ""
     yield content
 
 
 # ---------------------------------------------------------------------------
-# Provider: DeepSeek
+# Provider: DeepSeek (OpenAI-compatible, supports tools)
 # ---------------------------------------------------------------------------
 
 async def _deepseek_stream(messages: list[ChatMessage], api_key: str, model: str, db: Session, active_ids_models: list[str] = None, user: Optional["User"] = None) -> AsyncIterator[str]:
-    import openai
-
-    client = openai.OpenAI(
-        api_key=api_key,
+    content = await _openai_compatible_call(
+        messages, api_key, model, db,
         base_url="https://api.deepseek.com",
+        default_model=PROVIDER_DEFAULTS["deepseek"],
+        active_ids_models=active_ids_models, user=user, supports_tools=True,
     )
-    system_prompt = _build_system_prompt(active_ids_models)
-    api_messages = [{"role": "system", "content": system_prompt}]
-    api_messages += [{"role": m.role, "content": m.content} for m in messages]
-
-    response = client.chat.completions.create(
-        model=model or PROVIDER_DEFAULTS["deepseek"],
-        messages=api_messages,
-        max_tokens=4096,
-    )
-
-    content = response.choices[0].message.content or ""
     yield content
 
 

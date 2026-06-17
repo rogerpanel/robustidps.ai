@@ -120,6 +120,7 @@ from sessions import router as sessions_router
 from llm_attacks import router as llm_attacks_router
 from plugins.uav import router as uav_router
 from plugins.agent_studio import router as agent_studio_router
+from plugins.dossier.api import router as dossier_router
 
 # ── Logging ───────────────────────────────────────────────────────────────
 
@@ -240,6 +241,7 @@ app.include_router(llm_attacks_router)
 app.include_router(audit_router)
 app.include_router(uav_router)
 app.include_router(agent_studio_router)
+app.include_router(dossier_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 

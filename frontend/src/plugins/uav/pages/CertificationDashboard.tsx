@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ShieldCheck, RefreshCw, FileCheck2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ShieldCheck, RefreshCw, FileCheck2, FileText } from 'lucide-react'
 import CertificateStrip from '../components/CertificateStrip'
 import { fetchCertificates, fetchIndustry, fetchRegulatory } from '../api'
 import type { CertificateResponse, IndustryResponse, RegulatoryEntry } from '../api'
@@ -29,9 +30,15 @@ export default function CertificationDashboard() {
             PAC-Bayes (Theorem 6.3), multiplicative-weights regret (Theorem 6.4) — plus regulatory mapping.
           </p>
         </div>
-        <button onClick={reload} className="text-xs flex items-center gap-1 text-accent-blue hover:text-accent-orange">
-          <RefreshCw className="w-3.5 h-3.5" /> Re-measure
-        </button>
+        <div className="flex items-center gap-3">
+          <Link to="/dossier?vertical=uav"
+                className="text-xs flex items-center gap-1 px-3 py-1.5 rounded-md bg-accent-blue/15 text-accent-blue border border-accent-blue/30 hover:bg-accent-blue/25">
+            <FileText className="w-3.5 h-3.5" /> Generate dossier
+          </Link>
+          <button onClick={reload} className="text-xs flex items-center gap-1 text-accent-blue hover:text-accent-orange">
+            <RefreshCw className="w-3.5 h-3.5" /> Re-measure
+          </button>
+        </div>
       </div>
 
       <div className="bg-bg-card rounded-xl p-4">

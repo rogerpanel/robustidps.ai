@@ -130,6 +130,8 @@ const UAVSwarmGraphPage = lazy(() => import('./plugins/uav/pages/SwarmGraphPage'
 const UAVMissionPlanReview = lazy(() => import('./plugins/uav/pages/MissionPlanReview'))
 // Agent Studio + Agent Security plugin (venture plan wedge)
 const AgentScanner = lazy(() => import('./plugins/agent_studio/pages/AgentScanner'))
+// Assurance dossier (shared across both verticals)
+const DossierPage = lazy(() => import('./plugins/dossier/pages/Dossier'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -197,6 +199,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/uav/certification', label: 'Certification Dashboard', icon: ShieldCheck },
       { to: '/uav/swarm', label: 'Swarm Graph', icon: Network },
       { to: '/uav/mission-plan', label: 'Mission Plan Review', icon: ClipboardCheck },
+      { to: '/dossier?vertical=uav', label: 'Assurance Dossier', icon: FileText },
     ],
   },
   {
@@ -807,6 +810,7 @@ export default function App() {
               <Route path="/uav/swarm" element={<UAVSwarmGraphPage />} />
               <Route path="/uav/mission-plan" element={<UAVMissionPlanReview />} />
               <Route path="/agent-scanner" element={<AgentScanner />} />
+              <Route path="/dossier" element={<DossierPage />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
