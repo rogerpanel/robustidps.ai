@@ -249,3 +249,45 @@ ROBUSTIDPS_API_BASE=http://localhost:8000 \
   python -m robustidps.aegis.example
 # → scans a deliberately-bad MCP manifest, prints the verdict envelope
 ```
+
+## Deploy to production (robustidps.ai @ Hetzner 37.27.31.70)
+
+One-time SSH key setup in WSL (if you've never SSH'd to the server from
+this box before):
+
+```bash
+sudo apt-get install -y rsync openssh-client
+ssh-keygen -t ed25519 -C "wsl-$(hostname)-$(whoami)" -f ~/.ssh/id_ed25519 -N ""
+ssh-copy-id -i ~/.ssh/id_ed25519.pub robustidps@37.27.31.70
+ssh -o StrictHostKeyChecking=accept-new robustidps@37.27.31.70 \
+  'echo ok && whoami && docker --version'
+```
+
+If you already use the same SSH key on your MacBook, copy `~/.ssh/id_rsa`
+(+ `id_rsa.pub`) from there into the WSL `~/.ssh/` and `chmod 600 id_rsa`.
+
+Then deploy with one command:
+
+```bash
+cd ~/code/robustidps.ai
+scripts/deploy-hetzner.sh                              # rsync, current branch
+scripts/deploy-hetzner.sh claude/robustidps-dev-continue-0Kln1
+scripts/deploy-hetzner.sh claude/robustidps-dev-continue-0Kln1 git   # pure git pull
+```
+
+The script mirrors the macOS workflow but adds verification at the end
+(`curl -skf https://robustidps.ai/api/health`). It supports two modes:
+
+- **rsync** (default) — pushes your working tree to the server (uncommitted
+  changes included), then rebuilds with `--no-cache`. Slower; use while
+  iterating on changes that aren't committed yet.
+- **git** — has the server `git pull` and rebuild with the layer cache.
+  Faster, idempotent; use once your work is committed and pushed.
+
+Common overrides via env vars:
+
+```bash
+ROBUSTIDPS_HOST=robustidps@1.2.3.4 \
+ROBUSTIDPS_REMOTE_DIR=~/staging.robustidps.ai \
+  scripts/deploy-hetzner.sh main git
+```
