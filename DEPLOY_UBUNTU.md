@@ -1,17 +1,57 @@
 # Ubuntu / WSL Deploy Runbook
 
-Step-by-step commands for `royalroger@DESKTOP-IKQN6SR:~$` — i.e. native
-Ubuntu or WSL2 Ubuntu under Windows. Run as your own user; the Docker
-group membership is the only thing that needs `sudo` (one time).
+Step-by-step commands for `royalroger@DESKTOP-IKQN6SR:~$` — confirmed
+target is **WSL2 Ubuntu under Windows 11 on an HP Envy**. Bare-metal
+Ubuntu instructions are the same from §1 onward.
 
-## 0 · One-time host prep (run once per machine)
+## 0a · WSL2 + Docker Desktop (recommended for Windows 11)
+
+Cleanest path on WSL2 — the Docker daemon runs on the Windows side and
+is exposed inside Ubuntu. No `usermod`, no systemd flag-flipping, no
+`sudo service docker start` after every WSL session.
+
+**One-time, in Windows 11 PowerShell as Administrator:**
+
+```powershell
+wsl --update
+wsl --set-default-version 2
+wsl -l -v          # confirm your Ubuntu shows VERSION 2
+```
+
+Install **Docker Desktop for Windows** from
+<https://www.docker.com/products/docker-desktop/>. Launch once, open
+**Settings → Resources → WSL Integration**, toggle **Enable integration
+with my default WSL distro** and tick the box next to your Ubuntu
+distro. Apply & Restart.
+
+**Back in your Ubuntu terminal (`royalroger@DESKTOP-IKQN6SR:~$`):**
 
 ```bash
-# Update package index + install Docker, Compose, Git, curl
-sudo apt-get update
-sudo apt-get install -y ca-certificates curl gnupg git make
+docker --version            # → Docker version 27.x
+docker compose version      # → Docker Compose version v2.x
+git --version               # ships with Ubuntu; install if missing
+```
 
-# Docker (official repo — older Ubuntu Docker can lack Compose v2)
+If those three commands print versions, skip §0b and go to §1.
+
+## 0b · Native dockerd in WSL2 (no Docker Desktop)
+
+Only do this if you specifically don't want Docker Desktop. WSL2 needs
+**systemd** enabled or Docker won't auto-start.
+
+```bash
+# Enable systemd in WSL2 (one-time)
+sudo tee /etc/wsl.conf > /dev/null <<'EOF'
+[boot]
+systemd=true
+EOF
+# Then from Windows PowerShell:  wsl --shutdown
+# Reopen your Ubuntu terminal afterwards.
+ps -p 1 -o comm=          # → systemd
+
+# Install Docker from the official repo
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg git
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
   sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
@@ -22,10 +62,14 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
 sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# Add your user to the docker group so you stop typing sudo
+# Confirm the docker group now exists, then add yourself
+getent group docker            # → docker:x:998:
 sudo usermod -aG docker $USER
-# IMPORTANT: log out and back in (or `newgrp docker`) before continuing
 newgrp docker
+
+# Start dockerd via systemd (you enabled it above)
+sudo systemctl enable --now docker
+docker run --rm hello-world    # sanity check
 
 # Verify
 docker --version            # → Docker version 27.x+
@@ -171,14 +215,18 @@ docker compose down -v
 docker system prune -af --volumes
 ```
 
-## Common WSL2-specific quirks
+## Common WSL2-specific quirks (HP Envy / Windows 11)
 
 | Symptom | Fix |
 |---|---|
-| `docker: Cannot connect to the Docker daemon` | WSL2 needs the Docker Desktop daemon running on the Windows side, or you install `docker.io` inside WSL itself. The native-Ubuntu Docker install above works in WSL2 too. |
-| `localhost:5173` not reachable from Windows browser | WSL2 forwards ports automatically; if it doesn't, use the WSL IP: `ip addr show eth0 \| grep inet`. |
-| Slow first build (10+ min) | Move the repo out of `/mnt/c/` and into the Linux filesystem (`~/code/`). Cross-filesystem I/O is the main offender. |
-| `python3: command not found` for local scripts | `sudo apt-get install -y python3 python3-venv python3-pip`. Most workflows run inside the backend container; only the AegisAgents SDK example wants a host Python. |
+| `usermod: group 'docker' does not exist` | `apt-get install -y docker-compose-plugin` rolled back because Ubuntu's stock repos don't carry that package — `docker.io` never installed either. Use §0a (Docker Desktop) or §0b in full (adds Docker's official repo first). |
+| `docker: Cannot connect to the Docker daemon` | If on §0a: open Docker Desktop on Windows and confirm WSL Integration is on for your distro. If on §0b: `ps -p 1 -o comm=` should say `systemd`; if not, you skipped the `/etc/wsl.conf` step. |
+| `localhost:5173` not reachable from Windows browser | WSL2 auto-forwards localhost. If it doesn't, check Windows Defender Firewall, and as a fallback use the WSL IP: `ip addr show eth0 \| grep inet`. |
+| Slow first build (10+ min) | The repo MUST live under your Linux home (`~/code/robustidps.ai`), never under `/mnt/c/`. Cross-filesystem I/O is the main offender. |
+| HP Envy RAM blows up after a long session | WSL2's `vmmem` defaults to 50% of host RAM. Create `C:\Users\<you>\.wslconfig` with `[wsl2]\nmemory=8GB\nswap=4GB` if your Envy has ≤16 GB total. `wsl --shutdown` from PowerShell to apply. |
+| HP Envy battery drains while stack idles | The four containers idle at ~1.5 W combined. Plug in for long sessions, or `docker compose stop` when stepping away. |
+| ext4.vhdx file keeps growing after rebuilds | WSL2's sparse-disk doesn't auto-shrink. From PowerShell: `wsl --shutdown` then `diskpart` → `select vdisk file="C:\Users\<you>\AppData\Local\Packages\<distro>\LocalState\ext4.vhdx"` → `compact vdisk`. Reclaim only after `docker system prune -af --volumes`. |
+| `python3: command not found` for local scripts | `sudo apt-get install -y python3 python3-venv python3-pip`. Only needed for the host-side AegisAgents SDK example; everything else runs in containers. |
 
 ## Optional · Run the AegisAgents Kit SDK example against the running backend
 
