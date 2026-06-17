@@ -160,7 +160,7 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual_learning, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, mitre_atlas, mcp_security, investigation_chain, bas, mambaguard, sode_guard, ssl_graph_anomaly_full, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper, executive_dashboard, device_discovery, network_map, domain_transfer"},
+                "page": {"type": "string", "description": "Page: upload, redteam, xai, federated, live_monitor, ablation, continual_learning, pq_crypto, zero_trust, supply_chain, threat_response, rl_response, adversarial, prompt_injection, jailbreak_taxonomy, rag_poisoning, multi_agent, mitre_attack, mitre_atlas, mcp_security, investigation_chain, bas, mambaguard, sode_guard, ssl_graph_anomaly_full, alert_triage, attack_chain, data_poisoning, autoencoder, causality_graph, pq_traffic_lab, auto_investigation, threat_hunt, incident_reports, threat_intel, rule_generator, cve_mapper, executive_dashboard, device_discovery, network_map, domain_transfer, uav_monitor, uav_perception, uav_gnss, uav_certification, uav_swarm, uav_mission_plan"},
                 "job_id": {"type": "string", "description": "Optional specific job_id"},
             },
             "required": ["page"],
@@ -225,6 +225,81 @@ TOOLS = [
             },
             "required": [],
         },
+    },
+    # ── UAV / Aerial Defense plugin (chapter 6) ─────────────────────────
+    {
+        "name": "get_uav_overview",
+        "description": "Get the UAV / Aerial Defense Monitor overview: three-tier (edge/droneport/cloud) method assignment, edge profile (Jetson Orin Nano latency/RAM/CPU), UAV-EW-Bench-2026 metadata, all four MCR-vs-J/S configurations with DO-326A 0.90-floor crossings, and the latest Phase-A metrics.json if produced. Use this first whenever the user asks about UAV / drone / aerial defense state.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_uav_ew_bench_curves",
+        "description": "Get the UAV-EW-Bench-2026 Mission-Completion-Rate vs Jamming-to-Signal Ratio curves for all four configurations (No-Def PX4 baseline, CAF-CNN+PX4, Seq2Seq Transformer+PX4, M1+M4+M6+M7 framework). Returns per-J/S-dB points with mean MCR + 95% Wilson CI plus the DO-326A floor crossing. The framework's gain over baselines (in dB) is the chapter 6 headline operational result.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_uav_certificates",
+        "description": "Get live UAV robustness certificates recomputed on the current synthetic batch: Lipschitz L_g (Theorem 6.1), Gronwall radius (T, epsilon_out), Cohen randomized-smoothing l_2 radius (sigma, alpha, n_samples), PAC-Bayes bound, (epsilon, delta)-DP budget, and the operational interpretation (J/S dB floor and MCR floor under DO-326A).",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_uav_gnss_status",
+        "description": "Get the current GNSS Spoof Monitor reading: 8-satellite sky plot (azimuth, elevation, C/N0, spoof confidence per SV), how many SVs are currently flagged as spoofed, cross-droneport fleet disagreement score, autopilot mode (nominal vs GNSS-degraded), and the M6 UC-HGP fallback navigation source if engaged.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_uav_industry_comparison",
+        "description": "Get the chapter 6 Table 6.x industry comparison across seven criteria (Lipschitz cert, RS l_2 cert, Byzantine-resilient federated aggregation, differential privacy, LLM mission-plan audit, PQC C2 readiness, Stackelberg vs EW) against Anduril Lattice, Shield AI Hivemind, Skydio Autonomy, PX4 Auterion Enterprise.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_uav_regulatory_evidence",
+        "description": "Get the UAV regulatory evidence pack: Russian instruments (RF Government Decree №1701, GOST R 59276-2020, GOST R 56122-2014) and international instruments (NIST AI RMF 1.0, EU AI Act Art. 15, DO-326A/ED-202A) with the specific framework method that satisfies each requirement and the evidence type produced. Use when the user asks about UAV compliance, certification, or regulatory mapping.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "uav_run_perception_attack",
+        "description": "Actively run a white-box adversarial attack (FGSM or PGD) against the UAV M1 CT-TGNN model on a sample from the synthetic CAF batch. Returns clean prediction, adversarial prediction, whether the model was fooled, l_2 and l_inf distortion. WRITE ACTION — only call when the user explicitly asks you to run / probe / test an attack.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "attack": {"type": "string", "enum": ["fgsm", "pgd"], "description": "Attack family"},
+                "epsilon": {"type": "number", "description": "Perturbation budget (typical: 0.0157 = 4/255)", "default": 0.0157},
+                "pgd_steps": {"type": "integer", "description": "PGD iterations (ignored for FGSM)", "default": 20, "minimum": 1, "maximum": 100},
+                "sample_index": {"type": "integer", "description": "Sample index 0-63", "default": 0, "minimum": 0, "maximum": 63},
+            },
+            "required": ["attack"],
+        },
+    },
+    {
+        "name": "uav_review_mission_plan",
+        "description": "Run the CyberSecLLM mission-plan audit (chapter 6 §6.5 cloud-tier surface) on a .plan / JSON-LD / OWL document. Returns approve/block verdict and per-finding severity flags (missing geofence, missing RTL fallback, undeclared altitude band, missing RF Decree №1701 acknowledgment). WRITE ACTION — call when the user wants you to audit a UAV mission document.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "plan_text": {"type": "string", "description": "The mission plan document body"},
+                "plan_format": {"type": "string", "enum": ["plan", "json-ld", "owl"], "default": "plan"},
+            },
+            "required": ["plan_text"],
+        },
+    },
+    # ── Agent Studio + Security plugin (venture plan, free wedge) ───────
+    {
+        "name": "agent_scanner_run",
+        "description": "Run the free MCP / agent scanner over a pasted MCP server manifest, tool-list JSON, agent system prompt, or agent card. Twelve checks across OWASP Agentic Top 10 (ASI01-ASI10) plus MCP-specific framing risks (credential leakage, unauthenticated resources, hidden side-effects, prompt-injection echo, rogue-agent identity assertion). Returns per-check severity and remediation. Use whenever the user pastes an MCP manifest, an agent.json, a system prompt, or asks to security-audit an agent definition.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "The pasted MCP manifest, tool list, system prompt, or agent card"},
+                "input_kind": {"type": "string", "enum": ["mcp_manifest", "tool_list", "system_prompt", "agent_card"], "default": "mcp_manifest"},
+            },
+            "required": ["text"],
+        },
+    },
+    {
+        "name": "agent_studio_sku_catalog",
+        "description": "Get the Agent Studio + Agent Security five-SKU catalog: Agent Lab, Agent Factory, Agent Red Team, Continuous Defense, and the flywheel Secure-by-Design Build SKU. Use when the user asks about Agent Studio pricing, deliverables, durations, or the flywheel.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
     },
 ]
 
@@ -815,6 +890,24 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 return json.dumps({"page": page, "status": "no_active_result",
                                    "hint": "User should run simulations on the LLM Attack Surfaces pages first."})
 
+            if page in ("uav_monitor", "uav_perception", "uav_gnss", "uav_certification",
+                        "uav_swarm", "uav_mission_plan"):
+                # UAV plugin pages are stateless aggregations — point the LLM at the
+                # dedicated UAV tools that actually carry data.
+                page_to_tool = {
+                    "uav_monitor":       "get_uav_overview",
+                    "uav_perception":    "uav_run_perception_attack (write) or get_uav_overview",
+                    "uav_gnss":          "get_uav_gnss_status",
+                    "uav_certification": "get_uav_certificates / get_uav_industry_comparison / get_uav_regulatory_evidence",
+                    "uav_swarm":         "get_uav_overview (swarm snapshot is part of the overview payload)",
+                    "uav_mission_plan":  "uav_review_mission_plan (write action — needs plan_text)",
+                }
+                return json.dumps({
+                    "page": page, "status": "use_dedicated_tool",
+                    "tool": page_to_tool[page],
+                    "hint": "The UAV plugin (chapter 6) exposes typed tools for each operator surface; call the named tool above instead of get_page_result.",
+                })
+
             return json.dumps({"page": page, "status": "no_data_available"})
 
         elif name == "get_model_performance":
@@ -890,6 +983,81 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 "available_pages": llm_pages if page_filter == "all" else [page_filter],
             })
 
+        # ── UAV / Aerial Defense plugin (chapter 6) ─────────────────────
+        # All UAV business logic lives in plugins.uav.services and is called
+        # synchronously here so the dispatcher works inside the FastAPI event
+        # loop without coroutine juggling.
+        elif name == "get_uav_overview":
+            from plugins.uav import services as _uav_svc
+            payload = _uav_svc.overview_payload()
+            payload["do_326a_crossings_db"] = {
+                c["config_key"]: c["do_326a_crossing_db"] for c in payload["ew_curves"]
+            }
+            payload["plugin_path"] = "robustidps_web_app/plugins/uav/"
+            return json.dumps(payload)
+
+        elif name == "get_uav_ew_bench_curves":
+            from plugins.uav import services as _uav_svc
+            return json.dumps(_uav_svc.ew_curves_payload())
+
+        elif name == "get_uav_certificates":
+            try:
+                from plugins.uav import services as _uav_svc
+                return json.dumps(_uav_svc.certificates_payload())
+            except Exception as e:
+                return json.dumps({"status": "model_not_available", "error": str(e),
+                                   "hint": "Run scripts/run_phase_a.sh; certificates need torch + CT-TGNN."})
+
+        elif name == "get_uav_gnss_status":
+            from plugins.uav import services as _uav_svc
+            return json.dumps(_uav_svc.gnss_payload())
+
+        elif name == "get_uav_industry_comparison":
+            from plugins.uav import services as _uav_svc
+            return json.dumps(_uav_svc.industry_payload())
+
+        elif name == "get_uav_regulatory_evidence":
+            from plugins.uav import services as _uav_svc
+            return json.dumps({"entries": _uav_svc.REGULATORY})
+
+        elif name == "uav_run_perception_attack":
+            try:
+                from plugins.uav import services as _uav_svc
+                return json.dumps(_uav_svc.perception_attack_payload(
+                    attack=args.get("attack", "pgd"),
+                    epsilon=float(args.get("epsilon", 4 / 255)),
+                    pgd_steps=int(args.get("pgd_steps", 20)),
+                    sample_index=int(args.get("sample_index", 0)),
+                ))
+            except Exception as e:
+                return json.dumps({"status": "attack_run_failed", "error": str(e),
+                                   "hint": "Verify torch is installed and the synthetic dataset loads."})
+
+        elif name == "uav_review_mission_plan":
+            from plugins.uav import services as _uav_svc
+            return json.dumps(_uav_svc.mission_plan_review_payload(
+                plan_text=args["plan_text"],
+                plan_format=args.get("plan_format", "plan"),
+            ))
+
+        # ── Agent Studio + Security plugin ──────────────────────────────
+        elif name == "agent_scanner_run":
+            from dataclasses import asdict as _asdict
+            from plugins.agent_studio.scanner import run_scan as _scan
+            report = _scan(args["text"], input_kind=args.get("input_kind", "mcp_manifest"))
+            return json.dumps({
+                "input_kind": report.input_kind,
+                "input_size_chars": report.input_size_chars,
+                "n_checks_run": report.n_checks_run,
+                "n_findings": report.n_findings,
+                "severity_breakdown": report.severity_breakdown,
+                "results": [_asdict(r) for r in report.results],
+            })
+
+        elif name == "agent_studio_sku_catalog":
+            from plugins.agent_studio.api import SKU_CATALOG as _skus
+            return json.dumps({"skus": _skus})
+
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
         logger.exception("Tool %s failed", name)
@@ -960,6 +1128,20 @@ Attack types detected (34 classes): DDoS (TCP/UDP/ICMP/HTTP/SYN flood, SlowLoris
 - **Threat Intel**: IP reputation scoring, geo-location, threat scores for detected attackers (page="threat_intel")
 - **Rule Generator**: Auto-generate Suricata/Snort IDS rules from detected attacks (page="rule_generator")
 - **CVE Mapper**: Map detected web attacks to relevant CVE IDs with CVSS scores and remediation (page="cve_mapper")
+
+**UAV / Aerial Defense plugin (chapter 6 of the parent dissertation)** — the platform also hosts a six-page UAV/drone defense surface mounted at `robustidps_web_app/plugins/uav/`. The kernel is unchanged; the UAV vertical is reached through dedicated tools rather than `get_page_result`:
+- `get_uav_overview` — three-tier method assignment, edge profile, UAV-EW-Bench-2026 metadata, Phase-A metrics.json
+- `get_uav_ew_bench_curves` — Mission-Completion-Rate vs Jamming-to-Signal Ratio (J/S, dB) for four configs: No-Def PX4, CAF-CNN+PX4, Seq2Seq Tr.+PX4, and the M1+M4+M6+M7 framework. Headline number: at J/S=20 dB the framework holds MCR=0.94 vs 0.27 for the unprotected baseline.
+- `get_uav_certificates` — Lipschitz–Grönwall radius, Cohen randomized-smoothing radius, PAC-Bayes bound, (ε,δ)-DP budget — live-recomputed.
+- `get_uav_gnss_status` — 8-satellite sky plot, spoof-flagged SVs, fleet disagreement, autopilot mode (nominal / GNSS-degraded).
+- `get_uav_industry_comparison` — chapter 6 Table 6.x vs Anduril Lattice / Shield AI Hivemind / Skydio Autonomy / PX4 Auterion Enterprise across 7 criteria.
+- `get_uav_regulatory_evidence` — RU instruments (RF Decree №1701, GOST R 59276-2020 / 56122-2014, GOST R 34.10-2012) and INT instruments (NIST AI RMF, EU AI Act Art. 15, DO-326A/ED-202A) mapped to satisfying framework methods.
+- WRITE ACTIONS — call only when the user explicitly asks: `uav_run_perception_attack` (FGSM/PGD on a sample), `uav_review_mission_plan` (CyberSecLLM audit of a .plan / JSON-LD / OWL document).
+When the user asks about UAVs, drones, aerial defense, GNSS spoofing, MCR, J/S, EW-Bench, DO-326A airworthiness, RF Decree 1701, or chapter 6, prefer these tools over `get_page_result`.
+
+**Agent Studio + Agent Security plugin (venture-plan commercial vertical)** — the platform hosts an Agent Studio surface mounted at `plugins/agent_studio/`. It exposes a free MCP / agent scanner (the top-of-funnel wedge) and a five-SKU catalog (Agent Lab, Agent Factory, Agent Red Team, Continuous Defense, Secure-by-Design Build). Dedicated tools:
+- `agent_scanner_run` — pass a pasted MCP manifest / tool-list JSON / agent system prompt / agent card; returns 12 checks across OWASP Agentic Top 10 (ASI01–ASI10) with severity and remediation. Call whenever the user pastes anything resembling an MCP server definition, tool list, system prompt, or agent.json.
+- `agent_studio_sku_catalog` — pricing, duration, and summary for the five SKUs. Call when the user asks about Agent Studio pricing, the flywheel, or what RobustIDPS sells commercially in the agentic space.
 
 IMPORTANT: Always use the available tools to look up actual data before answering. NEVER give generic descriptions of what a page "can do" — instead, call `get_active_operations` first to see the user's completed operations, then `get_page_result` with the specific page name (e.g. page="redteam", page="federated") to get the actual results. Completed results are cached and available even after the user has navigated away from the page. Be specific and data-driven — report actual numbers, attack success rates, accuracy scores, and model names from the results. When explaining threats, include the attack type, severity, affected IPs, and recommended actions."""
 

@@ -128,6 +128,8 @@ const UAVGNSSSpoofMonitor = lazy(() => import('./plugins/uav/pages/GNSSSpoofMoni
 const UAVCertificationDashboard = lazy(() => import('./plugins/uav/pages/CertificationDashboard'))
 const UAVSwarmGraphPage = lazy(() => import('./plugins/uav/pages/SwarmGraphPage'))
 const UAVMissionPlanReview = lazy(() => import('./plugins/uav/pages/MissionPlanReview'))
+// Agent Studio + Agent Security plugin (venture plan wedge)
+const AgentScanner = lazy(() => import('./plugins/agent_studio/pages/AgentScanner'))
 import { fetchHealth } from './utils/api'
 import { trackPageView } from './utils/analytics'
 import { useAnalysis } from './hooks/useAnalysis'
@@ -222,6 +224,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/mcp-security', label: 'MCP Security', icon: Plug },
       { to: '/mambaguard', label: 'MambaGuard', icon: Activity },
       { to: '/data-poisoning', label: 'Data Poisoning Sim', icon: FlaskConical },
+      { to: '/agent-scanner', label: 'Agent Scanner (free)', icon: FlaskConical },
     ],
   },
   {
@@ -803,6 +806,7 @@ export default function App() {
               <Route path="/uav/certification" element={<UAVCertificationDashboard />} />
               <Route path="/uav/swarm" element={<UAVSwarmGraphPage />} />
               <Route path="/uav/mission-plan" element={<UAVMissionPlanReview />} />
+              <Route path="/agent-scanner" element={<AgentScanner />} />
               <Route path="/about" element={<About />} />
             </Routes>
           </Suspense>
