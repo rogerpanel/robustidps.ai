@@ -4,6 +4,16 @@ Step-by-step commands for `royalroger@DESKTOP-IKQN6SR:~$` — confirmed
 target is **WSL2 Ubuntu under Windows 11 on an HP Envy**. Bare-metal
 Ubuntu instructions are the same from §1 onward.
 
+> ⚠ **DO NOT run `sudo apt install wsl` inside Ubuntu.** Ubuntu's apt
+> package called `wsl` is `wsmancli` (an unrelated WS-Management
+> protocol tool), not Microsoft's WSL CLI. Microsoft's `wsl.exe` is a
+> Windows binary; it can only be invoked from **Windows PowerShell or
+> Command Prompt**, never from inside WSL2 Ubuntu. If your shell
+> already shows `royalroger@DESKTOP-IKQN6SR:~$`, WSL2 is already
+> installed and running — you do not need to run any `wsl ...` command
+> to get started. If you accidentally installed wsmancli, remove it:
+> `sudo apt remove --purge wsl && sudo apt autoremove -y`.
+
 ## 0a · WSL2 + Docker Desktop (recommended for Windows 11)
 
 Cleanest path on WSL2 — the Docker daemon runs on the Windows side and
