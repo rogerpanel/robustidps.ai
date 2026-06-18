@@ -39,22 +39,22 @@ def evaluate(model: torch.nn.Module, dataset, device: str = "cpu", limit: int = 
     x_pgd = pgd(model, x, y, epsilon=4 / 255, n_steps=20, adj=adj)
     pgd_acc = _accuracy(model, x_pgd, y, adj)
 
-    x_cw = cw(model, x[:32], y[:32], kappa=5.0, c=1.0, n_steps=100, adj=adj)
-    cw_acc = _accuracy(model, x_cw, y[:32], adj)
+    x_cw = cw(model, x[:32], y[:32], kappa=5.0, c=1.0, n_steps=100, adj=adj[:32])
+    cw_acc = _accuracy(model, x_cw, y[:32], adj[:32])
 
-    x_hsj = hop_skip_jump(model, x[:16], y[:16], n_queries=200, n_montecarlo=20, adj=adj)
-    hsj_acc = _accuracy(model, x_hsj, y[:16], adj)
+    x_hsj = hop_skip_jump(model, x[:16], y[:16], n_queries=200, n_montecarlo=20, adj=adj[:16])
+    hsj_acc = _accuracy(model, x_hsj, y[:16], adj[:16])
 
-    x_ba = boundary_attack(model, x[:16], y[:16], n_steps=100, adj=adj)
-    ba_acc = _accuracy(model, x_ba, y[:16], adj)
+    x_ba = boundary_attack(model, x[:16], y[:16], n_steps=100, adj=adj[:16])
+    ba_acc = _accuracy(model, x_ba, y[:16], adj[:16])
 
     sigma = 0.25
-    top, counts = smooth_predict(model, x[:32], sigma=sigma, n_samples=200, adj=adj)
+    top, counts = smooth_predict(model, x[:32], sigma=sigma, n_samples=200, adj=adj[:32])
     rs_correct = (top == y[:32]).float().mean().item()
     radii = [certified_radius(int(counts[i, top[i]].item()), 200, sigma) for i in range(top.shape[0])]
     rs_radius = sum(radii) / max(1, len(radii))
 
-    l_g = estimate_lipschitz(model, x[:16], adj=adj)
+    l_g = estimate_lipschitz(model, x[:16], adj=adj[:16])
     g_radius = gronwall_radius(l_g, horizon_T=1.0, epsilon_out=0.5)
 
     return {
