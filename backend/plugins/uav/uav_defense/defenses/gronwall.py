@@ -21,20 +21,25 @@ def estimate_lipschitz(
     step: float = 1e-3,
     adj: torch.Tensor | None = None,
 ) -> float:
+    """Max over n_iters random unit-norm input directions of the empirical
+    Jacobian-norm ||f(x + step·v) − f(x)|| / step. A finite-difference
+    surrogate for the operator-norm Lipschitz constant of the network
+    around x. Works on any nn.Module without instrumenting its backwards
+    graph, at the cost of being a lower-bound estimate.
+    """
     if x.dim() == 2:
         x = x.unsqueeze(0)
-    v = torch.randn_like(x)
-    v = v / v.flatten(1).norm(dim=-1, keepdim=True).clamp(min=1e-9).view(-1, *([1] * (x.dim() - 1)))
     base = model(x, adj) if adj is not None else model(x)
-    lam = 0.0
+    max_lipschitz = 0.0
+    extra_dims = (1,) * (x.dim() - 1)
     for _ in range(n_iters):
+        v = torch.randn_like(x)
+        v_norm = v.flatten(1).norm(dim=-1).clamp(min=1e-9)
+        v = v / v_norm.view(-1, *extra_dims)
         perturbed = model(x + step * v, adj) if adj is not None else model(x + step * v)
         delta = (perturbed - base).flatten(1).norm(dim=-1) / step
-        lam = float(delta.max().item())
-        v = (perturbed - base) / (perturbed - base).flatten(1).norm(dim=-1).clamp(min=1e-9).view(-1, 1)
-        v = v.expand_as(x).contiguous()
-        v = v / v.flatten(1).norm(dim=-1, keepdim=True).clamp(min=1e-9).view(-1, *([1] * (x.dim() - 1)))
-    return lam
+        max_lipschitz = max(max_lipschitz, float(delta.max().item()))
+    return max_lipschitz
 
 
 def gronwall_radius(lipschitz: float, horizon_T: float, epsilon_out: float) -> float:
