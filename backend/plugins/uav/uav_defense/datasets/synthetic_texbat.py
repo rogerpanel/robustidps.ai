@@ -39,7 +39,7 @@ class SyntheticTEXBAT(Dataset):
         self.x = torch.from_numpy(x)
         self.y = torch.from_numpy(labels)
 
-        adj = np.ones((self.NUM_SATELLITES + 1, self.NUM_SATELLITES + 1), dtype=np.float32)
+        adj = np.ones((self.NUM_SATELLITES, self.NUM_SATELLITES), dtype=np.float32)
         np.fill_diagonal(adj, 0.0)
         self.adjacency = torch.from_numpy(adj)
 
