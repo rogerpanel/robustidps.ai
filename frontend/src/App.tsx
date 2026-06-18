@@ -271,7 +271,7 @@ const NAV_GROUPS: NavGroup[] = [
 ]
 
 // Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
-const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'SOC Intelligence', 'System']
+const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'UAV / Aerial Defense', 'SOC Intelligence', 'System']
 const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'MLSecOps Standards', 'AI Security & Gov', 'Industry & Research']
 
 export default function App() {
