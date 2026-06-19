@@ -6,6 +6,7 @@ import {
 import MCRJSChart from '../components/MCRJSChart'
 import SwarmGraphAnimated from '../components/SwarmGraphAnimated'
 import CertificateStrip from '../components/CertificateStrip'
+import JSOperatingPoint from '../components/JSOperatingPoint'
 import { fetchUAVOverview, fetchSwarmSnapshot, fetchCertificates } from '../api'
 import type { OverviewResponse, SwarmSnapshot, CertificateResponse } from '../api'
 
@@ -84,6 +85,9 @@ export default function UAVMonitor() {
           </div>
         )}
       </div>
+
+      {/* Live J/S operating point — drag to query any J/S */}
+      <JSOperatingPoint />
 
       {/* Certificate strip */}
       <div className="bg-bg-card rounded-xl p-4">

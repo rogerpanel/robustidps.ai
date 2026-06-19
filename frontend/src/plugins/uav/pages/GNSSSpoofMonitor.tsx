@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Radar, RefreshCw } from 'lucide-react'
 import SkyPlotGNSS from '../components/SkyPlotGNSS'
+import DatasetSelector from '../components/DatasetSelector'
 import { fetchGNSS } from '../api'
 import type { GNSSResponse } from '../api'
 
@@ -27,6 +28,8 @@ export default function GNSSSpoofMonitor() {
           <RefreshCw className="w-3.5 h-3.5" /> Refresh
         </button>
       </div>
+
+      <DatasetSelector page="/uav/gnss" />
 
       {err && <div className="p-3 bg-accent-red/10 border border-accent-red/30 rounded-md text-xs text-accent-red">{err}</div>}
       {!data ? <div className="text-text-secondary text-sm">Loading…</div> : (

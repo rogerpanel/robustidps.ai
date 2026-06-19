@@ -111,3 +111,45 @@ async def phase_b_onnx_export(model_kind: Literal["ct_tgnn", "mamba_shield"] = "
     checkpoint = f"weights/uav_{model_kind}.pt"
     output = f"weights/uav_{model_kind}.onnx"
     return export(model_kind=model_kind, checkpoint=checkpoint, output=output)
+
+
+# ── Dataset manifest (drives the React Dataset Selector) ────────────────
+
+@router.get("/datasets")
+async def datasets_manifest() -> dict:
+    from plugins.uav.datasets_manifest import manifest_payload
+    return manifest_payload()
+
+
+@router.get("/datasets/for-page/{page}")
+async def datasets_for_page(page: str) -> dict:
+    from plugins.uav.datasets_manifest import list_for_page
+    return {"page": page, "datasets": [
+        {"id": d.id, "name": d.name, "domain": d.domain,
+         "size_full": d.size_full, "tier": d.tier, "source_url": d.source_url,
+         "citation": d.citation,
+         "demo_subset_available": d.demo_subset_path is not None}
+        for d in list_for_page(page)
+    ]}
+
+
+@router.get("/ew-bench/operating-point")
+async def ew_bench_operating_point(js_db: float) -> dict:
+    """Sample all four MCR curves at a specific J/S — drives the
+    UAV Monitor's live J/S slider."""
+    from plugins.uav.uav_defense.ew_bench import UAV_EW_BENCH_2026, mission_completion_curve
+    js_int = int(round(js_db))
+    js_int = max(0, min(40, js_int))
+    points = {}
+    for cfg_key in UAV_EW_BENCH_2026["configurations"]:
+        curve = mission_completion_curve(cfg_key)
+        pt = next((p for p in curve["points"] if p["js_db"] == js_int), curve["points"][0])
+        points[cfg_key] = {
+            "mcr": pt["mcr"],
+            "ci_low": pt["ci_low"],
+            "ci_high": pt["ci_high"],
+            "above_do_326a": pt["mcr"] >= 0.90,
+            "label": curve["label"],
+            "color": curve["color"],
+        }
+    return {"js_db": js_int, "do_326a_threshold": 0.90, "points": points}

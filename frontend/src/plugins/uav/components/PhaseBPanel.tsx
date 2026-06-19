@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Layers, Cpu, Sparkles, AlertCircle } from 'lucide-react'
+import { Layers, Cpu, Sparkles, AlertCircle, Play, Loader2 } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL || ''
 
@@ -36,12 +36,28 @@ interface PhaseBStatus {
 export default function PhaseBPanel() {
   const [status, setStatus] = useState<PhaseBStatus | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  useEffect(() => {
-    fetch(`${API}/api/uav/phase-b/status`)
-      .then((r) => { if (!r.ok) throw new Error(`status ${r.status}`); return r.json() })
-      .then(setStatus)
-      .catch((e) => setErr(String(e)))
-  }, [])
+  const [running, setRunning] = useState<string | null>(null)
+
+  const reload = () => fetch(`${API}/api/uav/phase-b/status`)
+    .then((r) => { if (!r.ok) throw new Error(`status ${r.status}`); return r.json() })
+    .then(setStatus)
+    .catch((e) => setErr(String(e)))
+
+  useEffect(() => { reload() }, [])
+
+  const runAction = async (label: string, url: string) => {
+    setRunning(label); setErr(null)
+    try {
+      const r = await fetch(`${API}${url}`, { method: 'POST' })
+      if (!r.ok) throw new Error(`${url} → ${r.status}`)
+      await r.json()
+      await reload()
+    } catch (e) {
+      setErr(String(e))
+    } finally {
+      setRunning(null)
+    }
+  }
 
   if (err) return (
     <div className="bg-bg-card rounded-xl p-4">
@@ -71,6 +87,10 @@ export default function PhaseBPanel() {
           icon={<Sparkles className="w-3.5 h-3.5 text-accent-blue" />}
           title="AutoML (Optuna)"
           status={automl.status}
+          action={
+            <RunButton label="automl" running={running}
+                       onRun={() => runAction('automl', '/api/uav/phase-b/automl/run?model_kind=ct_tgnn&n_trials=8')} />
+          }
           body={
             automl.status === 'ready' ? (
               <div className="space-y-1 text-[11px] font-mono">
@@ -85,7 +105,7 @@ export default function PhaseBPanel() {
               </div>
             ) : (
               <div className="text-[11px] text-text-secondary">
-                No trials run yet. <span className="font-mono">POST /api/uav/phase-b/automl/run</span>
+                No trials run yet — click <em>Run</em> to launch 8 Optuna trials live (~5 min CPU).
               </div>
             )
           }
@@ -95,6 +115,10 @@ export default function PhaseBPanel() {
           icon={<Cpu className="w-3.5 h-3.5 text-accent-blue" />}
           title={`ONNX (target ≤${onnx.edge_target_ms_per_frame} ms)`}
           status={onnx.status}
+          action={
+            <RunButton label="onnx" running={running}
+                       onRun={() => runAction('onnx', '/api/uav/phase-b/onnx/export?model_kind=ct_tgnn')} />
+          }
           body={
             onnx.status === 'ready' ? (
               <div className="space-y-1 text-[11px] font-mono">
@@ -113,7 +137,7 @@ export default function PhaseBPanel() {
               </div>
             ) : (
               <div className="text-[11px] text-text-secondary">
-                Not exported yet. <span className="font-mono">POST /api/uav/phase-b/onnx/export</span>
+                Not exported yet — click <em>Run</em> to export the current checkpoint + benchmark (~30 s).
               </div>
             )
           }
@@ -145,8 +169,8 @@ export default function PhaseBPanel() {
   )
 }
 
-function StageCard({ icon, title, status, body }: {
-  icon: React.ReactNode; title: string; status: string; body: React.ReactNode
+function StageCard({ icon, title, status, body, action }: {
+  icon: React.ReactNode; title: string; status: string; body: React.ReactNode; action?: React.ReactNode
 }) {
   const statusTone =
     status === 'ready' ? 'bg-accent-green/10 text-accent-green border-accent-green/30'
@@ -155,7 +179,7 @@ function StageCard({ icon, title, status, body }: {
 
   return (
     <div className="border border-bg-card/40 rounded-md p-3">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 gap-1">
         <div className="flex items-center gap-1.5">
           {icon}
           <span className="text-xs font-semibold">{title}</span>
@@ -165,6 +189,24 @@ function StageCard({ icon, title, status, body }: {
         </span>
       </div>
       {body}
+      {action && <div className="mt-2 pt-2 border-t border-bg-card/40">{action}</div>}
     </div>
+  )
+}
+
+function RunButton({ label, running, onRun }: { label: string; running: string | null; onRun: () => void }) {
+  const isRunning = running === label
+  const anyRunning = running !== null
+  return (
+    <button onClick={onRun} disabled={anyRunning}
+            className={`w-full flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] font-medium ${
+              isRunning ? 'bg-accent-amber text-white' :
+              anyRunning ? 'bg-bg-secondary text-text-secondary' :
+              'bg-accent-blue text-white hover:bg-accent-blue/90'
+            }`}>
+      {isRunning
+        ? <><Loader2 className="w-3 h-3 animate-spin" /> running…</>
+        : <><Play className="w-3 h-3" /> Run now</>}
+    </button>
   )
 }

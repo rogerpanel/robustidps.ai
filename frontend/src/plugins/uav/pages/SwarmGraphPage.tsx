@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Network } from 'lucide-react'
 import SwarmGraphAnimated from '../components/SwarmGraphAnimated'
+import DatasetSelector from '../components/DatasetSelector'
 import { fetchSwarmSnapshot } from '../api'
 import type { SwarmSnapshot } from '../api'
 
@@ -21,6 +22,8 @@ export default function SwarmGraphPage() {
           (false-neighbour hostile edges to u₂ and u₃).
         </p>
       </div>
+
+      <DatasetSelector page="/uav/swarm" />
 
       {err && <div className="p-3 bg-accent-red/10 border border-accent-red/30 rounded-md text-xs text-accent-red">{err}</div>}
 

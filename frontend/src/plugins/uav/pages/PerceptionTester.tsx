@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Eye, Play, Loader2 } from 'lucide-react'
+import DatasetSelector from '../components/DatasetSelector'
 import { runPerceptionAttack } from '../api'
 import type { AttackResult } from '../api'
 
@@ -36,6 +37,8 @@ export default function PerceptionTester() {
           chapter 6 §6.5.1 binds to the same kernel.
         </p>
       </div>
+
+      <DatasetSelector page="/uav/perception" />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-bg-card rounded-xl p-4 space-y-3">
