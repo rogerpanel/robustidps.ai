@@ -52,7 +52,7 @@ export default function UAVMonitor() {
           <p className="text-xs text-text-secondary mt-1 max-w-3xl">
             Chapter 6 framework — three-tier <span className="font-mono">edge / droneport / cloud</span> stack
             atop the M1–M7 + CyberSecLLM kernel. Hero panel: <em>Mission-Completion-Rate vs Jamming-to-Signal Ratio</em>
-            on UAV-EW-Bench-2026 ({overview.benchmark.n_flights.toLocaleString()} simulated flights).
+            on UAV-EW-Bench-2026 ({(overview.benchmark.n_flights ?? 0).toLocaleString()} simulated flights).
           </p>
         </div>
         <div className="text-right text-[10px] text-text-secondary font-mono">

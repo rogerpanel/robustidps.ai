@@ -294,6 +294,7 @@ def run_bench_with_real_trajectories(cfg: BenchConfig | None = None) -> dict:
             "points": points, "do_326a_crossing_db": crossing,
         })
 
+    n_total = sum(p["n_flights"] for c in curves for p in c["points"]) // len(curves)
     out = {
         "benchmark": {
             "name": "UAV-EW-Bench-2026",
@@ -302,7 +303,8 @@ def run_bench_with_real_trajectories(cfg: BenchConfig | None = None) -> dict:
             "n_real_trajectories": len([t for t in trajectories if t.source != "synthetic"]),
             "n_total_trajectories": len(trajectories),
             "trajectory_sources": sorted({t.source for t in trajectories}),
-            "n_total_flights": sum(p["n_flights"] for c in curves for p in c["points"]) // len(curves),
+            "n_total_flights": n_total,
+            "n_flights": n_total,    # alias for legacy UI compatibility
             "js_grid_db": cfg.js_grid_db,
             "n_reps_per_point": cfg.n_reps_per_point,
             "ci_method": "wilson_95",
@@ -375,6 +377,7 @@ def run_bench(cfg: BenchConfig | None = None) -> dict:
             "name": "UAV-EW-Bench-2026",
             "phase": "D (measured via physics-informed simulator)",
             "n_total_flights": n_total_flights,
+            "n_flights": n_total_flights,    # alias for legacy UI compatibility
             "n_missions": len(cfg.missions),
             "n_gnss_receivers": len(cfg.receivers),
             "n_seeds": len(cfg.seeds),
