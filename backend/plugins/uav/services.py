@@ -19,7 +19,9 @@ from plugins.uav.uav_defense.datasets import SyntheticTEXBAT
 from plugins.uav.uav_defense.defenses import (
     certified_radius, estimate_lipschitz, gronwall_radius, smooth_predict,
 )
-from plugins.uav.uav_defense.ew_bench import UAV_EW_BENCH_2026, mission_completion_curve
+from plugins.uav.uav_defense.ew_bench import (
+    UAV_EW_BENCH_2026, mission_completion_curve, best_available_curves, latest_measured,
+)
 from plugins.uav.uav_defense.models import CTTGNN
 
 METRICS_PATH = Path("weights/uav_metrics.json")
@@ -109,10 +111,11 @@ def overview_payload() -> dict:
             metrics = json.loads(METRICS_PATH.read_text())
         except json.JSONDecodeError:
             metrics = {}
-    curves = [mission_completion_curve(c) for c in UAV_EW_BENCH_2026["configurations"]]
+    best = best_available_curves()
     return {
-        "benchmark": UAV_EW_BENCH_2026,
-        "ew_curves": curves,
+        "benchmark": best["benchmark"],
+        "ew_curves": best["curves"],
+        "ew_source": best.get("source", "unknown"),
         "phase_a_metrics": metrics,
         "tiers": TIERS,
         "edge_profile": EDGE_PROFILE,
@@ -120,9 +123,11 @@ def overview_payload() -> dict:
 
 
 def ew_curves_payload() -> dict:
+    best = best_available_curves()
     return {
-        "benchmark": UAV_EW_BENCH_2026,
-        "curves": [mission_completion_curve(c) for c in UAV_EW_BENCH_2026["configurations"]],
+        "benchmark": best["benchmark"],
+        "curves": best["curves"],
+        "source": best.get("source", "unknown"),
     }
 
 

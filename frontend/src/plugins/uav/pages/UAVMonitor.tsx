@@ -75,8 +75,11 @@ export default function UAVMonitor() {
 
       {/* Hero panel — MCR vs J/S */}
       <div className="bg-bg-card rounded-xl p-4 border-t-2 border-accent-orange/40">
-        <div className="flex items-baseline justify-between mb-2">
-          <h2 className="text-sm font-semibold">{overview.benchmark.name}</h2>
+        <div className="flex items-baseline justify-between mb-2 gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">{overview.benchmark.name}</h2>
+            <SourceBadge source={overview.ew_source} />
+          </div>
           <div className="text-[10px] text-text-secondary font-mono">
             DO-326A threshold: MCR ≥ {overview.benchmark.regulatory_threshold.mcr}
             <span className="mx-2">·</span>
@@ -167,5 +170,20 @@ export default function UAVMonitor() {
         </div>
       </div>
     </div>
+  )
+}
+
+function SourceBadge({ source }: { source?: string }) {
+  if (source === 'phase_d_measured') {
+    return (
+      <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-accent-green/10 text-accent-green border border-accent-green/30 uppercase">
+        Phase D · measured
+      </span>
+    )
+  }
+  return (
+    <span className="px-2 py-0.5 rounded text-[9px] font-mono bg-accent-amber/10 text-accent-amber border border-accent-amber/30 uppercase">
+      Phase A · chapter-anchored
+    </span>
   )
 }

@@ -347,6 +347,11 @@ TOOLS = [
         "description": "Get the Agent Studio three-tier catalog (Community / Pro / Enterprise) with per-tier features, price, and seats. Use when the user asks about Agent Studio pricing tiers, SaaS plans, or which features are gated by which tier.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "get_uav_ew_bench_source",
+        "description": "Check whether the UAV-EW-Bench-2026 MCR-vs-J/S curves currently served are Phase A (chapter-anchored linear interpolation of the chapter 6 Fig. 6.x published 9-point anchors) or Phase D (measured via the physics-informed simulator). Returns DO-326A crossings per configuration when measured Phase D is available.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -1147,6 +1152,24 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_agent_studio_tiers":
             from plugins.agent_studio.entitlement import public_catalog
             return json.dumps(public_catalog())
+
+        elif name == "get_uav_ew_bench_source":
+            from plugins.uav.uav_defense.ew_bench import latest_measured
+            measured = latest_measured()
+            if measured is None:
+                return json.dumps({
+                    "source": "phase_a_chapter_anchored",
+                    "description": "Linear interpolation of chapter 6 Fig. 6.x 9-point anchors per configuration",
+                    "hint": "POST /api/uav/ew-bench/run to produce a measured Phase D curve via the physics-informed simulator (30 s on CPU)",
+                })
+            return json.dumps({
+                "source": "phase_d_measured",
+                "n_total_flights": measured["benchmark"]["n_total_flights"],
+                "n_missions": measured["benchmark"]["n_missions"],
+                "n_gnss_receivers": measured["benchmark"]["n_gnss_receivers"],
+                "do_326a_crossings_db": {c["config_key"]: c["do_326a_crossing_db"]
+                                          for c in measured["curves"]},
+            })
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

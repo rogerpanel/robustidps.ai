@@ -170,14 +170,14 @@ async def dataset_subset(dataset_id: str, limit: int = 50) -> dict:
 async def ew_bench_operating_point(js_db: float) -> dict:
     """Sample all four MCR curves at a specific J/S — drives the
     UAV Monitor's live J/S slider."""
-    from plugins.uav.uav_defense.ew_bench import UAV_EW_BENCH_2026, mission_completion_curve
+    from plugins.uav.uav_defense.ew_bench import best_available_curves
     js_int = int(round(js_db))
     js_int = max(0, min(40, js_int))
+    payload = best_available_curves()
     points = {}
-    for cfg_key in UAV_EW_BENCH_2026["configurations"]:
-        curve = mission_completion_curve(cfg_key)
+    for curve in payload["curves"]:
         pt = next((p for p in curve["points"] if p["js_db"] == js_int), curve["points"][0])
-        points[cfg_key] = {
+        points[curve["config_key"]] = {
             "mcr": pt["mcr"],
             "ci_low": pt["ci_low"],
             "ci_high": pt["ci_high"],
@@ -185,4 +185,45 @@ async def ew_bench_operating_point(js_db: float) -> dict:
             "label": curve["label"],
             "color": curve["color"],
         }
-    return {"js_db": js_int, "do_326a_threshold": 0.90, "points": points}
+    return {"js_db": js_int, "do_326a_threshold": 0.90, "points": points,
+            "source": payload.get("source", "unknown")}
+
+
+# ── Phase D — measured Mission-Completion-Rate via the simulator ────────
+
+@router.post("/ew-bench/run")
+async def ew_bench_run(quick: bool = False, n_reps: int = 200) -> dict:
+    """Trigger a UAV-EW-Bench-2026 simulator run. WRITE — wall-clock
+    is ~30 s for the default 200 reps × 3 missions × 3 receivers ×
+    3 seeds. Set quick=true for a 10-s reduced grid."""
+    from plugins.uav.uav_defense.ew_bench.simulator import (
+        BenchConfig, run_bench,
+    )
+    if quick:
+        cfg = BenchConfig(
+            js_grid_db=list(range(0, 41, 2)),
+            n_reps_per_point=50, seeds=(42,),
+            missions=("delivery",),
+            receivers=("ublox_f9p_sim",),
+        )
+    else:
+        cfg = BenchConfig(n_reps_per_point=n_reps)
+    return run_bench(cfg)
+
+
+@router.get("/ew-bench/measured-status")
+async def ew_bench_measured_status() -> dict:
+    """Has a measured Phase-D run been produced yet?"""
+    from plugins.uav.uav_defense.ew_bench import latest_measured
+    measured = latest_measured()
+    if measured is None:
+        return {"status": "not_run",
+                "hint": "POST /api/uav/ew-bench/run (quick=true for a 10-s smoke run)"}
+    return {
+        "status": "ready",
+        "n_total_flights": measured["benchmark"]["n_total_flights"],
+        "n_missions": measured["benchmark"]["n_missions"],
+        "n_gnss_receivers": measured["benchmark"]["n_gnss_receivers"],
+        "do_326a_crossings_db": {c["config_key"]: c["do_326a_crossing_db"]
+                                  for c in measured["curves"]},
+    }

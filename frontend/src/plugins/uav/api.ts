@@ -36,6 +36,7 @@ export interface BenchMeta {
 export interface OverviewResponse {
   benchmark: BenchMeta
   ew_curves: MCRCurve[]
+  ew_source?: 'phase_d_measured' | 'phase_a_chapter_anchored' | string
   phase_a_metrics: Record<string, number | string>
   tiers: { name: string; budget_w: number | null; methods: string[] }[]
   edge_profile: {
