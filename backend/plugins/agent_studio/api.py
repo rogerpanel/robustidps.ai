@@ -10,9 +10,11 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel, Field
 
+from plugins.agent_studio.billing import handle_event as _billing_handle, parse_event as _billing_parse
+from plugins.agent_studio.entitlement import public_catalog as _tier_catalog
 from plugins.agent_studio.scanner import run_scan, SCANNER_CHECKS
 
 router = APIRouter(prefix="/api/agent-studio", tags=["Agent Studio + Security"])
@@ -66,3 +68,27 @@ async def scanner_checks() -> dict:
 @router.get("/sku-catalog")
 async def sku_catalog() -> dict:
     return {"skus": SKU_CATALOG}
+
+
+# ── Entitlement ──────────────────────────────────────────────────────────
+
+@router.get("/entitlement/tiers")
+async def entitlement_tiers() -> dict:
+    """Public tier catalog — drives the portal's pricing table."""
+    return _tier_catalog()
+
+
+# ── Billing (Stripe webhook) ─────────────────────────────────────────────
+
+@router.post("/billing/webhook")
+async def billing_webhook(request: Request,
+                          stripe_signature: str | None = Header(default=None, alias="Stripe-Signature")) -> dict:
+    """Stripe → tier-change intent. Safe to deploy before Stripe is
+    funded — runs in staging mode (no signature requirement) until
+    STRIPE_WEBHOOK_SECRET is set in the env."""
+    body = await request.body()
+    try:
+        event = _billing_parse(body, stripe_signature)
+    except ValueError as e:
+        return {"received": False, "error": str(e)}
+    return {"received": True, **_billing_handle(event)}

@@ -262,3 +262,53 @@ def industry_payload() -> dict:
 
 def regulatory_payload() -> dict:
     return {"entries": REGULATORY}
+
+
+# ── Phase B status ──────────────────────────────────────────────────────
+
+def phase_b_status_payload() -> dict:
+    """Aggregate Phase B artefacts: Optuna best-trial summary, ONNX export
+    latency benchmark, and the chapter 6 §6.4 progressive-distillation
+    target deltas. Returned shape is stable so the React Phase B panel
+    renders the same fields regardless of which artefacts are present."""
+    from plugins.uav.uav_defense.automl import latest_results as _optuna_latest
+    from plugins.uav.uav_defense.onnx_export import latest_results as _onnx_latest
+
+    optuna = _optuna_latest()
+    onnx = _onnx_latest()
+
+    return {
+        "phase": "B",
+        "stages": {
+            "automl": {
+                "status": "ready" if optuna else "not_run",
+                "models_searched": list(optuna.keys()),
+                "best_per_model": {
+                    k: {"value": v["best_value"], "params": v["best_params"]}
+                    for k, v in optuna.items()
+                },
+            },
+            "onnx_export": {
+                "status": "ready" if onnx else "not_run",
+                "models_exported": list(onnx.keys()),
+                "edge_target_ms_per_frame": 5.0,
+                "results": {
+                    k: {
+                        "median_latency_ms": v["latency_ms"]["median"],
+                        "p95_latency_ms": v["latency_ms"]["p95"],
+                        "meets_edge_target": v["latency_ms"]["median"] <= v["edge_target_ms_per_frame"],
+                        "round_trip_ok": v["round_trip_ok"],
+                    }
+                    for k, v in onnx.items()
+                },
+            },
+            "progressive_distillation": {
+                "status": "framework_ready",
+                "target_cw_kappa5_robust_acc": 0.85,
+                "phase_a_baseline": 0.0,
+                "curriculum_eps_255": [1, 2, 4, 6, 8],
+                "module": "plugins.uav.uav_defense.distillation",
+                "runner_hint": "python -m plugins.uav.uav_defense.train --phase b --distill",
+            },
+        },
+    }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldCheck, RefreshCw, FileCheck2, FileText } from 'lucide-react'
 import CertificateStrip from '../components/CertificateStrip'
+import PhaseBPanel from '../components/PhaseBPanel'
 import { fetchCertificates, fetchIndustry, fetchRegulatory } from '../api'
 import type { CertificateResponse, IndustryResponse, RegulatoryEntry } from '../api'
 
@@ -55,6 +56,8 @@ export default function CertificationDashboard() {
           {' '}MCR floor of {cert.operational_interpretation.regulatory_floor_mcr} at J/S ≤ {cert.operational_interpretation.js_db_floor} dB.
         </p>
       </div>
+
+      <PhaseBPanel />
 
       <div className="bg-bg-card rounded-xl p-4">
         <h2 className="text-sm font-semibold mb-2">Industry comparison — chapter 6 Table 6.x</h2>

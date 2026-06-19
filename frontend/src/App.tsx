@@ -130,6 +130,7 @@ const UAVSwarmGraphPage = lazy(() => import('./plugins/uav/pages/SwarmGraphPage'
 const UAVMissionPlanReview = lazy(() => import('./plugins/uav/pages/MissionPlanReview'))
 // Agent Studio + Agent Security plugin (venture plan wedge)
 const AgentScanner = lazy(() => import('./plugins/agent_studio/pages/AgentScanner'))
+const AgentStudioPortal = lazy(() => import('./plugins/agent_studio/pages/AgentStudioPortal'))
 // Assurance dossier (shared across both verticals)
 const DossierPage = lazy(() => import('./plugins/dossier/pages/Dossier'))
 import { fetchHealth } from './utils/api'
@@ -228,6 +229,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/mambaguard', label: 'MambaGuard', icon: Activity },
       { to: '/data-poisoning', label: 'Data Poisoning Sim', icon: FlaskConical },
       { to: '/agent-scanner', label: 'Agent Scanner (free)', icon: FlaskConical },
+      { to: '/agent-studio', label: 'Agent Studio Portal', icon: Sparkles },
     ],
   },
   {
@@ -810,6 +812,7 @@ export default function App() {
               <Route path="/uav/swarm" element={<UAVSwarmGraphPage />} />
               <Route path="/uav/mission-plan" element={<UAVMissionPlanReview />} />
               <Route path="/agent-scanner" element={<AgentScanner />} />
+              <Route path="/agent-studio" element={<AgentStudioPortal />} />
               <Route path="/dossier" element={<DossierPage />} />
               <Route path="/about" element={<About />} />
             </Routes>

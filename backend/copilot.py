@@ -314,6 +314,12 @@ TOOLS = [
             "required": ["vertical"],
         },
     },
+    # ── UAV Phase B (chapter 6 §6.4 roadmap) ────────────────────────────
+    {
+        "name": "get_uav_phase_b_status",
+        "description": "Get the UAV Phase B status: AutoML (Optuna) best-trial summaries per model, ONNX export latency benchmark vs the 5 ms airframe-edge target, and progressive-distillation framework readiness (the chapter-6 fix for the CW κ=5 robust-accuracy gap). Use when the user asks about Phase B, AutoML, ONNX, edge latency, or what's next after Phase A.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -1077,6 +1083,10 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 vertical=args["vertical"],
                 audience=args.get("audience", "auditor"),
             ))
+
+        elif name == "get_uav_phase_b_status":
+            from plugins.uav import services as _uav_svc
+            return json.dumps(_uav_svc.phase_b_status_payload())
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

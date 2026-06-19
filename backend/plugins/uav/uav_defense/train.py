@@ -55,6 +55,9 @@ def main(argv: list[str] | None = None) -> dict:
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--epsilon", type=float, default=4 / 255)
     parser.add_argument("--out", type=str, default="weights/uav_ct_tgnn.pt")
+    parser.add_argument("--phase", default="a", choices=["a", "b"])
+    parser.add_argument("--distill", action="store_true",
+                        help="Phase B progressive adversarial distillation (M4 MambaShield student from CT-TGNN teacher)")
     args = parser.parse_args(argv)
 
     torch.manual_seed(42)
@@ -67,7 +70,32 @@ def main(argv: list[str] | None = None) -> dict:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), out_path)
-    return {"history": history, "checkpoint": str(out_path)}
+    result = {"phase": args.phase, "history": history, "checkpoint": str(out_path)}
+
+    if args.distill or args.phase == "b":
+        from plugins.uav.uav_defense.distillation import (
+            progressive_distill_step, default_curriculum,
+        )
+        from plugins.uav.uav_defense.models import MambaShield
+        student = MambaShield()
+        teacher = model
+        # One curriculum sweep over the whole loader is enough for the
+        # smoke-test surface; production runs would loop multiple sweeps.
+        stages = []
+        for x, adj, y in loader:
+            stages.append(progressive_distill_step(
+                student, teacher, x, y, adj=None,  # MambaShield doesn't take adj
+                epsilon_curriculum=default_curriculum(),
+            ))
+        student_out = Path("weights/uav_mamba_shield_distilled.pt")
+        torch.save(student.state_dict(), student_out)
+        result["distillation"] = {
+            "student_checkpoint": str(student_out),
+            "n_sweeps": len(stages),
+            "first_sweep": stages[0] if stages else None,
+            "last_sweep": stages[-1] if stages else None,
+        }
+    return result
 
 
 if __name__ == "__main__":

@@ -86,3 +86,28 @@ async def industry_comparison() -> dict:
 @router.get("/regulatory")
 async def regulatory() -> dict:
     return {"entries": _svc.REGULATORY}
+
+
+# ── Phase B (chapter 6 §6.4 roadmap) ────────────────────────────────────
+
+@router.get("/phase-b/status")
+async def phase_b_status() -> dict:
+    return _svc.phase_b_status_payload()
+
+
+@router.post("/phase-b/automl/run")
+async def phase_b_automl_run(model_kind: Literal["ct_tgnn", "mamba_shield"] = "ct_tgnn",
+                             n_trials: int = 8) -> dict:
+    """Trigger an Optuna search. WRITE — takes several minutes; in a
+    real deployment this would queue to a background worker."""
+    from plugins.uav.uav_defense.automl import run_search
+    return run_search(model_kind=model_kind, n_trials=n_trials)
+
+
+@router.post("/phase-b/onnx/export")
+async def phase_b_onnx_export(model_kind: Literal["ct_tgnn", "mamba_shield"] = "ct_tgnn") -> dict:
+    """Export the current checkpoint to ONNX and benchmark latency."""
+    from plugins.uav.uav_defense.onnx_export import export
+    checkpoint = f"weights/uav_{model_kind}.pt"
+    output = f"weights/uav_{model_kind}.onnx"
+    return export(model_kind=model_kind, checkpoint=checkpoint, output=output)
