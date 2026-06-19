@@ -1,0 +1,244 @@
+% ============================================================
+%  Slides additions for Chapter 6 — paste between the existing
+%  "Slide 47: Применение и результаты в секторе БПЛА" and
+%  "Slide 48: Заключение".  Adds three new slides that turn
+%  Chapter 6 from 2 frames to 5 frames in the defense deck.
+%
+%  Uses the same Beamer style (navy theme, infolines outer,
+%  rectangles inner) + the existing \bn, \hl, \gd macros.
+% ============================================================
+
+% ============================================================
+% Slide 47a (NEW): UAV-EW-Bench-2026 — measured Phase D headline
+% ============================================================
+\begin{frame}{Эталон UAV-EW-Bench-2026: измеренная завершаемость миссий vs $J/S$}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+
+\column{0.46\textwidth}
+\textbf{Phase D: измеренный bench-прогон} (физически-обоснованный
+симулятор; \hl{$108\,000$ полётов}; 3~типа миссий $\times$
+3~модели приёмника $\times$ 200~повторов $\times$ 3~зерна):
+\medskip
+
+\begin{center}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcc}
+\toprule
+Конфигурация & \shortstack{Crossing\\DO-326A 0,90}
+             & \shortstack{MCR при\\$J/S{=}20$ дБ} \\
+\midrule
+PX4 без защиты      & $\sim$8\,дБ  & \hl{0,11} \\
+CAF-CNN + PX4       & $\sim$9\,дБ  & 0,39 \\
+Seq2Seq Tr.\ + PX4  & 11\,дБ       & 0,58 \\
+\bn{M1+M4+M6+M7}    & \gd{40\,дБ}  & \gd{0,95} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+Запас разработанного фреймворка над лучшим конкурентом:
+\hl{$+29$\,дБ}; над незащищённой PX4: \hl{$+32$\,дБ}.
+
+\column{0.50\textwidth}
+\begin{tikzpicture}[font=\scriptsize]
+\begin{axis}[
+  width=6.0cm, height=4.6cm,
+  xlabel={$J/S$ (дБ)}, ylabel={MCR},
+  xmin=0, xmax=40, ymin=0, ymax=1.02,
+  xtick={0,10,20,30,40},
+  ytick={0,0.5,0.9,1},
+  ymajorgrids, grid style={dashed,gray!28},
+  legend style={font=\tiny, at={(0.02,0.04)},
+                anchor=south west, draw=gray!40, fill=white},
+  every axis plot/.append style={very thick},
+]
+\addplot[red!75!black, mark=triangle*, mark size=1pt] coordinates {
+  (0,1.00)(5,0.97)(10,0.81)(15,0.53)(20,0.11)(25,0.02)
+  (30,0.00)(35,0.00)(40,0.00)};
+\addlegendentry{PX4 без защиты}
+\addplot[orange!85!black, mark=square*, mark size=1pt] coordinates {
+  (0,1.00)(5,0.98)(10,0.89)(15,0.67)(20,0.39)(25,0.39)
+  (30,0.35)(35,0.34)(40,0.31)};
+\addlegendentry{CAF-CNN}
+\addplot[teal!70!black, mark=diamond*, mark size=1pt] coordinates {
+  (0,1.00)(5,0.98)(10,0.92)(15,0.81)(20,0.58)(25,0.51)
+  (30,0.54)(35,0.52)(40,0.55)};
+\addlegendentry{Seq2Seq Tr.}
+\addplot[blue!75!black, mark=*, mark size=1pt] coordinates {
+  (0,1.00)(5,1.00)(10,0.99)(15,0.97)(20,0.95)(25,0.94)
+  (30,0.95)(35,0.96)(40,0.96)};
+\addlegendentry{\textbf{M1+M4+M6+M7}}
+\addplot[gray!55, densely dashed, no marks, forget plot]
+  coordinates {(0,0.90) (40,0.90)};
+\node[font=\tiny,gray!55!black,anchor=south]
+  at (axis cs:20,0.91) {DO-326A: 0,90};
+\end{axis}
+\end{tikzpicture}
+\end{columns}
+
+\medskip
+\begin{block}{}
+\footnotesize Полностью \emph{измеренный} результат~--- не
+интерполяция эталонных точек главы 6. Симулятор моделирует
+канальный бюджет ГНСС, время реакции защиты, отказоустойчивость
+автопилота. Phase E (реальные траектории PX4~SITL / EuRoC~MAV)
+готова к подключению одной командой.
+\end{block}
+\end{frame}
+
+% ============================================================
+% Slide 47b (NEW): Three-tier architecture + live certificates
+% ============================================================
+\begin{frame}{Трёхъярусная архитектура: сертификаты устойчивости в реальном времени}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+
+\column{0.50\textwidth}
+\begin{tikzpicture}[font=\scriptsize, node distance=0.3cm and 0.3cm,
+  tier/.style={rectangle, rounded corners=3pt, draw=navy, very thick,
+               fill=navy!8, minimum height=1.0cm, minimum width=3.8cm,
+               align=center, font=\scriptsize\bfseries},
+  mod/.style={rectangle, rounded corners=2pt, draw=good!70!black, thick,
+              fill=good!10, minimum width=3.6cm, minimum height=0.4cm,
+              inner sep=2pt, font=\tiny\bfseries, align=center},
+  atk/.style={rectangle, rounded corners=2pt, draw=accent, thick,
+              fill=accent!10, minimum width=3.8cm, minimum height=0.4cm,
+              inner sep=2pt, font=\tiny, align=center},
+  link/.style={->, >=Stealth, very thick, navy},
+  attk/.style={->, >=Stealth, thick, accent, dashed}]
+\node[tier] (edge)  at (0,0)    {Борт БПЛА \\ \scriptsize$<\!5$\,Вт};
+\node[tier] (port)  at (0,-1.6) {Дронопорт \\ \scriptsize GPU};
+\node[tier] (cloud) at (0,-3.2) {Облако / SOC};
+
+\node[mod, right=of edge]  (m1) {M1 CT-TGNN};
+\node[mod, below=2pt of m1] (m4) {M4 MambaShield};
+\node[mod, below=2pt of m4] (m6) {M6 UC-HGP};
+
+\node[mod, right=of port]  (m2) {M2 FedLLM-API};
+\node[mod, below=2pt of m2] (m7) {M7 FedGTD};
+\node[mod, below=2pt of m7] (m5) {M5 S-Trans.};
+
+\node[mod, right=of cloud]  (m3) {M3 TripleE-TGNN};
+\node[mod, below=2pt of m3] (cll){CyberSecLLM};
+
+\node[atk, left=0.3cm of edge]  (t1) {FGSM / PGD / C\&W};
+\node[atk, left=0.3cm of port]  (t2) {Византийцы};
+\node[atk, left=0.3cm of cloud] (t3) {HopSkip / Boundary};
+
+\draw[link] (edge.south) -- (port.north);
+\draw[link] (port.south) -- (cloud.north);
+\draw[attk] (t1.east) -- (edge.west);
+\draw[attk] (t2.east) -- (port.west);
+\draw[attk] (t3.east) -- (cloud.west);
+\end{tikzpicture}
+
+\column{0.46\textwidth}
+\textbf{Живые сертификаты} (пересчитываются на 16-сэмпловом
+батче при каждом входе на страницу):
+\medskip
+
+\begin{center}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{ll}
+\toprule
+Сертификат & Значение \\
+\midrule
+$\hat L_g$ (Липшиц)        & \bn{0{,}107} \\
+Радиус Грёнуолла           & \bn{0{,}449}\;($T{=}1$, $\eps{=}0{,}5$) \\
+RS $\ell_2$ радиус         & \bn{0{,}207}\;($\sigma{=}0{,}25$) \\
+PAC-Bayes bound            & \bn{0{,}041} \\
+DP бюджет $(\eps,\delta)$  & \bn{$(0{,}85,\,10^{-5})$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+\textbf{Операционная интерпретация:} сертификаты удерживают
+DO-326A порог при \hl{$J/S \le 20$\,дБ}~--- именно в этом
+диапазоне работают современные средства РЭБ
+[WaPo 2024; Inside~UAS 2025].
+
+\medskip
+\textbf{Кромочный профиль (Jetson Orin Nano):} задержка
+\bn{1{,}8\,мс/кадр} при 30\,FPS, RAM 384~МиБ, 8\,\% одного
+ядра.
+\end{columns}
+
+\medskip
+\begin{block}{}
+\footnotesize Все сертификаты доступны для повторного пересчёта в один
+клик в Certification Dashboard и через SOC Copilot (инструмент
+\texttt{get\_uav\_certificates}); встроены в авто-генерируемый
+пакет доказательств для аудита EU~AI~Act Art.~15 / DO-326A /
+GOST~Р~59276-2020 / Постановления Правительства~№\,1701.
+\end{block}
+\end{frame}
+
+% ============================================================
+% Slide 47c (NEW): Interactive demonstration capability
+% ============================================================
+\begin{frame}{Интерактивная демонстрация: 9 атак, многоагентный рой, 4~LLM}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+
+\column{0.50\textwidth}
+\textbf{Каталог атак Perception Tester} (9 семейств):
+\medskip
+
+\begin{center}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{ll}
+\toprule
+\textbf{Тип} & \textbf{Атаки} \\
+\midrule
+\bn{Белый ящик}  & FGSM, PGD, C\&W ($L_2$), DeepFool \\
+\bn{Чёрный ящик} & HopSkipJump, BoundaryAttack \\
+\bn{Базовые}     & Гауссов шум, Feature masking \\
+\bn{Обучение}    & Label flipping (отравление) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+Каждая атака~--- собственная форма гиперпараметров; результат
+включает чистое и состязательное предсказание, доверие,
+$L_2$/$L_\infty$-дисторсии. \hl{C\&W~$\kappa{=}5$} даёт
+наименьшую перестройку входа~--- иллюстрирует разрыв Phase~A,
+который закрывает прогрессивная адверсариальная дистилляция
+Phase~B.
+
+\column{0.46\textwidth}
+\textbf{Live Fleet Demo}~--- многоагентный симулятор:
+\medskip
+\begin{itemize}\setlength\itemsep{1pt}
+\item \bn{3--12 БПЛА} с индивидуальной защитой
+       (no\_def / CAF-CNN / Seq2Seq / framework).
+\item \bn{Инъекция атак} на каждый аппарат отдельно:
+       FGSM, PGD, C\&W, DeepFool, spoof\_gnss, jam\_link,
+       label\_flip, gaussian.
+\item Регулятор \bn{общего $J/S$} 0--40\,дБ, шаг 1\,Гц.
+\item Реальное время: режим автопилота
+       (\emph{nominal\,$\to$\,gnss\_degraded\,$\to$\,rtl}),
+       прогресс миссии, заряд, качество канала, доверие
+       обнаружения подмены ГНСС.
+\item \bn{Загрузка собственного флота} JSON-бандлом по схеме
+       \texttt{robustidps.uav.fleet/v1}.
+\end{itemize}
+
+\medskip
+\textbf{SOC Copilot:} \hl{34 инструмента} для четырёх LLM
+(Claude, GPT-4o, Gemini, DeepSeek)~--- 12 покрывают UAV
+вертикаль; аналитик задаёт вопрос на естественном языке~---
+LLM вызывает инструмент, получает живые данные сервера,
+обосновывает ответ.
+\end{columns}
+
+\medskip
+\begin{block}{}
+\footnotesize Все интерактивные поверхности доступны на
+\bn{\texttt{https://robustidps.ai/uav/*}} для членов комиссии
+во время защиты~--- демонстрация не сценарий, а полноценная
+платформа.
+\end{block}
+\end{frame}
