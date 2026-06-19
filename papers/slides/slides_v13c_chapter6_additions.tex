@@ -89,90 +89,82 @@ Seq2Seq Tr.\ + PX4  & 11\,дБ       & 0,58 \\
 
 % ============================================================
 % Slide 47b (NEW): Three-tier architecture + live certificates
+%   v2 — compact, no-overlap layout. Methods inlined inside each
+%   tier box; attack labels are inline italics with thin arrows;
+%   bottom block replaced with a single centered footnote line.
 % ============================================================
 \begin{frame}{Трёхъярусная архитектура: сертификаты устойчивости в реальном времени}
 \scriptsize
+\vspace{-4pt}
 \begin{columns}[T,onlytextwidth]
 
-\column{0.50\textwidth}
-\begin{tikzpicture}[font=\scriptsize, node distance=0.3cm and 0.3cm,
-  tier/.style={rectangle, rounded corners=3pt, draw=navy, very thick,
-               fill=navy!8, minimum height=1.0cm, minimum width=3.8cm,
-               align=center, font=\scriptsize\bfseries},
-  mod/.style={rectangle, rounded corners=2pt, draw=good!70!black, thick,
-              fill=good!10, minimum width=3.6cm, minimum height=0.4cm,
-              inner sep=2pt, font=\tiny\bfseries, align=center},
-  atk/.style={rectangle, rounded corners=2pt, draw=accent, thick,
-              fill=accent!10, minimum width=3.8cm, minimum height=0.4cm,
-              inner sep=2pt, font=\tiny, align=center},
+\column{0.54\textwidth}
+\begin{center}
+\begin{tikzpicture}[font=\tiny,
+  tier/.style={rectangle, rounded corners=2pt, draw=navy, very thick,
+               fill=navy!7, text width=5.4cm, align=center,
+               inner sep=4pt},
+  attlab/.style={anchor=east, font=\tiny\itshape, text=accent},
   link/.style={->, >=Stealth, very thick, navy},
-  attk/.style={->, >=Stealth, thick, accent, dashed}]
-\node[tier] (edge)  at (0,0)    {Борт БПЛА \\ \scriptsize$<\!5$\,Вт};
-\node[tier] (port)  at (0,-1.6) {Дронопорт \\ \scriptsize GPU};
-\node[tier] (cloud) at (0,-3.2) {Облако / SOC};
+  attk/.style={->, >=Stealth, thin, accent, dashed}]
 
-\node[mod, right=of edge]  (m1) {M1 CT-TGNN};
-\node[mod, below=2pt of m1] (m4) {M4 MambaShield};
-\node[mod, below=2pt of m4] (m6) {M6 UC-HGP};
-
-\node[mod, right=of port]  (m2) {M2 FedLLM-API};
-\node[mod, below=2pt of m2] (m7) {M7 FedGTD};
-\node[mod, below=2pt of m7] (m5) {M5 S-Trans.};
-
-\node[mod, right=of cloud]  (m3) {M3 TripleE-TGNN};
-\node[mod, below=2pt of m3] (cll){CyberSecLLM};
-
-\node[atk, left=0.3cm of edge]  (t1) {FGSM / PGD / C\&W};
-\node[atk, left=0.3cm of port]  (t2) {Византийцы};
-\node[atk, left=0.3cm of cloud] (t3) {HopSkip / Boundary};
+\node[tier] (edge) at (0,0) {%
+  \textbf{Борт БПЛА}~\scriptsize($<\!5$\,Вт)\\[1pt]
+  \scriptsize M1 CT-TGNN $\cdot$ M4 MambaShield $\cdot$ M6 UC-HGP};
+\node[tier, below=12pt of edge] (port) {%
+  \textbf{Дронопорт}~\scriptsize(GPU)\\[1pt]
+  \scriptsize M2 FedLLM-API $\cdot$ M7 FedGTD $\cdot$ M5 S-Trans.};
+\node[tier, below=12pt of port] (cloud) {%
+  \textbf{Облако / SOC}\\[1pt]
+  \scriptsize M3 TripleE-TGNN $\cdot$ CyberSecLLM};
 
 \draw[link] (edge.south) -- (port.north);
 \draw[link] (port.south) -- (cloud.north);
+
+\node[attlab] (t1) at ($(edge.west)  + (-0.15,0)$) {FGSM/PGD/C\&W};
+\node[attlab] (t2) at ($(port.west)  + (-0.15,0)$) {Византийцы};
+\node[attlab] (t3) at ($(cloud.west) + (-0.15,0)$) {HopSkip/Bound};
 \draw[attk] (t1.east) -- (edge.west);
 \draw[attk] (t2.east) -- (port.west);
 \draw[attk] (t3.east) -- (cloud.west);
 \end{tikzpicture}
+\end{center}
 
-\column{0.46\textwidth}
-\textbf{Живые сертификаты} (пересчитываются на 16-сэмпловом
-батче при каждом входе на страницу):
-\medskip
+\column{0.44\textwidth}
+\textbf{Живые сертификаты}\hfill{\tiny(пересчёт на каждом входе)}
 
+\smallskip
 \begin{center}
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{ll}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular}{@{}ll@{}}
 \toprule
-Сертификат & Значение \\
+\scriptsize Сертификат & \scriptsize Значение \\
 \midrule
-$\hat L_g$ (Липшиц)        & \bn{0{,}107} \\
-Радиус Грёнуолла           & \bn{0{,}449}\;($T{=}1$, $\eps{=}0{,}5$) \\
-RS $\ell_2$ радиус         & \bn{0{,}207}\;($\sigma{=}0{,}25$) \\
-PAC-Bayes bound            & \bn{0{,}041} \\
-DP бюджет $(\eps,\delta)$  & \bn{$(0{,}85,\,10^{-5})$} \\
+$\hat L_g$ (Липшиц)             & \bn{0{,}107} \\
+Радиус Грёнуолла ($T{=}1$)      & \bn{0{,}449} \\
+RS $\ell_2$ ($\sigma{=}0{,}25$) & \bn{0{,}207} \\
+PAC-Bayes bound                 & \bn{0{,}041} \\
+$(\eps,\delta)$-DP бюджет       & \bn{$(0{,}85,\,10^{-5})$} \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\medskip
-\textbf{Операционная интерпретация:} сертификаты удерживают
-DO-326A порог при \hl{$J/S \le 20$\,дБ}~--- именно в этом
-диапазоне работают современные средства РЭБ
+\smallskip
+\textbf{Операционно:} удержание порога DO-326A при
+\hl{$J/S \le 20$\,дБ}~--- характерный РЭБ-режим
 [WaPo 2024; Inside~UAS 2025].
 
-\medskip
-\textbf{Кромочный профиль (Jetson Orin Nano):} задержка
-\bn{1{,}8\,мс/кадр} при 30\,FPS, RAM 384~МиБ, 8\,\% одного
-ядра.
+\smallskip
+\textbf{Кромка} (Jetson Orin Nano):
+\bn{1{,}8\,мс/кадр} $@$\,30\,FPS, RAM~384\,МиБ, 8\,\% одного ядра.
+
 \end{columns}
 
-\medskip
-\begin{block}{}
-\footnotesize Все сертификаты доступны для повторного пересчёта в один
-клик в Certification Dashboard и через SOC Copilot (инструмент
-\texttt{get\_uav\_certificates}); встроены в авто-генерируемый
-пакет доказательств для аудита EU~AI~Act Art.~15 / DO-326A /
-GOST~Р~59276-2020 / Постановления Правительства~№\,1701.
-\end{block}
+\vspace{4pt}
+\centerline{\footnotesize\itshape Авто-сборка пакета доказательств:
+EU~AI~Act Art.~15 $\cdot$ DO-326A $\cdot$ GOST~Р~59276-2020 $\cdot$
+Постановление №\,1701}
 \end{frame}
 
 % ============================================================
