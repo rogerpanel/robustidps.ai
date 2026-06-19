@@ -132,6 +132,10 @@ const UAVFleetDemo = lazy(() => import('./plugins/uav/pages/FleetDemo'))
 // Agent Studio + Agent Security plugin (venture plan wedge)
 const AgentScanner = lazy(() => import('./plugins/agent_studio/pages/AgentScanner'))
 const AgentStudioPortal = lazy(() => import('./plugins/agent_studio/pages/AgentStudioPortal'))
+const AgentEvalHarness = lazy(() => import('./plugins/agent_studio/pages/EvalHarness'))
+const AgentRedTeam = lazy(() => import('./plugins/agent_studio/pages/RedTeam'))
+const AgentRuntimeMonitor = lazy(() => import('./plugins/agent_studio/pages/RuntimeMonitor'))
+const AgentSupplyChain = lazy(() => import('./plugins/agent_studio/pages/SupplyChainScanner'))
 // Assurance dossier (shared across both verticals)
 const DossierPage = lazy(() => import('./plugins/dossier/pages/Dossier'))
 import { fetchHealth } from './utils/api'
@@ -232,6 +236,10 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/data-poisoning', label: 'Data Poisoning Sim', icon: FlaskConical },
       { to: '/agent-scanner', label: 'Agent Scanner (free)', icon: FlaskConical },
       { to: '/agent-studio', label: 'Agent Studio Portal', icon: Sparkles },
+      { to: '/agent-studio/eval', label: 'Agent Eval Harness', icon: FlaskConical },
+      { to: '/agent-studio/red-team', label: 'Agent Red Team Auto', icon: Swords },
+      { to: '/agent-studio/runtime', label: 'Agent Runtime Monitor', icon: Activity },
+      { to: '/agent-studio/supply-chain', label: 'Model Supply Chain', icon: Package },
     ],
   },
   {
@@ -816,6 +824,10 @@ export default function App() {
               <Route path="/uav/fleet-demo" element={<UAVFleetDemo />} />
               <Route path="/agent-scanner" element={<AgentScanner />} />
               <Route path="/agent-studio" element={<AgentStudioPortal />} />
+              <Route path="/agent-studio/eval" element={<AgentEvalHarness />} />
+              <Route path="/agent-studio/red-team" element={<AgentRedTeam />} />
+              <Route path="/agent-studio/runtime" element={<AgentRuntimeMonitor />} />
+              <Route path="/agent-studio/supply-chain" element={<AgentSupplyChain />} />
               <Route path="/dossier" element={<DossierPage />} />
               <Route path="/about" element={<About />} />
             </Routes>

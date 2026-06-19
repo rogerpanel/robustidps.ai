@@ -92,3 +92,120 @@ async def billing_webhook(request: Request,
     except ValueError as e:
         return {"received": False, "error": str(e)}
     return {"received": True, **_billing_handle(event)}
+
+
+# ── Eval Harness ───────────────────────────────────────────────────────
+
+class EvalRunRequest(BaseModel):
+    agent_spec: dict = Field(..., description="System prompt + tools + name")
+
+
+@router.post("/eval/run")
+async def eval_run(req: EvalRunRequest) -> dict:
+    from dataclasses import asdict as _asdict
+    from plugins.agent_studio.eval_harness import run_eval
+    run = run_eval(req.agent_spec)
+    return {
+        "run_id": run.run_id, "agent_name": run.agent_name,
+        "timestamp": run.timestamp,
+        "overall_score": run.overall_score,
+        "overall_verdict": run.overall_verdict,
+        "results": [_asdict(r) for r in run.results],
+    }
+
+
+@router.get("/eval/history")
+async def eval_history(limit: int = 20) -> dict:
+    from plugins.agent_studio.eval_harness import history
+    return {"runs": history(limit)}
+
+
+# ── Red Team Automation ───────────────────────────────────────────────
+
+class RedTeamRunRequest(BaseModel):
+    target_spec: dict = Field(..., description="Agent spec to probe")
+
+
+@router.post("/red-team/run")
+async def red_team_run(req: RedTeamRunRequest) -> dict:
+    from dataclasses import asdict as _asdict
+    from plugins.agent_studio.red_team import run_red_team
+    run = run_red_team(req.target_spec)
+    return {
+        "run_id": run.run_id, "target_name": run.target_name,
+        "timestamp": run.timestamp,
+        "n_probes": run.n_probes, "n_findings": run.n_findings,
+        "severity_breakdown": run.severity_breakdown,
+        "atlas_chain": run.atlas_chain,
+        "results": [_asdict(r) for r in run.results],
+    }
+
+
+@router.get("/red-team/catalog")
+async def red_team_catalog() -> dict:
+    from plugins.agent_studio.red_team import catalog
+    return catalog()
+
+
+@router.get("/red-team/history")
+async def red_team_history(limit: int = 20) -> dict:
+    from plugins.agent_studio.red_team import history
+    return {"runs": history(limit)}
+
+
+# ── Runtime Monitor ───────────────────────────────────────────────────
+
+class RuntimeIngestRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1, max_length=128)
+    framework: str = Field("langgraph")
+    decision: Literal["allow", "warn", "block"] = "allow"
+    finding_codes: list[str] = Field(default_factory=list)
+    latency_ms: float = 100.0
+
+
+@router.post("/runtime/ingest")
+async def runtime_ingest(req: RuntimeIngestRequest) -> dict:
+    from plugins.agent_studio.runtime_monitor import ingest
+    return ingest(req.agent_id, req.framework, req.decision,
+                  req.finding_codes, req.latency_ms)
+
+
+@router.get("/runtime/snapshot")
+async def runtime_snapshot(agent_id: str | None = None) -> dict:
+    from plugins.agent_studio.runtime_monitor import snapshot
+    return snapshot(agent_id)
+
+
+@router.post("/runtime/seed-demo")
+async def runtime_seed_demo() -> dict:
+    """Inject 3 synthetic agents with realistic event streams so the
+    dashboard shows live data on first visit."""
+    from plugins.agent_studio.runtime_monitor import seed_demo_fleet
+    return seed_demo_fleet()
+
+
+@router.post("/runtime/reset")
+async def runtime_reset() -> dict:
+    from plugins.agent_studio.runtime_monitor import reset
+    return reset()
+
+
+# ── Model Supply Chain ────────────────────────────────────────────────
+
+class SupplyChainScanRequest(BaseModel):
+    model_id: str = Field(..., min_length=1, max_length=256)
+    spec: dict = Field(default_factory=dict,
+                       description="Optional: licence, files[], dependencies[], framework, etc.")
+
+
+@router.post("/supply-chain/scan")
+async def supply_chain_scan(req: SupplyChainScanRequest) -> dict:
+    from dataclasses import asdict as _asdict
+    from plugins.agent_studio.supply_chain import scan_model
+    return _asdict(scan_model(req.model_id, req.spec))
+
+
+@router.get("/supply-chain/history")
+async def supply_chain_history(limit: int = 20) -> dict:
+    from plugins.agent_studio.supply_chain import history
+    return {"scans": history(limit)}

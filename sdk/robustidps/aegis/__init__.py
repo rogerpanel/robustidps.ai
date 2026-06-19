@@ -18,4 +18,9 @@ hint instead of pulling LangGraph / CrewAI / MCP into the user's tree.
 from robustidps.aegis.client import MambaGuardClient, Verdict, VerdictDecision
 
 __all__ = ["MambaGuardClient", "Verdict", "VerdictDecision"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
+
+SUPPORTED_FRAMEWORKS = [
+    "langgraph", "crewai", "mcp", "a2a", "anp",
+    "openai_agents", "autogen", "pydantic_ai",
+]

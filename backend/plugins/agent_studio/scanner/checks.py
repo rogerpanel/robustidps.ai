@@ -68,6 +68,7 @@ def _matches(pattern: str):
 
 
 SCANNER_CHECKS: list[ScannerCheck] = [
+    # ── MCP framing checks ────────────────────────────────────────────
     ScannerCheck(
         "MCP-S01", "Tool descriptor exposes API keys or secrets", "critical", "ASI04",
         _matches(r"(sk-[A-Za-z0-9]{16,}|api[_-]?key\s*[:=]\s*['\"][^'\"]{12,})"),
@@ -132,6 +133,75 @@ SCANNER_CHECKS: list[ScannerCheck] = [
         "MCP-S12", "No mention of authentication / authorization at all", "info", None,
         lambda text: not any(k in text.lower() for k in ("auth", "token", "oauth", "permission", "scope", "role")),
         "Document the authentication model for every tool / resource exposed via MCP.",
+    ),
+    # ── OWASP LLM Top 10 (v2025) ──────────────────────────────────────
+    ScannerCheck(
+        "LLM-01", "Prompt-injection vector in tool description (LLM01)", "high", "LLM01",
+        _matches(r"(translate|repeat|echo|output)\s+(verbatim|exactly|literally)|"
+                 r"(do\s+not\s+filter|skip\s+(safety|moderation))"),
+        "LLM01: any tool description that asks the LLM to echo / translate verbatim is a prompt-injection vector.",
+    ),
+    ScannerCheck(
+        "LLM-02", "Insecure output handling: raw HTML / SQL / shell echoed back (LLM02)", "high", "LLM02",
+        _matches(r"<script|<iframe|sql\s+query|raw\s+command|render\s+as\s+html"),
+        "LLM02: never return raw HTML / SQL / shell to downstream callers without sanitisation.",
+    ),
+    ScannerCheck(
+        "LLM-03", "Training-data poisoning indicator (LLM03)", "medium", "LLM03",
+        _contains("user_submitted_training", "fine_tune_on_input", "rlhf_from_chat"),
+        "LLM03: never fine-tune on user-submitted input without curation + provenance attestation.",
+    ),
+    ScannerCheck(
+        "LLM-04", "Model DoS: no max_tokens / no timeout (LLM04)", "medium", "LLM04",
+        lambda text: ("max_tokens" not in text.lower() and "timeout" not in text.lower()
+                      and ("llm" in text.lower() or "anthropic" in text.lower() or "openai" in text.lower())),
+        "LLM04: declare max_tokens and a timeout on every LLM call; uncapped calls enable cost-DoS.",
+    ),
+    ScannerCheck(
+        "LLM-05", "Supply-chain risk: pinned model version absent (LLM05)", "medium", "LLM05",
+        lambda text: any(k in text.lower() for k in ("model:", "model_name:", "model_id:"))
+                     and not _matches(r"[\w.-]+@[a-f0-9]{6,}|version\s*[:=]\s*['\"]?[\d.]+")(text),
+        "LLM05: pin model identifiers to a commit-sha or semver to detect upstream tampering.",
+    ),
+    ScannerCheck(
+        "LLM-06", "Sensitive information disclosure: PII pattern in prompt (LLM06)", "high", "LLM06",
+        _matches(r"\b\d{3}-\d{2}-\d{4}\b|\b\d{16}\b|\b[\w.-]+@[\w-]+\.\w+\b.*password"),
+        "LLM06: strip PII / PHI / payment data from prompts before the model call; log redacted only.",
+    ),
+    ScannerCheck(
+        "LLM-07", "Insecure plugin design: plugin grants too many scopes (LLM07)", "medium", "LLM07",
+        lambda text: _contains("scope:", "scopes:", "permissions:")(text)
+                     and len([s for s in text.lower().split() if s.startswith("write") or s.startswith("admin")]) >= 3,
+        "LLM07: split admin / write scopes across multiple plugins; consent per scope.",
+    ),
+    ScannerCheck(
+        "LLM-08", "Excessive agency: agent acts without user confirmation (LLM08)", "high", "LLM08",
+        lambda text: _contains("auto_execute", "no_confirm", "autonomous_mode", "fire_and_forget")(text)
+                     and not _contains("dry_run", "user_approval", "confirm_before")(text),
+        "LLM08: require explicit user confirmation for any tool with side-effects; default to dry-run.",
+    ),
+    ScannerCheck(
+        "LLM-09", "Overreliance: no confidence / no source attribution (LLM09)", "low", "LLM09",
+        lambda text: ("answer" in text.lower() or "response" in text.lower())
+                     and not _contains("confidence", "source", "citation", "evidence")(text)
+                     and len(text) > 300,
+        "LLM09: return confidence + source attribution; never let the agent answer in the absence of evidence.",
+    ),
+    ScannerCheck(
+        "LLM-10", "Model-theft enabler: full system prompt exposed in error (LLM10)", "medium", "LLM10",
+        _matches(r"system_prompt.*expose|debug.*prompt.*true|verbose.*errors.*true"),
+        "LLM10: never expose the system prompt in error messages; verbose mode off in production.",
+    ),
+    # ── Cross-cutting hygiene ─────────────────────────────────────────
+    ScannerCheck(
+        "HYG-01", "No incident-response contact declared", "info", None,
+        lambda text: not any(k in text.lower() for k in ("contact", "incident", "security@", "responsible_disclosure")),
+        "Declare a security contact + responsible-disclosure policy URL.",
+    ),
+    ScannerCheck(
+        "HYG-02", "No audit-log / telemetry endpoint declared", "low", None,
+        lambda text: not any(k in text.lower() for k in ("audit_log", "telemetry", "trace", "log_endpoint")),
+        "Wire telemetry into the AegisAgents Kit so runtime issues surface for analysis.",
     ),
 ]
 

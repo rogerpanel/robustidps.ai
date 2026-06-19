@@ -376,6 +376,57 @@ TOOLS = [
             "required": [],
         },
     },
+    # ── Agent Studio: eval harness + red team + runtime + supply chain ──
+    {
+        "name": "run_agent_eval",
+        "description": "Run the Agent Studio eval harness against an agent specification. Returns five eval scores: goal-hijack resistance, tool-use precision, hallucination resistance, goal-following / scope adherence, cost / latency discipline. Each score 0-1 with pass/warn/fail verdict. Use when the user asks to evaluate an agent's pre-flight safety.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "agent_spec": {"type": "object", "description": "Agent spec with system_prompt, tools[], name fields"},
+            },
+            "required": ["agent_spec"],
+        },
+    },
+    {
+        "name": "run_agent_red_team",
+        "description": "Run the Agent Studio red-team automation harness (18 probes covering OWASP Agentic Top 10 ASI01-ASI10 + supply-chain + privacy + IR hygiene). Returns triggered findings with severity, MITRE ATLAS tactic mapping, and remediation copy. Use when the user wants to red-team an agent's defenses.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "target_spec": {"type": "object", "description": "Agent spec to probe"},
+            },
+            "required": ["target_spec"],
+        },
+    },
+    {
+        "name": "get_agent_runtime_snapshot",
+        "description": "Get the current Agent Studio runtime monitor snapshot — aggregate per-agent block rate, warn rate, p50/p95 latency, top finding codes, plus recent alerts. Optionally filter to one agent_id. Use when the user asks what's happening on the agent runtime dashboard right now.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "agent_id": {"type": "string", "description": "Optional: filter to one agent"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "scan_agent_model_supply_chain",
+        "description": "Run the Agent Studio model supply-chain scanner on a HuggingFace model ID or local model path. Returns a CycloneDX-AI SBOM fragment, licence + format risk assessment, CVE matches against the known transformers/huggingface_hub/llama.cpp corpus, and an aggregate 0-1 risk score with risk level (safe/low/medium/high/critical). Use when the user asks to assess a model's supply-chain risk.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "model_id": {"type": "string", "description": "HF model ID (e.g. meta-llama/Llama-3.1-8B) or path"},
+                "spec": {"type": "object", "description": "Optional: licence, files[], dependencies[], framework"},
+            },
+            "required": ["model_id"],
+        },
+    },
+    {
+        "name": "get_agent_red_team_catalog",
+        "description": "Get the catalog of 18 red-team probes the Agent Studio harness ships, organised by OWASP Agentic Top 10 category. Use when the user asks what attacks the red-team SKU automatically covers.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -1215,6 +1266,42 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 js_db=float(args.get("js_db", 10)),
                 dt_s=float(args.get("dt_s", 1.0)),
             ))
+
+        elif name == "run_agent_eval":
+            from dataclasses import asdict as _asdict
+            from plugins.agent_studio.eval_harness import run_eval
+            run = run_eval(args["agent_spec"])
+            return json.dumps({
+                "run_id": run.run_id, "agent_name": run.agent_name,
+                "overall_score": run.overall_score,
+                "overall_verdict": run.overall_verdict,
+                "results": [_asdict(r) for r in run.results],
+            })
+
+        elif name == "run_agent_red_team":
+            from dataclasses import asdict as _asdict
+            from plugins.agent_studio.red_team import run_red_team
+            run = run_red_team(args["target_spec"])
+            return json.dumps({
+                "run_id": run.run_id, "target_name": run.target_name,
+                "n_probes": run.n_probes, "n_findings": run.n_findings,
+                "severity_breakdown": run.severity_breakdown,
+                "atlas_chain": run.atlas_chain,
+                "results": [_asdict(r) for r in run.results if r.triggered][:20],
+            })
+
+        elif name == "get_agent_runtime_snapshot":
+            from plugins.agent_studio.runtime_monitor import snapshot
+            return json.dumps(snapshot(args.get("agent_id")))
+
+        elif name == "scan_agent_model_supply_chain":
+            from dataclasses import asdict as _asdict
+            from plugins.agent_studio.supply_chain import scan_model
+            return json.dumps(_asdict(scan_model(args["model_id"], args.get("spec", {}))))
+
+        elif name == "get_agent_red_team_catalog":
+            from plugins.agent_studio.red_team import catalog
+            return json.dumps(catalog())
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
