@@ -128,6 +128,7 @@ const UAVGNSSSpoofMonitor = lazy(() => import('./plugins/uav/pages/GNSSSpoofMoni
 const UAVCertificationDashboard = lazy(() => import('./plugins/uav/pages/CertificationDashboard'))
 const UAVSwarmGraphPage = lazy(() => import('./plugins/uav/pages/SwarmGraphPage'))
 const UAVMissionPlanReview = lazy(() => import('./plugins/uav/pages/MissionPlanReview'))
+const UAVFleetDemo = lazy(() => import('./plugins/uav/pages/FleetDemo'))
 // Agent Studio + Agent Security plugin (venture plan wedge)
 const AgentScanner = lazy(() => import('./plugins/agent_studio/pages/AgentScanner'))
 const AgentStudioPortal = lazy(() => import('./plugins/agent_studio/pages/AgentStudioPortal'))
@@ -200,6 +201,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/uav/certification', label: 'Certification Dashboard', icon: ShieldCheck },
       { to: '/uav/swarm', label: 'Swarm Graph', icon: Network },
       { to: '/uav/mission-plan', label: 'Mission Plan Review', icon: ClipboardCheck },
+      { to: '/uav/fleet-demo', label: 'Live Fleet Demo', icon: Plane },
       { to: '/dossier?vertical=uav', label: 'Assurance Dossier', icon: FileText },
     ],
   },
@@ -811,6 +813,7 @@ export default function App() {
               <Route path="/uav/certification" element={<UAVCertificationDashboard />} />
               <Route path="/uav/swarm" element={<UAVSwarmGraphPage />} />
               <Route path="/uav/mission-plan" element={<UAVMissionPlanReview />} />
+              <Route path="/uav/fleet-demo" element={<UAVFleetDemo />} />
               <Route path="/agent-scanner" element={<AgentScanner />} />
               <Route path="/agent-studio" element={<AgentStudioPortal />} />
               <Route path="/dossier" element={<DossierPage />} />

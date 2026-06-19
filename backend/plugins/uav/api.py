@@ -12,7 +12,8 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Body
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from plugins.uav import services as _svc
@@ -23,10 +24,23 @@ router = APIRouter(prefix="/api/uav", tags=["UAV / Aerial Defense"])
 # ── Schemas ──────────────────────────────────────────────────────────────
 
 class AttackRequest(BaseModel):
-    attack: Literal["fgsm", "pgd"] = Field("pgd")
+    attack: Literal[
+        "fgsm", "pgd", "cw", "deepfool",
+        "hop_skip_jump", "boundary",
+        "gaussian", "feature_mask", "label_flip",
+    ] = Field("pgd")
     epsilon: float = Field(4 / 255, gt=0, le=0.5)
     pgd_steps: int = Field(20, ge=1, le=100)
     sample_index: int = Field(0, ge=0, lt=64)
+    cw_kappa: float = Field(5.0, ge=0, le=50)
+    cw_c: float = Field(1.0, gt=0, le=1000)
+    cw_steps: int = Field(100, ge=10, le=500)
+    deepfool_max_iter: int = Field(50, ge=5, le=200)
+    hsj_queries: int = Field(200, ge=50, le=2000)
+    boundary_steps: int = Field(100, ge=10, le=500)
+    gaussian_sigma: float = Field(0.05, gt=0, le=1.0)
+    mask_fraction: float = Field(0.2, gt=0, lt=1.0)
+    label_flip_fraction: float = Field(0.1, gt=0, le=1.0)
 
 
 class MissionPlanReviewRequest(BaseModel):
@@ -63,7 +77,88 @@ async def certificates() -> dict:
 
 @router.post("/perception/attack")
 async def perception_attack(req: AttackRequest) -> dict:
-    return _svc.perception_attack_payload(req.attack, req.epsilon, req.pgd_steps, req.sample_index)
+    return _svc.perception_attack_payload(
+        attack=req.attack, epsilon=req.epsilon,
+        pgd_steps=req.pgd_steps, sample_index=req.sample_index,
+        cw_kappa=req.cw_kappa, cw_c=req.cw_c, cw_steps=req.cw_steps,
+        deepfool_max_iter=req.deepfool_max_iter,
+        hsj_queries=req.hsj_queries, boundary_steps=req.boundary_steps,
+        gaussian_sigma=req.gaussian_sigma, mask_fraction=req.mask_fraction,
+        label_flip_fraction=req.label_flip_fraction,
+    )
+
+
+@router.get("/perception/attack-catalog")
+async def perception_attack_catalog() -> dict:
+    from plugins.uav.uav_defense.attacks import ATTACK_CATALOG
+    return {"attacks": ATTACK_CATALOG, "total": len(ATTACK_CATALOG)}
+
+
+# ── Live multi-UAV fleet demo ───────────────────────────────────────────
+
+class FleetStepRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=128)
+    per_uav_attack: dict[str, str] = Field(default_factory=dict)
+    js_db: float = Field(10.0, ge=0, le=40)
+    dt_s: float = Field(1.0, gt=0, le=10)
+
+
+class FleetResetRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=128)
+    n_uavs: int = Field(3, ge=1, le=12)
+
+
+@router.post("/fleet/step")
+async def fleet_step(req: FleetStepRequest) -> dict:
+    from plugins.uav.fleet_simulator import step_fleet
+    return step_fleet(req.session_id, req.per_uav_attack, req.js_db, req.dt_s)
+
+
+@router.post("/fleet/reset")
+async def fleet_reset(req: FleetResetRequest) -> dict:
+    from plugins.uav.fleet_simulator import reset_fleet
+    fleet = reset_fleet(req.session_id, req.n_uavs)
+    return {"session_id": req.session_id, "n_uavs": len(fleet),
+            "uavs": [u.as_dict() for u in fleet]}
+
+
+@router.get("/fleet/sample-pack")
+async def fleet_sample_pack() -> JSONResponse:
+    """Downloadable mixed-data UAV fleet sample (re-uploadable for the live demo)."""
+    from plugins.uav.fleet_simulator import sample_pack
+    payload = sample_pack()
+    return JSONResponse(
+        content=payload,
+        headers={"Content-Disposition": "attachment; filename=robustidps-uav-fleet-sample.json"},
+    )
+
+
+@router.post("/fleet/upload")
+async def fleet_upload(file: UploadFile = File(...)) -> dict:
+    """Accept a user-uploaded fleet bundle. Returns a parse summary
+    plus a session_id ready to drive the live demo."""
+    from plugins.uav.fleet_simulator import validate_upload, _FLEET_STORE, UAVState
+    raw = await file.read()
+    result = validate_upload(raw)
+    if not result["ok"]:
+        raise HTTPException(400, result.get("error", "Invalid bundle"))
+    import uuid
+    session_id = f"upload-{uuid.uuid4().hex[:10]}"
+    fleet = []
+    for u in result["parsed"]["uavs"]:
+        last = (u.get("telemetry") or [{}])[-1]
+        pos = last.get("position_xyz") or [0.0, 0.0, 80.0]
+        fleet.append(UAVState(
+            uav_id=u["uav_id"],
+            kind=u.get("kind", "delivery"),
+            defense=u.get("defense", "framework"),
+            battery_pct=float(last.get("battery_pct", 100.0)),
+            link_quality_pct=float(last.get("link_quality_pct", 100.0)),
+            position=tuple(pos),
+        ))
+    _FLEET_STORE[session_id] = fleet
+    return {"session_id": session_id, **result["summary"],
+            "uavs": [u.as_dict() for u in fleet]}
 
 
 @router.post("/mission-plan/review")

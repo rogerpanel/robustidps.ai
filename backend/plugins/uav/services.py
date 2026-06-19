@@ -212,27 +212,80 @@ def certificates_payload() -> dict:
     }
 
 
-def perception_attack_payload(attack: str, epsilon: float, pgd_steps: int, sample_index: int) -> dict:
+def perception_attack_payload(
+    attack: str, epsilon: float, pgd_steps: int, sample_index: int,
+    cw_kappa: float = 5.0, cw_c: float = 1.0, cw_steps: int = 100,
+    deepfool_max_iter: int = 50,
+    hsj_queries: int = 200, boundary_steps: int = 100,
+    gaussian_sigma: float = 0.05, mask_fraction: float = 0.2,
+    label_flip_fraction: float = 0.1,
+) -> dict:
+    """Dispatch all 9 attacks the Perception Tester exposes."""
+    from plugins.uav.uav_defense.attacks import (
+        cw, deepfool, gaussian_noise, feature_mask,
+        hop_skip_jump, boundary_attack, random_label_flip,
+    )
+
     ds = SyntheticTEXBAT(n_samples=64, seed=42)
     x, adj, y = ds[sample_index]
     x = x.unsqueeze(0); adj = adj.unsqueeze(0); y = y.unsqueeze(0)
     model = get_model()
     with torch.no_grad():
-        clean_pred = int(model(x, adj).argmax(dim=-1).item())
+        clean_logits = model(x, adj)
+        clean_pred = int(clean_logits.argmax(dim=-1).item())
+        clean_conf = round(float(torch.softmax(clean_logits, dim=-1).max().item()), 4)
+
     if attack == "fgsm":
         x_adv = fgsm(model, x, y, epsilon, adj=adj)
-    else:
+    elif attack == "pgd":
         x_adv = pgd(model, x, y, epsilon, n_steps=pgd_steps, adj=adj)
+    elif attack == "cw":
+        x_adv = cw(model, x, y, kappa=cw_kappa, c=cw_c, n_steps=cw_steps, adj=adj)
+    elif attack == "deepfool":
+        x_adv = deepfool(model, x, y, max_iters=deepfool_max_iter, adj=adj)
+    elif attack == "hop_skip_jump":
+        x_adv = hop_skip_jump(model, x, y, n_queries=hsj_queries, n_montecarlo=20, adj=adj)
+    elif attack == "boundary":
+        x_adv = boundary_attack(model, x, y, n_steps=boundary_steps, adj=adj)
+    elif attack == "gaussian":
+        x_adv = gaussian_noise(model, x, y, sigma=gaussian_sigma, adj=adj)
+    elif attack == "feature_mask":
+        x_adv = feature_mask(model, x, y, mask_fraction=mask_fraction, adj=adj)
+    elif attack == "label_flip":
+        # Training-time poison — flip the label tensor instead of the input
+        y_flipped = random_label_flip(y, flip_fraction=label_flip_fraction)
+        with torch.no_grad():
+            adv_logits = clean_logits
+        return {
+            "attack": attack, "is_training_time": True,
+            "label_flip_fraction": label_flip_fraction,
+            "true_label": int(y.item()),
+            "flipped_label": int(y_flipped.item()),
+            "label_changed": bool(int(y.item()) != int(y_flipped.item())),
+            "clean_prediction": clean_pred,
+            "clean_confidence": clean_conf,
+            "hint": "Effect surfaces during retraining — see Certification Dashboard re-measure.",
+        }
+    else:
+        raise ValueError(f"Unknown attack: {attack}")
+
     with torch.no_grad():
-        adv_pred = int(model(x_adv, adj).argmax(dim=-1).item())
+        adv_logits = model(x_adv, adj)
+        adv_pred = int(adv_logits.argmax(dim=-1).item())
+        adv_conf = round(float(torch.softmax(adv_logits, dim=-1).max().item()), 4)
+
     return {
-        "attack": attack, "epsilon": epsilon, "pgd_steps": pgd_steps,
+        "attack": attack,
         "true_label": int(y.item()),
         "clean_prediction": clean_pred,
+        "clean_confidence": clean_conf,
         "adversarial_prediction": adv_pred,
+        "adversarial_confidence": adv_conf,
         "fooled": clean_pred != adv_pred,
+        "confidence_drop": round(clean_conf - adv_conf, 4),
         "l2_distortion": round(float(((x_adv - x) ** 2).sum().sqrt().item()), 4),
         "linf_distortion": round(float((x_adv - x).abs().max().item()), 4),
+        "epsilon": epsilon, "pgd_steps": pgd_steps,
     }
 
 

@@ -357,6 +357,25 @@ TOOLS = [
         "description": "Get the manifest of real flight trajectories available for Phase E EW-Bench runs. Lists discovered PX4 SITL / EuRoC MAV / UZH-FPV / Blackbird flights on disk + the synthetic-fallback mission profiles. Use when the user asks about real flight data, what trajectories the bench runs against, or how to wire in actual recorded flights.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "get_uav_attack_catalog",
+        "description": "Get the full UAV Perception Tester attack catalog — 9 attacks across white-box / black-box / baseline / training-time categories: FGSM, PGD, C&W, DeepFool, HopSkipJump, BoundaryAttack, Gaussian noise, FeatureMask, label-flip. Use when the user asks what attacks the UAV plugin supports.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "step_uav_fleet",
+        "description": "Step a live multi-UAV fleet by 1 second. Per-UAV attack injection + ambient J/S setting. Returns each UAV's mission progress, battery, link, GNSS spoof confidence, autopilot mode plus an aggregate fleet MCR. Use when the user wants to drive the Live Fleet Demo or simulate a multi-UAV scenario from the copilot.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "default": "copilot-session"},
+                "per_uav_attack": {"type": "object", "description": "Map of uav_id → attack kind (none, fgsm, pgd, cw, deepfool, gaussian, spoof_gnss, jam_link, label_flip)"},
+                "js_db": {"type": "number", "minimum": 0, "maximum": 40, "default": 10},
+                "dt_s": {"type": "number", "minimum": 0.1, "maximum": 10, "default": 1.0},
+            },
+            "required": [],
+        },
+    },
 ]
 
 
@@ -1183,6 +1202,19 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_uav_flight_trajectories":
             from plugins.uav.uav_defense.datasets.flight_trajectories import manifest_payload
             return json.dumps(manifest_payload())
+
+        elif name == "get_uav_attack_catalog":
+            from plugins.uav.uav_defense.attacks import ATTACK_CATALOG
+            return json.dumps({"attacks": ATTACK_CATALOG, "total": len(ATTACK_CATALOG)})
+
+        elif name == "step_uav_fleet":
+            from plugins.uav.fleet_simulator import step_fleet
+            return json.dumps(step_fleet(
+                session_id=args.get("session_id", "copilot-session"),
+                per_uav_attack=args.get("per_uav_attack") or {},
+                js_db=float(args.get("js_db", 10)),
+                dt_s=float(args.get("dt_s", 1.0)),
+            ))
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

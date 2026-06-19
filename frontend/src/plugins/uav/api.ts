@@ -66,9 +66,44 @@ export interface CertificateResponse {
   }
 }
 export interface AttackResult {
-  attack: string; epsilon: number; pgd_steps: number;
-  true_label: number; clean_prediction: number; adversarial_prediction: number;
-  fooled: boolean; l2_distortion: number; linf_distortion: number;
+  attack: string
+  true_label: number
+  clean_prediction?: number
+  clean_confidence?: number
+  adversarial_prediction?: number
+  adversarial_confidence?: number
+  fooled?: boolean
+  confidence_drop?: number
+  l2_distortion?: number
+  linf_distortion?: number
+  epsilon?: number
+  pgd_steps?: number
+  is_training_time?: boolean
+  label_flip_fraction?: number
+  flipped_label?: number
+  label_changed?: boolean
+  hint?: string
+}
+
+export interface AttackCatalogEntry {
+  id: string
+  label: string
+  kind: 'white_box' | 'black_box' | 'baseline' | 'training'
+  desc: string
+}
+
+export interface FleetUAV {
+  uav_id: string; kind: string; defense: string
+  mission_progress_pct: number; battery_pct: number; link_quality_pct: number
+  gnss_spoof_confidence: number; autopilot_mode: string
+  position: [number, number, number]; last_attack: string
+  attack_caught: boolean; completed: boolean | null; mcr_running: number
+}
+
+export interface FleetSnapshot {
+  session_id: string; js_db: number; fleet_mcr: number
+  n_completed: number; n_in_flight: number; n_failed: number
+  uavs: FleetUAV[]
 }
 export interface MissionFinding { severity: string; code: string; message: string }
 export interface MissionReview {
@@ -91,7 +126,26 @@ export const fetchGNSS            = () => getJson<GNSSResponse>('/api/uav/gnss/s
 export const fetchCertificates    = () => getJson<CertificateResponse>('/api/uav/certificates')
 export const fetchIndustry        = () => getJson<IndustryResponse>('/api/uav/industry-comparison')
 export const fetchRegulatory      = () => getJson<{ entries: RegulatoryEntry[] }>('/api/uav/regulatory')
-export const runPerceptionAttack  = (b: { attack: 'fgsm' | 'pgd'; epsilon: number; pgd_steps: number; sample_index: number }) =>
+export const runPerceptionAttack = (b: Record<string, unknown>) =>
   postJson<AttackResult>('/api/uav/perception/attack', b)
+
+export const fetchAttackCatalog = () =>
+  getJson<{ attacks: AttackCatalogEntry[]; total: number }>('/api/uav/perception/attack-catalog')
+
+export const fleetStep = (b: { session_id: string; per_uav_attack: Record<string, string>; js_db: number; dt_s: number }) =>
+  postJson<FleetSnapshot>('/api/uav/fleet/step', b)
+
+export const fleetReset = (b: { session_id: string; n_uavs: number }) =>
+  postJson<{ session_id: string; n_uavs: number; uavs: FleetUAV[] }>('/api/uav/fleet/reset', b)
+
+export const fleetSamplePackUrl = () => `${API}/api/uav/fleet/sample-pack`
+
+export const fleetUpload = async (file: File): Promise<{ session_id: string; n_uavs: number; uav_ids: string[]; uavs: FleetUAV[] }> => {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API}/api/uav/fleet/upload`, { method: 'POST', body: form })
+  if (!res.ok) throw new Error(`/api/uav/fleet/upload → ${res.status}`)
+  return res.json()
+}
 export const reviewMissionPlan    = (b: { plan_text: string; plan_format: 'plan' | 'json-ld' | 'owl' }) =>
   postJson<MissionReview>('/api/uav/mission-plan/review', b)
