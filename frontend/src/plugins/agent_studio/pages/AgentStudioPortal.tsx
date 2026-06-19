@@ -4,6 +4,7 @@ import {
   ShieldCheck, FileSearch, FileCheck2, ArrowRight,
   CheckCircle2, Lock, Sparkles,
 } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 
 interface SKU { id: string; name: string; price_usd: string; duration: string; summary: string }
 interface TierDetail {
@@ -60,6 +61,18 @@ export default function AgentStudioPortal() {
           {err}
         </div>
       )}
+
+      <PageGuide
+        title="How to use Agent Studio Portal"
+        steps={[
+          { title: 'Start with the free scanner', desc: 'Top-right CTA → 12 OWASP-Agentic + MCP-framing checks in <500 ms. The conversion wedge — every scan finding maps to a SKU.' },
+          { title: 'Read the 5-SKU catalog', desc: 'Agent Lab (PoC) → Agent Factory (production) → Agent Red Team (security) → Continuous Defense (retainer) → Secure-by-Design (flywheel bundle).' },
+          { title: 'Compare the 3 SaaS tiers', desc: 'Community is free forever (read-only UAV + basic scanner). Pro adds API + dossier generation. Enterprise adds air-gap, SSO/SCIM, dedicated SE.' },
+          { title: 'Sample dossier', desc: 'Top-right CTA → /dossier?vertical=agent_studio — generates a paper-ready assurance pack with the venture-plan SKUs, OWASP coverage, ISO 42001 mapping.' },
+          { title: 'Subscribe', desc: 'Buttons go live the moment Stripe is funded — webhook endpoint already deployed at /api/agent-studio/billing/webhook.' },
+        ]}
+        tip="Print theme + Cmd-P of this page = a paper-ready commercial one-pager. Useful for investor / customer hand-offs."
+      />
 
       <section className="bg-bg-card rounded-xl p-5">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">

@@ -18,4 +18,4 @@ hint instead of pulling LangGraph / CrewAI / MCP into the user's tree.
 from robustidps.aegis.client import MambaGuardClient, Verdict, VerdictDecision
 
 __all__ = ["MambaGuardClient", "Verdict", "VerdictDecision"]
-__version__ = "0.1.0"
+__version__ = "0.2.0"

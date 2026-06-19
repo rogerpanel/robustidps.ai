@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ShieldCheck, Play, Loader2, AlertCircle, CheckCircle2, FileSearch, FileText,
 } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import { runAgentScan, fetchSKUCatalog } from '../api'
 import type { ScanReport, InputKind, Severity, SKU } from '../api'
 
@@ -94,6 +95,18 @@ export default function AgentScanner() {
           </div>
         </div>
       </div>
+
+      <PageGuide
+        title="How to use Agent Scanner"
+        steps={[
+          { title: 'Pick an input kind', desc: 'MCP manifest (default), tool list JSON, agent system prompt, or agent card — the 12 checks adapt per kind.' },
+          { title: 'Paste or use the sample', desc: 'Sample manifest has four deliberate issues so the report demonstrates the check types in <500 ms server-side.' },
+          { title: 'Scan', desc: 'Runs all 12 checks (OWASP Agentic Top 10 + MCP-specific framing risks); no LLM calls, no internet.' },
+          { title: 'Read the report', desc: 'Severity-sorted; triggered checks expand with remediation copy. Top tiles summarize counts.' },
+          { title: 'Convert to engagement', desc: 'Footer maps findings to the 5-SKU catalog — Red Team is the closest follow-up for a triggered scan; Secure-by-Design Build for a full re-architecture.' },
+        ]}
+        tip="The scanner is public (no auth) — meant to be linkable into any agent dev workflow. Rate-limited at the platform edge; safe to embed in CI."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-bg-card rounded-xl p-4 space-y-3">

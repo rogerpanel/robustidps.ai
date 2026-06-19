@@ -123,14 +123,47 @@ async def datasets_manifest() -> dict:
 
 @router.get("/datasets/for-page/{page}")
 async def datasets_for_page(page: str) -> dict:
+    from pathlib import Path as _P
     from plugins.uav.datasets_manifest import list_for_page
-    return {"page": page, "datasets": [
-        {"id": d.id, "name": d.name, "domain": d.domain,
-         "size_full": d.size_full, "tier": d.tier, "source_url": d.source_url,
-         "citation": d.citation,
-         "demo_subset_available": d.demo_subset_path is not None}
-        for d in list_for_page(page)
-    ]}
+    out = []
+    for d in list_for_page(page):
+        subset_exists = d.demo_subset_path is not None and _P(d.demo_subset_path).exists()
+        out.append({
+            "id": d.id, "name": d.name, "domain": d.domain,
+            "size_full": d.size_full,
+            "tier": "curated_50mb" if subset_exists else d.tier,
+            "declared_tier": d.tier,
+            "source_url": d.source_url, "citation": d.citation,
+            "demo_subset_available": subset_exists,
+        })
+    return {"page": page, "datasets": out}
+
+
+@router.get("/datasets/{dataset_id}/subset")
+async def dataset_subset(dataset_id: str, limit: int = 50) -> dict:
+    """Return the first N records of a curated 50 MB demo subset.
+    Used by the operator pages when the panel switches datasets."""
+    from plugins.uav.demo_subsets import get_subset
+    data = get_subset(dataset_id)
+    if data is None:
+        return {"dataset_id": dataset_id, "status": "not_available",
+                "hint": "Run scripts/bootstrap_demo_datasets.sh on the server first."}
+    # Truncate large arrays so the UI doesn't choke on 50 MB
+    if "annotations" in data and isinstance(data["annotations"], list):
+        data["_total_records"] = len(data["annotations"])
+        data["annotations"] = data["annotations"][:limit]
+    if "samples" in data and isinstance(data["samples"], list):
+        data["_total_records"] = len(data["samples"])
+        data["samples"] = data["samples"][:limit]
+    if "traces" in data and isinstance(data["traces"], list):
+        data["_total_records"] = len(data["traces"])
+        data["traces"] = data["traces"][:limit]
+    if data.get("format") == "csv":
+        lines = data.get("csv", "").splitlines()
+        data["_total_records"] = max(0, len(lines) - 1)
+        data["csv"] = "\n".join(lines[: limit + 1])
+    return {"dataset_id": dataset_id, "status": "loaded",
+            "preview_limit": limit, "data": data}
 
 
 @router.get("/ew-bench/operating-point")

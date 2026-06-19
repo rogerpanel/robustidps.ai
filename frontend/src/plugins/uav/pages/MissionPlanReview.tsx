@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ClipboardCheck, Play, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import { reviewMissionPlan } from '../api'
 import type { MissionReview } from '../api'
 
@@ -43,6 +44,18 @@ export default function MissionPlanReview() {
           and RF Decree №1701 acknowledgment. Production swap-in: existing LLM router (<span className="font-mono">copilot.py</span>).
         </p>
       </div>
+
+      <PageGuide
+        title="How to use Mission Plan Review"
+        steps={[
+          { title: 'Pick a format', desc: '.plan (PX4/QGroundControl), JSON-LD (NIEM-compatible), or OWL (regulator-friendly ontology).' },
+          { title: 'Edit or paste a plan', desc: 'Sample comes pre-loaded with the four canonical sections (geofence, altitude, waypoints, fallback) plus RF Decree 1701 acknowledgment.' },
+          { title: 'Audit', desc: 'CyberSecLLM surrogate flags MP-G01 (geofence), MP-G02 (RTL), MP-G03 (altitude), MP-R01 (Decree 1701 ack).' },
+          { title: 'Read the verdict', desc: 'Approve = no high/critical findings; Block = at least one high. Per-finding severity color-coded.' },
+          { title: 'Fix and re-audit', desc: 'Edit the plan to address each finding; re-submit to confirm the verdict flips to Approve.' },
+        ]}
+        tip="In production this routes through the LLM router (copilot.py) instead of the heuristic surrogate — same /api/uav/mission-plan/review contract."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-bg-card rounded-xl p-4">

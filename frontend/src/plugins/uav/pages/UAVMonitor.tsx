@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   Plane, Radar, ShieldCheck, Network, Eye, ClipboardCheck, Cpu, AlertTriangle,
 } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import MCRJSChart from '../components/MCRJSChart'
 import SwarmGraphAnimated from '../components/SwarmGraphAnimated'
 import CertificateStrip from '../components/CertificateStrip'
@@ -59,6 +60,18 @@ export default function UAVMonitor() {
           kernel: unchanged
         </div>
       </div>
+
+      <PageGuide
+        title="How to use UAV Monitor"
+        steps={[
+          { title: 'Read the headline', desc: 'The MCR-vs-J/S chart shows mission completion under jamming for four configurations. The orange dashed line is DO-326A 0.90.' },
+          { title: 'Drag the J/S slider', desc: 'Below the chart — set any J/S 0-40 dB; the four tiles snapshot each config\'s MCR + 95% CI at that point with a pass/fail badge.' },
+          { title: 'Watch live certificates', desc: 'Lipschitz / Grönwall / RS / PAC-Bayes / (ε,δ)-DP recompute on every visit on a 16-sample synthetic batch.' },
+          { title: 'Jump to operator pages', desc: 'The right card links to Perception, GNSS Spoof, Certification, Swarm, Mission Plan — each one drills into a piece of the framework.' },
+          { title: 'Ask the SOC Copilot', desc: 'Try "what\'s the framework\'s J/S advantage at 20 dB?" — any of the 4 LLMs will call get_uav_ew_bench_curves and ground the answer in the live data.' },
+        ]}
+        tip="Hit the sidebar-footer theme toggle (Dark/Print) — Print theme + Cmd-P drops a paper-ready PDF of any UAV page straight into your evidence folder."
+      />
 
       {/* Hero panel — MCR vs J/S */}
       <div className="bg-bg-card rounded-xl p-4 border-t-2 border-accent-orange/40">

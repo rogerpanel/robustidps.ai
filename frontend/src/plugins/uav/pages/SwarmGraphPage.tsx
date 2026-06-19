@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Network } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import SwarmGraphAnimated from '../components/SwarmGraphAnimated'
 import DatasetSelector from '../components/DatasetSelector'
 import { fetchSwarmSnapshot } from '../api'
@@ -22,6 +23,18 @@ export default function SwarmGraphPage() {
           (false-neighbour hostile edges to u₂ and u₃).
         </p>
       </div>
+
+      <PageGuide
+        title="How to use Swarm Graph"
+        steps={[
+          { title: 'Read the three time slices', desc: 't1 = clean topology; t2 = jamming event (orange dashed = jammed link); t3 = intruder insertion (red dashed = hostile false-neighbour edge).' },
+          { title: 'Watch the animation', desc: 'The bottom panel loops through all three slices — shows how the framework adapts as the topology degrades.' },
+          { title: 'Node legend', desc: 'Green circles = trusted UAV; blue square = droneport; red circle = intruder UAV (introduced at t3).' },
+          { title: 'Edge legend', desc: 'Solid green = trusted radio link; orange dashed = jammed; red dashed = hostile.' },
+          { title: 'Connect to M1 / M7', desc: 'M1 CT-TGNN integrates dh_v/dt across this trajectory; M7 FedGTD re-weights its Stackelberg policy at each topology change.' },
+        ]}
+        tip="The simulation is faithful to the chapter §6.3 figure — once you wire AirSim/PX4 SITL in Phase D, this exact viz drives the EW-Bench MCR-vs-J/S harness."
+      />
 
       <DatasetSelector page="/uav/swarm" />
 

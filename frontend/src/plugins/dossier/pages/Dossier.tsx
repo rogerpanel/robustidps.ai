@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FileCheck2, Printer, Loader2 } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import { generateDossier } from '../api'
 import type { Dossier, Vertical, Audience } from '../api'
 
@@ -69,6 +70,20 @@ export default function DossierPage() {
             <Printer className="w-3 h-3" /> Print to PDF
           </button>
         </div>
+      </div>
+
+      <div className="no-print">
+        <PageGuide
+          title="How to use Assurance Dossier"
+          steps={[
+            { title: 'Pick a vertical', desc: 'UAV (chapter 6) or Agent Studio (venture plan). Each renders the vertical-specific evidence pack with the same 8-section structure.' },
+            { title: 'Pick an audience', desc: 'Auditor (default, regulator-grade detail), Operator (deployment ops focus), Investor (executive summary). Same data, different framing.' },
+            { title: 'Switch to Print theme', desc: 'Sidebar footer → toggle theme to Print. The dossier styling switches to a paper-ready ivory canvas with gold rules.' },
+            { title: 'Cmd-P / Ctrl-P', desc: 'Browser print dialog → Save as PDF. Drop straight into your regulatory evidence folder. Zero server-side PDF dependency.' },
+            { title: 'Every certificate is live', desc: 'Numbers come from /api/dossier/generate which assembles them at request time — never cached, never stale.' },
+          ]}
+          tip="If you need automated nightly dossier generation, see deploy/cloudflare-tunnel.sh — a headless Chromium can hit /dossier?vertical=uav and capture the print stylesheet to PDF without a human in the loop."
+        />
       </div>
 
       {loading && <div className="text-text-secondary text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Assembling dossier…</div>}

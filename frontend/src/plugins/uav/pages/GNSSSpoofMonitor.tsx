@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Radar, RefreshCw } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import SkyPlotGNSS from '../components/SkyPlotGNSS'
 import DatasetSelector from '../components/DatasetSelector'
 import { fetchGNSS } from '../api'
@@ -28,6 +29,18 @@ export default function GNSSSpoofMonitor() {
           <RefreshCw className="w-3.5 h-3.5" /> Refresh
         </button>
       </div>
+
+      <PageGuide
+        title="How to use GNSS Spoof Monitor"
+        steps={[
+          { title: 'Read the sky plot', desc: 'Each circle is a visible satellite; radius scales with C/N₀ signal strength; red outline = spoof confidence above 0.5.' },
+          { title: 'Scan the per-SV table', desc: 'Right panel lists every satellite with azimuth, elevation, C/N₀, and spoof confidence. Spoofed rows are highlighted red.' },
+          { title: 'Watch fleet disagreement', desc: 'Cross-droneport disagreement score — high values mean different droneports see different fixes, a M2 FedLLM-API signal of regional spoofing.' },
+          { title: 'Check autopilot mode', desc: 'When the framework crosses the M6 UC-HGP uncertainty threshold, mode flips from "nominal" to "GNSS-degraded" and the fallback (INS + visual odometry) activates.' },
+          { title: 'Refresh to resample', desc: 'Each visit recomputes — useful to show the panel that spoofed satellites cluster (not random false positives).' },
+        ]}
+        tip="The CAF-CNN baseline operates per-satellite — it misses coordinated spoofs on subsets. M1 CT-TGNN integrates the constellation graph dynamics, which is why it catches them."
+      />
 
       <DatasetSelector page="/uav/gnss" />
 

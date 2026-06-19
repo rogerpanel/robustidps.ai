@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Eye, Play, Loader2 } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import DatasetSelector from '../components/DatasetSelector'
 import { runPerceptionAttack } from '../api'
 import type { AttackResult } from '../api'
@@ -37,6 +38,18 @@ export default function PerceptionTester() {
           chapter 6 §6.5.1 binds to the same kernel.
         </p>
       </div>
+
+      <PageGuide
+        title="How to use Perception Tester"
+        steps={[
+          { title: 'Pick a dataset', desc: 'Default is the SyntheticTEXBAT CAF batch. Switch to AU-AIR or VisDrone (badge shows what\'s loaded vs reference-only).' },
+          { title: 'Choose attack family', desc: 'FGSM is single-step (fast, weak); PGD is iterative (stronger). Both are white-box.' },
+          { title: 'Set ε and sample index', desc: 'ε is the L∞ perturbation budget (typical range 2/255–8/255); sample 0–63 selects which CAF graph to attack.' },
+          { title: 'Run', desc: 'Result panel shows clean prediction → adversarial prediction; "fooled: YES" means the attack flipped the label.' },
+          { title: 'Interpret L₂ / L∞', desc: 'Smaller perturbation that still flips the prediction = stronger attack. Compare FGSM vs PGD at the same ε.' },
+        ]}
+        tip="If 'fooled: NO' at ε=4/255 with PGD-20, the M1 CT-TGNN's Lipschitz bound is holding around that sample — see Certification Dashboard for the radius."
+      />
 
       <DatasetSelector page="/uav/perception" />
 

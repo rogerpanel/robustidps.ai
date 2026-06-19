@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldCheck, RefreshCw, FileCheck2, FileText } from 'lucide-react'
+import PageGuide from '../../../components/PageGuide'
 import CertificateStrip from '../components/CertificateStrip'
 import PhaseBPanel from '../components/PhaseBPanel'
 import { fetchCertificates, fetchIndustry, fetchRegulatory } from '../api'
@@ -41,6 +42,18 @@ export default function CertificationDashboard() {
           </button>
         </div>
       </div>
+
+      <PageGuide
+        title="How to use Certification Dashboard"
+        steps={[
+          { title: 'Read live certificates', desc: 'Five pills — Lipschitz Lg, Grönwall radius, RS ℓ₂ radius @ σ=0.25, PAC-Bayes bound, (ε,δ)-DP budget. Recomputed every visit on a 16-sample synthetic batch.' },
+          { title: 'Hit Re-measure', desc: 'Top-right — forces a fresh recomputation. Useful when the panel wants to see the numbers update live.' },
+          { title: 'Run Phase B live', desc: 'The Phase B panel below has three "Run now" buttons — AutoML (~5 min), ONNX export (~30 s), Distillation (~3 min). Each populates the panel with measured results.' },
+          { title: 'Compare to industry', desc: 'Chapter 6 Table 6.x — RobustIDPS column is the only one ticking all seven criteria with quantitative certificates.' },
+          { title: 'Generate a dossier', desc: '"Generate dossier" button (top-right) opens the assurance pack; switch to Print theme and Cmd-P for paper-ready PDF.' },
+        ]}
+        tip="Re-measure shows real variability — the certs are computed not cached. A panel member can pre-empt the question by watching the numbers shift slightly each refresh."
+      />
 
       <div className="bg-bg-card rounded-xl p-4">
         <h2 className="text-sm font-semibold mb-2">Live certificates</h2>

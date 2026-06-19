@@ -135,6 +135,15 @@ def get_by_id(dataset_id: str) -> UAVDataset | None:
     return next((d for d in DATASETS if d.id == dataset_id), None)
 
 
+def _effective_tier(d: UAVDataset) -> str:
+    """Promote on_demand to curated_50mb when the local subset file
+    is actually on disk — this lets the bootstrap script flip a
+    dataset's UI tier without editing the manifest source."""
+    if d.demo_subset_path is not None and Path(d.demo_subset_path).exists():
+        return "curated_50mb"
+    return d.tier
+
+
 def manifest_payload() -> dict:
     """Serialisable manifest for the React Dataset Selector."""
     return {
@@ -147,7 +156,8 @@ def manifest_payload() -> dict:
         "datasets": [
             {
                 "id": d.id, "name": d.name, "domain": d.domain,
-                "size_full": d.size_full, "tier": d.tier,
+                "size_full": d.size_full, "tier": _effective_tier(d),
+                "declared_tier": d.tier,
                 "source_url": d.source_url, "citation": d.citation,
                 "relevant_pages": list(d.relevant_pages),
                 "demo_subset_available": d.demo_subset_path is not None and Path(d.demo_subset_path).exists(),

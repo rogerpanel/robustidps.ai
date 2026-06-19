@@ -320,6 +320,33 @@ TOOLS = [
         "description": "Get the UAV Phase B status: AutoML (Optuna) best-trial summaries per model, ONNX export latency benchmark vs the 5 ms airframe-edge target, and progressive-distillation framework readiness (the chapter-6 fix for the CW κ=5 robust-accuracy gap). Use when the user asks about Phase B, AutoML, ONNX, edge latency, or what's next after Phase A.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "get_uav_swarm_snapshot",
+        "description": "Get the three-time-slice UAV swarm graph 𝒢ₜ — node identities (UAVs, droneports, intruders), edge identities (trusted radio, jammed, hostile), and the time-slice labels (clean / jamming / intruder). Use when the user asks about the swarm graph, FANET topology, or how M1 CT-TGNN sees the airspace.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_uav_datasets",
+        "description": "Get the full chapter-6 dataset manifest — all 17 datasets with their tier (curated_50mb / on_demand / reference_only), citation, full size, and source URL. Use when the user asks 'did you test on X dataset?' or for any data-provenance question. Returns the full manifest plus a tier-key explaining what each tier means.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "query_uav_ew_bench_at",
+        "description": "Sample all four UAV-EW-Bench-2026 configurations at a specific Jamming-to-Signal Ratio (J/S in dB, 0-40). Returns per-config MCR + 95% CI + pass/fail against the DO-326A 0.90 floor. Use when the user asks what happens at a particular J/S level, or for comparative numbers at the typical-EW J/S=20 dB operating point.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "js_db": {"type": "integer", "minimum": 0, "maximum": 40, "default": 20,
+                          "description": "Jamming-to-Signal Ratio in dB"},
+            },
+            "required": ["js_db"],
+        },
+    },
+    {
+        "name": "get_agent_studio_tiers",
+        "description": "Get the Agent Studio three-tier catalog (Community / Pro / Enterprise) with per-tier features, price, and seats. Use when the user asks about Agent Studio pricing tiers, SaaS plans, or which features are gated by which tier.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -1087,6 +1114,39 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_uav_phase_b_status":
             from plugins.uav import services as _uav_svc
             return json.dumps(_uav_svc.phase_b_status_payload())
+
+        elif name == "get_uav_swarm_snapshot":
+            from plugins.uav import services as _uav_svc
+            return json.dumps(_uav_svc.swarm_snapshot_payload())
+
+        elif name == "get_uav_datasets":
+            from plugins.uav.datasets_manifest import manifest_payload
+            return json.dumps(manifest_payload())
+
+        elif name == "query_uav_ew_bench_at":
+            from plugins.uav.uav_defense.ew_bench import (
+                UAV_EW_BENCH_2026, mission_completion_curve,
+            )
+            js = max(0, min(40, int(args.get("js_db", 20))))
+            points = {}
+            for key in UAV_EW_BENCH_2026["configurations"]:
+                curve = mission_completion_curve(key)
+                pt = next((p for p in curve["points"] if p["js_db"] == js),
+                          curve["points"][0])
+                points[key] = {
+                    "label": curve["label"], "mcr": pt["mcr"],
+                    "ci_low": pt["ci_low"], "ci_high": pt["ci_high"],
+                    "above_do_326a": pt["mcr"] >= 0.90,
+                }
+            return json.dumps({
+                "js_db": js, "do_326a_threshold": 0.90,
+                "points": points,
+                "operational_target_js_db": 20,
+            })
+
+        elif name == "get_agent_studio_tiers":
+            from plugins.agent_studio.entitlement import public_catalog
+            return json.dumps(public_catalog())
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
