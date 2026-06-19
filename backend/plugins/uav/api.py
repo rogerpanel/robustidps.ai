@@ -192,12 +192,19 @@ async def ew_bench_operating_point(js_db: float) -> dict:
 # ── Phase D — measured Mission-Completion-Rate via the simulator ────────
 
 @router.post("/ew-bench/run")
-async def ew_bench_run(quick: bool = False, n_reps: int = 200) -> dict:
+async def ew_bench_run(quick: bool = False, n_reps: int = 200,
+                       use_real_trajectories: bool = False) -> dict:
     """Trigger a UAV-EW-Bench-2026 simulator run. WRITE — wall-clock
     is ~30 s for the default 200 reps × 3 missions × 3 receivers ×
-    3 seeds. Set quick=true for a 10-s reduced grid."""
+    3 seeds. Set quick=true for a 10-s reduced grid.
+
+    use_real_trajectories=true activates Phase E mode: the simulator
+    runs against discovered real flight trajectories from
+    FLIGHT_TRAJECTORIES_ROOT (PX4 SITL / EuRoC MAV / UZH-FPV), or
+    synthetic-fallback trajectories when none are on disk.
+    """
     from plugins.uav.uav_defense.ew_bench.simulator import (
-        BenchConfig, run_bench,
+        BenchConfig, run_bench, run_bench_with_real_trajectories,
     )
     if quick:
         cfg = BenchConfig(
@@ -208,7 +215,18 @@ async def ew_bench_run(quick: bool = False, n_reps: int = 200) -> dict:
         )
     else:
         cfg = BenchConfig(n_reps_per_point=n_reps)
+    if use_real_trajectories:
+        return run_bench_with_real_trajectories(cfg)
     return run_bench(cfg)
+
+
+@router.get("/flight-trajectories")
+async def flight_trajectories_manifest() -> dict:
+    """List real flight trajectories discovered on disk + the synthetic
+    fallback specs. Drives the React Trajectory Selector for Phase E
+    bench runs."""
+    from plugins.uav.uav_defense.datasets.flight_trajectories import manifest_payload
+    return manifest_payload()
 
 
 @router.get("/ew-bench/measured-status")

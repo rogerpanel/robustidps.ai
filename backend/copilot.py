@@ -349,7 +349,12 @@ TOOLS = [
     },
     {
         "name": "get_uav_ew_bench_source",
-        "description": "Check whether the UAV-EW-Bench-2026 MCR-vs-J/S curves currently served are Phase A (chapter-anchored linear interpolation of the chapter 6 Fig. 6.x published 9-point anchors) or Phase D (measured via the physics-informed simulator). Returns DO-326A crossings per configuration when measured Phase D is available.",
+        "description": "Check whether the UAV-EW-Bench-2026 MCR-vs-J/S curves currently served are Phase A (chapter-anchored linear interpolation of the chapter 6 Fig. 6.x published 9-point anchors), Phase D (measured via the physics-informed simulator with synthetic trajectories), or Phase E (measured against real flight trajectories from PX4 SITL / EuRoC MAV / UZH-FPV / Blackbird). Returns DO-326A crossings per configuration when measured.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_uav_flight_trajectories",
+        "description": "Get the manifest of real flight trajectories available for Phase E EW-Bench runs. Lists discovered PX4 SITL / EuRoC MAV / UZH-FPV / Blackbird flights on disk + the synthetic-fallback mission profiles. Use when the user asks about real flight data, what trajectories the bench runs against, or how to wire in actual recorded flights.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
 ]
@@ -1162,14 +1167,22 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                     "description": "Linear interpolation of chapter 6 Fig. 6.x 9-point anchors per configuration",
                     "hint": "POST /api/uav/ew-bench/run to produce a measured Phase D curve via the physics-informed simulator (30 s on CPU)",
                 })
-            return json.dumps({
-                "source": "phase_d_measured",
-                "n_total_flights": measured["benchmark"]["n_total_flights"],
-                "n_missions": measured["benchmark"]["n_missions"],
-                "n_gnss_receivers": measured["benchmark"]["n_gnss_receivers"],
+            source = measured.get("source", "phase_d_simulator")
+            payload = {
+                "source": source,
+                "phase": measured["benchmark"].get("phase", "D"),
+                "n_total_flights": measured["benchmark"].get("n_total_flights", 0),
                 "do_326a_crossings_db": {c["config_key"]: c["do_326a_crossing_db"]
                                           for c in measured["curves"]},
-            })
+            }
+            if "trajectory_sources" in measured["benchmark"]:
+                payload["trajectory_sources"] = measured["benchmark"]["trajectory_sources"]
+                payload["n_real_trajectories"] = measured["benchmark"].get("n_real_trajectories", 0)
+            return json.dumps(payload)
+
+        elif name == "get_uav_flight_trajectories":
+            from plugins.uav.uav_defense.datasets.flight_trajectories import manifest_payload
+            return json.dumps(manifest_payload())
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
