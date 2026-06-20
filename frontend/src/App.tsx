@@ -58,6 +58,8 @@ import {
   Waves,
   Plane,
   Radar,
+  FileSearch,
+  KeyRound,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 import ThemeToggle from './components/ThemeToggle'
@@ -136,6 +138,7 @@ const AgentEvalHarness = lazy(() => import('./plugins/agent_studio/pages/EvalHar
 const AgentRedTeam = lazy(() => import('./plugins/agent_studio/pages/RedTeam'))
 const AgentRuntimeMonitor = lazy(() => import('./plugins/agent_studio/pages/RuntimeMonitor'))
 const AgentSupplyChain = lazy(() => import('./plugins/agent_studio/pages/SupplyChainScanner'))
+const AgentAccountConsole = lazy(() => import('./plugins/agent_studio/pages/AccountConsole'))
 // Assurance dossier (shared across both verticals)
 const DossierPage = lazy(() => import('./plugins/dossier/pages/Dossier'))
 import { fetchHealth } from './utils/api'
@@ -234,12 +237,24 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/mcp-security', label: 'MCP Security', icon: Plug },
       { to: '/mambaguard', label: 'MambaGuard', icon: Activity },
       { to: '/data-poisoning', label: 'Data Poisoning Sim', icon: FlaskConical },
-      { to: '/agent-scanner', label: 'Agent Scanner (free)', icon: FlaskConical },
+    ],
+  },
+  {
+    heading: 'Agent Studio (Build)',
+    items: [
       { to: '/agent-studio', label: 'Agent Studio Portal', icon: Sparkles },
       { to: '/agent-studio/eval', label: 'Agent Eval Harness', icon: FlaskConical },
-      { to: '/agent-studio/red-team', label: 'Agent Red Team Auto', icon: Swords },
-      { to: '/agent-studio/runtime', label: 'Agent Runtime Monitor', icon: Activity },
       { to: '/agent-studio/supply-chain', label: 'Model Supply Chain', icon: Package },
+      { to: '/agent-studio/account', label: 'Account & API Keys', icon: KeyRound },
+    ],
+  },
+  {
+    heading: 'Agent Security (Defend)',
+    items: [
+      { to: '/agent-scanner', label: 'Free MCP/Agent Scanner', icon: FileSearch },
+      { to: '/agent-studio/red-team', label: 'Red Team Automation', icon: Swords },
+      { to: '/agent-studio/runtime', label: 'Runtime Monitor', icon: Activity },
+      { to: '/dossier?vertical=agent_studio', label: 'Assurance Dossier', icon: FileText },
     ],
   },
   {
@@ -284,7 +299,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 // Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
 const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'UAV / Aerial Defense', 'SOC Intelligence', 'System']
-const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'MLSecOps Standards', 'AI Security & Gov', 'Industry & Research']
+const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'Agent Studio (Build)', 'Agent Security (Defend)', 'MLSecOps Standards', 'AI Security & Gov', 'Industry & Research']
 
 export default function App() {
   const [online, setOnline] = useState<boolean | null>(null)
@@ -828,6 +843,7 @@ export default function App() {
               <Route path="/agent-studio/red-team" element={<AgentRedTeam />} />
               <Route path="/agent-studio/runtime" element={<AgentRuntimeMonitor />} />
               <Route path="/agent-studio/supply-chain" element={<AgentSupplyChain />} />
+              <Route path="/agent-studio/account" element={<AgentAccountConsole />} />
               <Route path="/dossier" element={<DossierPage />} />
               <Route path="/about" element={<About />} />
             </Routes>

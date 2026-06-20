@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  Package, Play, Loader2, ShieldCheck, AlertCircle, ExternalLink, Copy,
+  Package, Play, Loader2, ShieldCheck, ExternalLink, Copy, Globe,
 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
-import { scanModel } from '../api'
+import { scanModel, scanModelLive, fetchHfInfo } from '../api'
 import type { ModelScan } from '../api'
 
 const SAMPLE_MODEL = 'meta-llama/Llama-3.1-8B-Instruct'
@@ -26,22 +26,38 @@ const RISK_TONE: Record<string, string> = {
   critical: 'bg-accent-red/15 text-accent-red border-accent-red/40',
 }
 
+type Mode = 'static' | 'live'
+
 export default function SupplyChainScanner() {
   const [modelId, setModelId] = useState(SAMPLE_MODEL)
   const [specText, setSpecText] = useState(SAMPLE_SPEC)
   const [result, setResult] = useState<ModelScan | null>(null)
-  const [running, setRunning] = useState(false)
+  const [hfUsed, setHfUsed] = useState<boolean | null>(null)
+  const [running, setRunning] = useState<Mode | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [hfInfo, setHfInfo] = useState<{ has_token: boolean; base_url: string } | null>(null)
 
-  const doScan = async () => {
-    setRunning(true); setErr(null)
+  useEffect(() => {
+    fetchHfInfo()
+      .then((i) => setHfInfo({ has_token: i.has_token, base_url: i.base_url }))
+      .catch(() => {})
+  }, [])
+
+  const doScan = async (mode: Mode = 'static') => {
+    setRunning(mode); setErr(null); setHfUsed(null)
     try {
       const spec = specText.trim() ? JSON.parse(specText) : {}
-      setResult(await scanModel(modelId, spec))
+      if (mode === 'live') {
+        const res = await scanModelLive(modelId, spec)
+        setHfUsed(res.hf_enrichment_used)
+        setResult(res)
+      } else {
+        setResult(await scanModel(modelId, spec))
+      }
     } catch (e) {
       setErr(String(e))
     } finally {
-      setRunning(false)
+      setRunning(null)
     }
   }
 
@@ -88,11 +104,36 @@ export default function SupplyChainScanner() {
                       className="w-full h-56 bg-bg-secondary border border-bg-card/60 rounded-md p-2 text-xs font-mono"
                       spellCheck={false} />
           </div>
-          <button onClick={doScan} disabled={running || !modelId}
-                  className="w-full bg-accent-blue hover:bg-accent-blue/90 text-white px-3 py-2 rounded-md text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-50">
-            {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            Scan supply chain
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => doScan('static')} disabled={running !== null || !modelId}
+                    className="bg-accent-blue hover:bg-accent-blue/90 text-white px-3 py-2 rounded-md text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+              {running === 'static' ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    : <Play className="w-3.5 h-3.5" />}
+              Static scan
+            </button>
+            <button onClick={() => doScan('live')} disabled={running !== null || !modelId}
+                    className="bg-accent-purple hover:bg-accent-purple/90 text-white px-3 py-2 rounded-md text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                    title="Enriches the spec with live HuggingFace Hub metadata before scoring.">
+              {running === 'live' ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  : <Globe className="w-3.5 h-3.5" />}
+              Live HF scan
+            </button>
+          </div>
+          {hfInfo && (
+            <div className="text-[10px] font-mono text-text-secondary">
+              HF API: <span className="text-text-primary">{hfInfo.base_url}</span>
+              {hfInfo.has_token ? (
+                <span className="ml-2 text-accent-green">· token set</span>
+              ) : (
+                <span className="ml-2 text-accent-orange">· anonymous (rate-limited)</span>
+              )}
+            </div>
+          )}
+          {hfUsed !== null && (
+            <div className={`text-[10px] font-mono ${hfUsed ? 'text-accent-green' : 'text-accent-amber'}`}>
+              {hfUsed ? '✓ HF metadata merged into spec.' : '⚠ HF unreachable — used only the spec you provided.'}
+            </div>
+          )}
         </div>
 
         <div className="bg-bg-card rounded-xl p-4">

@@ -427,6 +427,49 @@ TOOLS = [
         "description": "Get the catalog of 18 red-team probes the Agent Studio harness ships, organised by OWASP Agentic Top 10 category. Use when the user asks what attacks the red-team SKU automatically covers.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "run_agent_red_team_garak",
+        "description": "Run the Garak-integrated red-team probe runner against an agent spec. Returns Garak-shaped findings (garak.dan, garak.continuation, garak.promptinject, etc.) with severity, OWASP Agentic / MITRE ATLAS labels, and remediation. When Garak is installed in the backend image the runner uses live Garak probes; otherwise a deterministic 12-probe fallback. Use this when the user wants deep LLM-jailbreak coverage beyond the 18 baseline probes.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"target_spec": {"type": "object"}},
+            "required": ["target_spec"],
+        },
+    },
+    {
+        "name": "scan_agent_supply_chain_live",
+        "description": "Run the supply-chain scanner with live HuggingFace Hub metadata enrichment. Fetches downloads / likes / licence / file list / framework hints from huggingface.co/api/models/{id}, merges into the spec, then runs the standard risk scorer. Falls back to the user-supplied spec when the HF API is unreachable. Use when the user asks to scan a real HF model and wants live metadata.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "model_id": {"type": "string"},
+                "spec": {"type": "object"},
+            },
+            "required": ["model_id"],
+        },
+    },
+    {
+        "name": "create_agent_studio_checkout",
+        "description": "Create a Stripe Checkout session for an Agent Studio Pro or Enterprise subscription. Returns a redirect URL the user opens to complete payment. Safe to call before Stripe is funded — returns a staging-mode session that still issues an API key.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "email": {"type": "string"},
+                "tier": {"type": "string", "enum": ["pro", "enterprise"], "default": "pro"},
+                "trial_days": {"type": "integer", "default": 14, "minimum": 0, "maximum": 30},
+            },
+            "required": ["email"],
+        },
+    },
+    {
+        "name": "get_agent_studio_customer",
+        "description": "Look up an Agent Studio customer record by customer_id. Returns email, tier, trial end date, and the list of issued API keys (prefix + label + revocation state; never the plaintext).",
+        "input_schema": {
+            "type": "object",
+            "properties": {"customer_id": {"type": "string"}},
+            "required": ["customer_id"],
+        },
+    },
 ]
 
 
@@ -1302,6 +1345,45 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_agent_red_team_catalog":
             from plugins.agent_studio.red_team import catalog
             return json.dumps(catalog())
+
+        elif name == "run_agent_red_team_garak":
+            from dataclasses import asdict as _asdict
+            from plugins.agent_studio.red_team_garak import run_garak
+            run = run_garak(args["target_spec"])
+            return json.dumps({
+                "run_id": run.run_id, "target_name": run.target_name,
+                "n_probes": run.n_probes, "n_findings": run.n_findings,
+                "severity_breakdown": run.severity_breakdown,
+                "atlas_chain": run.atlas_chain,
+                "results": [_asdict(r) for r in run.results if r.triggered][:20],
+            })
+
+        elif name == "scan_agent_supply_chain_live":
+            from dataclasses import asdict as _asdict
+            from plugins.agent_studio.supply_chain import scan_model
+            from plugins.agent_studio.supply_chain_hf import fetch_hf_metadata
+            spec = dict(args.get("spec") or {})
+            hf = fetch_hf_metadata(args["model_id"])
+            if hf is not None:
+                for k, v in hf.items():
+                    spec.setdefault(k, v)
+            return json.dumps({**_asdict(scan_model(args["model_id"], spec)),
+                               "hf_enrichment_used": hf is not None})
+
+        elif name == "create_agent_studio_checkout":
+            from plugins.agent_studio.billing import create_checkout_session
+            return json.dumps(create_checkout_session(
+                args["email"],
+                args.get("tier", "pro"),
+                int(args.get("trial_days", 14)),
+            ))
+
+        elif name == "get_agent_studio_customer":
+            from plugins.agent_studio.billing import get_customer
+            data = get_customer(args["customer_id"])
+            if data is None:
+                return json.dumps({"error": "Customer not found", "customer_id": args["customer_id"]})
+            return json.dumps(data)
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

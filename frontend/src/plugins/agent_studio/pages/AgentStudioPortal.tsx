@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ShieldCheck, FileSearch, FileCheck2, ArrowRight,
-  CheckCircle2, Lock, Sparkles,
+  CheckCircle2, Lock, Sparkles, Loader2,
 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
+import { createCheckout } from '../api'
 
 interface SKU { id: string; name: string; price_usd: string; duration: string; summary: string }
 interface TierDetail {
@@ -21,6 +22,9 @@ export default function AgentStudioPortal() {
   const [skus, setSkus] = useState<SKU[]>([])
   const [tiers, setTiers] = useState<TierDetail[]>([])
   const [err, setErr] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
+  const [pending, setPending] = useState<'pro' | 'enterprise' | null>(null)
+  const [stagingNote, setStagingNote] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -30,6 +34,36 @@ export default function AgentStudioPortal() {
       .then(([s, t]) => { setSkus(s.skus || []); setTiers(t.tiers || []) })
       .catch((e) => setErr(String(e)))
   }, [])
+
+  const subscribe = async (tier: 'pro' | 'enterprise') => {
+    setErr(null)
+    setStagingNote(null)
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setErr('Enter a valid work email above before subscribing.')
+      return
+    }
+    setPending(tier)
+    try {
+      const sess = await createCheckout(email, tier, 14)
+      if (sess.mode === 'error') {
+        setErr(sess.error || 'Checkout failed.')
+      } else if (sess.url) {
+        if (sess.mode === 'staging') {
+          setStagingNote(
+            `Staging mode — Stripe is not funded. You'll be redirected to the account ` +
+            `console with a synthetic session_id; no card will be charged.`,
+          )
+          setTimeout(() => { window.location.href = sess.url! }, 1200)
+        } else {
+          window.location.href = sess.url
+        }
+      }
+    } catch (e) {
+      setErr(String(e))
+    } finally {
+      setPending(null)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -93,6 +127,28 @@ export default function AgentStudioPortal() {
 
       <section>
         <h2 className="text-lg font-semibold mb-3">SaaS tiers</h2>
+
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+          <label className="font-mono text-text-secondary">Work email:</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            className="px-2 py-1.5 rounded-md bg-bg-card border border-bg-card/40 text-xs w-72"
+          />
+          <Link to="/agent-studio/account"
+                className="text-[11px] text-accent-blue underline underline-offset-2">
+            Already a customer? Open the account console →
+          </Link>
+        </div>
+
+        {stagingNote && (
+          <div className="p-3 mb-3 bg-accent-orange/10 border border-accent-orange/30 rounded-md text-xs text-accent-orange">
+            {stagingNote}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {tiers.map((t) => (
             <div key={t.name}
@@ -121,21 +177,29 @@ export default function AgentStudioPortal() {
                 ))}
               </ul>
               <button
-                className={`mt-4 w-full py-2 rounded-md text-xs font-medium ${
+                className={`mt-4 w-full py-2 rounded-md text-xs font-medium inline-flex items-center justify-center gap-1.5 ${
                   t.name === 'community' ? 'bg-bg-secondary text-text-secondary'
-                  : 'bg-accent-blue text-white hover:bg-accent-blue/90'
+                  : 'bg-accent-blue text-white hover:bg-accent-blue/90 disabled:opacity-50'
                 }`}
-                disabled={t.name === 'community'}
+                disabled={t.name === 'community' || pending !== null}
+                onClick={() => {
+                  if (t.name === 'pro' || t.name === 'enterprise') subscribe(t.name)
+                }}
               >
-                {t.name === 'community' ? 'Current — free forever' : `Subscribe to ${t.display}`}
-                {t.name !== 'community' && <ArrowRight className="inline w-3 h-3 ml-1" />}
+                {t.name === 'community' ? (
+                  'Current — free forever'
+                ) : pending === t.name ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> Creating checkout…</>
+                ) : (
+                  <>Subscribe to {t.display} <ArrowRight className="w-3 h-3" /></>
+                )}
               </button>
             </div>
           ))}
         </div>
         <p className="text-[10px] text-text-secondary mt-2 text-center flex items-center justify-center gap-1.5">
-          <Lock className="w-3 h-3" /> Subscriptions go live once Stripe is funded.
-          Webhook receiver is already deployed at <span className="font-mono">/api/agent-studio/billing/webhook</span>.
+          <Lock className="w-3 h-3" /> Staging mode runs without charging while Stripe is funded —
+          webhook receiver is deployed at <span className="font-mono">/api/agent-studio/billing/webhook</span>.
         </p>
       </section>
     </div>

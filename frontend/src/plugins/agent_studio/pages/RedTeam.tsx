@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Swords, Play, Loader2, AlertCircle, CheckCircle2, Target } from 'lucide-react'
+import { Swords, Play, Loader2, AlertCircle, CheckCircle2, Target, Zap } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
-import { runAgentRedTeam, fetchRedTeamCatalog } from '../api'
+import {
+  runAgentRedTeam, runAgentRedTeamGarak, fetchRedTeamCatalog, fetchGarakInfo,
+} from '../api'
 import type { RedTeamRun, Severity } from '../api'
 
 const SAMPLE_TARGET = `{
@@ -27,26 +29,38 @@ const SEVERITY_TONE: Record<Severity, string> = {
 
 const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'info']
 
+type Runner = 'deterministic' | 'garak'
+
 export default function RedTeam() {
   const [text, setText] = useState(SAMPLE_TARGET)
   const [run, setRun] = useState<RedTeamRun | null>(null)
-  const [running, setRunning] = useState(false)
+  const [running, setRunning] = useState<Runner | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [catalogSize, setCatalogSize] = useState(0)
+  const [garakRunner, setGarakRunner] = useState<string | null>(null)
+  const [garakHint, setGarakHint] = useState<string | null>(null)
+  const [lastRunner, setLastRunner] = useState<Runner | null>(null)
 
   useEffect(() => {
     fetchRedTeamCatalog().then((c) => setCatalogSize(c.n_probes)).catch(() => {})
+    fetchGarakInfo()
+      .then((g) => { setGarakRunner(g.runner); setGarakHint(g.hint || null) })
+      .catch(() => {})
   }, [])
 
-  const doRun = async () => {
-    setRunning(true); setErr(null)
+  const doRun = async (which: Runner = 'deterministic') => {
+    setRunning(which); setErr(null)
     try {
       const spec = JSON.parse(text)
-      setRun(await runAgentRedTeam(spec))
+      const result = which === 'garak'
+        ? await runAgentRedTeamGarak(spec)
+        : await runAgentRedTeam(spec)
+      setRun(result)
+      setLastRunner(which)
     } catch (e) {
       setErr(String(e))
     } finally {
-      setRunning(false)
+      setRunning(null)
     }
   }
 
@@ -89,11 +103,29 @@ export default function RedTeam() {
           <textarea value={text} onChange={(e) => setText(e.target.value)}
                     className="w-full h-72 bg-bg-secondary border border-bg-card/60 rounded-md p-2 text-xs font-mono"
                     spellCheck={false} />
-          <button onClick={doRun} disabled={running || !text}
-                  className="mt-2 w-full bg-accent-red hover:bg-accent-red/90 text-white px-3 py-2 rounded-md text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-50">
-            {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-            Fire probes
-          </button>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <button onClick={() => doRun('deterministic')} disabled={running !== null || !text}
+                    className="bg-accent-red hover:bg-accent-red/90 text-white px-3 py-2 rounded-md text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-50">
+              {running === 'deterministic' ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            : <Play className="w-3.5 h-3.5" />}
+              Deterministic probes
+            </button>
+            <button onClick={() => doRun('garak')} disabled={running !== null || !text}
+                    className="bg-accent-purple hover:bg-accent-purple/90 text-white px-3 py-2 rounded-md text-xs font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+                    title="Run via the Garak adapter (live garak if installed, deterministic Garak-shaped probes otherwise)">
+              {running === 'garak' ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                   : <Zap className="w-3.5 h-3.5" />}
+              Garak probes
+            </button>
+          </div>
+          {garakRunner && (
+            <div className="mt-2 text-[10px] font-mono text-text-secondary">
+              garak runner: <span className={garakRunner === 'garak_live' ? 'text-accent-green' : 'text-accent-orange'}>
+                {garakRunner}
+              </span>
+              {garakHint && <> · {garakHint}</>}
+            </div>
+          )}
         </div>
 
         <div className="bg-bg-card rounded-xl p-4">
@@ -102,6 +134,11 @@ export default function RedTeam() {
           {!run && !err && <div className="text-xs text-text-secondary">Submit a target to see findings + ATLAS chain.</div>}
           {run && (
             <>
+              {lastRunner && (
+                <div className="mb-2 text-[10px] font-mono text-text-secondary">
+                  runner: <span className="text-accent-blue">{lastRunner}</span> · run_id: {run.run_id}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
                 <Tile label="probes fired" value={String(run.n_probes)} />
                 <Tile label="findings" value={String(run.n_findings)}

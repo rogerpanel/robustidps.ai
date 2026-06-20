@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Activity, Play, Pause, RotateCcw, Sparkles, AlertCircle, Loader2,
+  Send, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
-import { fetchRuntimeSnapshot, seedRuntimeDemo, resetRuntime } from '../api'
+import {
+  fetchRuntimeSnapshot, seedRuntimeDemo, resetRuntime,
+  fetchOTelInfo, ingestOTelSpan,
+} from '../api'
 import type { RuntimeSnapshot, RuntimeAgentSummary, RuntimeAlert } from '../api'
 
 const FRAMEWORK_COLOR: Record<string, string> = {
@@ -17,11 +21,34 @@ const FRAMEWORK_COLOR: Record<string, string> = {
   pydantic_ai:   '#8B5CF6',
 }
 
+const SAMPLE_OTEL_SPAN = JSON.stringify({
+  trace_id: '0af7651916cd43dd8448eb211c80319c',
+  span_id: 'b7ad6b7169203331',
+  name: 'agent.run',
+  start_time_unix_nano: 1717000000000000000,
+  end_time_unix_nano: 1717000000345000000,
+  attributes: {
+    'gen_ai.operation.name': 'chat',
+    'gen_ai.system': 'openai',
+    'gen_ai.request.model': 'gpt-4o',
+    'gen_ai.agent.name': 'ops-copilot-demo',
+    'gen_ai.framework': 'langgraph',
+    'gen_ai.tool.name': 'shell_exec',
+    'aegis.decision': 'block',
+    'aegis.finding_codes': ['ASI01', 'ASI03'],
+  },
+}, null, 2)
+
 export default function RuntimeMonitor() {
   const [snap, setSnap] = useState<RuntimeSnapshot | null>(null)
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [seeding, setSeeding] = useState(false)
+  const [otelOpen, setOtelOpen] = useState(false)
+  const [otelInfo, setOtelInfo] = useState<{ receiver: string; semconv_version: string } | null>(null)
+  const [otelPayload, setOtelPayload] = useState(SAMPLE_OTEL_SPAN)
+  const [otelBusy, setOtelBusy] = useState(false)
+  const [otelLastResp, setOtelLastResp] = useState<string | null>(null)
   const tickRef = useRef<number | null>(null)
 
   const refresh = useCallback(async () => {
@@ -33,6 +60,26 @@ export default function RuntimeMonitor() {
   }, [])
 
   useEffect(() => { refresh() }, [refresh])
+
+  useEffect(() => {
+    fetchOTelInfo().then((i) => setOtelInfo({
+      receiver: i.receiver, semconv_version: i.semconv_version,
+    })).catch(() => {})
+  }, [])
+
+  const ingestOTel = async () => {
+    setOtelBusy(true); setOtelLastResp(null); setErr(null)
+    try {
+      const parsed = JSON.parse(otelPayload)
+      const resp = await ingestOTelSpan(parsed)
+      setOtelLastResp(JSON.stringify(resp, null, 2))
+      await refresh()
+    } catch (e) {
+      setErr(String(e))
+    } finally {
+      setOtelBusy(false)
+    }
+  }
 
   useEffect(() => {
     if (!running) return
@@ -75,7 +122,11 @@ export default function RuntimeMonitor() {
           </p>
         </div>
         <div className="text-right text-[10px] text-text-secondary font-mono">
-          ingest endpoint: <span className="text-text-primary">POST /api/agent-studio/runtime/ingest</span>
+          ingest: <span className="text-text-primary">POST /api/agent-studio/runtime/ingest</span><br />
+          OTel: <span className="text-text-primary">POST /api/agent-studio/runtime/otel/{`{spans,traces}`}</span>
+          {otelInfo && (
+            <span className="text-accent-green"> · semconv {otelInfo.semconv_version}</span>
+          )}
         </div>
       </div>
 
@@ -131,6 +182,35 @@ export default function RuntimeMonitor() {
           {snap.agents.map((a) => <AgentCard key={a.agent_id} agent={a} />)}
         </div>
       )}
+
+      <div className="bg-bg-card rounded-xl p-4">
+        <button onClick={() => setOtelOpen(!otelOpen)}
+                className="w-full flex items-center justify-between text-sm font-semibold">
+          <span className="inline-flex items-center gap-2">
+            <Send className="w-4 h-4 text-accent-purple" /> OTel-GenAI trace inspector
+          </span>
+          {otelOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
+        {otelOpen && (
+          <div className="mt-3 space-y-2">
+            <div className="text-[10px] font-mono text-text-secondary">
+              Paste a single OTel GenAI span (trimmed JSON shape — `attributes` uses bare Python values).
+              The receiver also accepts full OTLP/JSON envelopes at <code>/runtime/otel/traces</code>.
+            </div>
+            <textarea value={otelPayload} onChange={(e) => setOtelPayload(e.target.value)}
+                      className="w-full h-44 bg-bg-secondary border border-bg-card/60 rounded-md p-2 text-[11px] font-mono"
+                      spellCheck={false} />
+            <button onClick={ingestOTel} disabled={otelBusy}
+                    className="px-3 py-1.5 rounded-md bg-accent-purple text-white text-xs font-medium hover:bg-accent-purple/90 disabled:opacity-50 inline-flex items-center gap-1.5">
+              {otelBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              Ingest span
+            </button>
+            {otelLastResp && (
+              <pre className="text-[10px] font-mono bg-bg-secondary p-2 rounded border border-bg-card/40 overflow-x-auto max-h-40">{otelLastResp}</pre>
+            )}
+          </div>
+        )}
+      </div>
 
       {snap && snap.recent_alerts.length > 0 && (
         <div className="bg-bg-card rounded-xl p-4">

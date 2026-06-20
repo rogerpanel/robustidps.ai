@@ -209,3 +209,151 @@ async def supply_chain_scan(req: SupplyChainScanRequest) -> dict:
 async def supply_chain_history(limit: int = 20) -> dict:
     from plugins.agent_studio.supply_chain import history
     return {"scans": history(limit)}
+
+
+# ── Proposal 1 — pluggable deep backends ──────────────────────────────
+
+@router.post("/red-team/garak")
+async def red_team_garak_run(req: RedTeamRunRequest) -> dict:
+    from dataclasses import asdict as _asdict
+    from plugins.agent_studio.red_team_garak import run_garak
+    run = run_garak(req.target_spec)
+    return {
+        "run_id": run.run_id, "target_name": run.target_name,
+        "timestamp": run.timestamp,
+        "n_probes": run.n_probes, "n_findings": run.n_findings,
+        "severity_breakdown": run.severity_breakdown,
+        "atlas_chain": run.atlas_chain,
+        "results": [_asdict(r) for r in run.results],
+    }
+
+
+@router.get("/red-team/garak/info")
+async def red_team_garak_info() -> dict:
+    from plugins.agent_studio.red_team_garak import runner_info
+    return runner_info()
+
+
+class OTelSpanRequest(BaseModel):
+    trace_id: str = ""
+    span_id: str = ""
+    name: str = "agent.run"
+    start_time_unix_nano: int = 0
+    end_time_unix_nano: int = 0
+    attributes: dict = Field(default_factory=dict)
+
+
+@router.post("/runtime/otel/spans")
+async def runtime_otel_span(req: OTelSpanRequest) -> dict:
+    """Ingest a single trimmed GenAI span."""
+    from plugins.agent_studio.runtime_otel import receive_span
+    return receive_span(req.dict())
+
+
+@router.post("/runtime/otel/traces")
+async def runtime_otel_traces(request: Request) -> dict:
+    """Ingest a full OTLP/JSON traces envelope."""
+    from plugins.agent_studio.runtime_otel import receive_otlp_json
+    body = await request.json()
+    return receive_otlp_json(body)
+
+
+@router.get("/runtime/otel/info")
+async def runtime_otel_info() -> dict:
+    from plugins.agent_studio.runtime_otel import receiver_info
+    return receiver_info()
+
+
+@router.post("/supply-chain/scan-live")
+async def supply_chain_scan_live(req: SupplyChainScanRequest) -> dict:
+    """Like /supply-chain/scan but enriches the spec with live
+    HuggingFace Hub metadata first (when reachable)."""
+    from dataclasses import asdict as _asdict
+    from plugins.agent_studio.supply_chain import scan_model
+    from plugins.agent_studio.supply_chain_hf import fetch_hf_metadata
+    enriched = dict(req.spec)
+    hf = fetch_hf_metadata(req.model_id)
+    if hf is not None:
+        # User-supplied spec wins on any key collision
+        for k, v in hf.items():
+            enriched.setdefault(k, v)
+    result = scan_model(req.model_id, enriched)
+    return {**_asdict(result), "hf_enrichment_used": hf is not None}
+
+
+@router.get("/supply-chain/hf-info")
+async def supply_chain_hf_info() -> dict:
+    from plugins.agent_studio.supply_chain_hf import runner_info
+    return runner_info()
+
+
+# ── Proposal 2 — commerce ─────────────────────────────────────────────
+
+class CheckoutRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=256)
+    tier: Literal["pro", "enterprise"] = "pro"
+    trial_days: int = Field(14, ge=0, le=30)
+
+
+class CheckoutCompleteRequest(BaseModel):
+    session_id: str
+    email: str
+    tier: Literal["pro", "enterprise"]
+
+
+@router.post("/billing/checkout")
+async def billing_checkout(req: CheckoutRequest) -> dict:
+    """Create a Stripe Checkout session. Returns a redirect URL."""
+    from plugins.agent_studio.billing import create_checkout_session
+    return create_checkout_session(req.email, req.tier, req.trial_days)
+
+
+@router.post("/billing/checkout/complete")
+async def billing_checkout_complete(req: CheckoutCompleteRequest) -> dict:
+    """Post-checkout fulfilment: creates the customer record + issues
+    the initial API key. Called by the success-URL handler."""
+    from plugins.agent_studio.billing import complete_checkout
+    return complete_checkout(req.session_id, req.email, req.tier)
+
+
+@router.get("/customers/{customer_id}")
+async def customer_detail(customer_id: str) -> dict:
+    from plugins.agent_studio.billing import get_customer
+    data = get_customer(customer_id)
+    if data is None:
+        raise HTTPException(404, "Customer not found")
+    return data
+
+
+class ApiKeyRequest(BaseModel):
+    customer_id: str
+    label: str = Field("default", max_length=64)
+
+
+@router.post("/api-keys/issue")
+async def api_key_issue(req: ApiKeyRequest) -> dict:
+    from plugins.agent_studio.billing import issue_api_key, get_customer
+    try:
+        key = issue_api_key(req.customer_id, req.label)
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+    customer = get_customer(req.customer_id)
+    return {"api_key": key, "key_id": customer["api_keys"][-1]["id"],
+            "label": req.label, "customer_id": req.customer_id}
+
+
+class ApiKeyRevokeRequest(BaseModel):
+    customer_id: str
+    key_id: str
+
+
+@router.post("/api-keys/revoke")
+async def api_key_revoke(req: ApiKeyRevokeRequest) -> dict:
+    from plugins.agent_studio.billing import revoke_api_key
+    return revoke_api_key(req.customer_id, req.key_id)
+
+
+@router.get("/customers")
+async def customers_list() -> dict:
+    from plugins.agent_studio.billing import list_customers
+    return {"customers": list_customers()}

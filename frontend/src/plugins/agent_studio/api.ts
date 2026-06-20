@@ -90,6 +90,12 @@ export interface RedTeamRun {
 }
 export const runAgentRedTeam = (target_spec: unknown) =>
   postJson<RedTeamRun>('/api/agent-studio/red-team/run', { target_spec })
+export const runAgentRedTeamGarak = (target_spec: unknown) =>
+  postJson<RedTeamRun>('/api/agent-studio/red-team/garak', { target_spec })
+export const fetchGarakInfo = () =>
+  getJson<{ runner: 'garak_live' | 'garak_synthetic_fallback';
+            version: string; hint?: string }>(
+    '/api/agent-studio/red-team/garak/info')
 export const fetchRedTeamCatalog = () =>
   getJson<{ n_probes: number; by_owasp_agentic: Record<string, string[]>;
             probes: { code: string; owasp_agentic: string; atlas_tactic: string;
@@ -120,6 +126,14 @@ export const seedRuntimeDemo = () =>
   postJson<RuntimeSnapshot>('/api/agent-studio/runtime/seed-demo', {})
 export const resetRuntime = () =>
   postJson<{ reset: boolean }>('/api/agent-studio/runtime/reset', {})
+export const ingestOTelSpan = (span: Record<string, unknown>) =>
+  postJson<unknown>('/api/agent-studio/runtime/otel/spans', span)
+export const ingestOTelTraces = (otlp: Record<string, unknown>) =>
+  postJson<unknown>('/api/agent-studio/runtime/otel/traces', otlp)
+export const fetchOTelInfo = () =>
+  getJson<{ receiver: string; version: string; semconv_version: string;
+            endpoints: string[]; supported_attributes: string[] }>(
+    '/api/agent-studio/runtime/otel/info')
 
 // ── Supply Chain Scan ────────────────────────────────────────────────
 
@@ -138,3 +152,63 @@ export interface ModelScan {
 }
 export const scanModel = (model_id: string, spec: Record<string, unknown> = {}) =>
   postJson<ModelScan>('/api/agent-studio/supply-chain/scan', { model_id, spec })
+export const scanModelLive = (model_id: string, spec: Record<string, unknown> = {}) =>
+  postJson<ModelScan & { hf_enrichment_used: boolean }>(
+    '/api/agent-studio/supply-chain/scan-live', { model_id, spec })
+export const fetchHfInfo = () =>
+  getJson<{ client: string; version: string; base_url: string;
+            timeout_s: number; has_token: boolean; fallback: string }>(
+    '/api/agent-studio/supply-chain/hf-info')
+
+// ── Billing / Checkout ───────────────────────────────────────────────
+
+export interface CheckoutSession {
+  mode: 'live' | 'staging' | 'error'
+  session_id?: string
+  url?: string
+  tier?: 'pro' | 'enterprise'
+  email?: string
+  trial_days?: number
+  hint?: string
+  error?: string
+}
+export interface CustomerApiKey {
+  id: string; label: string; prefix: string
+  created_at: string; last_used_at: string | null; revoked: boolean
+}
+export interface Customer {
+  customer_id: string
+  email: string
+  tier: string
+  created_at: string
+  trial_ends_at: string | null
+  api_keys: CustomerApiKey[]
+  stripe_customer_id: string | null
+  stripe_subscription_id: string | null
+}
+export interface CheckoutCompleteResult {
+  customer_id: string; email: string; tier: string
+  trial_ends_at: string
+  api_key: string         // plaintext, shown ONCE
+  api_key_id: string
+  welcome_message: string
+}
+
+export const createCheckout = (email: string, tier: 'pro' | 'enterprise', trial_days = 14) =>
+  postJson<CheckoutSession>('/api/agent-studio/billing/checkout',
+    { email, tier, trial_days })
+
+export const completeCheckout = (session_id: string, email: string, tier: 'pro' | 'enterprise') =>
+  postJson<CheckoutCompleteResult>('/api/agent-studio/billing/checkout/complete',
+    { session_id, email, tier })
+
+export const fetchCustomer = (customer_id: string) =>
+  getJson<Customer>(`/api/agent-studio/customers/${customer_id}`)
+
+export const issueApiKey = (customer_id: string, label: string) =>
+  postJson<{ api_key: string; key_id: string; label: string; customer_id: string }>(
+    '/api/agent-studio/api-keys/issue', { customer_id, label })
+
+export const revokeApiKey = (customer_id: string, key_id: string) =>
+  postJson<{ ok: boolean; key_id?: string; revoked?: boolean; error?: string }>(
+    '/api/agent-studio/api-keys/revoke', { customer_id, key_id })

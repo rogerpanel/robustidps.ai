@@ -9,5 +9,14 @@ records. Until then it logs intent and returns 200 — safe to deploy.
 from plugins.agent_studio.billing.stripe_webhook import (
     handle_event, parse_event,
 )
+from plugins.agent_studio.billing.checkout import (
+    create_checkout_session, complete_checkout,
+    issue_api_key, revoke_api_key, get_customer, list_customers,
+)
 
-__all__ = ["handle_event", "parse_event"]
+__all__ = [
+    "handle_event", "parse_event",
+    "create_checkout_session", "complete_checkout",
+    "issue_api_key", "revoke_api_key",
+    "get_customer", "list_customers",
+]
