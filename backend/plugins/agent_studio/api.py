@@ -435,3 +435,56 @@ async def template_detail(template_id: str) -> dict:
     if data is None:
         raise HTTPException(404, f"Unknown template: {template_id}")
     return data
+
+
+# ── Sessions — Step 3 of the Quickstart wizard ────────────────────────
+
+class SessionCreateRequest(BaseModel):
+    template_id: str
+    customer_id: str | None = None
+
+
+@router.post("/sessions")
+async def session_create(req: SessionCreateRequest,
+                         customer: dict = Depends(require_api_key)) -> dict:
+    """Spin up a sandboxed test session against a template."""
+    from plugins.agent_studio.sessions import create_session
+    try:
+        return create_session(req.template_id,
+                              req.customer_id or customer.get("customer_id", "anon"))
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.get("/sessions/{session_id}")
+async def session_detail(session_id: str,
+                         customer: dict = Depends(require_api_key)) -> dict:
+    from plugins.agent_studio.sessions import get_session
+    data = get_session(session_id)
+    if data is None:
+        raise HTTPException(404, "Session not found")
+    return data
+
+
+@router.get("/sessions")
+async def sessions_list(limit: int = 50,
+                        customer: dict = Depends(require_api_key)) -> dict:
+    from plugins.agent_studio.sessions import list_sessions, stats
+    return {
+        "sessions": list_sessions(customer.get("customer_id"), limit),
+        "stats": stats(),
+    }
+
+
+class SessionMessageRequest(BaseModel):
+    input: str = Field(..., min_length=1, max_length=20_000)
+
+
+@router.post("/sessions/{session_id}/messages")
+async def session_post_message(session_id: str, req: SessionMessageRequest,
+                               customer: dict = Depends(require_api_key)) -> dict:
+    from plugins.agent_studio.sessions import post_message
+    try:
+        return post_message(session_id, req.input)
+    except KeyError as e:
+        raise HTTPException(404, str(e))

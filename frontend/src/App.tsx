@@ -140,6 +140,7 @@ const AgentRuntimeMonitor = lazy(() => import('./plugins/agent_studio/pages/Runt
 const AgentSupplyChain = lazy(() => import('./plugins/agent_studio/pages/SupplyChainScanner'))
 const AgentAccountConsole = lazy(() => import('./plugins/agent_studio/pages/AccountConsole'))
 const AgentQuickstart = lazy(() => import('./plugins/agent_studio/pages/Quickstart'))
+const AgentBuildWizard = lazy(() => import('./plugins/agent_studio/pages/BuildWizard'))
 const AgentAdminConsole = lazy(() => import('./plugins/agent_studio/pages/AdminConsole'))
 // Assurance dossier (shared across both verticals)
 const DossierPage = lazy(() => import('./plugins/dossier/pages/Dossier'))
@@ -849,6 +850,7 @@ export default function App() {
               <Route path="/agent-studio/supply-chain" element={<AgentSupplyChain />} />
               <Route path="/agent-studio/account" element={<AgentAccountConsole />} />
               <Route path="/agent-studio/quickstart" element={<AgentQuickstart />} />
+              <Route path="/agent-studio/build/:templateId" element={<AgentBuildWizard />} />
               <Route path="/agent-studio/admin" element={<AgentAdminConsole />} />
               <Route path="/dossier" element={<DossierPage />} />
               <Route path="/about" element={<About />} />

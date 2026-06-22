@@ -747,5 +747,77 @@ def admin_whoami_cmd():
     console.print(f"[green]Admin: {out}[/green]")
 
 
+# ── Agent Studio · sessions (4-stage Quickstart wizard) ───────────────
+
+@agent.group()
+def session():
+    """Sandboxed test sessions against a template."""
+    pass
+
+
+@session.command("start")
+@click.option("--template", "template_id", required=True,
+              help="Template id (use `robustidps agent templates` to list).")
+@click.option("--customer", "customer_id", default=None)
+def session_start(template_id: str, customer_id: str | None):
+    """Spin up a new session against a template."""
+    body = {"template_id": template_id}
+    if customer_id:
+        body["customer_id"] = customer_id
+    out = _agent_request("POST", "/api/agent-studio/sessions", json_body=body)
+    console.print(f"[green]Session:[/green] {out['session_id']}  template={out['template_id']}")
+    for m in out.get("history", []):
+        tone = ("red" if m["decision"] == "block"
+                else "yellow" if m["decision"] == "warn" else "green")
+        console.print(f"  [{tone}]{m['role']}[/{tone}]  decision={m['decision']}  "
+                      f"({m['n_findings']} findings)  {m['text'][:80]}…")
+
+
+@session.command("message")
+@click.argument("session_id")
+@click.argument("input_text")
+def session_message(session_id: str, input_text: str):
+    """Send a probe to an active session."""
+    out = _agent_request("POST", f"/api/agent-studio/sessions/{session_id}/messages",
+                         json_body={"input": input_text})
+    if out.get("blocked_on") == "input":
+        console.print(f"[red]Input BLOCKED[/red]  findings={out['n_findings']}")
+        return
+    tone = ("red" if out["decision"] == "block"
+            else "yellow" if out["decision"] == "warn" else "green")
+    console.print(f"[bold]Agent:[/bold] {out['agent_reply']}")
+    console.print(f"  input:  decision={out['input_decision']}  findings={out['input_n_findings']}")
+    console.print(f"  output: [{tone}]decision={out['decision']}[/{tone}]  findings={out['n_findings']}")
+
+
+@session.command("show")
+@click.argument("session_id")
+def session_show(session_id: str):
+    """Pretty-print a session's full history."""
+    out = _agent_request("GET", f"/api/agent-studio/sessions/{session_id}")
+    console.print(f"[bold]{out['session_id']}[/bold]  template={out['template_id']}  "
+                  f"messages={len(out['history'])}  aborted={out['aborted']}")
+    for m in out["history"]:
+        tone = ("red" if m["decision"] == "block"
+                else "yellow" if m["decision"] == "warn" else "green")
+        console.print(f"  [{tone}]{m['role']}[/{tone}]  {m['ts']}  ({m['decision']})  {m['text']}")
+
+
+@session.command("list")
+@click.option("--limit", default=50, type=int)
+def session_list(limit: int):
+    """List recent sessions for your customer."""
+    out = _agent_request("GET", "/api/agent-studio/sessions",
+                         params={"limit": limit})
+    tbl = Table(title=f"Sessions ({len(out['sessions'])})")
+    for col in ("session_id", "template_id", "created_at", "messages", "aborted"):
+        tbl.add_column(col)
+    for s in out["sessions"]:
+        tbl.add_row(s["session_id"], s["template_id"],
+                    s["created_at"][:19], str(s["n_messages"]),
+                    "yes" if s["aborted"] else "no")
+    console.print(tbl)
+
+
 if __name__ == "__main__":
     main()

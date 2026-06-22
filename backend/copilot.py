@@ -495,6 +495,20 @@ TOOLS = [
         "description": "Read-only stats on admin-issued licences: total / active / revoked grants, breakdown by payment_rail (wire/crypto/yoomoney/qiwi/sbp/comp/...) and tier. Doesn't expose customer details — use list_customers (admin-gated) for that.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "get_agent_studio_session",
+        "description": "Fetch a single Agent Studio test session by session_id (template_id, history with per-message Aegis decisions, aborted flag).",
+        "input_schema": {
+            "type": "object",
+            "properties": {"session_id": {"type": "string"}},
+            "required": ["session_id"],
+        },
+    },
+    {
+        "name": "get_agent_studio_session_stats",
+        "description": "Aggregate stats on Agent Studio test sessions: total, aborted, breakdown by template_id. Useful for surfacing which templates customers gravitate toward.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -1428,6 +1442,17 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_agent_studio_admin_stats":
             from plugins.agent_studio.billing import grant_stats
             return json.dumps(grant_stats())
+
+        elif name == "get_agent_studio_session":
+            from plugins.agent_studio.sessions import get_session
+            data = get_session(args["session_id"])
+            if data is None:
+                return json.dumps({"error": "Session not found", "session_id": args["session_id"]})
+            return json.dumps(data)
+
+        elif name == "get_agent_studio_session_stats":
+            from plugins.agent_studio.sessions import stats as _session_stats
+            return json.dumps(_session_stats())
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

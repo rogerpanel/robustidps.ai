@@ -94,9 +94,24 @@ time (`/agent-studio/account?customer_id=cust_…`).
 
 13 archetypes are pre-built. Open
 https://robustidps.ai/agent-studio/quickstart, filter by tier, click
-**Inspect** to see the agent spec, then **Send to Eval** / **Send to
-Red-team** to push it through the existing pipes — or **Copy spec** to
-fork the JSON locally.
+the blue **Build → Configure → Test → Ship** button — this opens a
+**4-stage wizard** mirroring Claude Console's Quickstart flow:
+
+1. **Create agent** — edit the system prompt, tools, and model in the
+   JSON editor. Pre-filled from the template.
+2. **Configure environment** — review runtime, network policy
+   (`outbound_open | outbound_blocked | allowlist`), package list,
+   declared MCP servers, env vars, and secrets.
+3. **Start session** — paste your API key, spin up a sandboxed
+   conversation, send any of the canonical `test_inputs` from the
+   template. Every turn is Aegis-checked pre- and post-response;
+   block-tier verdicts halt the session and surface finding codes.
+4. **Integrate** — copy a ready-made snippet for Python (your
+   framework + AegisAgents Kit), cURL, or Kubernetes. Ship.
+
+You can also stay on the catalog page and use the small **Eval** /
+**Red** / **Copy** / **View** buttons to push the spec through the
+individual pipes without the wizard.
 
 ```bash
 robustidps agent templates --tier A          # list defenders

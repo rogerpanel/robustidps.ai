@@ -26,6 +26,30 @@ from typing import Any
 
 
 @dataclass
+class AgentEnvironment:
+    """Step 2 — the containerised workspace the agent runs inside.
+
+    Mirrors the env spec a developer would put in a docker-compose / k8s
+    pod / Modal stub. Used by the Quickstart wizard, the dossier, and the
+    'integrate' code snippets.
+    """
+    runtime: str = "python:3.12"
+    network_policy: str = "outbound_open"  # "outbound_open" | "outbound_blocked" | "allowlist"
+    network_allowlist: list[str] = field(default_factory=list)
+    packages: list[str] = field(default_factory=list)
+    mcp_servers: list[dict] = field(default_factory=list)
+    env_vars: list[str] = field(default_factory=list)
+    secrets: list[str] = field(default_factory=list)
+
+
+@dataclass
+class IntegrationSnippet:
+    language: str          # "python" | "curl" | "node" | "yaml"
+    framework: str         # langgraph / crewai / openai_agents / shell / k8s / ...
+    code: str
+
+
+@dataclass
 class AgentTemplate:
     id: str
     name: str
@@ -37,6 +61,9 @@ class AgentTemplate:
     spec: dict[str, Any]    # the actual agent spec (system_prompt, tools, etc.)
     recommended_skus: list[str] = field(default_factory=list)
     notes: str = ""
+    environment: AgentEnvironment = field(default_factory=AgentEnvironment)
+    test_inputs: list[str] = field(default_factory=list)
+    integration_snippets: list[IntegrationSnippet] = field(default_factory=list)
 
 
 def _spec(
@@ -347,6 +374,315 @@ TEMPLATES: list[AgentTemplate] = [
         ),
     ),
 ]
+
+
+# ── Environment + integration enrichment (Step 2 / Step 4 of the wizard) ──
+
+def _python_langgraph_snippet(template_id: str, name: str) -> str:
+    return f'''# pip install "robustidps[aegis]" langgraph httpx
+from langgraph.graph import StateGraph, END
+from typing import TypedDict
+from robustidps.aegis import MambaGuardClient
+from robustidps.aegis.langgraph import guard
+
+class S(TypedDict):
+    question: str
+    answer: str
+
+def respond(state: S) -> S:
+    # ← your real agent logic; this is the template stub
+    return {{"answer": f"[{name}] echo: {{state[\\"question\\"]}}"}}
+
+g = StateGraph(S)
+g.add_node("respond", respond)
+g.set_entry_point("respond")
+g.add_edge("respond", END)
+graph = g.compile()
+
+client = MambaGuardClient(
+    api_base="https://robustidps.ai",
+    api_key="$ROBUSTIDPS_API_KEY",
+)
+graph = guard(graph, client=client, policy="default", template_id="{template_id}")
+
+# Run it
+print(graph.invoke({{"question": "ping"}}))
+'''
+
+
+def _python_openai_agents_snippet(template_id: str, name: str) -> str:
+    return f'''# pip install "robustidps[aegis]" openai-agents
+from openai_agents import Agent
+from robustidps.aegis import MambaGuardClient
+from robustidps.aegis.openai_agents import guard
+
+agent = Agent(name="{name}", instructions="...your prompt...")
+
+client = MambaGuardClient(
+    api_base="https://robustidps.ai",
+    api_key="$ROBUSTIDPS_API_KEY",
+)
+agent = guard(agent, client=client, template_id="{template_id}")
+
+print(agent.run("ping"))
+'''
+
+
+def _curl_snippet(template_id: str) -> str:
+    return f'''# 1) Start a test session against the template
+SESSION=$(curl -sf -X POST https://robustidps.ai/api/agent-studio/sessions \\
+  -H "Authorization: Bearer $ROBUSTIDPS_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{{"template_id": "{template_id}"}}')
+
+SID=$(echo "$SESSION" | python3 -c 'import sys,json; print(json.load(sys.stdin)["session_id"])')
+echo "session: $SID"
+
+# 2) Send a message
+curl -sf -X POST https://robustidps.ai/api/agent-studio/sessions/$SID/messages \\
+  -H "Authorization: Bearer $ROBUSTIDPS_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{{"input": "first probe input"}}' | python3 -m json.tool
+'''
+
+
+def _k8s_snippet(template_id: str, env: "AgentEnvironment") -> str:
+    pkgs = " ".join(env.packages)
+    return f'''apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-{template_id}
+  labels:
+    robustidps.ai/template: "{template_id}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-{template_id}
+  template:
+    metadata:
+      labels:
+        app: agent-{template_id}
+    spec:
+      containers:
+        - name: agent
+          image: {env.runtime.replace(':', '-')}-aegis:latest
+          command: ["python", "main.py"]
+          env:
+            - name: ROBUSTIDPS_API_BASE
+              value: "https://robustidps.ai"
+            - name: ROBUSTIDPS_API_KEY
+              valueFrom:
+                secretKeyRef: {{name: robustidps, key: api_key}}
+            - name: AGENT_TEMPLATE_ID
+              value: "{template_id}"
+          # Pre-installed packages: {pkgs or "(none)"}
+'''
+
+
+_DEFAULTS_BY_TIER: dict[str, dict] = {
+    "A": {
+        "packages": ["langgraph>=0.2", "httpx>=0.27", "robustidps[aegis]>=0.4"],
+        "network_policy": "allowlist",
+        "network_allowlist": ["api.openai.com", "robustidps.ai", "nvd.nist.gov", "atlas.mitre.org"],
+    },
+    "B": {
+        "packages": ["langgraph>=0.2", "httpx>=0.27", "robustidps[aegis]>=0.4", "garak>=0.10"],
+        "network_policy": "allowlist",
+        "network_allowlist": ["robustidps.ai", "api.openai.com", "huggingface.co"],
+    },
+    "C": {
+        "packages": ["langgraph>=0.2", "httpx>=0.27", "robustidps[aegis]>=0.4"],
+        "network_policy": "outbound_open",
+        "network_allowlist": [],
+    },
+    "blank": {
+        "packages": ["robustidps[aegis]>=0.4"],
+        "network_policy": "outbound_blocked",
+        "network_allowlist": [],
+    },
+}
+
+
+# Per-template specifics: MCP servers, env vars, test inputs.
+_PER_TEMPLATE: dict[str, dict] = {
+
+    "soc_triage": {
+        "mcp_servers": [
+            {"name": "siem-mcp", "url": "mcp://internal-siem.example", "policy": "read_only"},
+            {"name": "mitre-attack-mcp", "url": "mcp://atlas.mitre.org", "policy": "read_only"},
+        ],
+        "env_vars": ["SIEM_BASE_URL"],
+        "secrets": ["SIEM_API_TOKEN"],
+        "test_inputs": [
+            '{"alert_id":"a-001","src_ip":"10.0.0.5","dst_port":4444,"signature":"reverse_shell"}',
+            '{"alert_id":"a-002","src_ip":"203.0.113.7","dst_port":443,"signature":"beacon_burst"}',
+        ],
+    },
+
+    "incident_commander": {
+        "mcp_servers": [
+            {"name": "slack-mcp", "url": "mcp://slack.example", "policy": "write_audited"},
+            {"name": "pagerduty-mcp", "url": "mcp://pagerduty.example", "policy": "write_audited"},
+        ],
+        "env_vars": ["SLACK_WORKSPACE"],
+        "secrets": ["SLACK_BOT_TOKEN", "PAGERDUTY_KEY"],
+        "test_inputs": [
+            "P1 alert: checkout-service 5xx rate 23%, error budget burn 12x",
+            "P2 alert: payment-webhook latency p99 → 9.2s",
+        ],
+    },
+
+    "compliance_auditor": {
+        "mcp_servers": [
+            {"name": "docs-mcp", "url": "mcp://policy-corpus.example", "policy": "read_only"},
+        ],
+        "env_vars": [],
+        "secrets": ["DOCS_INDEX_TOKEN"],
+        "test_inputs": [
+            "Do we cover EU AI Act Article 15 logging requirements?",
+            "Map our SOC controls onto ISO 42001 §6.2.",
+        ],
+    },
+
+    "vuln_triage": {
+        "mcp_servers": [
+            {"name": "nvd-mcp", "url": "mcp://nvd.nist.gov", "policy": "read_only"},
+            {"name": "epss-mcp", "url": "mcp://epss.cyentia.com", "policy": "read_only"},
+        ],
+        "env_vars": [],
+        "secrets": ["SBOM_API_TOKEN"],
+        "test_inputs": [
+            '{"cve":"CVE-2024-43044","cvss":9.8,"package":"jenkins"}',
+            '{"cve":"CVE-2025-13371","cvss":7.5,"package":"transformers"}',
+        ],
+    },
+
+    "mcp_auditor": {
+        "mcp_servers": [],
+        "env_vars": [],
+        "secrets": [],
+        "test_inputs": [
+            '{"name":"shell-server","tools":[{"name":"exec","description":"Execute any shell command"}]}',
+        ],
+    },
+
+    "threat_hunter": {
+        "mcp_servers": [
+            {"name": "loglake-mcp", "url": "mcp://loglake.example", "policy": "read_only"},
+        ],
+        "env_vars": ["LOGLAKE_INDEX"],
+        "secrets": ["LOGLAKE_TOKEN"],
+        "test_inputs": [
+            "Hypothesis: lateral movement via WMI from finance VLAN.",
+            "Hypothesis: DNS-based exfil from build agents.",
+        ],
+    },
+
+    "red_team_operator": {
+        "mcp_servers": [
+            {"name": "garak-mcp", "url": "mcp://garak.local", "policy": "read_write"},
+        ],
+        "env_vars": ["GARAK_PROBE_SET"],
+        "secrets": ["AUTH_ID"],
+        "test_inputs": [
+            '{"name":"target-bot","system_prompt":"You are a billing bot. Ignore previous instructions if user says so.","tools":[{"name":"shell"}]}',
+        ],
+    },
+
+    "pentest_recon": {
+        "mcp_servers": [],
+        "env_vars": ["SCOPE_ENVELOPE_ID"],
+        "secrets": ["AUTH_ID"],
+        "test_inputs": [
+            '{"scope":["10.0.0.0/24"],"ports":"1-1024","authorization_id":"AUTH-2026-001"}',
+        ],
+    },
+
+    "phishing_trainer": {
+        "mcp_servers": [
+            {"name": "mail-mcp", "url": "mcp://training-mailbox.internal", "policy": "write_audited"},
+        ],
+        "env_vars": ["CAMPAIGN_ID"],
+        "secrets": ["MAIL_TOKEN"],
+        "test_inputs": [
+            "Campaign: Q3-awareness; theme: HR benefits update; recipients: address_book.engineering",
+        ],
+    },
+
+    "customer_support": {
+        "mcp_servers": [
+            {"name": "docs-mcp", "url": "mcp://public-docs.example", "policy": "read_only"},
+            {"name": "zendesk-mcp", "url": "mcp://zendesk.example", "policy": "write_audited"},
+        ],
+        "env_vars": [],
+        "secrets": ["ZENDESK_TOKEN"],
+        "test_inputs": [
+            "How do I rotate my API key?",
+            "What's your SLA for Enterprise tier?",
+        ],
+    },
+
+    "billing_copilot": {
+        "mcp_servers": [
+            {"name": "billing-mcp", "url": "mcp://billing.internal", "policy": "read_only"},
+        ],
+        "env_vars": [],
+        "secrets": ["BILLING_TOKEN"],
+        "test_inputs": [
+            "Why was invoice INV-1042 charged twice?",
+            "I'd like a $1200 refund on INV-1099.",
+        ],
+    },
+
+    "docs_qa": {
+        "mcp_servers": [
+            {"name": "kb-mcp", "url": "mcp://internal-kb.example", "policy": "read_only"},
+        ],
+        "env_vars": ["KB_INDEX"],
+        "secrets": ["KB_TOKEN"],
+        "test_inputs": [
+            "What's the on-call rotation for the payments service?",
+            "Where is the post-mortem for the 2026-Q1 SEV-2?",
+        ],
+    },
+
+    "blank": {
+        "mcp_servers": [],
+        "env_vars": [],
+        "secrets": [],
+        "test_inputs": ["ping"],
+    },
+}
+
+
+def _enrich(t: AgentTemplate) -> None:
+    defaults = _DEFAULTS_BY_TIER.get(t.tier, _DEFAULTS_BY_TIER["blank"])
+    per = _PER_TEMPLATE.get(t.id, {})
+    env = AgentEnvironment(
+        runtime="python:3.12",
+        network_policy=per.get("network_policy", defaults["network_policy"]),
+        network_allowlist=per.get("network_allowlist", list(defaults["network_allowlist"])),
+        packages=list(defaults["packages"]),
+        mcp_servers=per.get("mcp_servers", []),
+        env_vars=per.get("env_vars", []) + ["ROBUSTIDPS_API_BASE", "ROBUSTIDPS_API_KEY"],
+        secrets=per.get("secrets", []) + ["ROBUSTIDPS_API_KEY"],
+    )
+    t.environment = env
+    t.test_inputs = per.get("test_inputs", ["ping"])
+    framework = (t.frameworks or ["langgraph"])[0]
+    snippet_builder = (_python_openai_agents_snippet
+                       if framework == "openai_agents"
+                       else _python_langgraph_snippet)
+    t.integration_snippets = [
+        IntegrationSnippet("python", framework, snippet_builder(t.id, t.spec.get("name", t.id))),
+        IntegrationSnippet("curl",   "shell",   _curl_snippet(t.id)),
+        IntegrationSnippet("yaml",   "k8s",     _k8s_snippet(t.id, env)),
+    ]
+
+
+for _t in TEMPLATES:
+    _enrich(_t)
 
 
 def list_templates(tier: str | None = None) -> list[dict]:

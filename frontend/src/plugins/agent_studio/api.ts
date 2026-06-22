@@ -215,6 +215,20 @@ export const revokeApiKey = (customer_id: string, key_id: string) =>
 
 // ── Quickstart templates ─────────────────────────────────────────────
 
+export interface AgentEnvironment {
+  runtime: string
+  network_policy: 'outbound_open' | 'outbound_blocked' | 'allowlist'
+  network_allowlist: string[]
+  packages: string[]
+  mcp_servers: { name: string; url: string; policy: string }[]
+  env_vars: string[]
+  secrets: string[]
+}
+export interface IntegrationSnippet {
+  language: string
+  framework: string
+  code: string
+}
 export interface AgentTemplate {
   id: string
   name: string
@@ -226,6 +240,9 @@ export interface AgentTemplate {
   spec: Record<string, unknown>
   recommended_skus: string[]
   notes: string
+  environment: AgentEnvironment
+  test_inputs: string[]
+  integration_snippets: IntegrationSnippet[]
 }
 export interface TemplateStats {
   n_templates: number
@@ -239,6 +256,67 @@ export const listTemplates = (tier?: 'A' | 'B' | 'C' | 'blank') =>
 
 export const fetchTemplate = (id: string) =>
   getJson<AgentTemplate>(`/api/agent-studio/templates/${id}`)
+
+// ── Sessions ─────────────────────────────────────────────────────────
+
+export interface SessionMessage {
+  role: 'user' | 'agent' | 'system'
+  text: string
+  ts: string
+  decision: 'allow' | 'warn' | 'block'
+  n_findings: number
+  findings: { code: string; severity: string; title: string }[]
+}
+export interface SessionDetail {
+  session_id: string
+  template_id: string
+  customer_id: string
+  created_at: string
+  history: SessionMessage[]
+  aborted: boolean
+}
+export interface SessionListItem {
+  session_id: string
+  template_id: string
+  customer_id: string
+  created_at: string
+  n_messages: number
+  aborted: boolean
+}
+
+function _authJson<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const key = getStoredApiKey()
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (key) headers['Authorization'] = `Bearer ${key}`
+  return fetch(`${API}${path}`, {
+    method, headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  }).then(async (r) => {
+    if (!r.ok) throw new Error(`${path} → ${r.status} ${await r.text()}`)
+    return r.json() as Promise<T>
+  })
+}
+
+export const createSession = (template_id: string, customer_id?: string) =>
+  _authJson<SessionDetail>('POST', '/api/agent-studio/sessions', { template_id, customer_id })
+
+export const fetchSession = (session_id: string) =>
+  _authJson<SessionDetail>('GET', `/api/agent-studio/sessions/${session_id}`)
+
+export const listSessions = (limit = 50) =>
+  _authJson<{ sessions: SessionListItem[]; stats: Record<string, unknown> }>(
+    'GET', `/api/agent-studio/sessions?limit=${limit}`)
+
+export const sendSessionMessage = (session_id: string, input: string) =>
+  _authJson<{
+    decision: 'allow' | 'warn' | 'block'
+    n_findings: number
+    findings: { code: string; severity: string; title: string }[]
+    agent_reply: string | null
+    input_decision: 'allow' | 'warn' | 'block'
+    input_n_findings: number
+    blocked_on?: 'input' | 'output'
+  }>('POST', `/api/agent-studio/sessions/${session_id}/messages`, { input })
 
 // ── Admin grants ─────────────────────────────────────────────────────
 
