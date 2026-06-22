@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { TestTube, Play, Loader2, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { TestTube, Play, Loader2, CheckCircle2, AlertCircle, AlertTriangle, Sparkles } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
 import { runAgentEval } from '../api'
 import type { EvalRun } from '../api'
@@ -25,6 +25,18 @@ export default function EvalHarness() {
   const [run, setRun] = useState<EvalRun | null>(null)
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [seededFrom, setSeededFrom] = useState<string | null>(null)
+
+  useEffect(() => {
+    const seed = sessionStorage.getItem('agentstudio_template_spec')
+    const id = sessionStorage.getItem('agentstudio_template_id')
+    if (seed) {
+      setText(seed)
+      setSeededFrom(id)
+      sessionStorage.removeItem('agentstudio_template_spec')
+      sessionStorage.removeItem('agentstudio_template_id')
+    }
+  }, [])
 
   const doRun = async () => {
     setRunning(true); setErr(null)
@@ -65,7 +77,14 @@ export default function EvalHarness() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-bg-card rounded-xl p-4">
-          <h2 className="text-sm font-semibold mb-2">Agent spec (JSON)</h2>
+          <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            Agent spec (JSON)
+            {seededFrom && (
+              <span className="text-[10px] font-mono text-accent-blue inline-flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> seeded from template {seededFrom}
+              </span>
+            )}
+          </h2>
           <textarea value={text} onChange={(e) => setText(e.target.value)}
                     className="w-full h-72 bg-bg-secondary border border-bg-card/60 rounded-md p-2 text-xs font-mono"
                     spellCheck={false} />

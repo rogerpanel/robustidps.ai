@@ -139,6 +139,8 @@ const AgentRedTeam = lazy(() => import('./plugins/agent_studio/pages/RedTeam'))
 const AgentRuntimeMonitor = lazy(() => import('./plugins/agent_studio/pages/RuntimeMonitor'))
 const AgentSupplyChain = lazy(() => import('./plugins/agent_studio/pages/SupplyChainScanner'))
 const AgentAccountConsole = lazy(() => import('./plugins/agent_studio/pages/AccountConsole'))
+const AgentQuickstart = lazy(() => import('./plugins/agent_studio/pages/Quickstart'))
+const AgentAdminConsole = lazy(() => import('./plugins/agent_studio/pages/AdminConsole'))
 // Assurance dossier (shared across both verticals)
 const DossierPage = lazy(() => import('./plugins/dossier/pages/Dossier'))
 import { fetchHealth } from './utils/api'
@@ -243,9 +245,11 @@ const NAV_GROUPS: NavGroup[] = [
     heading: 'Agent Studio (Build)',
     items: [
       { to: '/agent-studio', label: 'Agent Studio Portal', icon: Sparkles },
+      { to: '/agent-studio/quickstart', label: 'Quickstart Templates', icon: Sparkles },
       { to: '/agent-studio/eval', label: 'Agent Eval Harness', icon: FlaskConical },
       { to: '/agent-studio/supply-chain', label: 'Model Supply Chain', icon: Package },
       { to: '/agent-studio/account', label: 'Account & API Keys', icon: KeyRound },
+      { to: '/agent-studio/admin', label: 'Admin Console', icon: Shield },
     ],
   },
   {
@@ -844,6 +848,8 @@ export default function App() {
               <Route path="/agent-studio/runtime" element={<AgentRuntimeMonitor />} />
               <Route path="/agent-studio/supply-chain" element={<AgentSupplyChain />} />
               <Route path="/agent-studio/account" element={<AgentAccountConsole />} />
+              <Route path="/agent-studio/quickstart" element={<AgentQuickstart />} />
+              <Route path="/agent-studio/admin" element={<AgentAdminConsole />} />
               <Route path="/dossier" element={<DossierPage />} />
               <Route path="/about" element={<About />} />
             </Routes>

@@ -79,8 +79,12 @@ export default function AgentStudioPortal() {
           dossier — and every red-team engagement converts into a hardened re-build.
         </p>
         <div className="mt-5 flex flex-wrap gap-2 justify-center">
-          <Link to="/agent-scanner"
+          <Link to="/agent-studio/quickstart"
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent-blue text-white text-sm font-medium hover:bg-accent-blue/90">
+            <Sparkles className="w-4 h-4" /> Browse 13 agent templates
+          </Link>
+          <Link to="/agent-scanner"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-bg-card border border-bg-card text-sm hover:bg-bg-secondary/60">
             <FileSearch className="w-4 h-4" /> Run the free scanner
           </Link>
           <Link to="/dossier?vertical=agent_studio"

@@ -472,5 +472,280 @@ def list_models(url: str | None):
     console.print(table)
 
 
+# ── Agent Studio — wrappers over the /api/agent-studio/* endpoints ──────
+
+@main.group()
+def agent():
+    """Agent Studio operations (scan, eval, red-team, supply-chain, dossier, keys)."""
+    pass
+
+
+def _agent_base() -> str:
+    return (os.environ.get("ROBUSTIDPS_API_BASE")
+            or _load_config().get("agent_api_base")
+            or _load_config().get("url")
+            or "http://localhost:8000").rstrip("/")
+
+
+def _agent_headers() -> dict:
+    key = os.environ.get("ROBUSTIDPS_API_KEY") or _load_config().get("api_key")
+    h = {"Content-Type": "application/json"}
+    if key:
+        h["Authorization"] = f"Bearer {key}"
+    return h
+
+
+def _agent_admin_headers() -> dict:
+    tok = os.environ.get("ROBUSTIDPS_ADMIN_TOKEN") or _load_config().get("admin_token")
+    h = {"Content-Type": "application/json"}
+    if tok:
+        h["Authorization"] = f"Bearer {tok}"
+    return h
+
+
+def _agent_request(method: str, path: str, *, admin: bool = False,
+                   json_body: dict | None = None,
+                   params: dict | None = None) -> dict:
+    import httpx
+    url = _agent_base() + path
+    headers = _agent_admin_headers() if admin else _agent_headers()
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.request(method, url, headers=headers,
+                                  json=json_body, params=params)
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as e:
+        console.print(f"[red]HTTP {e.response.status_code}: {e.response.text[:300]}[/red]")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]Request failed: {e}[/red]")
+        sys.exit(1)
+
+
+@agent.command("scan")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--kind", "input_kind",
+              type=click.Choice(["mcp_manifest", "tool_list", "system_prompt", "agent_card"]),
+              default="mcp_manifest")
+def agent_scan(file: str, input_kind: str):
+    """Run the free MCP/agent scanner against a JSON/text file."""
+    text = Path(file).read_text()
+    out = _agent_request("POST", "/api/agent-studio/scanner/run",
+                         json_body={"text": text, "input_kind": input_kind})
+    sev = out.get("severity_breakdown", {})
+    n = out.get("n_findings", 0)
+    color = "red" if any(sev.get(s, 0) for s in ("critical", "high")) else "green"
+    console.print(f"[bold]Scanner findings:[/bold] [{color}]{n}[/{color}]  ({sev})")
+    for r in out.get("results", []):
+        if r.get("triggered"):
+            console.print(f"  [{r['severity']}] {r['code']} — {r['title']}")
+
+
+@agent.command("eval")
+@click.argument("file", type=click.Path(exists=True))
+def agent_eval(file: str):
+    """Run the 5-eval pre-flight harness against an agent spec JSON."""
+    spec = json.loads(Path(file).read_text())
+    out = _agent_request("POST", "/api/agent-studio/eval/run",
+                         json_body={"agent_spec": spec})
+    tone = {"pass": "green", "warn": "yellow", "fail": "red"}.get(out["overall_verdict"], "")
+    console.print(f"[bold]{out['agent_name']}[/bold]  → "
+                  f"[{tone}]{out['overall_verdict'].upper()}[/{tone}] "
+                  f"({out['overall_score']*100:.0f}%)")
+    for r in out.get("results", []):
+        rt = {"pass": "green", "warn": "yellow", "fail": "red"}.get(r["verdict"], "")
+        console.print(f"  [{rt}]{r['verdict']}[/{rt}]  {r['name']}  {r['score']*100:.0f}%  — {r['detail']}")
+
+
+@agent.command("red-team")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--garak", is_flag=True, help="Use the Garak adapter (else deterministic harness).")
+def agent_red_team(file: str, garak: bool):
+    """Fire the red-team probe suite at a target spec JSON."""
+    spec = json.loads(Path(file).read_text())
+    path = "/api/agent-studio/red-team/garak" if garak else "/api/agent-studio/red-team/run"
+    out = _agent_request("POST", path, json_body={"target_spec": spec})
+    sev = out.get("severity_breakdown", {})
+    n = out.get("n_findings", 0)
+    chain = " → ".join(out.get("atlas_chain", [])) or "(none)"
+    color = "red" if sev.get("critical") or sev.get("high") else "green"
+    console.print(f"[bold]Findings:[/bold] [{color}]{n}[/{color}]  {sev}")
+    console.print(f"[bold]ATLAS chain:[/bold] {chain}")
+    for r in out.get("results", []):
+        if r.get("triggered"):
+            console.print(f"  [{r['severity']}] {r['code']} ({r['owasp_agentic']}/{r['atlas_tactic']}) — {r['name']}")
+
+
+@agent.command("supply-chain")
+@click.argument("model_id")
+@click.option("--spec", "spec_file", type=click.Path(exists=True),
+              help="Optional JSON file with licence/files/dependencies.")
+@click.option("--live", is_flag=True, help="Enrich with live HuggingFace Hub metadata.")
+def agent_supply_chain(model_id: str, spec_file: str | None, live: bool):
+    """Scan a model's supply chain (licence + CVEs + format risks + SBOM)."""
+    spec = json.loads(Path(spec_file).read_text()) if spec_file else {}
+    path = "/api/agent-studio/supply-chain/scan-live" if live else "/api/agent-studio/supply-chain/scan"
+    out = _agent_request("POST", path, json_body={"model_id": model_id, "spec": spec})
+    tone = {"safe": "green", "low": "green", "medium": "yellow",
+            "high": "red", "critical": "red"}.get(out.get("risk_level", ""), "")
+    console.print(f"[bold]{model_id}[/bold]  → "
+                  f"[{tone}]{out['risk_level'].upper()}[/{tone}] "
+                  f"({out['risk_score']*100:.0f}%)")
+    console.print(f"  licence={out['licence']} · {len(out.get('cve_matches', []))} CVE(s) · "
+                  f"{len(out.get('format_risks', []))} format risk(s)")
+    for r in (out.get("rationale") or [])[:10]:
+        console.print(f"  · {r}")
+
+
+@agent.command("dossier")
+@click.option("--vertical", default="agent_studio")
+@click.option("--output", "-o", default=None, help="Write JSON to file (else stdout).")
+def agent_dossier(vertical: str, output: str | None):
+    """Fetch the assurance dossier JSON for a vertical."""
+    out = _agent_request("GET", f"/api/dossier/{vertical}", params={"format": "json"})
+    text = json.dumps(out, indent=2)
+    if output:
+        Path(output).write_text(text)
+        console.print(f"[green]Dossier written to {output}[/green]")
+    else:
+        console.print(text)
+
+
+@agent.command("templates")
+@click.option("--tier", default=None,
+              type=click.Choice(["A", "B", "C", "blank"]))
+def agent_templates(tier: str | None):
+    """List the Quickstart agent templates."""
+    out = _agent_request("GET", "/api/agent-studio/templates",
+                         params={"tier": tier} if tier else None)
+    tbl = Table(title=f"Templates ({len(out['templates'])})")
+    tbl.add_column("id", style="cyan")
+    tbl.add_column("tier")
+    tbl.add_column("category")
+    tbl.add_column("summary")
+    for t in out["templates"]:
+        tbl.add_row(t["id"], t["tier"], t["category"], t["summary"])
+    console.print(tbl)
+
+
+@agent.command("template")
+@click.argument("template_id")
+@click.option("--spec-only", is_flag=True, help="Print just the spec block (forkable JSON).")
+def agent_template_show(template_id: str, spec_only: bool):
+    """Print a template (full record, or --spec-only for the agent JSON)."""
+    out = _agent_request("GET", f"/api/agent-studio/templates/{template_id}")
+    console.print(json.dumps(out["spec"] if spec_only else out, indent=2))
+
+
+# ── Agent Studio · API-key management ─────────────────────────────────
+
+@agent.group()
+def key():
+    """Issue / revoke API keys for a customer (self-service)."""
+    pass
+
+
+@key.command("issue")
+@click.option("--customer", "customer_id", required=True)
+@click.option("--label", default="cli-token")
+def key_issue(customer_id: str, label: str):
+    """Issue a new API key (returns the plaintext ONCE)."""
+    out = _agent_request("POST", "/api/agent-studio/api-keys/issue",
+                         json_body={"customer_id": customer_id, "label": label})
+    console.print(f"[green]Issued:[/green] {out['key_id']}  ({label})")
+    console.print(f"[bold yellow]Save this now — shown ONCE:[/bold yellow]\n  {out['api_key']}")
+
+
+@key.command("revoke")
+@click.option("--customer", "customer_id", required=True)
+@click.option("--key-id", required=True)
+def key_revoke(customer_id: str, key_id: str):
+    """Revoke an API key by id."""
+    out = _agent_request("POST", "/api/agent-studio/api-keys/revoke",
+                         json_body={"customer_id": customer_id, "key_id": key_id})
+    console.print(f"[green]{out}[/green]" if out.get("ok") else f"[red]{out}[/red]")
+
+
+@agent.command("whoami")
+@click.option("--customer", "customer_id", required=True)
+def agent_whoami(customer_id: str):
+    """Show customer record (requires self key OR admin token)."""
+    out = _agent_request("GET", f"/api/agent-studio/customers/{customer_id}")
+    console.print_json(json.dumps(out, indent=2))
+
+
+# ── Agent Studio · admin grants (side-channel licensing) ──────────────
+
+@agent.group()
+def admin():
+    """Admin-only ops (requires ROBUSTIDPS_ADMIN_TOKEN)."""
+    pass
+
+
+@admin.command("grant")
+@click.option("--email", required=True)
+@click.option("--tier", default="pro", type=click.Choice(["pro", "enterprise"]))
+@click.option("--months", default=12, type=int, help="0 = perpetual / comp.")
+@click.option("--rail", "payment_rail", default="comp",
+              type=click.Choice(["wire", "crypto", "yoomoney", "qiwi", "sbp",
+                                 "bank_card_offshore", "comp", "sponsorship", "other"]))
+@click.option("--note", default="")
+@click.option("--granted-by", default="admin")
+def admin_grant(email: str, tier: str, months: int,
+                payment_rail: str, note: str, granted_by: str):
+    """Issue a licence without Stripe (Russia/Crimea/wire/crypto)."""
+    out = _agent_request("POST", "/api/agent-studio/admin/grants", admin=True,
+                         json_body={
+                             "email": email, "tier": tier, "months": months,
+                             "payment_rail": payment_rail, "note": note,
+                             "granted_by": granted_by,
+                         })
+    console.print(f"[green]Granted[/green] {out['grant_id']}  customer={out['customer_id']}  tier={tier}  rail={payment_rail}")
+    console.print(f"[bold yellow]API key (shown ONCE):[/bold yellow]\n  {out['api_key']}")
+    if out.get("expires_at"):
+        console.print(f"  expires: {out['expires_at']}")
+
+
+@admin.command("list")
+@click.option("--include-revoked/--active-only", default=True)
+def admin_list(include_revoked: bool):
+    """List all admin-issued grants."""
+    out = _agent_request("GET", "/api/agent-studio/admin/grants", admin=True,
+                         params={"include_revoked": include_revoked})
+    stats = out.get("stats", {})
+    console.print(f"[bold]{stats.get('n_active', 0)} active[/bold] · "
+                  f"{stats.get('n_revoked', 0)} revoked · "
+                  f"by rail: {stats.get('by_payment_rail', {})}")
+    tbl = Table(title=f"Grants ({len(out['grants'])})")
+    for col in ("grant_id", "email", "tier", "rail", "months", "granted_at", "expires", "revoked"):
+        tbl.add_column(col)
+    for g in out["grants"]:
+        tbl.add_row(
+            g["grant_id"], g["email"], g["tier"], g["payment_rail"],
+            str(g["months"]), g["granted_at"][:10],
+            g.get("expires_at") or "—",
+            "yes" if g.get("revoked_at") else "no",
+        )
+    console.print(tbl)
+
+
+@admin.command("revoke")
+@click.argument("grant_id")
+def admin_revoke(grant_id: str):
+    """Revoke a grant (and all of its keys)."""
+    out = _agent_request("POST", f"/api/agent-studio/admin/grants/{grant_id}/revoke",
+                         admin=True)
+    tone = "green" if out.get("ok") else "red"
+    console.print(f"[{tone}]{out}[/{tone}]")
+
+
+@admin.command("whoami")
+def admin_whoami_cmd():
+    """Verify the admin token is recognised."""
+    out = _agent_request("GET", "/api/agent-studio/admin/whoami", admin=True)
+    console.print(f"[green]Admin: {out}[/green]")
+
+
 if __name__ == "__main__":
     main()

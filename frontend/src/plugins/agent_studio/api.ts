@@ -212,3 +212,108 @@ export const issueApiKey = (customer_id: string, label: string) =>
 export const revokeApiKey = (customer_id: string, key_id: string) =>
   postJson<{ ok: boolean; key_id?: string; revoked?: boolean; error?: string }>(
     '/api/agent-studio/api-keys/revoke', { customer_id, key_id })
+
+// ── Quickstart templates ─────────────────────────────────────────────
+
+export interface AgentTemplate {
+  id: string
+  name: string
+  tier: 'A' | 'B' | 'C' | 'blank'
+  category: string
+  summary: string
+  use_case: string
+  frameworks: string[]
+  spec: Record<string, unknown>
+  recommended_skus: string[]
+  notes: string
+}
+export interface TemplateStats {
+  n_templates: number
+  by_tier: Record<string, number>
+  by_category: Record<string, number>
+}
+
+export const listTemplates = (tier?: 'A' | 'B' | 'C' | 'blank') =>
+  getJson<{ templates: AgentTemplate[]; stats: TemplateStats }>(
+    `/api/agent-studio/templates${tier ? `?tier=${tier}` : ''}`)
+
+export const fetchTemplate = (id: string) =>
+  getJson<AgentTemplate>(`/api/agent-studio/templates/${id}`)
+
+// ── Admin grants ─────────────────────────────────────────────────────
+
+const ADMIN_TOKEN_KEY = 'robustidps_admin_token'
+export const getStoredAdminToken = () =>
+  typeof localStorage !== 'undefined' ? localStorage.getItem(ADMIN_TOKEN_KEY) : null
+export const setStoredAdminToken = (t: string | null) => {
+  if (typeof localStorage === 'undefined') return
+  if (t) localStorage.setItem(ADMIN_TOKEN_KEY, t)
+  else localStorage.removeItem(ADMIN_TOKEN_KEY)
+}
+
+async function adminRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const token = getStoredAdminToken()
+  if (!token) throw new Error('Admin token not set')
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) throw new Error(`${path} → ${res.status} ${await res.text()}`)
+  return res.json()
+}
+
+export interface AdminGrant {
+  grant_id: string
+  customer_id: string
+  email: string
+  tier: string
+  months: number
+  payment_rail: string
+  granted_at: string
+  granted_by: string
+  expires_at: string | null
+  note: string
+  revoked_at: string | null
+}
+export interface AdminGrantStats {
+  n_total: number; n_active: number; n_revoked: number
+  by_payment_rail: Record<string, number>
+  by_tier: Record<string, number>
+}
+
+export const adminWhoami = () =>
+  adminRequest<{ role: string; ok: boolean }>('GET', '/api/agent-studio/admin/whoami')
+
+export const adminCreateGrant = (body: {
+  email: string; tier: 'pro' | 'enterprise'; months: number
+  payment_rail: string; note?: string; granted_by?: string
+}) =>
+  adminRequest<{
+    grant_id: string; customer_id: string; email: string
+    tier: string; api_key: string; key_id: string
+    expires_at: string | null; welcome_message: string
+  }>('POST', '/api/agent-studio/admin/grants', body)
+
+export const adminListGrants = (include_revoked = true) =>
+  adminRequest<{ grants: AdminGrant[]; stats: AdminGrantStats }>(
+    'GET', `/api/agent-studio/admin/grants?include_revoked=${include_revoked}`)
+
+export const adminRevokeGrant = (grant_id: string) =>
+  adminRequest<{ ok: boolean; grant_id?: string; revoked_at?: string; error?: string }>(
+    'POST', `/api/agent-studio/admin/grants/${grant_id}/revoke`)
+
+export const adminListCustomers = () =>
+  adminRequest<{ customers: Customer[] }>('GET', '/api/agent-studio/customers')
+
+const API_KEY_STORAGE = 'robustidps_api_key'
+export const getStoredApiKey = () =>
+  typeof localStorage !== 'undefined' ? localStorage.getItem(API_KEY_STORAGE) : null
+export const setStoredApiKey = (k: string | null) => {
+  if (typeof localStorage === 'undefined') return
+  if (k) localStorage.setItem(API_KEY_STORAGE, k)
+  else localStorage.removeItem(API_KEY_STORAGE)
+}

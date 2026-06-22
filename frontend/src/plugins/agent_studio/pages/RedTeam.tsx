@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Swords, Play, Loader2, AlertCircle, CheckCircle2, Target, Zap } from 'lucide-react'
+import { Swords, Play, Loader2, AlertCircle, CheckCircle2, Target, Zap, Sparkles } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
 import {
   runAgentRedTeam, runAgentRedTeamGarak, fetchRedTeamCatalog, fetchGarakInfo,
@@ -40,12 +40,21 @@ export default function RedTeam() {
   const [garakRunner, setGarakRunner] = useState<string | null>(null)
   const [garakHint, setGarakHint] = useState<string | null>(null)
   const [lastRunner, setLastRunner] = useState<Runner | null>(null)
+  const [seededFrom, setSeededFrom] = useState<string | null>(null)
 
   useEffect(() => {
     fetchRedTeamCatalog().then((c) => setCatalogSize(c.n_probes)).catch(() => {})
     fetchGarakInfo()
       .then((g) => { setGarakRunner(g.runner); setGarakHint(g.hint || null) })
       .catch(() => {})
+    const seed = sessionStorage.getItem('agentstudio_template_spec')
+    const id = sessionStorage.getItem('agentstudio_template_id')
+    if (seed) {
+      setText(seed)
+      setSeededFrom(id)
+      sessionStorage.removeItem('agentstudio_template_spec')
+      sessionStorage.removeItem('agentstudio_template_id')
+    }
   }, [])
 
   const doRun = async (which: Runner = 'deterministic') => {
@@ -99,7 +108,14 @@ export default function RedTeam() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-bg-card rounded-xl p-4">
-          <h2 className="text-sm font-semibold mb-2">Target spec (JSON)</h2>
+          <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            Target spec (JSON)
+            {seededFrom && (
+              <span className="text-[10px] font-mono text-accent-blue inline-flex items-center gap-1">
+                <Sparkles className="w-3 h-3" /> seeded from template {seededFrom}
+              </span>
+            )}
+          </h2>
           <textarea value={text} onChange={(e) => setText(e.target.value)}
                     className="w-full h-72 bg-bg-secondary border border-bg-card/60 rounded-md p-2 text-xs font-mono"
                     spellCheck={false} />

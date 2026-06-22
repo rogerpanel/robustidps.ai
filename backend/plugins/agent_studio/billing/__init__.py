@@ -13,10 +13,14 @@ from plugins.agent_studio.billing.checkout import (
     create_checkout_session, complete_checkout,
     issue_api_key, revoke_api_key, get_customer, list_customers,
 )
+from plugins.agent_studio.billing.admin_grants import (
+    grant_license, revoke_grant, list_grants, grant_stats,
+)
 
 __all__ = [
     "handle_event", "parse_event",
     "create_checkout_session", "complete_checkout",
     "issue_api_key", "revoke_api_key",
     "get_customer", "list_customers",
+    "grant_license", "revoke_grant", "list_grants", "grant_stats",
 ]

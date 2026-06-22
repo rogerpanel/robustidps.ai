@@ -10,9 +10,10 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Literal
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from plugins.agent_studio.auth import require_api_key, require_admin
 from plugins.agent_studio.billing import handle_event as _billing_handle, parse_event as _billing_parse
 from plugins.agent_studio.entitlement import public_catalog as _tier_catalog
 from plugins.agent_studio.scanner import run_scan, SCANNER_CHECKS
@@ -101,7 +102,7 @@ class EvalRunRequest(BaseModel):
 
 
 @router.post("/eval/run")
-async def eval_run(req: EvalRunRequest) -> dict:
+async def eval_run(req: EvalRunRequest, customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.eval_harness import run_eval
     run = run_eval(req.agent_spec)
@@ -127,7 +128,7 @@ class RedTeamRunRequest(BaseModel):
 
 
 @router.post("/red-team/run")
-async def red_team_run(req: RedTeamRunRequest) -> dict:
+async def red_team_run(req: RedTeamRunRequest, customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.red_team import run_red_team
     run = run_red_team(req.target_spec)
@@ -164,7 +165,7 @@ class RuntimeIngestRequest(BaseModel):
 
 
 @router.post("/runtime/ingest")
-async def runtime_ingest(req: RuntimeIngestRequest) -> dict:
+async def runtime_ingest(req: RuntimeIngestRequest, customer: dict = Depends(require_api_key)) -> dict:
     from plugins.agent_studio.runtime_monitor import ingest
     return ingest(req.agent_id, req.framework, req.decision,
                   req.finding_codes, req.latency_ms)
@@ -199,7 +200,8 @@ class SupplyChainScanRequest(BaseModel):
 
 
 @router.post("/supply-chain/scan")
-async def supply_chain_scan(req: SupplyChainScanRequest) -> dict:
+async def supply_chain_scan(req: SupplyChainScanRequest,
+                            customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.supply_chain import scan_model
     return _asdict(scan_model(req.model_id, req.spec))
@@ -214,7 +216,8 @@ async def supply_chain_history(limit: int = 20) -> dict:
 # ── Proposal 1 — pluggable deep backends ──────────────────────────────
 
 @router.post("/red-team/garak")
-async def red_team_garak_run(req: RedTeamRunRequest) -> dict:
+async def red_team_garak_run(req: RedTeamRunRequest,
+                             customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.red_team_garak import run_garak
     run = run_garak(req.target_spec)
@@ -244,14 +247,16 @@ class OTelSpanRequest(BaseModel):
 
 
 @router.post("/runtime/otel/spans")
-async def runtime_otel_span(req: OTelSpanRequest) -> dict:
+async def runtime_otel_span(req: OTelSpanRequest,
+                            customer: dict = Depends(require_api_key)) -> dict:
     """Ingest a single trimmed GenAI span."""
     from plugins.agent_studio.runtime_otel import receive_span
     return receive_span(req.dict())
 
 
 @router.post("/runtime/otel/traces")
-async def runtime_otel_traces(request: Request) -> dict:
+async def runtime_otel_traces(request: Request,
+                              customer: dict = Depends(require_api_key)) -> dict:
     """Ingest a full OTLP/JSON traces envelope."""
     from plugins.agent_studio.runtime_otel import receive_otlp_json
     body = await request.json()
@@ -265,7 +270,8 @@ async def runtime_otel_info() -> dict:
 
 
 @router.post("/supply-chain/scan-live")
-async def supply_chain_scan_live(req: SupplyChainScanRequest) -> dict:
+async def supply_chain_scan_live(req: SupplyChainScanRequest,
+                                 customer: dict = Depends(require_api_key)) -> dict:
     """Like /supply-chain/scan but enriches the spec with live
     HuggingFace Hub metadata first (when reachable)."""
     from dataclasses import asdict as _asdict
@@ -317,7 +323,9 @@ async def billing_checkout_complete(req: CheckoutCompleteRequest) -> dict:
 
 
 @router.get("/customers/{customer_id}")
-async def customer_detail(customer_id: str) -> dict:
+async def customer_detail(customer_id: str, request: Request) -> dict:
+    from plugins.agent_studio.auth import require_self_or_admin
+    require_self_or_admin(customer_id, request)
     from plugins.agent_studio.billing import get_customer
     data = get_customer(customer_id)
     if data is None:
@@ -331,7 +339,9 @@ class ApiKeyRequest(BaseModel):
 
 
 @router.post("/api-keys/issue")
-async def api_key_issue(req: ApiKeyRequest) -> dict:
+async def api_key_issue(req: ApiKeyRequest, request: Request) -> dict:
+    from plugins.agent_studio.auth import require_self_or_admin
+    require_self_or_admin(req.customer_id, request)
     from plugins.agent_studio.billing import issue_api_key, get_customer
     try:
         key = issue_api_key(req.customer_id, req.label)
@@ -348,12 +358,80 @@ class ApiKeyRevokeRequest(BaseModel):
 
 
 @router.post("/api-keys/revoke")
-async def api_key_revoke(req: ApiKeyRevokeRequest) -> dict:
+async def api_key_revoke(req: ApiKeyRevokeRequest, request: Request) -> dict:
+    from plugins.agent_studio.auth import require_self_or_admin
+    require_self_or_admin(req.customer_id, request)
     from plugins.agent_studio.billing import revoke_api_key
     return revoke_api_key(req.customer_id, req.key_id)
 
 
 @router.get("/customers")
-async def customers_list() -> dict:
+async def customers_list(admin: dict = Depends(require_admin)) -> dict:
+    """Admin-only — surface every customer for audit / support."""
     from plugins.agent_studio.billing import list_customers
     return {"customers": list_customers()}
+
+
+# ── Admin grants — side-channel access (Russia / Crimea / wire / crypto) ──
+
+class AdminGrantRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=256)
+    tier: Literal["pro", "enterprise"] = "pro"
+    months: int = Field(12, ge=0, le=120)
+    payment_rail: Literal[
+        "wire", "crypto", "yoomoney", "qiwi", "sbp",
+        "bank_card_offshore", "comp", "sponsorship", "other",
+    ] = "comp"
+    note: str = Field("", max_length=512)
+    granted_by: str = Field("admin", max_length=64)
+
+
+@router.post("/admin/grants")
+async def admin_grant_create(req: AdminGrantRequest,
+                             admin: dict = Depends(require_admin)) -> dict:
+    """Issue a licence without touching Stripe. Plaintext API key returned ONCE."""
+    from plugins.agent_studio.billing import grant_license
+    return grant_license(
+        email=req.email, tier=req.tier, months=req.months,
+        payment_rail=req.payment_rail, note=req.note,
+        granted_by=req.granted_by,
+    )
+
+
+@router.get("/admin/grants")
+async def admin_grant_list(include_revoked: bool = True,
+                           admin: dict = Depends(require_admin)) -> dict:
+    from plugins.agent_studio.billing import list_grants, grant_stats
+    return {"grants": list_grants(include_revoked), "stats": grant_stats()}
+
+
+@router.post("/admin/grants/{grant_id}/revoke")
+async def admin_grant_revoke(grant_id: str,
+                             admin: dict = Depends(require_admin)) -> dict:
+    from plugins.agent_studio.billing import revoke_grant
+    return revoke_grant(grant_id, revoked_by=admin.get("role", "admin"))
+
+
+@router.get("/admin/whoami")
+async def admin_whoami(admin: dict = Depends(require_admin)) -> dict:
+    """Cheap probe so the Admin Console can verify the token without
+    committing to a destructive operation."""
+    return {"role": admin["role"], "ok": True}
+
+
+# ── Quickstart templates — agent archetypes a user can fork ───────────
+
+@router.get("/templates")
+async def templates_list(tier: str | None = None) -> dict:
+    """List Quickstart agent templates. Filter by tier=A|B|C|blank."""
+    from plugins.agent_studio.templates import list_templates, template_stats
+    return {"templates": list_templates(tier), "stats": template_stats()}
+
+
+@router.get("/templates/{template_id}")
+async def template_detail(template_id: str) -> dict:
+    from plugins.agent_studio.templates import get_template
+    data = get_template(template_id)
+    if data is None:
+        raise HTTPException(404, f"Unknown template: {template_id}")
+    return data

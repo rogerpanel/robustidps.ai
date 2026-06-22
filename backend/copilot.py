@@ -470,6 +470,31 @@ TOOLS = [
             "required": ["customer_id"],
         },
     },
+    {
+        "name": "list_agent_studio_templates",
+        "description": "List the Quickstart agent templates (13 archetypes: 6 defenders / 3 attackers / 3 productivity / 1 blank). Optionally filter by tier (A, B, C, blank).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "tier": {"type": "string", "enum": ["A", "B", "C", "blank"]},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_agent_studio_template",
+        "description": "Fetch a single agent template by id (e.g. 'soc_triage', 'red_team_operator', 'billing_copilot'). Returns the full agent spec a developer can fork.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"template_id": {"type": "string"}},
+            "required": ["template_id"],
+        },
+    },
+    {
+        "name": "get_agent_studio_admin_stats",
+        "description": "Read-only stats on admin-issued licences: total / active / revoked grants, breakdown by payment_rail (wire/crypto/yoomoney/qiwi/sbp/comp/...) and tier. Doesn't expose customer details — use list_customers (admin-gated) for that.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -1384,6 +1409,25 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
             if data is None:
                 return json.dumps({"error": "Customer not found", "customer_id": args["customer_id"]})
             return json.dumps(data)
+
+        elif name == "list_agent_studio_templates":
+            from plugins.agent_studio.templates import list_templates, template_stats
+            tier = args.get("tier")
+            return json.dumps({
+                "templates": list_templates(tier),
+                "stats": template_stats(),
+            })
+
+        elif name == "get_agent_studio_template":
+            from plugins.agent_studio.templates import get_template
+            data = get_template(args["template_id"])
+            if data is None:
+                return json.dumps({"error": "Unknown template", "template_id": args["template_id"]})
+            return json.dumps(data)
+
+        elif name == "get_agent_studio_admin_stats":
+            from plugins.agent_studio.billing import grant_stats
+            return json.dumps(grant_stats())
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

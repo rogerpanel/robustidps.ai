@@ -36,6 +36,10 @@ egress to `robustidps.ai`.
 
 ## 1. Sign up
 
+Two paths — pick the one that fits your region and billing setup.
+
+### 1a. Stripe self-serve (most regions)
+
 1. Open https://robustidps.ai/agent-studio in a browser.
 2. Enter your work email at the top of the **SaaS tiers** card.
 3. Click **Subscribe to Pro** (or **Enterprise**).
@@ -45,6 +49,31 @@ egress to `robustidps.ai`.
    no card is charged.
 5. On the success URL (`/agent-studio/account?session_id=cs_…`), confirm
    your email and tier, then click **Activate & issue API key**.
+
+### 1b. Admin-issued grant (Russia / Crimea / wire / crypto / sponsorship)
+
+For customers in regions where Stripe doesn't operate — or who prefer
+to pay by bank wire, YooMoney, QIWI, SBP, crypto, or arrange a
+sponsorship — RobustIDPS issues licences out-of-band:
+
+1. Pay through your preferred channel (we accept wire, YooMoney, QIWI,
+   SBP, USDT, BTC, sponsored / academic, comp).
+2. Send proof-of-payment (or sponsorship justification) to
+   `licensing@robustidps.ai`.
+3. The admin issues a grant via `/agent-studio/admin` →
+   `/api/agent-studio/admin/grants`. You receive your `customer_id` +
+   plaintext API key over the same channel you paid.
+4. The grant lifecycle (months / expiry / revocation) is identical to
+   the Stripe path; nothing else in the SDK or platform changes.
+
+Admin-issuance is also available from the CLI:
+
+```bash
+ROBUSTIDPS_ADMIN_TOKEN=… robustidps agent admin grant \
+  --email customer@example.ru \
+  --tier pro --months 12 \
+  --rail yoomoney --note "YooMoney tx 2026-06-22 RUB 30000"
+```
 
 > **One-time secret.** The plaintext API key (`rids_live_…`) is shown
 > exactly once. Copy it now — the server only stores the SHA-256 hash
@@ -60,6 +89,30 @@ time (`/agent-studio/account?customer_id=cust_…`).
 ---
 
 ## 2. Build the agent
+
+### 2a. Start from a Quickstart template (recommended)
+
+13 archetypes are pre-built. Open
+https://robustidps.ai/agent-studio/quickstart, filter by tier, click
+**Inspect** to see the agent spec, then **Send to Eval** / **Send to
+Red-team** to push it through the existing pipes — or **Copy spec** to
+fork the JSON locally.
+
+```bash
+robustidps agent templates --tier A          # list defenders
+robustidps agent template soc_triage --spec-only > my_agent.json
+```
+
+The 13 templates:
+
+| Tier | Templates |
+|---|---|
+| A · Defenders | SOC Triage, Incident Commander, Compliance Auditor, Vuln Triage, MCP Auditor, Threat Hunter |
+| B · Attackers | Red-Team Operator, Pentest Recon, Phishing Trainer |
+| C · Productivity (secure) | Customer Support, Billing Copilot, Docs Q&A |
+| Blank | Empty starter spec |
+
+### 2b. Wrap your agent
 
 Pick your framework — the AegisAgents Kit wraps eleven of them with the
 same `guard()` surface:
