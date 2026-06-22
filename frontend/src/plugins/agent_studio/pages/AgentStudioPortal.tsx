@@ -5,7 +5,9 @@ import {
   CheckCircle2, Lock, Sparkles, Loader2,
 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
-import { createCheckout } from '../api'
+import { createCheckout, fetchActivity, getStoredApiKey } from '../api'
+import type { ActivityRollup } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 interface SKU { id: string; name: string; price_usd: string; duration: string; summary: string }
 interface TierDetail {
@@ -22,9 +24,10 @@ export default function AgentStudioPortal() {
   const [skus, setSkus] = useState<SKU[]>([])
   const [tiers, setTiers] = useState<TierDetail[]>([])
   const [err, setErr] = useState<string | null>(null)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useAgentStudioState<string>('portal', 'email', '')
   const [pending, setPending] = useState<'pro' | 'enterprise' | null>(null)
   const [stagingNote, setStagingNote] = useState<string | null>(null)
+  const [activity, setActivity] = useAgentStudioState<ActivityRollup | null>('portal', 'activity', null)
 
   useEffect(() => {
     Promise.all([
@@ -33,6 +36,11 @@ export default function AgentStudioPortal() {
     ])
       .then(([s, t]) => { setSkus(s.skus || []); setTiers(t.tiers || []) })
       .catch((e) => setErr(String(e)))
+
+    if (getStoredApiKey()) {
+      fetchActivity(3).then(setActivity).catch(() => { /* unauthed → leave blank */ })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const subscribe = async (tier: 'pro' | 'enterprise') => {
@@ -111,6 +119,64 @@ export default function AgentStudioPortal() {
         ]}
         tip="Print theme + Cmd-P of this page = a paper-ready commercial one-pager. Useful for investor / customer hand-offs."
       />
+
+      {activity && (
+        <section className="bg-bg-card rounded-xl p-5">
+          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-accent-green" /> Pick up where you left off
+            <button onClick={() => fetchActivity(3).then(setActivity).catch(() => {})}
+                    className="ml-auto text-[10px] font-mono text-text-secondary hover:text-accent-blue">
+              refresh
+            </button>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <ActivityCol title="Evals" link="/agent-studio/eval" empty="no eval runs yet">
+              {activity.eval_runs.slice(0, 3).map((r) => (
+                <div key={r.run_id} className="font-mono text-[11px] truncate">
+                  <span className={
+                    r.overall_verdict === 'pass' ? 'text-accent-green' :
+                    r.overall_verdict === 'warn' ? 'text-accent-amber' : 'text-accent-red'
+                  }>● </span>
+                  {r.agent_name} <span className="text-text-secondary">({(r.overall_score*100).toFixed(0)}%)</span>
+                </div>
+              ))}
+            </ActivityCol>
+            <ActivityCol title="Red-team" link="/agent-studio/red-team" empty="no red-team runs yet">
+              {activity.red_team_runs.slice(0, 3).map((r) => (
+                <div key={r.run_id} className="font-mono text-[11px] truncate">
+                  <span className={r.n_findings > 0 ? 'text-accent-red' : 'text-accent-green'}>● </span>
+                  {r.target_name} <span className="text-text-secondary">({r.n_findings} findings)</span>
+                </div>
+              ))}
+            </ActivityCol>
+            <ActivityCol title="Supply chain" link="/agent-studio/supply-chain" empty="no scans yet">
+              {activity.supply_chain_scans.slice(0, 3).map((s) => (
+                <div key={s.scan_id} className="font-mono text-[11px] truncate">
+                  <span className={
+                    s.risk_level === 'safe' || s.risk_level === 'low' ? 'text-accent-green' :
+                    s.risk_level === 'medium' ? 'text-accent-amber' : 'text-accent-red'
+                  }>● </span>
+                  {s.model_id} <span className="text-text-secondary">({s.risk_level})</span>
+                </div>
+              ))}
+            </ActivityCol>
+            <ActivityCol title="Sessions" link="/agent-studio/quickstart" empty="no test sessions yet">
+              {activity.sessions.slice(0, 3).map((s) => (
+                <Link key={s.session_id} to={`/agent-studio/build/${s.template_id}`}
+                      className="font-mono text-[11px] truncate hover:text-accent-blue block">
+                  <span className={s.aborted ? 'text-accent-red' : 'text-accent-blue'}>● </span>
+                  {s.template_id} <span className="text-text-secondary">({s.n_messages} msgs)</span>
+                </Link>
+              ))}
+            </ActivityCol>
+          </div>
+          <p className="mt-2 text-[10px] text-text-secondary">
+            The SOC Copilot can probe these directly — try
+            <code className="mx-1">"show me my last red-team run"</code> or
+            <code className="mx-1">"summarise agent-studio activity"</code>.
+          </p>
+        </section>
+      )}
 
       <section className="bg-bg-card rounded-xl p-5">
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -206,6 +272,25 @@ export default function AgentStudioPortal() {
           webhook receiver is deployed at <span className="font-mono">/api/agent-studio/billing/webhook</span>.
         </p>
       </section>
+    </div>
+  )
+}
+
+function ActivityCol({ title, link, empty, children }: {
+  title: string; link: string; empty: string; children: React.ReactNode
+}) {
+  const arr = Array.isArray(children) ? children : [children]
+  const isEmpty = arr.filter(Boolean).length === 0
+  return (
+    <div className="bg-bg-secondary/40 border border-bg-card/40 rounded-md p-2">
+      <Link to={link} className="text-[10px] font-mono uppercase text-text-secondary hover:text-accent-blue">
+        {title} →
+      </Link>
+      <div className="mt-1 space-y-0.5">
+        {isEmpty ? (
+          <div className="text-[10px] text-text-secondary italic">{empty}</div>
+        ) : children}
+      </div>
     </div>
   )
 }

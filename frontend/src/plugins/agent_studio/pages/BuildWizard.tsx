@@ -13,42 +13,56 @@ import {
 import type {
   AgentTemplate, SessionDetail, IntegrationSnippet,
 } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 type Step = 1 | 2 | 3 | 4
 
 export default function BuildWizard() {
   const { templateId = 'blank' } = useParams()
+  const ns = `build:${templateId}`
   const [tpl, setTpl] = useState<AgentTemplate | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [step, setStep] = useState<Step>(1)
+  const [step, setStep] = useAgentStudioState<Step>(ns, 'step', 1)
 
   // Step 1
-  const [specJson, setSpecJson] = useState('')
+  const [specJson, setSpecJson] = useAgentStudioState<string>(ns, 'specJson', '')
 
   // Step 2
-  const [envJson, setEnvJson] = useState('')
+  const [envJson, setEnvJson] = useAgentStudioState<string>(ns, 'envJson', '')
 
   // Step 3
   const [apiKey, setApiKey] = useState(getStoredApiKey() || '')
+  const [sessionId, setSessionId] = useAgentStudioState<string | null>(ns, 'sessionId', null)
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [creating, setCreating] = useState(false)
-  const [chatInput, setChatInput] = useState('')
+  const [chatInput, setChatInput] = useAgentStudioState<string>(ns, 'chatInput', '')
   const [sending, setSending] = useState(false)
   const [chatErr, setChatErr] = useState<string | null>(null)
 
   // Step 4
-  const [snippetIdx, setSnippetIdx] = useState(0)
+  const [snippetIdx, setSnippetIdx] = useAgentStudioState<number>(ns, 'snippetIdx', 0)
 
   useEffect(() => {
     fetchTemplate(templateId)
       .then((t) => {
         setTpl(t)
-        setSpecJson(JSON.stringify(t.spec, null, 2))
-        setEnvJson(JSON.stringify(t.environment, null, 2))
-        setChatInput(t.test_inputs?.[0] || 'ping')
+        // Only seed from the template if the user hasn't edited yet
+        if (!specJson) setSpecJson(JSON.stringify(t.spec, null, 2))
+        if (!envJson) setEnvJson(JSON.stringify(t.environment, null, 2))
+        if (!chatInput) setChatInput(t.test_inputs?.[0] || 'ping')
       })
       .catch((e) => setErr(String(e)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId])
+
+  // Restore prior session detail if we have a session_id stored
+  useEffect(() => {
+    if (!sessionId || session) return
+    fetchSession(sessionId)
+      .then((s) => setSession(s))
+      .catch(() => setSessionId(null))   // session expired / not ours
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
 
   const stepDone: Record<Step, boolean> = useMemo(() => ({
     1: Boolean(specJson && tryParse(specJson)),
@@ -64,10 +78,16 @@ export default function BuildWizard() {
     try {
       const s = await createSession(templateId)
       setSession(s)
+      setSessionId(s.session_id)
       setStep(3)
     } catch (e) {
       setChatErr(String(e))
     } finally { setCreating(false) }
+  }
+
+  const resetSession = () => {
+    setSession(null)
+    setSessionId(null)
   }
 
   const send = async () => {
@@ -286,12 +306,18 @@ export default function BuildWizard() {
 
           {session && (
             <div className="bg-bg-card rounded-xl p-4 space-y-3">
-              <div className="text-[10px] font-mono text-text-secondary">
-                session_id: <span className="text-text-primary">{session.session_id}</span> ·
-                template: {session.template_id} · {session.history.length} messages
+              <div className="text-[10px] font-mono text-text-secondary flex items-center gap-2">
+                <span>
+                  session_id: <span className="text-text-primary">{session.session_id}</span> ·
+                  template: {session.template_id} · {session.history.length} messages
+                </span>
                 {session.aborted && (
-                  <span className="ml-2 text-accent-red">ABORTED (system prompt blocked)</span>
+                  <span className="text-accent-red">ABORTED (system prompt blocked)</span>
                 )}
+                <button onClick={resetSession}
+                        className="ml-auto px-2 py-0.5 rounded bg-bg-secondary border border-bg-card/40 hover:border-accent-red/40 text-[10px]">
+                  Reset (start new)
+                </button>
               </div>
 
               <div className="border border-bg-card/40 rounded-md p-2 max-h-96 overflow-y-auto space-y-1.5">

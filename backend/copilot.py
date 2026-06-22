@@ -509,6 +509,54 @@ TOOLS = [
         "description": "Aggregate stats on Agent Studio test sessions: total, aborted, breakdown by template_id. Useful for surfacing which templates customers gravitate toward.",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "get_agent_studio_eval_history",
+        "description": "Read recent Eval Harness runs (most recent first). Each entry has run_id, agent_name, overall_score, overall_verdict (pass/warn/fail), and per-eval results. Use this to follow up on 'what did my last eval find?' without re-running.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "default": 10}},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_agent_studio_red_team_history",
+        "description": "Read recent Red-Team runs (deterministic + Garak adapter). Each entry has run_id, target_name, severity_breakdown, atlas_chain, n_findings. Use to triage what's already been probed before re-running.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "default": 10}},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_agent_studio_supply_chain_history",
+        "description": "Read recent Model Supply-Chain scans. Each entry has scan_id, model_id, risk_level, risk_score, CVE matches, and CycloneDX-AI SBOM fragment. Use to follow up on 'what risk did we score Llama-3.1?' without re-fetching.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "default": 10}},
+            "required": [],
+        },
+    },
+    {
+        "name": "list_agent_studio_sessions",
+        "description": "List recent test sessions across templates. Each entry has session_id, template_id, n_messages, aborted flag. Pair with get_agent_studio_session(session_id) for the full transcript + per-message Aegis verdicts.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "default": 50},
+                "customer_id": {"type": "string", "description": "Optional filter."},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_agent_studio_activity",
+        "description": "ONE-SHOT activity rollup across every Agent Studio surface: recent eval runs, red-team runs, supply-chain scans, sessions, runtime snapshot, billing/admin stats. Use this when the user asks 'what's my latest activity?' or 'follow up on what we did last' — saves N separate tool calls.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "default": 5}},
+            "required": [],
+        },
+    },
 ]
 
 
@@ -1453,6 +1501,43 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_agent_studio_session_stats":
             from plugins.agent_studio.sessions import stats as _session_stats
             return json.dumps(_session_stats())
+
+        elif name == "get_agent_studio_eval_history":
+            from plugins.agent_studio.eval_harness import history as _eval_hist
+            return json.dumps({"runs": _eval_hist(int(args.get("limit", 10)))})
+
+        elif name == "get_agent_studio_red_team_history":
+            from plugins.agent_studio.red_team import history as _rt_hist
+            return json.dumps({"runs": _rt_hist(int(args.get("limit", 10)))})
+
+        elif name == "get_agent_studio_supply_chain_history":
+            from plugins.agent_studio.supply_chain import history as _sc_hist
+            return json.dumps({"scans": _sc_hist(int(args.get("limit", 10)))})
+
+        elif name == "list_agent_studio_sessions":
+            from plugins.agent_studio.sessions import list_sessions
+            return json.dumps({
+                "sessions": list_sessions(args.get("customer_id"),
+                                          int(args.get("limit", 50))),
+            })
+
+        elif name == "get_agent_studio_activity":
+            from plugins.agent_studio.eval_harness import history as _eh
+            from plugins.agent_studio.red_team import history as _rth
+            from plugins.agent_studio.supply_chain import history as _sch
+            from plugins.agent_studio.sessions import list_sessions, stats as _sst
+            from plugins.agent_studio.runtime_monitor import snapshot as _rts
+            from plugins.agent_studio.billing import grant_stats
+            lim = int(args.get("limit", 5))
+            return json.dumps({
+                "eval_runs":           _eh(lim),
+                "red_team_runs":       _rth(lim),
+                "supply_chain_scans":  _sch(lim),
+                "sessions":            list_sessions(None, lim),
+                "session_stats":       _sst(),
+                "runtime_snapshot":    _rts(),
+                "billing_admin_stats": grant_stats(),
+            })
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

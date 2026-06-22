@@ -6,6 +6,7 @@ import {
 import PageGuide from '../../../components/PageGuide'
 import { runAgentScan, fetchSKUCatalog } from '../api'
 import type { ScanReport, InputKind, Severity, SKU } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 const SAMPLE_MCP = `{
   "name": "filesystem-server",
@@ -44,9 +45,9 @@ const INPUT_KINDS: { id: InputKind; label: string }[] = [
 ]
 
 export default function AgentScanner() {
-  const [text, setText] = useState(SAMPLE_MCP)
-  const [kind, setKind] = useState<InputKind>('mcp_manifest')
-  const [report, setReport] = useState<ScanReport | null>(null)
+  const [text, setText] = useAgentStudioState<string>('scanner', 'input', SAMPLE_MCP)
+  const [kind, setKind] = useAgentStudioState<InputKind>('scanner', 'kind', 'mcp_manifest')
+  const [report, setReport] = useAgentStudioState<ScanReport | null>('scanner', 'lastReport', null)
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [skus, setSkus] = useState<SKU[]>([])

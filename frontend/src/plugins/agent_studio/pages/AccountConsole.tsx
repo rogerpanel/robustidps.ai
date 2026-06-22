@@ -9,6 +9,7 @@ import {
   completeCheckout, fetchCustomer, issueApiKey, revokeApiKey,
 } from '../api'
 import type { Customer, CheckoutCompleteResult } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 /**
  * Stripe success URL target for the Agent Studio commerce sprint.
@@ -21,27 +22,31 @@ export default function AccountConsole() {
   const sessionId = params.get('session_id')
   const presetCustomer = params.get('customer_id')
 
-  const [email, setEmail] = useState('')
-  const [tier, setTier] = useState<'pro' | 'enterprise'>('pro')
-  const [customer, setCustomer] = useState<Customer | null>(null)
+  const [email, setEmail] = useAgentStudioState<string>('account', 'email', '')
+  const [tier, setTier] = useAgentStudioState<'pro' | 'enterprise'>('account', 'tier', 'pro')
+  const [customer, setCustomer] = useAgentStudioState<Customer | null>('account', 'customer', null)
   const [welcome, setWelcome] = useState<CheckoutCompleteResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [newKeyLabel, setNewKeyLabel] = useState('ci-token')
+  const [newKeyLabel, setNewKeyLabel] = useAgentStudioState<string>('account', 'keyLabel', 'ci-token')
   const [newKey, setNewKey] = useState<{ key_id: string; api_key: string } | null>(null)
+  const [lastCustomerId, setLastCustomerId] = useAgentStudioState<string | null>('account', 'lastCustomerId', null)
 
   const reload = async (cid?: string) => {
     if (!cid) return
     try {
       const c = await fetchCustomer(cid)
       setCustomer(c)
+      setLastCustomerId(c.customer_id)
     } catch (e) {
       setErr(String(e))
     }
   }
 
   useEffect(() => {
-    if (presetCustomer) reload(presetCustomer)
+    const cid = presetCustomer || lastCustomerId
+    if (cid) reload(cid)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetCustomer])
 
   const fulfill = async () => {

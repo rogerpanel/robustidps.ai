@@ -318,6 +318,29 @@ export const sendSessionMessage = (session_id: string, input: string) =>
     blocked_on?: 'input' | 'output'
   }>('POST', `/api/agent-studio/sessions/${session_id}/messages`, { input })
 
+// ── Activity rollup (drives the portal's "recent" panel + Copilot) ──
+
+export interface ActivityRollup {
+  customer_id: string | null
+  eval_runs: { run_id: string; agent_name: string;
+               overall_verdict: 'pass' | 'warn' | 'fail';
+               overall_score: number; timestamp: string }[]
+  red_team_runs: { run_id: string; target_name: string;
+                   n_findings: number; timestamp: string;
+                   severity_breakdown: Record<string, number>;
+                   atlas_chain: string[] }[]
+  supply_chain_scans: { scan_id: string; model_id: string;
+                        risk_level: string; risk_score: number;
+                        timestamp: string }[]
+  sessions: SessionListItem[]
+  session_stats: Record<string, unknown>
+  runtime_snapshot: Record<string, unknown>
+  billing_admin_stats: Record<string, unknown>
+}
+
+export const fetchActivity = (limit = 5) =>
+  _authJson<ActivityRollup>('GET', `/api/agent-studio/activity?limit=${limit}`)
+
 // ── Admin grants ─────────────────────────────────────────────────────
 
 const ADMIN_TOKEN_KEY = 'robustidps_admin_token'

@@ -421,6 +421,44 @@ finding. Together they prevent regressions from reaching production.
 
 ---
 
+## 9.5 Pick up where you left off
+
+Every Agent Studio surface persists its state — the textarea you were
+editing in **Eval Harness**, the target spec you were probing in
+**Red-Team**, the filter you set on **Quickstart**, the step you'd
+reached in the 4-stage **BuildWizard**, the session you'd opened — all
+of it survives a hard reload and is keyed per browser.
+
+For the cross-surface view, the **Agent Studio Portal** ("Pick up
+where you left off" panel) and the **SOC Copilot** both call the same
+rollup endpoint:
+
+```bash
+curl -sf https://robustidps.ai/api/agent-studio/activity?limit=5 \
+  -H "Authorization: Bearer $ROBUSTIDPS_API_KEY" \
+  | python3 -m json.tool
+```
+
+In the SOC Copilot chat, try:
+
+- `"summarise my agent studio activity"`
+- `"show me my last red-team run"`
+- `"what risk did we score on Llama-3.1?"`
+- `"list test sessions for the soc_triage template"`
+
+The Copilot has direct tools for `get_agent_studio_activity`,
+`get_agent_studio_eval_history`, `get_agent_studio_red_team_history`,
+`get_agent_studio_supply_chain_history`, `list_agent_studio_sessions`,
+and `get_agent_studio_session` — it will pick the right one and follow
+up with deeper probes (e.g. fetch the full transcript of a flagged
+session, or pull the SBOM of a high-risk model scan).
+
+CLI equivalent:
+
+```bash
+robustidps agent activity --limit 5
+```
+
 ## 10. End-to-end checklist
 
 - [ ] Subscribed at `/agent-studio` and received an API key

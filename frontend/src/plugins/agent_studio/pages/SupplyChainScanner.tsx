@@ -5,6 +5,7 @@ import {
 import PageGuide from '../../../components/PageGuide'
 import { scanModel, scanModelLive, fetchHfInfo } from '../api'
 import type { ModelScan } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 const SAMPLE_MODEL = 'meta-llama/Llama-3.1-8B-Instruct'
 const SAMPLE_SPEC = `{
@@ -29,10 +30,10 @@ const RISK_TONE: Record<string, string> = {
 type Mode = 'static' | 'live'
 
 export default function SupplyChainScanner() {
-  const [modelId, setModelId] = useState(SAMPLE_MODEL)
-  const [specText, setSpecText] = useState(SAMPLE_SPEC)
-  const [result, setResult] = useState<ModelScan | null>(null)
-  const [hfUsed, setHfUsed] = useState<boolean | null>(null)
+  const [modelId, setModelId] = useAgentStudioState<string>('supply', 'modelId', SAMPLE_MODEL)
+  const [specText, setSpecText] = useAgentStudioState<string>('supply', 'spec', SAMPLE_SPEC)
+  const [result, setResult] = useAgentStudioState<ModelScan | null>('supply', 'lastResult', null)
+  const [hfUsed, setHfUsed] = useAgentStudioState<boolean | null>('supply', 'hfUsed', null)
   const [running, setRunning] = useState<Mode | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [hfInfo, setHfInfo] = useState<{ has_token: boolean; base_url: string } | null>(null)

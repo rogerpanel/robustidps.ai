@@ -9,6 +9,7 @@ import {
   adminListCustomers, getStoredAdminToken, setStoredAdminToken,
 } from '../api'
 import type { AdminGrant, AdminGrantStats, Customer } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 const PAYMENT_RAILS: { id: string; label: string }[] = [
   { id: 'wire', label: 'Bank wire (SWIFT / SEPA)' },
@@ -28,19 +29,19 @@ export default function AdminConsole() {
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  // Grants
-  const [grants, setGrants] = useState<AdminGrant[]>([])
-  const [stats, setStats] = useState<AdminGrantStats | null>(null)
-  const [includeRevoked, setIncludeRevoked] = useState(true)
-  const [customers, setCustomers] = useState<Customer[]>([])
+  // Grants (cached for instant re-render on return; refresh reloads them)
+  const [grants, setGrants] = useAgentStudioState<AdminGrant[]>('admin', 'grants', [])
+  const [stats, setStats] = useAgentStudioState<AdminGrantStats | null>('admin', 'stats', null)
+  const [includeRevoked, setIncludeRevoked] = useAgentStudioState<boolean>('admin', 'includeRevoked', true)
+  const [customers, setCustomers] = useAgentStudioState<Customer[]>('admin', 'customers', [])
 
-  // New-grant form
-  const [email, setEmail] = useState('')
-  const [tier, setTier] = useState<'pro' | 'enterprise'>('pro')
-  const [months, setMonths] = useState(12)
-  const [rail, setRail] = useState('comp')
-  const [note, setNote] = useState('')
-  const [grantedBy, setGrantedBy] = useState('admin')
+  // New-grant form draft — persisted so accidental nav doesn't lose work
+  const [email, setEmail] = useAgentStudioState<string>('admin', 'grantEmail', '')
+  const [tier, setTier] = useAgentStudioState<'pro' | 'enterprise'>('admin', 'grantTier', 'pro')
+  const [months, setMonths] = useAgentStudioState<number>('admin', 'grantMonths', 12)
+  const [rail, setRail] = useAgentStudioState<string>('admin', 'grantRail', 'comp')
+  const [note, setNote] = useAgentStudioState<string>('admin', 'grantNote', '')
+  const [grantedBy, setGrantedBy] = useAgentStudioState<string>('admin', 'grantedBy', 'admin')
   const [issued, setIssued] = useState<{
     grant_id: string; customer_id: string; api_key: string
     email: string; tier: string; expires_at: string | null

@@ -488,3 +488,32 @@ async def session_post_message(session_id: str, req: SessionMessageRequest,
         return post_message(session_id, req.input)
     except KeyError as e:
         raise HTTPException(404, str(e))
+
+
+# ── Activity rollup — one-shot pull for the SOC Copilot / dossier ─────
+
+@router.get("/activity")
+async def activity_rollup(limit: int = 10,
+                          customer: dict = Depends(require_api_key)) -> dict:
+    """Recent artefacts across every Agent Studio surface, gated to the
+    calling customer (when present). Drives the Copilot's
+    'follow-up-on-last-activity' prompt and the dossier's evidence pack.
+    """
+    from plugins.agent_studio.eval_harness import history as _eval_hist
+    from plugins.agent_studio.red_team import history as _rt_hist
+    from plugins.agent_studio.supply_chain import history as _sc_hist
+    from plugins.agent_studio.sessions import list_sessions, stats as _sess_stats
+    from plugins.agent_studio.runtime_monitor import snapshot as _rt_snap
+    from plugins.agent_studio.billing import grant_stats
+
+    cid = customer.get("customer_id")
+    return {
+        "customer_id": cid,
+        "eval_runs":          _eval_hist(limit),
+        "red_team_runs":      _rt_hist(limit),
+        "supply_chain_scans": _sc_hist(limit),
+        "sessions":           list_sessions(cid, limit),
+        "session_stats":      _sess_stats(),
+        "runtime_snapshot":   _rt_snap(),
+        "billing_admin_stats": grant_stats(),
+    }

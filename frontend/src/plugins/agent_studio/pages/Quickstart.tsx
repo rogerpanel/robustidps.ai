@@ -7,6 +7,7 @@ import {
 import PageGuide from '../../../components/PageGuide'
 import { listTemplates } from '../api'
 import type { AgentTemplate, TemplateStats } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 const TIER_META: Record<string, { label: string; tone: string; icon: typeof Shield }> = {
   A:     { label: 'Security defenders',    tone: 'bg-accent-green/10 text-accent-green border-accent-green/30',   icon: Shield },
@@ -18,8 +19,9 @@ const TIER_META: Record<string, { label: string; tone: string; icon: typeof Shie
 export default function Quickstart() {
   const [templates, setTemplates] = useState<AgentTemplate[]>([])
   const [stats, setStats] = useState<TemplateStats | null>(null)
-  const [tierFilter, setTierFilter] = useState<'all' | 'A' | 'B' | 'C' | 'blank'>('all')
-  const [search, setSearch] = useState('')
+  const [tierFilter, setTierFilter] = useAgentStudioState<'all' | 'A' | 'B' | 'C' | 'blank'>(
+    'quickstart', 'tier', 'all')
+  const [search, setSearch] = useAgentStudioState<string>('quickstart', 'search', '')
   const [err, setErr] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const navigate = useNavigate()

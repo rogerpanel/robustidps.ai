@@ -5,6 +5,7 @@ import {
   runAgentRedTeam, runAgentRedTeamGarak, fetchRedTeamCatalog, fetchGarakInfo,
 } from '../api'
 import type { RedTeamRun, Severity } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 const SAMPLE_TARGET = `{
   "name": "ops-copilot",
@@ -32,15 +33,15 @@ const SEVERITY_ORDER: Severity[] = ['critical', 'high', 'medium', 'low', 'info']
 type Runner = 'deterministic' | 'garak'
 
 export default function RedTeam() {
-  const [text, setText] = useState(SAMPLE_TARGET)
-  const [run, setRun] = useState<RedTeamRun | null>(null)
+  const [text, setText] = useAgentStudioState<string>('redteam', 'targetSpec', SAMPLE_TARGET)
+  const [run, setRun] = useAgentStudioState<RedTeamRun | null>('redteam', 'lastRun', null)
   const [running, setRunning] = useState<Runner | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [catalogSize, setCatalogSize] = useState(0)
   const [garakRunner, setGarakRunner] = useState<string | null>(null)
   const [garakHint, setGarakHint] = useState<string | null>(null)
-  const [lastRunner, setLastRunner] = useState<Runner | null>(null)
-  const [seededFrom, setSeededFrom] = useState<string | null>(null)
+  const [lastRunner, setLastRunner] = useAgentStudioState<Runner | null>('redteam', 'lastRunner', null)
+  const [seededFrom, setSeededFrom] = useAgentStudioState<string | null>('redteam', 'seededFrom', null)
 
   useEffect(() => {
     fetchRedTeamCatalog().then((c) => setCatalogSize(c.n_probes)).catch(() => {})

@@ -803,6 +803,31 @@ def session_show(session_id: str):
         console.print(f"  [{tone}]{m['role']}[/{tone}]  {m['ts']}  ({m['decision']})  {m['text']}")
 
 
+@agent.command("activity")
+@click.option("--limit", default=5, type=int, help="How many entries per surface.")
+def agent_activity(limit: int):
+    """One-shot rollup across eval / red-team / supply-chain / sessions."""
+    out = _agent_request("GET", "/api/agent-studio/activity",
+                         params={"limit": limit})
+    console.print(f"[bold]Recent activity (limit={limit})[/bold]")
+    for surface, key in [
+        ("Evals",        "eval_runs"),
+        ("Red-team",     "red_team_runs"),
+        ("Supply chain", "supply_chain_scans"),
+        ("Sessions",     "sessions"),
+    ]:
+        items = out.get(key) or []
+        console.print(f"\n[cyan]{surface}[/cyan] ({len(items)})")
+        for it in items:
+            label = (it.get("run_id") or it.get("scan_id")
+                     or it.get("session_id") or "?")
+            name = (it.get("agent_name") or it.get("target_name")
+                    or it.get("model_id") or it.get("template_id") or "")
+            verdict = (it.get("overall_verdict") or it.get("risk_level")
+                       or ("aborted" if it.get("aborted") else "ok"))
+            console.print(f"  · {label}  {name}  [{verdict}]")
+
+
 @session.command("list")
 @click.option("--limit", default=50, type=int)
 def session_list(limit: int):

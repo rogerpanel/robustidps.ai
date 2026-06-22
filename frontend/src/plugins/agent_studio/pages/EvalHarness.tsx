@@ -3,6 +3,7 @@ import { TestTube, Play, Loader2, CheckCircle2, AlertCircle, AlertTriangle, Spar
 import PageGuide from '../../../components/PageGuide'
 import { runAgentEval } from '../api'
 import type { EvalRun } from '../api'
+import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 const SAMPLE_SPEC = `{
   "name": "billing-rag",
@@ -21,11 +22,11 @@ const VERDICT_TONE: Record<string, string> = {
 }
 
 export default function EvalHarness() {
-  const [text, setText] = useState(SAMPLE_SPEC)
-  const [run, setRun] = useState<EvalRun | null>(null)
+  const [text, setText] = useAgentStudioState<string>('eval', 'spec', SAMPLE_SPEC)
+  const [run, setRun] = useAgentStudioState<EvalRun | null>('eval', 'lastRun', null)
   const [running, setRunning] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [seededFrom, setSeededFrom] = useState<string | null>(null)
+  const [seededFrom, setSeededFrom] = useAgentStudioState<string | null>('eval', 'seededFrom', null)
 
   useEffect(() => {
     const seed = sessionStorage.getItem('agentstudio_template_spec')
