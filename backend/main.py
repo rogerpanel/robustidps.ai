@@ -325,6 +325,14 @@ async def startup():
             cleaned = cleanup_expired_sessions(db)
             if cleaned:
                 logger.info("Cleaned %d expired sessions", cleaned)
+            # One-shot Agent Studio JSON → DB migration (idempotent).
+            try:
+                from plugins.agent_studio.db_models import migrate_json_to_db
+                counts = migrate_json_to_db(db)
+                if any(counts.values()):
+                    logger.info("Agent Studio JSON→DB migration: %s", counts)
+            except Exception:
+                logger.exception("Agent Studio JSON→DB migration failed (non-fatal)")
         finally:
             db.close()
         logger.info("Database initialised")

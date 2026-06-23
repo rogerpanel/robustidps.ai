@@ -1,31 +1,22 @@
-"""Admin-issued licences — the side-channel access path.
+"""Admin-issued licences — DB-backed (Sprint 4 migration).
 
 For users who can't (or won't) pay via Stripe: regions where Stripe
-doesn't operate (Russia, Crimea, Iran, …), bank-wire customers, crypto
-payers, comp accounts, sponsorships.
+doesn't operate, bank-wire customers, crypto payers, comp accounts.
 
-The admin holds `ROBUSTIDPS_ADMIN_TOKEN` and POSTs to
-`/api/agent-studio/admin/grants`. Each grant creates a Customer record
-+ issues an initial API key — exactly the same shape Stripe Checkout
-produces, so downstream code (entitlement, runtime, dossier) sees no
-difference.
-
-The `payment_rail` field records *how* the user paid, for audit only:
-
-    wire | crypto | yoomoney | qiwi | sbp | bank_card_offshore |
-    comp | sponsorship | other
+Each grant creates a Customer row + an initial API key in the same
+transaction. payment_rail records *how* the user paid, audit only.
 """
 from __future__ import annotations
 
-import json
+import datetime
 import secrets
-import time
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Literal
 
-from plugins.agent_studio.billing.checkout import (
-    Customer, _CUSTOMERS, _persist, issue_api_key,
+from sqlalchemy.orm import Session
+
+from plugins.agent_studio.billing.checkout import issue_api_key, _iso_dt, _iso_date
+from plugins.agent_studio.db_models import (
+    AgentStudioCustomer, AgentStudioAdminGrant, AgentStudioApiKey,
 )
 
 Tier = Literal["pro", "enterprise"]
@@ -34,49 +25,9 @@ PaymentRail = Literal[
     "bank_card_offshore", "comp", "sponsorship", "other",
 ]
 
-GRANT_LOG_PATH = Path("weights/agent_studio_admin_grants.json")
-
-
-@dataclass
-class AdminGrant:
-    grant_id: str
-    customer_id: str
-    email: str
-    tier: str
-    months: int            # billing-cycle equivalent (0 = perpetual / comp)
-    payment_rail: str
-    granted_at: str
-    granted_by: str
-    expires_at: str | None
-    note: str = ""
-    revoked_at: str | None = None
-
-
-_GRANTS: list[AdminGrant] = []
-
-
-def _load_grants() -> None:
-    if not GRANT_LOG_PATH.exists():
-        return
-    try:
-        records = json.loads(GRANT_LOG_PATH.read_text())
-    except json.JSONDecodeError:
-        return
-    for r in records:
-        _GRANTS.append(AdminGrant(**r))
-
-
-def _persist_grants() -> None:
-    GRANT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    GRANT_LOG_PATH.write_text(json.dumps(
-        [g.__dict__ for g in _GRANTS], indent=2,
-    ))
-
-
-_load_grants()
-
 
 def grant_license(
+    db: Session,
     email: str,
     tier: Tier = "pro",
     months: int = 12,
@@ -84,58 +35,39 @@ def grant_license(
     note: str = "",
     granted_by: str = "admin",
 ) -> dict:
-    """Create a customer + initial API key without touching Stripe."""
     customer_id = f"cust_{secrets.token_urlsafe(10)}"
-    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    expires_at = (
-        None if months <= 0
-        else time.strftime("%Y-%m-%d", time.gmtime(time.time() + months * 30 * 86400))
-    )
-    trial_ends = (
-        None if months <= 0
-        else time.strftime("%Y-%m-%d", time.gmtime(time.time() + months * 30 * 86400))
-    )
+    now = datetime.datetime.utcnow()
+    expires_at = (None if months <= 0
+                  else (now + datetime.timedelta(days=months * 30)).strftime("%Y-%m-%d"))
+    trial_ends = expires_at
 
-    customer = Customer(
-        customer_id=customer_id,
-        email=email,
-        tier=tier,
-        created_at=now,
-        trial_ends_at=trial_ends,
-        stripe_customer_id=None,
-        stripe_subscription_id=None,
-        api_keys=[],
+    customer = AgentStudioCustomer(
+        customer_id=customer_id, email=email, tier=tier,
+        created_at=now, trial_ends_at=trial_ends,
     )
-    api_key = issue_api_key(customer_id, label="admin-grant-initial", _customer=customer)
-    _CUSTOMERS[customer_id] = customer
-    _persist()
+    db.add(customer)
+    db.flush()
 
-    grant = AdminGrant(
+    api_key = issue_api_key(db, customer_id, label="admin-grant-initial")
+    key_row = db.query(AgentStudioApiKey).filter_by(
+        customer_id=customer_id).order_by(AgentStudioApiKey.created_at.desc()).first()
+
+    grant = AgentStudioAdminGrant(
         grant_id=f"grnt_{secrets.token_urlsafe(8)}",
-        customer_id=customer_id,
-        email=email,
-        tier=tier,
-        months=months,
-        payment_rail=payment_rail,
-        granted_at=now,
-        granted_by=granted_by,
-        expires_at=expires_at,
-        note=note,
-        revoked_at=None,
+        customer_id=customer_id, email=email, tier=tier,
+        months=months, payment_rail=payment_rail,
+        granted_at=now, granted_by=granted_by,
+        expires_at=expires_at, note=note,
     )
-    _GRANTS.append(grant)
-    _persist_grants()
+    db.add(grant)
+    db.commit()
 
     return {
-        "grant_id": grant.grant_id,
-        "customer_id": customer_id,
-        "email": email,
-        "tier": tier,
-        "months": months,
-        "payment_rail": payment_rail,
-        "expires_at": expires_at,
-        "api_key": api_key,    # plaintext shown ONCE
-        "key_id": customer.api_keys[-1]["id"],
+        "grant_id": grant.grant_id, "customer_id": customer_id,
+        "email": email, "tier": tier, "months": months,
+        "payment_rail": payment_rail, "expires_at": expires_at,
+        "api_key": api_key,
+        "key_id": key_row.id if key_row else None,
         "note": note,
         "welcome_message": (
             f"Granted {tier.title()} access to {email} via {payment_rail} "
@@ -145,44 +77,56 @@ def grant_license(
     }
 
 
-def revoke_grant(grant_id: str, revoked_by: str = "admin") -> dict:
-    """Revoke a grant and all of its issued API keys."""
-    grant = next((g for g in _GRANTS if g.grant_id == grant_id), None)
+def revoke_grant(db: Session, grant_id: str, revoked_by: str = "admin") -> dict:
+    grant = db.get(AgentStudioAdminGrant, grant_id)
     if grant is None:
         return {"ok": False, "error": "unknown grant_id"}
     if grant.revoked_at:
-        return {"ok": False, "error": "already revoked", "revoked_at": grant.revoked_at}
+        return {"ok": False, "error": "already revoked",
+                "revoked_at": _iso_dt(grant.revoked_at)}
 
-    customer = _CUSTOMERS.get(grant.customer_id)
-    if customer is not None:
-        for k in customer.api_keys:
-            k["revoked"] = True
-        _persist()
+    # Revoke every key for the customer too
+    for key in db.query(AgentStudioApiKey).filter_by(customer_id=grant.customer_id).all():
+        key.revoked = True
 
-    grant.revoked_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    _persist_grants()
+    grant.revoked_at = datetime.datetime.utcnow()
+    db.commit()
     return {
         "ok": True, "grant_id": grant_id, "customer_id": grant.customer_id,
-        "revoked_at": grant.revoked_at, "revoked_by": revoked_by,
+        "revoked_at": _iso_dt(grant.revoked_at), "revoked_by": revoked_by,
     }
 
 
-def list_grants(include_revoked: bool = True) -> list[dict]:
-    items = _GRANTS if include_revoked else [g for g in _GRANTS if not g.revoked_at]
-    return [g.__dict__ for g in items]
+def list_grants(db: Session, include_revoked: bool = True) -> list[dict]:
+    q = db.query(AgentStudioAdminGrant)
+    if not include_revoked:
+        q = q.filter(AgentStudioAdminGrant.revoked_at.is_(None))
+    return [_serialize(g) for g in q.order_by(AgentStudioAdminGrant.granted_at.desc()).all()]
 
 
-def grant_stats() -> dict:
-    active = [g for g in _GRANTS if not g.revoked_at]
+def grant_stats(db: Session) -> dict:
+    grants = db.query(AgentStudioAdminGrant).all()
+    active = [g for g in grants if g.revoked_at is None]
     by_rail: dict[str, int] = {}
     by_tier: dict[str, int] = {}
     for g in active:
         by_rail[g.payment_rail] = by_rail.get(g.payment_rail, 0) + 1
         by_tier[g.tier] = by_tier.get(g.tier, 0) + 1
     return {
-        "n_total": len(_GRANTS),
-        "n_active": len(active),
-        "n_revoked": len(_GRANTS) - len(active),
-        "by_payment_rail": by_rail,
-        "by_tier": by_tier,
+        "n_total": len(grants), "n_active": len(active),
+        "n_revoked": len(grants) - len(active),
+        "by_payment_rail": by_rail, "by_tier": by_tier,
+    }
+
+
+def _serialize(g: AgentStudioAdminGrant) -> dict:
+    return {
+        "grant_id": g.grant_id, "customer_id": g.customer_id,
+        "email": g.email, "tier": g.tier, "months": g.months,
+        "payment_rail": g.payment_rail,
+        "granted_at": _iso_dt(g.granted_at),
+        "granted_by": g.granted_by,
+        "expires_at": g.expires_at,
+        "note": g.note or "",
+        "revoked_at": _iso_dt(g.revoked_at),
     }

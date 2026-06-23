@@ -13,7 +13,9 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
+from database import get_db
 from plugins.agent_studio.auth import require_api_key, require_admin
 from plugins.agent_studio.billing import handle_event as _billing_handle, parse_event as _billing_parse
 from plugins.agent_studio.entitlement import public_catalog as _tier_catalog
@@ -347,19 +349,21 @@ async def billing_checkout(request: Request, req: CheckoutRequest) -> dict:
 
 
 @router.post("/billing/checkout/complete")
-async def billing_checkout_complete(req: CheckoutCompleteRequest) -> dict:
+async def billing_checkout_complete(req: CheckoutCompleteRequest,
+                                    db: Session = Depends(get_db)) -> dict:
     """Post-checkout fulfilment: creates the customer record + issues
     the initial API key. Called by the success-URL handler."""
     from plugins.agent_studio.billing import complete_checkout
-    return complete_checkout(req.session_id, req.email, req.tier)
+    return complete_checkout(db, req.session_id, req.email, req.tier)
 
 
 @router.get("/customers/{customer_id}")
-async def customer_detail(customer_id: str, request: Request) -> dict:
+async def customer_detail(customer_id: str, request: Request,
+                          db: Session = Depends(get_db)) -> dict:
     from plugins.agent_studio.auth import require_self_or_admin
-    require_self_or_admin(customer_id, request)
+    require_self_or_admin(customer_id, request, db)
     from plugins.agent_studio.billing import get_customer
-    data = get_customer(customer_id)
+    data = get_customer(db, customer_id)
     if data is None:
         raise HTTPException(404, "Customer not found")
     return data
@@ -371,15 +375,16 @@ class ApiKeyRequest(BaseModel):
 
 
 @router.post("/api-keys/issue")
-async def api_key_issue(req: ApiKeyRequest, request: Request) -> dict:
+async def api_key_issue(req: ApiKeyRequest, request: Request,
+                        db: Session = Depends(get_db)) -> dict:
     from plugins.agent_studio.auth import require_self_or_admin
-    require_self_or_admin(req.customer_id, request)
+    require_self_or_admin(req.customer_id, request, db)
     from plugins.agent_studio.billing import issue_api_key, get_customer
     try:
-        key = issue_api_key(req.customer_id, req.label)
+        key = issue_api_key(db, req.customer_id, req.label)
     except KeyError as e:
         raise HTTPException(404, str(e))
-    customer = get_customer(req.customer_id)
+    customer = get_customer(db, req.customer_id)
     return {"api_key": key, "key_id": customer["api_keys"][-1]["id"],
             "label": req.label, "customer_id": req.customer_id}
 
@@ -390,18 +395,20 @@ class ApiKeyRevokeRequest(BaseModel):
 
 
 @router.post("/api-keys/revoke")
-async def api_key_revoke(req: ApiKeyRevokeRequest, request: Request) -> dict:
+async def api_key_revoke(req: ApiKeyRevokeRequest, request: Request,
+                         db: Session = Depends(get_db)) -> dict:
     from plugins.agent_studio.auth import require_self_or_admin
-    require_self_or_admin(req.customer_id, request)
+    require_self_or_admin(req.customer_id, request, db)
     from plugins.agent_studio.billing import revoke_api_key
-    return revoke_api_key(req.customer_id, req.key_id)
+    return revoke_api_key(db, req.customer_id, req.key_id)
 
 
 @router.get("/customers")
-async def customers_list(admin: dict = Depends(require_admin)) -> dict:
+async def customers_list(admin: dict = Depends(require_admin),
+                         db: Session = Depends(get_db)) -> dict:
     """Admin-only — surface every customer for audit / support."""
     from plugins.agent_studio.billing import list_customers
-    return {"customers": list_customers()}
+    return {"customers": list_customers(db)}
 
 
 # ── Admin grants — side-channel access (Russia / Crimea / wire / crypto) ──
@@ -421,11 +428,12 @@ class AdminGrantRequest(BaseModel):
 @router.post("/admin/grants")
 @limiter.limit(RATE_ADMIN)
 async def admin_grant_create(request: Request, req: AdminGrantRequest,
-                             admin: dict = Depends(require_admin)) -> dict:
+                             admin: dict = Depends(require_admin),
+                             db: Session = Depends(get_db)) -> dict:
     """Issue a licence without touching Stripe. Plaintext API key returned ONCE."""
     from plugins.agent_studio.billing import grant_license
     return grant_license(
-        email=req.email, tier=req.tier, months=req.months,
+        db, email=req.email, tier=req.tier, months=req.months,
         payment_rail=req.payment_rail, note=req.note,
         granted_by=req.granted_by,
     )
@@ -433,16 +441,18 @@ async def admin_grant_create(request: Request, req: AdminGrantRequest,
 
 @router.get("/admin/grants")
 async def admin_grant_list(include_revoked: bool = True,
-                           admin: dict = Depends(require_admin)) -> dict:
+                           admin: dict = Depends(require_admin),
+                           db: Session = Depends(get_db)) -> dict:
     from plugins.agent_studio.billing import list_grants, grant_stats
-    return {"grants": list_grants(include_revoked), "stats": grant_stats()}
+    return {"grants": list_grants(db, include_revoked), "stats": grant_stats(db)}
 
 
 @router.post("/admin/grants/{grant_id}/revoke")
 async def admin_grant_revoke(grant_id: str,
-                             admin: dict = Depends(require_admin)) -> dict:
+                             admin: dict = Depends(require_admin),
+                             db: Session = Depends(get_db)) -> dict:
     from plugins.agent_studio.billing import revoke_grant
-    return revoke_grant(grant_id, revoked_by=admin.get("role", "admin"))
+    return revoke_grant(db, grant_id, revoked_by=admin.get("role", "admin"))
 
 
 @router.get("/admin/whoami")
@@ -553,16 +563,16 @@ class DeploymentRegisterRequest(BaseModel):
 @router.post("/deployments")
 @limiter.limit(RATE_BILLING)
 async def deployments_register(request: Request, req: DeploymentRegisterRequest,
-                               customer: dict = Depends(require_api_key)) -> dict:
+                               customer: dict = Depends(require_api_key),
+                               db: Session = Depends(get_db)) -> dict:
     """Register a new deployment for the calling customer. The
     runtime_agent_id should match the agent_id used by the deployed
     instance's MambaGuardClient — that's the cross-ref the dashboard
     uses to pull live telemetry."""
     from plugins.agent_studio.deployments import register
     return register(
-        customer_id=customer.get("customer_id", "anon"),
-        template_id=req.template_id,
-        name=req.name,
+        db, customer_id=customer.get("customer_id", "anon"),
+        template_id=req.template_id, name=req.name,
         runtime_agent_id=req.runtime_agent_id,
         cloud=req.cloud, region=req.region, tier=req.tier,
         url=req.url, git_sha=req.git_sha,
@@ -572,22 +582,24 @@ async def deployments_register(request: Request, req: DeploymentRegisterRequest,
 
 @router.get("/deployments")
 async def deployments_list(include_retired: bool = False,
-                           customer: dict = Depends(require_api_key)) -> dict:
+                           customer: dict = Depends(require_api_key),
+                           db: Session = Depends(get_db)) -> dict:
     """List the calling customer's deployments enriched with live
-    runtime telemetry + status (healthy / degraded / stale / retired)."""
+    runtime telemetry + status (healthy / degraded / stale / retired).
+    Tenant-scoped via the `scoped()` helper in db_models."""
     from plugins.agent_studio.deployments import list_deployments, stats
-    cid = customer.get("customer_id")
     return {
-        "deployments": list_deployments(cid, include_retired),
-        "stats": stats(),
+        "deployments": list_deployments(db, customer, include_retired),
+        "stats": stats(db),
     }
 
 
 @router.get("/deployments/{deployment_id}")
 async def deployments_detail(deployment_id: str,
-                             customer: dict = Depends(require_api_key)) -> dict:
+                             customer: dict = Depends(require_api_key),
+                             db: Session = Depends(get_db)) -> dict:
     from plugins.agent_studio.deployments import get_deployment
-    data = get_deployment(deployment_id)
+    data = get_deployment(db, deployment_id)
     if data is None:
         raise HTTPException(404, "Deployment not found")
     if data["customer_id"] != customer.get("customer_id") and \
@@ -599,26 +611,27 @@ async def deployments_detail(deployment_id: str,
 @router.post("/deployments/{deployment_id}/retire")
 @limiter.limit(RATE_BILLING)
 async def deployments_retire(deployment_id: str, request: Request,
-                             customer: dict = Depends(require_api_key)) -> dict:
+                             customer: dict = Depends(require_api_key),
+                             db: Session = Depends(get_db)) -> dict:
     from plugins.agent_studio.deployments import retire, get_deployment
-    data = get_deployment(deployment_id)
+    data = get_deployment(db, deployment_id)
     if data is None:
         raise HTTPException(404, "Deployment not found")
     if data["customer_id"] != customer.get("customer_id") and \
        customer.get("role") != "admin":
         raise HTTPException(403, "Deployment belongs to a different customer")
-    return retire(deployment_id)
+    return retire(db, deployment_id)
 
 
 # ── Activity rollup — one-shot pull for the SOC Copilot / dossier ─────
 
 @router.get("/activity")
 async def activity_rollup(limit: int = 10,
-                          customer: dict = Depends(require_api_key)) -> dict:
+                          customer: dict = Depends(require_api_key),
+                          db: Session = Depends(get_db)) -> dict:
     """Recent artefacts across every Agent Studio surface, gated to the
-    calling customer (when present). Drives the Copilot's
-    'follow-up-on-last-activity' prompt and the dossier's evidence pack.
-    """
+    calling customer. Drives the Copilot's 'follow-up-on-last-activity'
+    prompt and the dossier's evidence pack."""
     from plugins.agent_studio.eval_harness import history as _eval_hist
     from plugins.agent_studio.red_team import history as _rt_hist
     from plugins.agent_studio.supply_chain import history as _sc_hist
@@ -636,7 +649,7 @@ async def activity_rollup(limit: int = 10,
         "sessions":           list_sessions(cid, limit),
         "session_stats":      _sess_stats(),
         "runtime_snapshot":   _rt_snap(),
-        "billing_admin_stats": grant_stats(),
-        "deployments":        list_deployments(cid)[:limit],
-        "deployment_stats":   _dep_stats(),
+        "billing_admin_stats": grant_stats(db),
+        "deployments":        list_deployments(db, customer)[:limit],
+        "deployment_stats":   _dep_stats(db),
     }

@@ -1,0 +1,78 @@
+name: aegis-gate
+
+# Eat our own dogfood — every PR runs the AegisAgents Kit's pytest
+# plugin against the starter agents to prove the gate works end-to-end.
+#
+# The job is read-only and offline-friendly: it runs the SDK + scanner
+# imports + 4 starter `python -c 'import main'` smoke checks. The
+# full pytest --aegis-fail-on-warn invocation runs only when the
+# repository defines AGENT_STUDIO_DEMO_KEY (a low-privilege key
+# scoped to scanner reads on a staging deploy).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  scanner-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Install SDK + starter agent deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e sdk
+          pip install -r examples/agents/soc_triage/requirements.txt
+
+      - name: Smoke-import every starter agent
+        run: |
+          for d in examples/agents/*/; do
+            name=$(basename "$d")
+            echo "→ smoke-import $name"
+            (cd "$d" && python -c "import importlib, sys; sys.path.insert(0, '.'); importlib.import_module('main')")
+          done
+
+      - name: Verify SDK exports
+        run: |
+          python -c "from robustidps.aegis import MambaGuardClient, Verdict, VerdictDecision, SUPPORTED_FRAMEWORKS; \
+                     assert len(SUPPORTED_FRAMEWORKS) >= 11"
+
+  aegis-pytest-gate:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.AGENT_STUDIO_DEMO_KEY != '' }}
+    needs: scanner-smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Install SDK with pytest plugin
+        run: |
+          python -m pip install --upgrade pip pytest
+          pip install -e sdk
+
+      - name: Run pytest --aegis-fail-on-warn against starter agents
+        env:
+          ROBUSTIDPS_API_BASE: ${{ vars.ROBUSTIDPS_API_BASE || 'https://robustidps.ai' }}
+          ROBUSTIDPS_API_KEY:  ${{ secrets.AGENT_STUDIO_DEMO_KEY }}
+        run: |
+          # Inline a tiny test that exercises the aegis fixture on each
+          # starter's system prompt — proves the CI gate fails on a
+          # prompt that ships a block-tier hijack.
+          cat > /tmp/test_aegis_starters.py <<'PY'
+          import importlib, pathlib, sys, pytest
+          ROOT = pathlib.Path("examples/agents")
+          @pytest.mark.parametrize("agent_dir", [p.name for p in ROOT.iterdir() if p.is_dir()])
+          def test_starter_prompt_safe(agent_dir, aegis_assert_safe):
+              sys.path.insert(0, str(ROOT / agent_dir))
+              mod = importlib.import_module("main")
+              sys.path.pop(0)
+              aegis_assert_safe(mod.SYSTEM_PROMPT, kind="system_prompt")
+          PY
+          pytest /tmp/test_aegis_starters.py --aegis-fail-on-warn -v

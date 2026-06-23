@@ -13,4 +13,8 @@ Subpackages:
   billing/      Stripe / Paddle webhook handlers
   entitlement/  Community / Pro / Enterprise tier gating
 """
+# Import the SQLAlchemy models so `database.Base.metadata.create_all()`
+# in main.py picks them up at boot.
+from plugins.agent_studio import db_models  # noqa: F401
+
 from plugins.agent_studio.api import router  # noqa: F401

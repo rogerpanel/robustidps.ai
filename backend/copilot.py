@@ -1493,7 +1493,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
 
         elif name == "get_agent_studio_customer":
             from plugins.agent_studio.billing import get_customer
-            data = get_customer(args["customer_id"])
+            data = get_customer(db, args["customer_id"])
             if data is None:
                 return json.dumps({"error": "Customer not found", "customer_id": args["customer_id"]})
             return json.dumps(data)
@@ -1515,7 +1515,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
 
         elif name == "get_agent_studio_admin_stats":
             from plugins.agent_studio.billing import grant_stats
-            return json.dumps(grant_stats())
+            return json.dumps(grant_stats(db))
 
         elif name == "get_agent_studio_session":
             from plugins.agent_studio.sessions import get_session
@@ -1563,22 +1563,23 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 "sessions":            list_sessions(None, lim),
                 "session_stats":       _sst(),
                 "runtime_snapshot":    _rts(),
-                "billing_admin_stats": grant_stats(),
-                "deployments":         list_deployments(None)[:lim],
-                "deployment_stats":    _dst(),
+                "billing_admin_stats": grant_stats(db),
+                "deployments":         list_deployments(db, None)[:lim],
+                "deployment_stats":    _dst(db),
             })
 
         elif name == "list_agent_studio_deployments":
             from plugins.agent_studio.deployments import list_deployments, stats
+            customer = {"customer_id": args.get("customer_id")} if args.get("customer_id") else None
             return json.dumps({
-                "deployments": list_deployments(args.get("customer_id"),
+                "deployments": list_deployments(db, customer,
                                                 bool(args.get("include_retired", False))),
-                "stats": stats(),
+                "stats": stats(db),
             })
 
         elif name == "get_agent_studio_deployment":
             from plugins.agent_studio.deployments import get_deployment
-            data = get_deployment(args["deployment_id"])
+            data = get_deployment(db, args["deployment_id"])
             if data is None:
                 return json.dumps({"error": "Deployment not found",
                                    "deployment_id": args["deployment_id"]})

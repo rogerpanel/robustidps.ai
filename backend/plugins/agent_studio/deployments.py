@@ -1,85 +1,33 @@
-"""Deployments registry — track where customer agents are running.
+"""Deployments registry — DB-backed (Sprint 4 migration).
 
-A deployment record links a customer + a template to a runtime
-location (cluster / VPC / region) and pulls live telemetry from the
-runtime monitor so the dashboard can answer the "where is my agent
-running?" question.
-
-Stored per-customer in weights/agent_studio_deployments.json. Three
-status tiers, derived from the linked runtime_monitor agent:
-
-    healthy     block_rate < 5%  + last_seen < 5 min ago
-    degraded    block_rate < 20% OR last_seen < 1 h ago
-    stale       last_seen > 1 h ago (or no telemetry yet)
-
-No row-level isolation yet (that lands with the Postgres sprint).
-For now every deployment lists its customer_id; the API filters.
+Tracks where customer agents are running, enriches with live runtime
+telemetry from the runtime monitor. Tenant-scoped via the `scoped()`
+helper in db_models.
 """
 from __future__ import annotations
 
-import json
+import datetime
 import secrets
 import time
-from dataclasses import dataclass, field, asdict
-from pathlib import Path
 from typing import Literal
+
+from sqlalchemy.orm import Session
+
+from plugins.agent_studio.db_models import (
+    AgentStudioDeployment, scoped,
+)
 
 Tier = Literal["dev", "staging", "production"]
 Cloud = Literal["aws", "gcp", "azure", "fly", "modal", "vercel",
                 "k8s_self", "docker_self", "bare_metal", "other"]
 
-DEPLOYMENTS_LOG_PATH = Path("weights/agent_studio_deployments.json")
 HEALTHY_BLOCK_RATE = 0.05
 DEGRADED_BLOCK_RATE = 0.20
 STALE_AFTER_S = 3600
 
 
-@dataclass
-class Deployment:
-    deployment_id: str
-    customer_id: str
-    template_id: str
-    name: str                          # human-friendly: "soc-triage-prod-eu"
-    runtime_agent_id: str              # cross-ref to runtime_monitor agent_id
-    cloud: str = "other"
-    region: str = ""
-    tier: str = "dev"
-    url: str | None = None             # public URL or "k8s://cluster/ns/pod"
-    git_sha: str | None = None
-    deployed_at: str = ""
-    deployed_by: str = "self"
-    note: str = ""
-    retired_at: str | None = None
-
-
-_DEPLOYMENTS: dict[str, Deployment] = {}
-
-
-def _load() -> None:
-    if not DEPLOYMENTS_LOG_PATH.exists():
-        return
-    try:
-        for r in json.loads(DEPLOYMENTS_LOG_PATH.read_text()):
-            _DEPLOYMENTS[r["deployment_id"]] = Deployment(**r)
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-
-def _persist() -> None:
-    DEPLOYMENTS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    DEPLOYMENTS_LOG_PATH.write_text(json.dumps(
-        [asdict(d) for d in _DEPLOYMENTS.values()], indent=2,
-    ))
-
-
-_load()
-
-
-def _now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
 def register(
+    db: Session,
     customer_id: str,
     template_id: str,
     name: str,
@@ -93,49 +41,96 @@ def register(
     deployed_by: str = "self",
     note: str = "",
 ) -> dict:
-    """Register a new deployment. Returns the persisted record."""
-    deployment_id = f"dep_{secrets.token_urlsafe(8)}"
-    rec = Deployment(
-        deployment_id=deployment_id,
-        customer_id=customer_id,
-        template_id=template_id,
-        name=name,
+    rec = AgentStudioDeployment(
+        deployment_id=f"dep_{secrets.token_urlsafe(8)}",
+        customer_id=customer_id, template_id=template_id, name=name,
         runtime_agent_id=runtime_agent_id,
         cloud=cloud, region=region, tier=tier,
         url=url, git_sha=git_sha,
-        deployed_at=_now(), deployed_by=deployed_by, note=note,
+        deployed_at=datetime.datetime.utcnow(),
+        deployed_by=deployed_by, note=note,
     )
-    _DEPLOYMENTS[deployment_id] = rec
-    _persist()
-    return asdict(rec)
+    db.add(rec)
+    db.commit()
+    return _enrich(rec)
 
 
-def retire(deployment_id: str) -> dict:
-    rec = _DEPLOYMENTS.get(deployment_id)
+def retire(db: Session, deployment_id: str) -> dict:
+    rec = db.get(AgentStudioDeployment, deployment_id)
     if rec is None:
         return {"ok": False, "error": "unknown deployment_id"}
     if rec.retired_at:
-        return {"ok": False, "error": "already retired", "retired_at": rec.retired_at}
-    rec.retired_at = _now()
-    _persist()
-    return {"ok": True, "deployment_id": deployment_id, "retired_at": rec.retired_at}
+        return {"ok": False, "error": "already retired",
+                "retired_at": _iso(rec.retired_at)}
+    rec.retired_at = datetime.datetime.utcnow()
+    db.commit()
+    return {"ok": True, "deployment_id": deployment_id,
+            "retired_at": _iso(rec.retired_at)}
 
 
-def _enrich(rec: Deployment) -> dict:
-    """Add live telemetry + status to a deployment record."""
-    out = asdict(rec)
+def list_deployments(db: Session, customer: dict | None,
+                     include_retired: bool = False) -> list[dict]:
+    q = db.query(AgentStudioDeployment)
+    q = scoped(q, AgentStudioDeployment, customer)
+    if not include_retired:
+        q = q.filter(AgentStudioDeployment.retired_at.is_(None))
+    q = q.order_by(AgentStudioDeployment.deployed_at.desc())
+    return [_enrich(d) for d in q.all()]
+
+
+def get_deployment(db: Session, deployment_id: str) -> dict | None:
+    rec = db.get(AgentStudioDeployment, deployment_id)
+    return _enrich(rec) if rec else None
+
+
+def stats(db: Session) -> dict:
+    active = db.query(AgentStudioDeployment).filter(
+        AgentStudioDeployment.retired_at.is_(None)).all()
+    retired = db.query(AgentStudioDeployment).filter(
+        AgentStudioDeployment.retired_at.isnot(None)).count()
+    by_status: dict[str, int] = {}
+    by_cloud: dict[str, int] = {}
+    by_tier: dict[str, int] = {}
+    by_template: dict[str, int] = {}
+    for d in active:
+        e = _enrich(d)
+        by_status[e["status"]] = by_status.get(e["status"], 0) + 1
+        by_cloud[d.cloud] = by_cloud.get(d.cloud, 0) + 1
+        by_tier[d.tier] = by_tier.get(d.tier, 0) + 1
+        by_template[d.template_id] = by_template.get(d.template_id, 0) + 1
+    return {
+        "n_total": len(active) + retired, "n_active": len(active),
+        "n_retired": retired,
+        "by_status": by_status, "by_cloud": by_cloud,
+        "by_tier": by_tier, "by_template": by_template,
+    }
+
+
+def _enrich(rec: AgentStudioDeployment) -> dict:
+    out = {
+        "deployment_id": rec.deployment_id,
+        "customer_id": rec.customer_id,
+        "template_id": rec.template_id,
+        "name": rec.name,
+        "runtime_agent_id": rec.runtime_agent_id,
+        "cloud": rec.cloud, "region": rec.region, "tier": rec.tier,
+        "url": rec.url, "git_sha": rec.git_sha,
+        "deployed_at": _iso(rec.deployed_at),
+        "deployed_by": rec.deployed_by,
+        "note": rec.note or "",
+        "retired_at": _iso(rec.retired_at),
+    }
     if rec.retired_at:
         out["status"] = "retired"
         out["telemetry"] = None
         return out
+
     try:
         from plugins.agent_studio.runtime_monitor import snapshot
         snap = snapshot(rec.runtime_agent_id)
     except Exception:
         snap = None
 
-    # Per-agent snapshots return agent fields at the top level; fleet
-    # snapshots wrap them under "agents". Handle both.
     agent_view = None
     if snap:
         if snap.get("agent_id"):
@@ -148,8 +143,7 @@ def _enrich(rec: Deployment) -> dict:
         out["status"] = "stale"
         out["telemetry"] = None
         return out
-    # The runtime_monitor doesn't expose last_event_ts_ms directly today;
-    # window_size > 0 means we've seen events, treat as fresh.
+
     br = agent_view.get("block_rate", 0.0)
     if br >= DEGRADED_BLOCK_RATE:
         status = "degraded"
@@ -170,37 +164,9 @@ def _enrich(rec: Deployment) -> dict:
     return out
 
 
-def list_deployments(customer_id: str | None = None,
-                     include_retired: bool = False) -> list[dict]:
-    items = list(_DEPLOYMENTS.values())
-    if customer_id is not None:
-        items = [d for d in items if d.customer_id == customer_id]
-    if not include_retired:
-        items = [d for d in items if not d.retired_at]
-    items.sort(key=lambda d: d.deployed_at, reverse=True)
-    return [_enrich(d) for d in items]
-
-
-def get_deployment(deployment_id: str) -> dict | None:
-    rec = _DEPLOYMENTS.get(deployment_id)
-    return _enrich(rec) if rec else None
-
-
-def stats() -> dict:
-    active = [d for d in _DEPLOYMENTS.values() if not d.retired_at]
-    by_status: dict[str, int] = {}
-    by_cloud: dict[str, int] = {}
-    by_tier: dict[str, int] = {}
-    by_template: dict[str, int] = {}
-    for d in active:
-        enriched = _enrich(d)
-        by_status[enriched["status"]] = by_status.get(enriched["status"], 0) + 1
-        by_cloud[d.cloud] = by_cloud.get(d.cloud, 0) + 1
-        by_tier[d.tier] = by_tier.get(d.tier, 0) + 1
-        by_template[d.template_id] = by_template.get(d.template_id, 0) + 1
-    return {
-        "n_total": len(_DEPLOYMENTS), "n_active": len(active),
-        "n_retired": len(_DEPLOYMENTS) - len(active),
-        "by_status": by_status, "by_cloud": by_cloud,
-        "by_tier": by_tier, "by_template": by_template,
-    }
+def _iso(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return str(value)

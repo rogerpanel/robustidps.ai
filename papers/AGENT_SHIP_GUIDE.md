@@ -34,6 +34,17 @@ egress to `robustidps.ai`.
 
 ---
 
+## 0.5 What's persisted server-side?
+
+All Agent Studio state — customers, API keys, admin grants,
+deployments, test sessions, eval / red-team / supply-chain history —
+lives in SQLAlchemy tables that work on **SQLite (dev)** and
+**PostgreSQL (production)**. On boot, any legacy
+`weights/agent_studio_*.json` data is migrated into the DB
+idempotently. For true Postgres row-level security, apply
+`backend/plugins/agent_studio/RLS_POSTGRES.sql` after switching to
+a `postgres://` `DATABASE_URL`.
+
 ## 1. Sign up
 
 Two paths — pick the one that fits your region and billing setup.
