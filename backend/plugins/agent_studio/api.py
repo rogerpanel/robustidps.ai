@@ -7,6 +7,7 @@ publicly (slowapi limiter already mounted in main.py).
 """
 from __future__ import annotations
 
+import os
 from dataclasses import asdict
 from typing import Literal
 
@@ -17,6 +18,24 @@ from plugins.agent_studio.auth import require_api_key, require_admin
 from plugins.agent_studio.billing import handle_event as _billing_handle, parse_event as _billing_parse
 from plugins.agent_studio.entitlement import public_catalog as _tier_catalog
 from plugins.agent_studio.scanner import run_scan, SCANNER_CHECKS
+
+# Reuse the platform's slowapi limiter so all 429s look the same to clients.
+try:
+    from main import limiter
+except Exception:    # pragma: no cover — keeps the plugin importable in tests
+    from slowapi import Limiter
+    from slowapi.util import get_remote_address
+    limiter = Limiter(key_func=get_remote_address)
+
+
+# Pull per-endpoint quotas from env so ops can dial them at runtime.
+RATE_SCAN     = os.getenv("AGENT_STUDIO_RATE_SCAN",     "60/minute")
+RATE_EVAL     = os.getenv("AGENT_STUDIO_RATE_EVAL",     "20/minute")
+RATE_REDTEAM  = os.getenv("AGENT_STUDIO_RATE_REDTEAM",  "10/minute")
+RATE_INGEST   = os.getenv("AGENT_STUDIO_RATE_INGEST",   "300/minute")
+RATE_SESSION  = os.getenv("AGENT_STUDIO_RATE_SESSION",  "30/minute")
+RATE_BILLING  = os.getenv("AGENT_STUDIO_RATE_BILLING",  "30/minute")
+RATE_ADMIN    = os.getenv("AGENT_STUDIO_RATE_ADMIN",    "60/minute")
 
 router = APIRouter(prefix="/api/agent-studio", tags=["Agent Studio + Security"])
 
@@ -41,7 +60,8 @@ SKU_CATALOG = [
 
 
 @router.post("/scanner/run")
-async def scanner_run(payload: ScannerInput) -> dict:
+@limiter.limit(RATE_SCAN)
+async def scanner_run(request: Request, payload: ScannerInput) -> dict:
     report = run_scan(payload.text, input_kind=payload.input_kind)
     return {
         "input_kind": report.input_kind,
@@ -102,7 +122,9 @@ class EvalRunRequest(BaseModel):
 
 
 @router.post("/eval/run")
-async def eval_run(req: EvalRunRequest, customer: dict = Depends(require_api_key)) -> dict:
+@limiter.limit(RATE_EVAL)
+async def eval_run(request: Request, req: EvalRunRequest,
+                   customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.eval_harness import run_eval
     run = run_eval(req.agent_spec)
@@ -128,7 +150,9 @@ class RedTeamRunRequest(BaseModel):
 
 
 @router.post("/red-team/run")
-async def red_team_run(req: RedTeamRunRequest, customer: dict = Depends(require_api_key)) -> dict:
+@limiter.limit(RATE_REDTEAM)
+async def red_team_run(request: Request, req: RedTeamRunRequest,
+                       customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.red_team import run_red_team
     run = run_red_team(req.target_spec)
@@ -165,7 +189,9 @@ class RuntimeIngestRequest(BaseModel):
 
 
 @router.post("/runtime/ingest")
-async def runtime_ingest(req: RuntimeIngestRequest, customer: dict = Depends(require_api_key)) -> dict:
+@limiter.limit(RATE_INGEST)
+async def runtime_ingest(request: Request, req: RuntimeIngestRequest,
+                         customer: dict = Depends(require_api_key)) -> dict:
     from plugins.agent_studio.runtime_monitor import ingest
     return ingest(req.agent_id, req.framework, req.decision,
                   req.finding_codes, req.latency_ms)
@@ -200,7 +226,8 @@ class SupplyChainScanRequest(BaseModel):
 
 
 @router.post("/supply-chain/scan")
-async def supply_chain_scan(req: SupplyChainScanRequest,
+@limiter.limit(RATE_EVAL)
+async def supply_chain_scan(request: Request, req: SupplyChainScanRequest,
                             customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.supply_chain import scan_model
@@ -216,7 +243,8 @@ async def supply_chain_history(limit: int = 20) -> dict:
 # ── Proposal 1 — pluggable deep backends ──────────────────────────────
 
 @router.post("/red-team/garak")
-async def red_team_garak_run(req: RedTeamRunRequest,
+@limiter.limit(RATE_REDTEAM)
+async def red_team_garak_run(request: Request, req: RedTeamRunRequest,
                              customer: dict = Depends(require_api_key)) -> dict:
     from dataclasses import asdict as _asdict
     from plugins.agent_studio.red_team_garak import run_garak
@@ -247,7 +275,8 @@ class OTelSpanRequest(BaseModel):
 
 
 @router.post("/runtime/otel/spans")
-async def runtime_otel_span(req: OTelSpanRequest,
+@limiter.limit(RATE_INGEST)
+async def runtime_otel_span(request: Request, req: OTelSpanRequest,
                             customer: dict = Depends(require_api_key)) -> dict:
     """Ingest a single trimmed GenAI span."""
     from plugins.agent_studio.runtime_otel import receive_span
@@ -255,6 +284,7 @@ async def runtime_otel_span(req: OTelSpanRequest,
 
 
 @router.post("/runtime/otel/traces")
+@limiter.limit(RATE_INGEST)
 async def runtime_otel_traces(request: Request,
                               customer: dict = Depends(require_api_key)) -> dict:
     """Ingest a full OTLP/JSON traces envelope."""
@@ -270,7 +300,8 @@ async def runtime_otel_info() -> dict:
 
 
 @router.post("/supply-chain/scan-live")
-async def supply_chain_scan_live(req: SupplyChainScanRequest,
+@limiter.limit(RATE_EVAL)
+async def supply_chain_scan_live(request: Request, req: SupplyChainScanRequest,
                                  customer: dict = Depends(require_api_key)) -> dict:
     """Like /supply-chain/scan but enriches the spec with live
     HuggingFace Hub metadata first (when reachable)."""
@@ -308,7 +339,8 @@ class CheckoutCompleteRequest(BaseModel):
 
 
 @router.post("/billing/checkout")
-async def billing_checkout(req: CheckoutRequest) -> dict:
+@limiter.limit(RATE_BILLING)
+async def billing_checkout(request: Request, req: CheckoutRequest) -> dict:
     """Create a Stripe Checkout session. Returns a redirect URL."""
     from plugins.agent_studio.billing import create_checkout_session
     return create_checkout_session(req.email, req.tier, req.trial_days)
@@ -387,7 +419,8 @@ class AdminGrantRequest(BaseModel):
 
 
 @router.post("/admin/grants")
-async def admin_grant_create(req: AdminGrantRequest,
+@limiter.limit(RATE_ADMIN)
+async def admin_grant_create(request: Request, req: AdminGrantRequest,
                              admin: dict = Depends(require_admin)) -> dict:
     """Issue a licence without touching Stripe. Plaintext API key returned ONCE."""
     from plugins.agent_studio.billing import grant_license
@@ -445,7 +478,8 @@ class SessionCreateRequest(BaseModel):
 
 
 @router.post("/sessions")
-async def session_create(req: SessionCreateRequest,
+@limiter.limit(RATE_SESSION)
+async def session_create(request: Request, req: SessionCreateRequest,
                          customer: dict = Depends(require_api_key)) -> dict:
     """Spin up a sandboxed test session against a template."""
     from plugins.agent_studio.sessions import create_session
@@ -481,13 +515,99 @@ class SessionMessageRequest(BaseModel):
 
 
 @router.post("/sessions/{session_id}/messages")
-async def session_post_message(session_id: str, req: SessionMessageRequest,
+@limiter.limit(RATE_SESSION)
+async def session_post_message(session_id: str, request: Request,
+                               req: SessionMessageRequest,
                                customer: dict = Depends(require_api_key)) -> dict:
     from plugins.agent_studio.sessions import post_message
     try:
         return post_message(session_id, req.input)
     except KeyError as e:
         raise HTTPException(404, str(e))
+
+
+@router.get("/sessions/llm-info")
+async def session_llm_info() -> dict:
+    """Surface which provider sessions will use (synthetic_fallback when
+    no provider is keyed). Public so the wizard can label the chat panel."""
+    from plugins.agent_studio.llm_dispatch import info
+    return info()
+
+
+# ── Deployments registry — where customer agents are running ─────────
+
+class DeploymentRegisterRequest(BaseModel):
+    template_id: str
+    name: str = Field(..., min_length=1, max_length=128)
+    runtime_agent_id: str = Field(..., min_length=1, max_length=128)
+    cloud: Literal["aws", "gcp", "azure", "fly", "modal", "vercel",
+                   "k8s_self", "docker_self", "bare_metal", "other"] = "other"
+    region: str = Field("", max_length=64)
+    tier: Literal["dev", "staging", "production"] = "dev"
+    url: str | None = Field(None, max_length=512)
+    git_sha: str | None = Field(None, max_length=64)
+    deployed_by: str = Field("self", max_length=64)
+    note: str = Field("", max_length=512)
+
+
+@router.post("/deployments")
+@limiter.limit(RATE_BILLING)
+async def deployments_register(request: Request, req: DeploymentRegisterRequest,
+                               customer: dict = Depends(require_api_key)) -> dict:
+    """Register a new deployment for the calling customer. The
+    runtime_agent_id should match the agent_id used by the deployed
+    instance's MambaGuardClient — that's the cross-ref the dashboard
+    uses to pull live telemetry."""
+    from plugins.agent_studio.deployments import register
+    return register(
+        customer_id=customer.get("customer_id", "anon"),
+        template_id=req.template_id,
+        name=req.name,
+        runtime_agent_id=req.runtime_agent_id,
+        cloud=req.cloud, region=req.region, tier=req.tier,
+        url=req.url, git_sha=req.git_sha,
+        deployed_by=req.deployed_by, note=req.note,
+    )
+
+
+@router.get("/deployments")
+async def deployments_list(include_retired: bool = False,
+                           customer: dict = Depends(require_api_key)) -> dict:
+    """List the calling customer's deployments enriched with live
+    runtime telemetry + status (healthy / degraded / stale / retired)."""
+    from plugins.agent_studio.deployments import list_deployments, stats
+    cid = customer.get("customer_id")
+    return {
+        "deployments": list_deployments(cid, include_retired),
+        "stats": stats(),
+    }
+
+
+@router.get("/deployments/{deployment_id}")
+async def deployments_detail(deployment_id: str,
+                             customer: dict = Depends(require_api_key)) -> dict:
+    from plugins.agent_studio.deployments import get_deployment
+    data = get_deployment(deployment_id)
+    if data is None:
+        raise HTTPException(404, "Deployment not found")
+    if data["customer_id"] != customer.get("customer_id") and \
+       customer.get("role") != "admin":
+        raise HTTPException(403, "Deployment belongs to a different customer")
+    return data
+
+
+@router.post("/deployments/{deployment_id}/retire")
+@limiter.limit(RATE_BILLING)
+async def deployments_retire(deployment_id: str, request: Request,
+                             customer: dict = Depends(require_api_key)) -> dict:
+    from plugins.agent_studio.deployments import retire, get_deployment
+    data = get_deployment(deployment_id)
+    if data is None:
+        raise HTTPException(404, "Deployment not found")
+    if data["customer_id"] != customer.get("customer_id") and \
+       customer.get("role") != "admin":
+        raise HTTPException(403, "Deployment belongs to a different customer")
+    return retire(deployment_id)
 
 
 # ── Activity rollup — one-shot pull for the SOC Copilot / dossier ─────
@@ -505,6 +625,7 @@ async def activity_rollup(limit: int = 10,
     from plugins.agent_studio.sessions import list_sessions, stats as _sess_stats
     from plugins.agent_studio.runtime_monitor import snapshot as _rt_snap
     from plugins.agent_studio.billing import grant_stats
+    from plugins.agent_studio.deployments import list_deployments, stats as _dep_stats
 
     cid = customer.get("customer_id")
     return {
@@ -516,4 +637,6 @@ async def activity_rollup(limit: int = 10,
         "session_stats":      _sess_stats(),
         "runtime_snapshot":   _rt_snap(),
         "billing_admin_stats": grant_stats(),
+        "deployments":        list_deployments(cid)[:limit],
+        "deployment_stats":   _dep_stats(),
     }

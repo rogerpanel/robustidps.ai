@@ -389,6 +389,40 @@ Ship this PDF to your auditor.
 
 ## 9. Ship
 
+### 9a. Pick a starter repo (fastest path)
+
+Four reference implementations live under `examples/agents/`, each one
+a complete LangGraph + AegisAgents wrap of a Quickstart template:
+
+| Folder | Template |
+|---|---|
+| `examples/agents/soc_triage/`        | SOC Triage Agent |
+| `examples/agents/billing_copilot/`   | Billing Copilot |
+| `examples/agents/red_team_operator/` | Red-Team Operator |
+| `examples/agents/docs_qa/`           | Docs Q&A |
+
+Each ships a `main.py` + `requirements.txt` + `Dockerfile` + `k8s.yaml`
++ `README.md`. `cd` into the folder, set `ROBUSTIDPS_API_KEY`, run.
+
+### 9b. Register the deployment
+
+After your agent's first verdict posts, pin it under
+`/agent-studio/deployments` so the dashboard tracks status / block-rate /
+latency telemetry per registered instance:
+
+```bash
+robustidps agent deployments register \
+  --template soc_triage \
+  --name "soc-triage-prod-eu-1" \
+  --agent-id "soc-triage-prod-eu-1" \
+  --cloud k8s_self --region eu-central-1 --tier production
+```
+
+The `--agent-id` must match the `agent_id` your deployed
+`MambaGuardClient` reports — that's the cross-ref the dashboard uses.
+
+### 9c. Production reminders
+
 Deploy your agent on whatever runtime you use (k8s, Lambda, Modal,
 Fly, …). Two production reminders:
 

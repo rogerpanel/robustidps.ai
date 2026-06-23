@@ -1,0 +1,3 @@
+langgraph>=0.2
+httpx>=0.27
+robustidps[aegis]>=0.4

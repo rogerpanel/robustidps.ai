@@ -43,6 +43,7 @@ class SessionMessage:
     decision: str = "allow"   # aegis verdict on the text
     n_findings: int = 0
     findings: list[dict] = field(default_factory=list)
+    llm_meta: dict | None = None    # {provider, model, n_in, n_out} when real LLM
 
 
 @dataclass
@@ -115,12 +116,28 @@ def _aegis_scan(text: str, input_kind: str = "system_prompt") -> tuple[str, int,
     return (decision, len(findings), findings)
 
 
+def _real_or_synthetic(template: dict, user_input: str,
+                       history: list[SessionMessage]) -> tuple[str, dict | None]:
+    """Try the live LLM dispatcher first; fall back to the deterministic
+    synthetic responder when no provider is configured or the call fails."""
+    from plugins.agent_studio import llm_dispatch
+    sp = template.get("spec", {}).get("system_prompt", "")
+    if sp:
+        hist_dicts = [{"role": m.role, "text": m.text} for m in history]
+        live = llm_dispatch.dispatch(sp, user_input, history=hist_dicts)
+        if live is not None:
+            text, meta = live
+            if text.strip():
+                return (text, meta)
+    return (_simulate_response(template, user_input, history), None)
+
+
 def _simulate_response(template: dict, user_input: str, history: list[SessionMessage]) -> str:
-    """Template-aware synthetic response.
+    """Template-aware synthetic response — fallback when no LLM provider
+    is configured or when a live dispatch fails.
 
     Pattern: each archetype gets a short, structurally-correct reply that
-    matches what the real agent would produce. The point of the wizard is
-    to surface verdict envelopes, not to be creative.
+    matches what the real agent would produce.
     """
     name = template.get("spec", {}).get("name", template["id"])
     tools = [t["name"] for t in template.get("spec", {}).get("tools", [])]
@@ -235,12 +252,13 @@ def post_message(session_id: str, user_input: str) -> dict:
         }
 
     template = get_template(s.template_id) or {"category": "blank", "id": s.template_id}
-    reply = _simulate_response(template, user_input, s.history[:-1])
+    reply, llm_meta = _real_or_synthetic(template, user_input, s.history[:-1])
 
     out_decision, out_n, out_findings = _aegis_scan(reply, input_kind="agent_card")
     s.history.append(SessionMessage(
         role="agent", text=reply, ts=_now(),
         decision=out_decision, n_findings=out_n, findings=out_findings,
+        llm_meta=llm_meta,
     ))
     if len(s.history) > MAX_HISTORY:
         s.history = s.history[-MAX_HISTORY:]
@@ -252,6 +270,7 @@ def post_message(session_id: str, user_input: str) -> dict:
         "agent_reply": reply,
         "input_decision": in_decision,
         "input_n_findings": in_n,
+        "llm_meta": llm_meta,    # None when synthetic fallback fired
     }
 
 

@@ -60,6 +60,7 @@ import {
   Radar,
   FileSearch,
   KeyRound,
+  Cloud,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 import ThemeToggle from './components/ThemeToggle'
@@ -141,6 +142,7 @@ const AgentSupplyChain = lazy(() => import('./plugins/agent_studio/pages/SupplyC
 const AgentAccountConsole = lazy(() => import('./plugins/agent_studio/pages/AccountConsole'))
 const AgentQuickstart = lazy(() => import('./plugins/agent_studio/pages/Quickstart'))
 const AgentBuildWizard = lazy(() => import('./plugins/agent_studio/pages/BuildWizard'))
+const AgentDeployments = lazy(() => import('./plugins/agent_studio/pages/Deployments'))
 const AgentAdminConsole = lazy(() => import('./plugins/agent_studio/pages/AdminConsole'))
 // Assurance dossier (shared across both verticals)
 const DossierPage = lazy(() => import('./plugins/dossier/pages/Dossier'))
@@ -250,6 +252,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/agent-studio/eval', label: 'Agent Eval Harness', icon: FlaskConical },
       { to: '/agent-studio/supply-chain', label: 'Model Supply Chain', icon: Package },
       { to: '/agent-studio/account', label: 'Account & API Keys', icon: KeyRound },
+      { to: '/agent-studio/deployments', label: 'Deployments', icon: Cloud },
       { to: '/agent-studio/admin', label: 'Admin Console', icon: Shield },
     ],
   },
@@ -851,6 +854,7 @@ export default function App() {
               <Route path="/agent-studio/account" element={<AgentAccountConsole />} />
               <Route path="/agent-studio/quickstart" element={<AgentQuickstart />} />
               <Route path="/agent-studio/build/:templateId" element={<AgentBuildWizard />} />
+              <Route path="/agent-studio/deployments" element={<AgentDeployments />} />
               <Route path="/agent-studio/admin" element={<AgentAdminConsole />} />
               <Route path="/dossier" element={<DossierPage />} />
               <Route path="/about" element={<About />} />

@@ -803,6 +803,77 @@ def session_show(session_id: str):
         console.print(f"  [{tone}]{m['role']}[/{tone}]  {m['ts']}  ({m['decision']})  {m['text']}")
 
 
+@agent.group()
+def deployments():
+    """Manage Agent Studio deployments (registry of where agents run)."""
+    pass
+
+
+@deployments.command("list")
+@click.option("--include-retired/--active-only", default=False)
+def deployments_list(include_retired: bool):
+    """List the customer's registered deployments + live telemetry."""
+    out = _agent_request("GET", "/api/agent-studio/deployments",
+                         params={"include_retired": include_retired})
+    stats = out.get("stats", {})
+    console.print(f"[bold]{stats.get('n_active', 0)} active[/bold] · "
+                  f"{stats.get('n_retired', 0)} retired · "
+                  f"by status: {stats.get('by_status', {})}")
+    tbl = Table(title=f"Deployments ({len(out['deployments'])})")
+    for col in ("deployment_id", "name", "template", "status", "cloud", "tier", "block%"):
+        tbl.add_column(col)
+    for d in out["deployments"]:
+        tone = ("green" if d["status"] == "healthy"
+                else "yellow" if d["status"] == "degraded"
+                else "dim")
+        br = d["telemetry"]["block_rate"] if d.get("telemetry") else None
+        tbl.add_row(
+            d["deployment_id"], d["name"], d["template_id"],
+            f"[{tone}]{d['status']}[/{tone}]",
+            f"{d['cloud']}:{d.get('region') or '-'}", d["tier"],
+            f"{br*100:.1f}%" if br is not None else "—",
+        )
+    console.print(tbl)
+
+
+@deployments.command("register")
+@click.option("--template", "template_id", required=True)
+@click.option("--name", required=True)
+@click.option("--agent-id", "runtime_agent_id", required=True,
+              help="The agent_id your deployed MambaGuardClient uses.")
+@click.option("--cloud", default="other",
+              type=click.Choice(["aws", "gcp", "azure", "fly", "modal", "vercel",
+                                 "k8s_self", "docker_self", "bare_metal", "other"]))
+@click.option("--region", default="")
+@click.option("--tier", default="dev", type=click.Choice(["dev", "staging", "production"]))
+@click.option("--url", default=None)
+@click.option("--git-sha", default=None)
+@click.option("--note", default="")
+def deployments_register(template_id: str, name: str, runtime_agent_id: str,
+                         cloud: str, region: str, tier: str,
+                         url: str | None, git_sha: str | None, note: str):
+    """Register a new deployment in the registry."""
+    body = {
+        "template_id": template_id, "name": name,
+        "runtime_agent_id": runtime_agent_id,
+        "cloud": cloud, "region": region, "tier": tier, "note": note,
+    }
+    if url:     body["url"] = url
+    if git_sha: body["git_sha"] = git_sha
+    out = _agent_request("POST", "/api/agent-studio/deployments", json_body=body)
+    console.print(f"[green]Registered:[/green] {out['deployment_id']}  "
+                  f"name={out['name']}  template={out['template_id']}")
+
+
+@deployments.command("retire")
+@click.argument("deployment_id")
+def deployments_retire(deployment_id: str):
+    """Mark a deployment as retired."""
+    out = _agent_request("POST", f"/api/agent-studio/deployments/{deployment_id}/retire")
+    tone = "green" if out.get("ok") else "red"
+    console.print(f"[{tone}]{out}[/{tone}]")
+
+
 @agent.command("activity")
 @click.option("--limit", default=5, type=int, help="How many entries per surface.")
 def agent_activity(limit: int):

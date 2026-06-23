@@ -550,12 +550,38 @@ TOOLS = [
     },
     {
         "name": "get_agent_studio_activity",
-        "description": "ONE-SHOT activity rollup across every Agent Studio surface: recent eval runs, red-team runs, supply-chain scans, sessions, runtime snapshot, billing/admin stats. Use this when the user asks 'what's my latest activity?' or 'follow up on what we did last' — saves N separate tool calls.",
+        "description": "ONE-SHOT activity rollup across every Agent Studio surface: recent eval runs, red-team runs, supply-chain scans, sessions, runtime snapshot, billing/admin stats, deployments. Use this when the user asks 'what's my latest activity?' or 'follow up on what we did last' — saves N separate tool calls.",
         "input_schema": {
             "type": "object",
             "properties": {"limit": {"type": "integer", "default": 5}},
             "required": [],
         },
+    },
+    {
+        "name": "list_agent_studio_deployments",
+        "description": "List the customer's registered Agent Studio deployments with live runtime telemetry (status: healthy / degraded / stale / retired, block_rate, p50/p95 latency, top finding codes). Use this when the user asks 'where is my agent running?' or 'is my prod agent healthy?'",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "customer_id": {"type": "string"},
+                "include_retired": {"type": "boolean", "default": False},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_agent_studio_deployment",
+        "description": "Fetch a single deployment by deployment_id (full registration info + live telemetry). Use to drill into a specific 'degraded' or 'stale' deployment surfaced by list_agent_studio_deployments.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"deployment_id": {"type": "string"}},
+            "required": ["deployment_id"],
+        },
+    },
+    {
+        "name": "get_agent_studio_llm_info",
+        "description": "Surface which LLM provider Agent Studio test sessions will use (synthetic_fallback when no provider key is configured). Use when the user asks 'are sessions hitting a real model?'",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
     },
 ]
 
@@ -1528,6 +1554,7 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
             from plugins.agent_studio.sessions import list_sessions, stats as _sst
             from plugins.agent_studio.runtime_monitor import snapshot as _rts
             from plugins.agent_studio.billing import grant_stats
+            from plugins.agent_studio.deployments import list_deployments, stats as _dst
             lim = int(args.get("limit", 5))
             return json.dumps({
                 "eval_runs":           _eh(lim),
@@ -1537,7 +1564,29 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 "session_stats":       _sst(),
                 "runtime_snapshot":    _rts(),
                 "billing_admin_stats": grant_stats(),
+                "deployments":         list_deployments(None)[:lim],
+                "deployment_stats":    _dst(),
             })
+
+        elif name == "list_agent_studio_deployments":
+            from plugins.agent_studio.deployments import list_deployments, stats
+            return json.dumps({
+                "deployments": list_deployments(args.get("customer_id"),
+                                                bool(args.get("include_retired", False))),
+                "stats": stats(),
+            })
+
+        elif name == "get_agent_studio_deployment":
+            from plugins.agent_studio.deployments import get_deployment
+            data = get_deployment(args["deployment_id"])
+            if data is None:
+                return json.dumps({"error": "Deployment not found",
+                                   "deployment_id": args["deployment_id"]})
+            return json.dumps(data)
+
+        elif name == "get_agent_studio_llm_info":
+            from plugins.agent_studio.llm_dispatch import info
+            return json.dumps(info())
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

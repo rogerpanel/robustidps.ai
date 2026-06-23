@@ -192,6 +192,76 @@ SCANNER_CHECKS: list[ScannerCheck] = [
         _matches(r"system_prompt.*expose|debug.*prompt.*true|verbose.*errors.*true"),
         "LLM10: never expose the system prompt in error messages; verbose mode off in production.",
     ),
+    # ── Memory-store auditor (OWASP-Agentic ASI04: memory poisoning) ──
+    ScannerCheck(
+        "MEM-01", "Memory store accepts unvalidated agent writes", "high", "ASI04",
+        lambda text: _contains("memory.write", "memory_put", "save_memory", "add_to_memory",
+                                "store_recall", "long_term_memory")(text)
+                     and not _contains("validate", "schema", "sanitis", "sanitiz", "allowlist")(text),
+        "Validate every memory write against a schema; unvalidated writes let one agent persistently poison future turns.",
+    ),
+    ScannerCheck(
+        "MEM-02", "Memory pulled from untrusted source without provenance tag", "high", "ASI04",
+        lambda text: (_contains("memory", "recall", "ltm", "vector_store")(text)
+                      and _contains("user_message", "tool_output", "agent_reply")(text)
+                      and not _contains("provenance", "source_id", "origin_tag", "trust_score")(text)),
+        "Tag every memory entry with its source (system / user / tool / agent) so downstream consumers can score trust.",
+    ),
+    ScannerCheck(
+        "MEM-03", "Memory shared across tenants / users without isolation", "critical", "ASI04",
+        lambda text: _contains("memory", "vector_store", "recall")(text)
+                     and _contains("shared", "global", "cross_user", "cross_tenant")(text)
+                     and not _contains("tenant_id", "user_id", "isolated", "namespace")(text),
+        "Memory MUST be namespaced per tenant / user; cross-tenant memory is a cross-customer data-leak vector.",
+    ),
+    ScannerCheck(
+        "MEM-04", "Memory store without retention / TTL policy", "medium", "ASI04",
+        lambda text: _contains("memory", "vector_store", "ltm")(text)
+                     and not _contains("ttl", "retention", "expire", "purge", "max_age")(text),
+        "Set a TTL on memory entries; uncapped recall enables drift, leakage, and prompt-injection persistence.",
+    ),
+    ScannerCheck(
+        "MEM-05", "Memory read into prompt without trust-tier filtering", "medium", "ASI04",
+        lambda text: _contains("memory", "ltm", "recall")(text)
+                     and _contains("prompt", "context", "system")(text)
+                     and not _contains("trust_tier", "verified", "allowlist", "source_filter")(text),
+        "Filter recalled memory by trust tier before injecting into the prompt; untrusted recall = prompt injection.",
+    ),
+
+    # ── Credential vault auditor (OWASP-Agentic ASI06: excessive agency) ──
+    ScannerCheck(
+        "VLT-01", "Secret material inlined into spec / system_prompt", "critical", "ASI06",
+        _matches(r"(sk-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|"
+                 r"-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----|"
+                 r"ghp_[A-Za-z0-9]{30,}|xox[bp]-[A-Za-z0-9-]{20,})"),
+        "Never inline secrets in any spec; pull at runtime from a vault by reference and rotate on every leak signal.",
+    ),
+    ScannerCheck(
+        "VLT-02", "Secret references not bound to a vault path", "high", "ASI06",
+        lambda text: _contains("secret", "credential", "token", "api_key")(text)
+                     and not _contains("vault://", "secretsmanager://", "kms://", "secretref",
+                                       "valueFrom", "secret_path", "vault.read")(text),
+        "Reference secrets via vault:// or secretsmanager:// URIs (or k8s valueFrom); never raw values.",
+    ),
+    ScannerCheck(
+        "VLT-03", "Vault token / role granted unbounded scope", "high", "ASI06",
+        lambda text: _contains("vault", "secretsmanager", "kms")(text)
+                     and _contains("policy=*", "scope=*", "permissions=*", "role=admin")(text),
+        "Vault roles must enumerate exact secret paths; wildcard policies grant the agent every secret in the org.",
+    ),
+    ScannerCheck(
+        "VLT-04", "Secret retrieved into long-lived process memory without TTL", "medium", "ASI06",
+        lambda text: _contains("vault.read", "get_secret", "fetch_secret", "vault_client")(text)
+                     and not _contains("ttl", "lease_duration", "rotate", "refresh", "expire")(text),
+        "Read secrets with a lease_duration / TTL; rotate or refresh — long-lived secrets in process memory leak to dumps.",
+    ),
+    ScannerCheck(
+        "VLT-05", "Secret echoed in tool output / agent reply", "critical", "ASI06",
+        _matches(r"(return|output|reply|print)\s+.*\b(api_key|password|secret|token|credential)\b"
+                 r"|response.*\$\{.*(secret|token|key|password).*\}"),
+        "Filter every tool output + agent reply for secret patterns; never echo a credential to user or downstream agent.",
+    ),
+
     # ── Cross-cutting hygiene ─────────────────────────────────────────
     ScannerCheck(
         "HYG-01", "No incident-response contact declared", "info", None,
@@ -207,7 +277,10 @@ SCANNER_CHECKS: list[ScannerCheck] = [
 
 
 def run_scan(text: str, input_kind: str = "mcp_manifest") -> ScanReport:
-    """Run all 12 checks against the input and return a structured report."""
+    """Run every registered scanner check against the input and return a
+    structured report. Check families: 12 MCP framing (MCP-S01..12) +
+    10 OWASP LLM Top-10 (LLM-01..10) + 5 memory-store auditor (MEM-01..05) +
+    5 credential vault auditor (VLT-01..05) + 2 hygiene (HYG-01..02)."""
     results = []
     breakdown: dict[str, int] = {}
     for chk in SCANNER_CHECKS:

@@ -266,6 +266,7 @@ export interface SessionMessage {
   decision: 'allow' | 'warn' | 'block'
   n_findings: number
   findings: { code: string; severity: string; title: string }[]
+  llm_meta?: { provider: string; model: string; n_in: number; n_out: number } | null
 }
 export interface SessionDetail {
   session_id: string
@@ -336,10 +337,80 @@ export interface ActivityRollup {
   session_stats: Record<string, unknown>
   runtime_snapshot: Record<string, unknown>
   billing_admin_stats: Record<string, unknown>
+  deployments?: DeploymentRecord[]
+  deployment_stats?: DeploymentStats
 }
 
 export const fetchActivity = (limit = 5) =>
   _authJson<ActivityRollup>('GET', `/api/agent-studio/activity?limit=${limit}`)
+
+// ── LLM info (which provider sessions hit) ───────────────────────────
+
+export interface SessionLLMInfo {
+  provider: 'anthropic' | 'openai' | 'google' | 'deepseek' | 'synthetic_fallback'
+  model?: string
+  reason?: string
+  configured_priority: string[]
+  available: string[]
+}
+
+export const fetchSessionLLMInfo = () =>
+  getJson<SessionLLMInfo>('/api/agent-studio/sessions/llm-info')
+
+// ── Deployments ──────────────────────────────────────────────────────
+
+export type DeploymentStatus = 'healthy' | 'degraded' | 'stale' | 'retired'
+export type CloudId = 'aws' | 'gcp' | 'azure' | 'fly' | 'modal' | 'vercel'
+  | 'k8s_self' | 'docker_self' | 'bare_metal' | 'other'
+export type DeploymentTier = 'dev' | 'staging' | 'production'
+
+export interface DeploymentTelemetry {
+  block_rate: number; warn_rate: number
+  p50_latency_ms: number | null; p95_latency_ms: number | null
+  n_events: number; window_size: number
+  top_findings: { code: string; count: number }[]
+}
+export interface DeploymentRecord {
+  deployment_id: string
+  customer_id: string
+  template_id: string
+  name: string
+  runtime_agent_id: string
+  cloud: CloudId
+  region: string
+  tier: DeploymentTier
+  url: string | null
+  git_sha: string | null
+  deployed_at: string
+  deployed_by: string
+  note: string
+  retired_at: string | null
+  status: DeploymentStatus
+  telemetry: DeploymentTelemetry | null
+}
+export interface DeploymentStats {
+  n_total: number; n_active: number; n_retired: number
+  by_status: Record<string, number>
+  by_cloud: Record<string, number>
+  by_tier: Record<string, number>
+  by_template: Record<string, number>
+}
+
+export const listDeployments = (include_retired = false) =>
+  _authJson<{ deployments: DeploymentRecord[]; stats: DeploymentStats }>(
+    'GET', `/api/agent-studio/deployments?include_retired=${include_retired}`)
+
+export const registerDeployment = (body: {
+  template_id: string; name: string; runtime_agent_id: string
+  cloud?: CloudId; region?: string; tier?: DeploymentTier
+  url?: string | null; git_sha?: string | null
+  deployed_by?: string; note?: string
+}) =>
+  _authJson<DeploymentRecord>('POST', '/api/agent-studio/deployments', body)
+
+export const retireDeployment = (deployment_id: string) =>
+  _authJson<{ ok: boolean; deployment_id: string; retired_at?: string; error?: string }>(
+    'POST', `/api/agent-studio/deployments/${deployment_id}/retire`)
 
 // ── Admin grants ─────────────────────────────────────────────────────
 

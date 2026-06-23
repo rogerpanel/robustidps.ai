@@ -8,10 +8,10 @@ import {
 import PageGuide from '../../../components/PageGuide'
 import {
   fetchTemplate, createSession, sendSessionMessage, fetchSession,
-  getStoredApiKey, setStoredApiKey,
+  fetchSessionLLMInfo, getStoredApiKey, setStoredApiKey,
 } from '../api'
 import type {
-  AgentTemplate, SessionDetail, IntegrationSnippet,
+  AgentTemplate, SessionDetail, IntegrationSnippet, SessionLLMInfo,
 } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
@@ -41,6 +41,13 @@ export default function BuildWizard() {
 
   // Step 4
   const [snippetIdx, setSnippetIdx] = useAgentStudioState<number>(ns, 'snippetIdx', 0)
+
+  // Step 3 — LLM provider badge (cached across nav)
+  const [llmInfo, setLlmInfo] = useAgentStudioState<SessionLLMInfo | null>('build', 'llmInfo', null)
+  useEffect(() => {
+    fetchSessionLLMInfo().then(setLlmInfo).catch(() => { /* leave previous */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     fetchTemplate(templateId)
@@ -282,6 +289,20 @@ export default function BuildWizard() {
             ]}
             tip="Sessions are sandboxed + deterministic. Real LLM dispatch happens in your deployed agent — this view exists to prove the verdict envelopes flow."
           />
+          {llmInfo && (
+            <div className={`text-[10px] font-mono px-3 py-1.5 rounded border inline-flex items-center gap-2 ${
+              llmInfo.provider === 'synthetic_fallback'
+                ? 'bg-bg-secondary text-text-secondary border-bg-card/40'
+                : 'bg-accent-green/10 text-accent-green border-accent-green/30'
+            }`}>
+              {llmInfo.provider === 'synthetic_fallback' ? (
+                <>● synthetic dispatcher (no LLM provider key set){llmInfo.reason ? ` · ${llmInfo.reason}` : ''}</>
+              ) : (
+                <>● live LLM dispatch · provider={llmInfo.provider} · model={llmInfo.model}</>
+              )}
+            </div>
+          )}
+
           {!session && (
             <div className="bg-bg-card rounded-xl p-4 space-y-2">
               <label className="text-[10px] font-mono uppercase text-text-secondary">API key</label>
@@ -493,6 +514,7 @@ function Bubble({ m }: { m: import('../api').SessionMessage }) {
              :                          'bg-bg-secondary border-bg-card/40'
   const roleLabel = m.role === 'user' ? 'USER'
                   : m.role === 'agent' ? 'AGENT' : 'SYSTEM'
+  const llm = (m as unknown as { llm_meta?: { provider: string; model: string; n_in: number; n_out: number } }).llm_meta
   return (
     <div className={`border rounded px-2 py-1.5 ${tone}`}>
       <div className="flex items-center justify-between text-[9px] font-mono uppercase text-text-secondary mb-0.5">
@@ -511,6 +533,11 @@ function Bubble({ m }: { m: import('../api').SessionMessage }) {
               [{f.severity}] {f.code}
             </span>
           ))}
+        </div>
+      )}
+      {llm && (
+        <div className="mt-1 text-[9px] font-mono text-text-secondary">
+          ● {llm.provider}/{llm.model} · in:{llm.n_in} out:{llm.n_out}
         </div>
       )}
     </div>
