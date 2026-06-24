@@ -143,46 +143,15 @@ export default function BuildWizard() {
 
       <Stepper step={step} setStep={setStep} done={stepDone} />
 
-      {/* Step 1 — Create agent */}
+      {/* Step 1 — Create agent (Express ↔ JSON) */}
       {step === 1 && (
-        <section className="space-y-3">
-          <PageGuide
-            title="Step 1 · Create the agent"
-            steps={[
-              { title: 'Edit the system prompt', desc: 'Tighten scope, add guardrails, name the refused behaviours explicitly. The Aegis scanner will check every change.' },
-              { title: 'Curate tools', desc: 'Fewer = safer. Each tool name is a permission grant. Side-effects (write / network / exec) raise the supply-chain risk score.' },
-              { title: 'Pin a model', desc: 'Default is gpt-4o-latest; pin to a hashed model id in production for reproducibility.' },
-            ]}
-          />
-          <div className="bg-bg-card rounded-xl p-4">
-            <label className="text-[10px] font-mono uppercase text-text-secondary">Agent spec (JSON)</label>
-            <textarea
-              value={specJson} onChange={(e) => setSpecJson(e.target.value)}
-              spellCheck={false}
-              className="mt-1 w-full h-72 bg-bg-secondary border border-bg-card/60 rounded-md p-2 text-xs font-mono"
-            />
-            {!tryParse(specJson) && (
-              <div className="mt-1 text-[10px] text-accent-red">⚠ JSON does not parse.</div>
-            )}
-            <div className="mt-3 flex gap-2">
-              <Link to="/agent-studio/eval"
-                    onClick={() => sessionStorage.setItem('agentstudio_template_spec', specJson)}
-                    className="px-3 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs inline-flex items-center gap-1">
-                <FlaskConical className="w-3 h-3" /> Send to Eval Harness
-              </Link>
-              <Link to="/agent-studio/red-team"
-                    onClick={() => sessionStorage.setItem('agentstudio_template_spec', specJson)}
-                    className="px-3 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs inline-flex items-center gap-1">
-                <Swords className="w-3 h-3" /> Send to Red Team
-              </Link>
-              <div className="flex-1" />
-              <button onClick={() => setStep(2)}
-                      className="px-4 py-1.5 rounded bg-accent-blue text-white text-xs font-medium hover:bg-accent-blue/90">
-                Next: Configure environment →
-              </button>
-            </div>
-          </div>
-        </section>
+        <Step1CreateAgent
+          ns={ns}
+          tpl={tpl}
+          specJson={specJson}
+          setSpecJson={setSpecJson}
+          onNext={() => setStep(2)}
+        />
       )}
 
       {/* Step 2 — Configure environment */}
@@ -464,6 +433,243 @@ export default function BuildWizard() {
     </div>
   )
 }
+
+// ── Step 1 component: Express ↔ JSON ───────────────────────────────────
+
+type ExpressForm = {
+  name: string
+  purpose: string
+  allowedTools: Record<string, boolean>
+  network: 'blocked' | 'allowlist' | 'open'
+  memory: 'none' | 'session' | 'long_term'
+  onCritical: 'refuse' | 'warn' | 'escalate'
+}
+
+function expressToSpec(prev: Record<string, unknown>, f: ExpressForm): Record<string, unknown> {
+  const tools = Object.entries(f.allowedTools)
+    .filter(([, on]) => on)
+    .map(([name]) => {
+      const existing = ((prev.tools as Array<Record<string, unknown>>) || [])
+        .find((t) => t.name === name)
+      return existing || { name }
+    })
+  const guardrails: string[] = []
+  if (f.onCritical === 'refuse')   guardrails.push('On critical input: refuse politely and do not act.')
+  if (f.onCritical === 'warn')     guardrails.push('On critical input: surface a warning to the user but continue.')
+  if (f.onCritical === 'escalate') guardrails.push('On critical input: escalate to a human reviewer and pause.')
+  if (f.network === 'blocked')     guardrails.push('No outbound network calls except those baked into the listed tools.')
+  if (f.network === 'allowlist')   guardrails.push('Outbound calls limited to the configured allowlist; refuse anything else.')
+  return {
+    ...prev,
+    name: f.name || 'my-agent',
+    system_prompt: `${f.purpose.trim()}\n\n${guardrails.join(' ')}`.trim(),
+    tools,
+    memory: f.memory,
+    scope: f.network === 'open' ? 'loose' : 'strict',
+  }
+}
+
+function specToExpress(spec: Record<string, unknown>): ExpressForm {
+  const allTools = ((spec.tools as Array<Record<string, unknown>>) || [])
+  const allowed: Record<string, boolean> = {}
+  for (const t of allTools) {
+    if (typeof t.name === 'string') allowed[t.name] = true
+  }
+  const sp = String(spec.system_prompt || '')
+  const lower = sp.toLowerCase()
+  return {
+    name: String(spec.name || ''),
+    // First sentence as the user-facing "purpose" — keeps the guardrails out.
+    purpose: sp.split(/(?<=[.!?])\s+/)[0] || sp,
+    allowedTools: allowed,
+    network: lower.includes('no outbound network') ? 'blocked'
+           : lower.includes('allowlist') ? 'allowlist' : 'open',
+    memory: (['none', 'session', 'long_term'] as const)
+      .find((m) => m === spec.memory) || 'session',
+    onCritical: lower.includes('escalate') ? 'escalate'
+              : lower.includes('warning') || lower.includes('warn') ? 'warn'
+              : 'refuse',
+  }
+}
+
+function Step1CreateAgent({ ns, tpl, specJson, setSpecJson, onNext }: {
+  ns: string
+  tpl: import('../api').AgentTemplate
+  specJson: string
+  setSpecJson: (v: string) => void
+  onNext: () => void
+}) {
+  const [mode, setMode] = useAgentStudioState<'express' | 'json'>(ns, 'createMode', 'express')
+  const currentSpec = (() => {
+    try { return JSON.parse(specJson) as Record<string, unknown> } catch { return tpl.spec }
+  })()
+  const form = specToExpress(currentSpec)
+
+  const update = (patch: Partial<ExpressForm>) => {
+    const next = { ...form, ...patch }
+    const nextSpec = expressToSpec(currentSpec, next)
+    setSpecJson(JSON.stringify(nextSpec, null, 2))
+  }
+
+  const toggleTool = (name: string) =>
+    update({ allowedTools: { ...form.allowedTools, [name]: !form.allowedTools[name] } })
+
+  // Pool of tools: union of template tools + already-set tools.
+  const toolPool = Array.from(new Set([
+    ...((tpl.spec.tools as Array<Record<string, unknown>>) || [])
+      .map((t) => String(t.name)),
+    ...Object.keys(form.allowedTools),
+  ]))
+
+  return (
+    <section className="space-y-3">
+      <PageGuide
+        title="Step 1 · Create the agent"
+        steps={mode === 'express' ? [
+          { title: 'Name + purpose', desc: 'Plain-English sentence describing what the agent does. The wizard turns this into the system_prompt with the appropriate guardrails.' },
+          { title: 'Pick allowed tools', desc: 'Each checkbox grants a permission. Fewer ticks = safer. The Aegis scanner re-runs on every change.' },
+          { title: 'Set network + memory + critical-input behaviour', desc: 'Three dropdowns translate to system_prompt clauses and the runtime\'s scope = strict|loose flag.' },
+          { title: 'Flip to JSON anytime', desc: 'Switch the Express / JSON tab to inspect what the wizard generated — engineers can tweak directly, then come back.' },
+        ] : [
+          { title: 'Edit the system prompt', desc: 'Tighten scope, add guardrails, name the refused behaviours explicitly. The Aegis scanner will check every change.' },
+          { title: 'Curate tools', desc: 'Fewer = safer. Each tool name is a permission grant. Side-effects (write / network / exec) raise the supply-chain risk score.' },
+          { title: 'Pin a model', desc: 'Default is gpt-4o-latest; pin to a hashed model id in production for reproducibility.' },
+        ]}
+      />
+
+      <div className="flex items-center gap-1 bg-bg-card rounded-md p-1 w-fit">
+        {(['express', 'json'] as const).map((m) => (
+          <button key={m} onClick={() => setMode(m)}
+                  className={`px-3 py-1 rounded text-[11px] font-mono ${
+                    mode === m ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary'
+                  }`}>
+            {m === 'express' ? '🧭  Express (no-code)' : '⚙  JSON (engineer)'}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'express' ? (
+        <div className="bg-bg-card rounded-xl p-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-mono text-text-secondary mb-1">Agent name</label>
+              <input
+                type="text" value={form.name} onChange={(e) => update({ name: e.target.value })}
+                placeholder="my-traffic-monitor"
+                className="w-full px-2 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono text-text-secondary mb-1">Memory</label>
+              <select value={form.memory}
+                      onChange={(e) => update({ memory: e.target.value as ExpressForm['memory'] })}
+                      className="w-full px-2 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs">
+                <option value="none">None (forgetful — safest)</option>
+                <option value="session">Session-only (forgets after the run)</option>
+                <option value="long_term">Long-term (persists across runs)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-mono text-text-secondary mb-1">
+              What is the agent for? (plain English)
+            </label>
+            <textarea
+              value={form.purpose} onChange={(e) => update({ purpose: e.target.value })}
+              rows={3}
+              placeholder="e.g. 'Watches network flows for anomalies, scores severity, and opens tickets on critical traffic — never blocks directly, always asks a human.'"
+              className="w-full px-2 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-mono text-text-secondary mb-1">
+              Allowed tools ({Object.values(form.allowedTools).filter(Boolean).length} of {toolPool.length})
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+              {toolPool.map((name) => (
+                <label key={name}
+                       className="flex items-center gap-2 text-xs px-2 py-1 rounded bg-bg-secondary border border-bg-card/40 hover:border-accent-blue/40 cursor-pointer">
+                  <input type="checkbox"
+                         checked={!!form.allowedTools[name]}
+                         onChange={() => toggleTool(name)} />
+                  <span className="font-mono">{name}</span>
+                </label>
+              ))}
+              {toolPool.length === 0 && (
+                <div className="text-[10px] text-text-secondary italic">
+                  No tools in the template — flip to JSON to add some.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-mono text-text-secondary mb-1">Network access</label>
+              <select value={form.network}
+                      onChange={(e) => update({ network: e.target.value as ExpressForm['network'] })}
+                      className="w-full px-2 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs">
+                <option value="blocked">No internet (safest)</option>
+                <option value="allowlist">Allowlist only (recommended)</option>
+                <option value="open">Open (development only)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono text-text-secondary mb-1">On critical input</label>
+              <select value={form.onCritical}
+                      onChange={(e) => update({ onCritical: e.target.value as ExpressForm['onCritical'] })}
+                      className="w-full px-2 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs">
+                <option value="refuse">Refuse + log (safest)</option>
+                <option value="warn">Warn user, continue</option>
+                <option value="escalate">Escalate to human, pause</option>
+              </select>
+            </div>
+          </div>
+
+          <details className="text-[10px] font-mono text-text-secondary">
+            <summary className="cursor-pointer hover:text-accent-blue">
+              Preview generated spec
+            </summary>
+            <pre className="mt-2 p-2 bg-bg-secondary rounded border border-bg-card/40 overflow-x-auto max-h-48">{specJson}</pre>
+          </details>
+        </div>
+      ) : (
+        <div className="bg-bg-card rounded-xl p-4">
+          <label className="text-[10px] font-mono uppercase text-text-secondary">Agent spec (JSON)</label>
+          <textarea
+            value={specJson} onChange={(e) => setSpecJson(e.target.value)}
+            spellCheck={false}
+            className="mt-1 w-full h-72 bg-bg-secondary border border-bg-card/60 rounded-md p-2 text-xs font-mono"
+          />
+          {!tryParse(specJson) && (
+            <div className="mt-1 text-[10px] text-accent-red">⚠ JSON does not parse.</div>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Link to="/agent-studio/eval"
+              onClick={() => sessionStorage.setItem('agentstudio_template_spec', specJson)}
+              className="px-3 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs inline-flex items-center gap-1">
+          <FlaskConical className="w-3 h-3" /> Send to Eval Harness
+        </Link>
+        <Link to="/agent-studio/red-team"
+              onClick={() => sessionStorage.setItem('agentstudio_template_spec', specJson)}
+              className="px-3 py-1.5 rounded bg-bg-secondary border border-bg-card/40 text-xs inline-flex items-center gap-1">
+          <Swords className="w-3 h-3" /> Send to Red Team
+        </Link>
+        <div className="flex-1" />
+        <button onClick={onNext}
+                className="px-4 py-1.5 rounded bg-accent-blue text-white text-xs font-medium hover:bg-accent-blue/90">
+          Next: Configure environment →
+        </button>
+      </div>
+    </section>
+  )
+}
+
 
 function tryParse(s: string): boolean {
   try { JSON.parse(s); return true } catch { return false }

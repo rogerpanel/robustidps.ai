@@ -17,9 +17,31 @@ const TIER_META: Record<string, { label: string; tone: string; icon: typeof Shie
   blank: { label: 'Blank',                 tone: 'bg-bg-secondary text-text-secondary border-bg-card/40',         icon: FileCode },
 }
 
+type RoleId = 'all' | 'sec_engineer' | 'sec_tester' | 'netops'
+            | 'uav_planner' | 'developer' | 'it_admin'
+
+const ROLES: { id: RoleId; label: string; matches: string[] }[] = [
+  { id: 'all',           label: 'Show me everything', matches: [] },
+  { id: 'sec_engineer',  label: "I'm a security engineer",
+    matches: ['soc_triage', 'incident_commander', 'vuln_triage', 'threat_hunter',
+              'mcp_auditor', 'compliance_auditor'] },
+  { id: 'sec_tester',    label: "I'm a security tester",
+    matches: ['red_team_operator', 'pentest_recon', 'phishing_trainer'] },
+  { id: 'netops',        label: "I'm a network ops engineer",
+    matches: ['network_traffic_monitor', 'soc_triage', 'incident_commander',
+              'vuln_triage'] },
+  { id: 'uav_planner',   label: "I'm a UAV mission planner",
+    matches: ['uav_swarm_coordinator', 'incident_commander', 'compliance_auditor'] },
+  { id: 'developer',     label: "I'm a developer",
+    matches: ['customer_support', 'billing_copilot', 'docs_qa', 'blank'] },
+  { id: 'it_admin',      label: "I'm an IT admin",
+    matches: ['compliance_auditor', 'mcp_auditor', 'docs_qa', 'incident_commander'] },
+]
+
 export default function Quickstart() {
   const [templates, setTemplates] = useState<AgentTemplate[]>([])
   const [stats, setStats] = useState<TemplateStats | null>(null)
+  const [role, setRole] = useAgentStudioState<RoleId>('quickstart', 'role', 'all')
   const [tierFilter, setTierFilter] = useAgentStudioState<'all' | 'A' | 'B' | 'C' | 'blank'>(
     'quickstart', 'tier', 'all')
   const [search, setSearch] = useAgentStudioState<string>('quickstart', 'search', '')
@@ -33,15 +55,22 @@ export default function Quickstart() {
       .catch((e) => setErr(String(e)))
   }, [])
 
+  const roleAllow = useMemo(() => {
+    const r = ROLES.find((x) => x.id === role)
+    if (!r || r.matches.length === 0) return null
+    return new Set(r.matches)
+  }, [role])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
     return templates.filter((t) => {
+      if (roleAllow && !roleAllow.has(t.id)) return false
       if (tierFilter !== 'all' && t.tier !== tierFilter) return false
       if (!q) return true
       const hay = `${t.name} ${t.summary} ${t.use_case} ${t.category}`.toLowerCase()
       return hay.includes(q)
     })
-  }, [templates, tierFilter, search])
+  }, [templates, roleAllow, tierFilter, search])
 
   const opened = openId ? templates.find((t) => t.id === openId) : null
 
@@ -91,23 +120,49 @@ export default function Quickstart() {
         tip="Templates are JSON files — adding your own is one PR away. See backend/plugins/agent_studio/templates.py."
       />
 
-      <section className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1 bg-bg-card rounded-md p-1">
-          {(['all', 'A', 'B', 'C', 'blank'] as const).map((k) => (
-            <button key={k}
-                    onClick={() => setTierFilter(k)}
-                    className={`px-2.5 py-1 rounded text-[11px] font-mono ${
-                      tierFilter === k ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary'
-                    }`}>
-              {k === 'all' ? 'All' : TIER_META[k]?.label || k}
-            </button>
-          ))}
+      <section className="space-y-2">
+        <div>
+          <div className="text-[10px] font-mono uppercase text-text-secondary mb-1">
+            Pick your role — we'll narrow the catalog
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {ROLES.map((r) => (
+              <button key={r.id}
+                      onClick={() => setRole(r.id)}
+                      className={`px-3 py-1 rounded-full text-[11px] ${
+                        role === r.id
+                          ? 'bg-accent-blue text-white'
+                          : 'bg-bg-card text-text-secondary hover:text-text-primary'
+                      }`}>
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="relative flex-1 min-w-[200px] max-w-md">
-          <Search className="w-3.5 h-3.5 absolute top-2 left-2 text-text-secondary" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
-                 placeholder="Search name, category, use-case…"
-                 className="w-full pl-7 pr-2 py-1.5 rounded-md bg-bg-card border border-bg-card/40 text-xs" />
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 bg-bg-card rounded-md p-1">
+            {(['all', 'A', 'B', 'C', 'blank'] as const).map((k) => (
+              <button key={k}
+                      onClick={() => setTierFilter(k)}
+                      className={`px-2.5 py-1 rounded text-[11px] font-mono ${
+                        tierFilter === k ? 'bg-accent-blue text-white' : 'text-text-secondary hover:text-text-primary'
+                      }`}>
+                {k === 'all' ? 'All tiers' : TIER_META[k]?.label || k}
+              </button>
+            ))}
+          </div>
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className="w-3.5 h-3.5 absolute top-2 left-2 text-text-secondary" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
+                   placeholder="Search name, category, use-case…"
+                   className="w-full pl-7 pr-2 py-1.5 rounded-md bg-bg-card border border-bg-card/40 text-xs" />
+          </div>
+          {filtered.length !== templates.length && (
+            <div className="text-[10px] font-mono text-text-secondary">
+              showing {filtered.length} / {templates.length}
+            </div>
+          )}
         </div>
       </section>
 

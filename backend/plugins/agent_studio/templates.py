@@ -356,6 +356,74 @@ TEMPLATES: list[AgentTemplate] = [
         ),
     ),
 
+    # ── Tier C extras — role-targeted scenarios ────────────────────────
+
+    AgentTemplate(
+        id="network_traffic_monitor",
+        name="Network Traffic Monitor",
+        tier="C", category="netsec",
+        summary="Watches network flows, scores anomalies, opens tickets on critical traffic.",
+        use_case="Plug into pcap / NetFlow / SIEM stream → grounded triage + audit-logged ticket.",
+        frameworks=["langgraph", "openai_agents"],
+        recommended_skus=["agent_factory", "continuous_defense"],
+        notes=("Designed for network-ops engineers who want a 'secured traffic monitor' "
+               "without writing Python. Use the Express mode in the BuildWizard to "
+               "tune scope + tools via dropdowns."),
+        spec=_spec(
+            "traffic-monitor",
+            sp=("You are a network traffic monitor. For each flow / packet capture you "
+                "receive, score anomaly severity, identify the suspected MITRE ATT&CK "
+                "technique, and recommend a triage action. Output STRICT JSON only. "
+                "Refuse to issue blocking commands directly — open a ticket via "
+                "open_ticket and let the human approve. Never act on flows outside the "
+                "monitored CIDR range."),
+            tools=[
+                {"name": "query_pcap",       "description": "Read-only packet capture lookup."},
+                {"name": "query_netflow",    "description": "NetFlow record lookup; 5-min window."},
+                {"name": "lookup_geoip",     "description": "IP → ASN / geolocation."},
+                {"name": "lookup_threat_intel", "description": "Reputation lookup (Spamhaus/AbuseIPDB)."},
+                {"name": "lookup_atlas",     "description": "MITRE ATT&CK / ATLAS technique lookup."},
+                {"name": "open_ticket",      "description": "Open SIEM ticket; rate-limited 30/min."},
+            ],
+        ),
+    ),
+
+    AgentTemplate(
+        id="uav_swarm_coordinator",
+        name="UAV Swarm Coordinator",
+        tier="C", category="uav",
+        summary="Coordinates a UAV swarm with satellite uplink, formation control, "
+                "and no-fly-zone routing.",
+        use_case="Mission brief in → per-UAV waypoints out, with continuous swarm-health "
+                  "telemetry and emergency RTB on link loss.",
+        frameworks=["langgraph", "crewai"],
+        recommended_skus=["agent_factory", "secure_by_design"],
+        notes=("Designed for UAV mission planners reporting to ops. Pairs with the "
+               "UAV vertical's swarm graph + mission-plan review pages. "
+               "Authorisation envelope (mission_id + scope_polygon) required on every "
+               "command — the agent refuses unscoped operations."),
+        spec=_spec(
+            "uav-swarm-coord",
+            sp=("You are a UAV swarm coordinator. AUTHORIZED MISSIONS ONLY (caller must "
+                "supply mission_id + scope_polygon). For each tick: read swarm telemetry, "
+                "compare against the mission plan, emit per-UAV waypoint deltas, and "
+                "trigger emergency_rtb on any UAV whose link quality drops below the "
+                "configured threshold. Never command a UAV outside scope_polygon. "
+                "Never disable safety interlocks. On uplink loss, default to safe-hover "
+                "until reacquired."),
+            tools=[
+                {"name": "satellite_uplink", "description": "Encrypted command channel to swarm; auth required."},
+                {"name": "get_swarm_state",  "description": "Read-only telemetry from all UAVs in mission."},
+                {"name": "plan_route",       "description": "A* over the mission polygon avoiding no-fly zones."},
+                {"name": "ack_telemetry",    "description": "Acknowledge telemetry frame; non-destructive."},
+                {"name": "emergency_rtb",    "description": "Recall a UAV to base; requires mission auth."},
+                {"name": "consult_atc",      "description": "Read NOTAM / ATC airspace status."},
+            ],
+            memory="short",
+            scope="strict",
+        ),
+    ),
+
     # ── Blank — start from scratch ─────────────────────────────────────
 
     AgentTemplate(
@@ -652,6 +720,36 @@ _PER_TEMPLATE: dict[str, dict] = {
         "env_vars": [],
         "secrets": [],
         "test_inputs": ["ping"],
+    },
+
+    "network_traffic_monitor": {
+        "mcp_servers": [
+            {"name": "siem-mcp",       "url": "mcp://internal-siem.example", "policy": "write_audited"},
+            {"name": "threat-intel-mcp", "url": "mcp://abuseipdb.example",    "policy": "read_only"},
+            {"name": "netflow-mcp",    "url": "mcp://flow-collector.internal", "policy": "read_only"},
+        ],
+        "env_vars": ["MONITORED_CIDR", "SIEM_BASE_URL"],
+        "secrets": ["SIEM_API_TOKEN", "THREAT_INTEL_TOKEN"],
+        "test_inputs": [
+            '{"flow_id":"f-001","src_ip":"203.0.113.42","dst_ip":"10.0.0.5","dst_port":4444,"bytes":12345}',
+            '{"flow_id":"f-002","src_ip":"10.0.0.7","dst_ip":"8.8.8.8","dst_port":53,"bytes":1300,"frequency_per_min":12000}',
+        ],
+    },
+
+    "uav_swarm_coordinator": {
+        "mcp_servers": [
+            {"name": "satellite-link-mcp", "url": "mcp://satlink.gateway.example", "policy": "write_audited"},
+            {"name": "uav-telemetry-mcp",  "url": "mcp://swarm-telemetry.internal", "policy": "read_only"},
+            {"name": "atc-mcp",            "url": "mcp://atc-feed.example",          "policy": "read_only"},
+        ],
+        "env_vars": ["MISSION_ID", "SCOPE_POLYGON_WKT", "LINK_QUALITY_THRESHOLD"],
+        "secrets": ["SATLINK_PSK", "GROUND_STATION_CERT"],
+        "test_inputs": [
+            ('{"mission_id":"MSN-2026-042","scope_polygon":"POLYGON((30 60,30 61,31 61,31 60,30 60))",'
+             '"tick_n":0,"swarm":[{"uav":"U1","lat":30.5,"lon":60.5,"link_q":0.92},'
+             '{"uav":"U2","lat":30.6,"lon":60.6,"link_q":0.88}]}'),
+            ('{"mission_id":"MSN-2026-042","tick_n":17,"event":"link_loss","uav":"U2"}'),
+        ],
     },
 }
 
