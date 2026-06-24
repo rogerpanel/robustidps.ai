@@ -93,6 +93,15 @@ async def sku_catalog() -> dict:
     return {"skus": SKU_CATALOG}
 
 
+@router.get("/access-info")
+async def access_info_route() -> dict:
+    """Public probe — surfaces which identity modes the server accepts
+    so the UI can render 'Demo mode' / 'Sign in for full access' banners
+    on every Agent Studio page."""
+    from plugins.agent_studio.auth import access_info
+    return access_info()
+
+
 # ── Entitlement ──────────────────────────────────────────────────────────
 
 @router.get("/entitlement/tiers")

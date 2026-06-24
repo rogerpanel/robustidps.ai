@@ -6,6 +6,7 @@ import {
 } from '../api'
 import type { RedTeamRun, Severity } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 const SAMPLE_TARGET = `{
   "name": "ops-copilot",
@@ -83,6 +84,7 @@ export default function RedTeam() {
 
   return (
     <div className="space-y-4">
+      <AccessBanner />
       <div>
         <h1 className="text-xl font-display font-bold flex items-center gap-2">
           <Swords className="w-5 h-5 text-accent-red" /> Red Team Automation

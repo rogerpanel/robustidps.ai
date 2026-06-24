@@ -10,6 +10,7 @@ import {
 } from '../api'
 import type { Customer, CheckoutCompleteResult } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 /**
  * Stripe success URL target for the Agent Studio commerce sprint.
@@ -93,6 +94,7 @@ export default function AccountConsole() {
   if (sessionId && !welcome && !customer) {
     return (
       <div className="space-y-6 max-w-2xl mx-auto">
+      <AccessBanner />
         <section className="text-center py-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-green/10 text-accent-green text-xs font-mono mb-3">
             <CheckCircle2 className="w-3 h-3" /> Checkout complete

@@ -14,6 +14,7 @@ import type {
   AgentTemplate, SessionDetail, IntegrationSnippet, SessionLLMInfo,
 } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 type Step = 1 | 2 | 3 | 4
 
@@ -123,6 +124,7 @@ export default function BuildWizard() {
 
   return (
     <div className="space-y-5">
+      <AccessBanner />
       <header className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <div className="flex items-center gap-2">

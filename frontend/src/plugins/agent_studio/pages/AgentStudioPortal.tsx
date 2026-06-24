@@ -8,6 +8,7 @@ import PageGuide from '../../../components/PageGuide'
 import { createCheckout, fetchActivity, getStoredApiKey } from '../api'
 import type { ActivityRollup } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 interface SKU { id: string; name: string; price_usd: string; duration: string; summary: string }
 interface TierDetail {
@@ -75,6 +76,7 @@ export default function AgentStudioPortal() {
 
   return (
     <div className="space-y-6">
+      <AccessBanner />
       <section className="text-center py-8">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-blue/10 text-accent-blue text-xs font-mono mb-3">
           <Sparkles className="w-3 h-3" /> Agent Studio + Agent Security

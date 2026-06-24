@@ -1,7 +1,23 @@
 const API = import.meta.env.VITE_API_URL || ''
 
+// Identity is layered: a platform JWT (admin or tier-scoped user) wins
+// when present; otherwise we fall back to the rids_live_… key the user
+// pasted into the Account Console. The backend accepts whichever is
+// useful — admin JWTs bypass tier checks entirely.
+function _identityHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {}
+  const platformToken = typeof localStorage !== 'undefined'
+    ? localStorage.getItem('robustidps_token') : null
+  const apiKey = typeof localStorage !== 'undefined'
+    ? localStorage.getItem('robustidps_api_key') : null
+  // Platform JWT takes precedence (admin would always want their session).
+  const bearer = platformToken || apiKey
+  if (bearer) headers['Authorization'] = `Bearer ${bearer}`
+  return headers
+}
+
 async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`)
+  const res = await fetch(`${API}${path}`, { headers: _identityHeaders() })
   if (!res.ok) throw new Error(`${path} → ${res.status}`)
   return res.json()
 }
@@ -9,7 +25,7 @@ async function getJson<T>(path: string): Promise<T> {
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ..._identityHeaders() },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`${path} → ${res.status}`)
@@ -55,6 +71,17 @@ export const fetchScannerChecks = () =>
 
 export const fetchSKUCatalog = () =>
   getJson<{ skus: SKU[] }>('/api/agent-studio/sku-catalog')
+
+// ── Access info — surfaces which identity modes the server accepts ──
+
+export interface AccessInfo {
+  auth_disabled: boolean
+  demo_mode: boolean
+  admin_token_set: boolean
+  sources_accepted: string[]
+}
+export const fetchAccessInfo = () =>
+  getJson<AccessInfo>('/api/agent-studio/access-info')
 
 // ── Eval Harness ─────────────────────────────────────────────────────
 
@@ -286,9 +313,9 @@ export interface SessionListItem {
 }
 
 function _authJson<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const key = getStoredApiKey()
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (key) headers['Authorization'] = `Bearer ${key}`
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json', ..._identityHeaders(),
+  }
   return fetch(`${API}${path}`, {
     method, headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,

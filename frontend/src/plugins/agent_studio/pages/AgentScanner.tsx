@@ -7,6 +7,7 @@ import PageGuide from '../../../components/PageGuide'
 import { runAgentScan, fetchSKUCatalog } from '../api'
 import type { ScanReport, InputKind, Severity, SKU } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 const SAMPLE_MCP = `{
   "name": "filesystem-server",
@@ -74,6 +75,7 @@ export default function AgentScanner() {
 
   return (
     <div className="space-y-4">
+      <AccessBanner />
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-display font-bold flex items-center gap-2">

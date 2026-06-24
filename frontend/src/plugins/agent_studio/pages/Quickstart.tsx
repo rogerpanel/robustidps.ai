@@ -8,6 +8,7 @@ import PageGuide from '../../../components/PageGuide'
 import { listTemplates } from '../api'
 import type { AgentTemplate, TemplateStats } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 const TIER_META: Record<string, { label: string; tone: string; icon: typeof Shield }> = {
   A:     { label: 'Security defenders',    tone: 'bg-accent-green/10 text-accent-green border-accent-green/30',   icon: Shield },
@@ -59,6 +60,7 @@ export default function Quickstart() {
 
   return (
     <div className="space-y-6">
+      <AccessBanner />
       <section className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-display font-bold flex items-center gap-2">

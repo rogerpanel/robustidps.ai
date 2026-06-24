@@ -10,6 +10,7 @@ import {
 } from '../api'
 import type { AdminGrant, AdminGrantStats, Customer } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 const PAYMENT_RAILS: { id: string; label: string }[] = [
   { id: 'wire', label: 'Bank wire (SWIFT / SEPA)' },
@@ -111,6 +112,7 @@ export default function AdminConsole() {
   if (!authed) {
     return (
       <div className="space-y-6 max-w-md mx-auto">
+      <AccessBanner />
         <section className="text-center py-4">
           <h1 className="text-2xl font-display font-bold inline-flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-accent-red" /> Admin Console

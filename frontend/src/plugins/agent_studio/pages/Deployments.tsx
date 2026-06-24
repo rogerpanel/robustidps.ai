@@ -12,6 +12,7 @@ import type {
   DeploymentRecord, DeploymentStats, CloudId, DeploymentTier,
 } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 const CLOUDS: { id: CloudId; label: string }[] = [
   { id: 'aws', label: 'AWS' },        { id: 'gcp', label: 'GCP' },
@@ -104,6 +105,7 @@ export default function Deployments() {
 
   return (
     <div className="space-y-5">
+      <AccessBanner />
       <header className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-display font-bold inline-flex items-center gap-2">

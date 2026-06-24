@@ -6,6 +6,7 @@ import PageGuide from '../../../components/PageGuide'
 import { scanModel, scanModelLive, fetchHfInfo } from '../api'
 import type { ModelScan } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 const SAMPLE_MODEL = 'meta-llama/Llama-3.1-8B-Instruct'
 const SAMPLE_SPEC = `{
@@ -69,6 +70,7 @@ export default function SupplyChainScanner() {
 
   return (
     <div className="space-y-4">
+      <AccessBanner />
       <div>
         <h1 className="text-xl font-display font-bold flex items-center gap-2">
           <Package className="w-5 h-5 text-accent-blue" /> Model Supply-Chain Scanner

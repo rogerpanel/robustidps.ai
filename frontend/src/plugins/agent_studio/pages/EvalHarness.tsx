@@ -4,6 +4,7 @@ import PageGuide from '../../../components/PageGuide'
 import { runAgentEval } from '../api'
 import type { EvalRun } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import AccessBanner from '../components/AccessBanner'
 
 const SAMPLE_SPEC = `{
   "name": "billing-rag",
@@ -53,6 +54,7 @@ export default function EvalHarness() {
 
   return (
     <div className="space-y-4">
+      <AccessBanner />
       <div>
         <h1 className="text-xl font-display font-bold flex items-center gap-2">
           <TestTube className="w-5 h-5 text-accent-blue" /> Eval Harness

@@ -9,6 +9,7 @@ import {
   fetchOTelInfo, ingestOTelSpan,
 } from '../api'
 import type { RuntimeSnapshot, RuntimeAgentSummary, RuntimeAlert } from '../api'
+import AccessBanner from '../components/AccessBanner'
 
 const FRAMEWORK_COLOR: Record<string, string> = {
   langgraph:     '#1D4ED8',
@@ -110,6 +111,7 @@ export default function RuntimeMonitor() {
 
   return (
     <div className="space-y-4">
+      <AccessBanner />
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-display font-bold flex items-center gap-2">
