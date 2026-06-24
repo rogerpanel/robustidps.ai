@@ -102,6 +102,49 @@ async def access_info_route() -> dict:
     return access_info()
 
 
+# ── Platform models (special tools the agent can call) ──────────────
+
+@router.get("/platform-models")
+async def platform_models_list() -> dict:
+    """Catalog of platform-side detection / response models the agent
+    can attach as special tools. Read-only, public — drives the
+    Platform Model picker in the BuildWizard."""
+    from plugins.agent_studio.platform_models import list_models
+    return {"models": list_models()}
+
+
+@router.get("/platform-models/{model_id}")
+async def platform_model_detail(model_id: str) -> dict:
+    from plugins.agent_studio.platform_models import get_model
+    data = get_model(model_id)
+    if data is None:
+        raise HTTPException(404, f"Unknown platform model: {model_id}")
+    return data
+
+
+@router.get("/platform-models/recommend/{template_id}")
+async def platform_models_recommend(template_id: str) -> dict:
+    """Curated default model picks per template."""
+    from plugins.agent_studio.platform_models import defaults_for, get_model
+    ids = defaults_for(template_id)
+    return {"template_id": template_id, "model_ids": ids,
+            "models": [m for m in [get_model(mid) for mid in ids] if m]}
+
+
+@router.get("/build-suggestions/{template_id}")
+async def build_suggestions(template_id: str, step: int = 1,
+                            category: str | None = None) -> dict:
+    """Side-tips for the BuildWizard — varies per (step, archetype)."""
+    from plugins.agent_studio.platform_models import suggestions
+    from plugins.agent_studio.templates import get_template
+    tpl = get_template(template_id)
+    cat = category or (tpl["category"] if tpl else None)
+    return {
+        "template_id": template_id, "step": step, "category": cat,
+        "tips": suggestions(step, template_id, cat),
+    }
+
+
 # ── Entitlement ──────────────────────────────────────────────────────────
 
 @router.get("/entitlement/tiers")

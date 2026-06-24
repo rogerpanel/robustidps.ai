@@ -14,6 +14,8 @@ import type {
   AgentTemplate, SessionDetail, IntegrationSnippet, SessionLLMInfo,
 } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import PlatformModelPicker from '../components/PlatformModelPicker'
+import SideSuggestions from '../components/SideSuggestions'
 import AccessBanner from '../components/AccessBanner'
 
 type Step = 1 | 2 | 3 | 4
@@ -142,6 +144,9 @@ export default function BuildWizard() {
       </header>
 
       <Stepper step={step} setStep={setStep} done={stepDone} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_18rem] gap-4">
+        <div className="space-y-4 min-w-0">
 
       {/* Step 1 — Create agent (Express ↔ JSON) */}
       {step === 1 && (
@@ -430,6 +435,10 @@ export default function BuildWizard() {
           </div>
         </section>
       )}
+
+        </div>
+        <SideSuggestions templateId={templateId} step={step} category={tpl.category} />
+      </div>
     </div>
   )
 }
@@ -520,6 +529,24 @@ function Step1CreateAgent({ ns, tpl, specJson, setSpecJson, onNext }: {
       .map((t) => String(t.name)),
     ...Object.keys(form.allowedTools),
   ]))
+
+  // Platform models attached as special tools — kept in spec.platform_models
+  // as a list of {id, role} entries. The wizard exposes them via the
+  // PlatformModelPicker; the Express form treats them as opaque tools.
+  const platformModels = (currentSpec.platform_models as Array<{ id: string; role?: string }> | undefined)
+    || []
+  const selectedPlatformModels = platformModels.map((m) => m.id)
+
+  const setPlatformModels = (ids: string[]) => {
+    const next = {
+      ...currentSpec,
+      platform_models: ids.map((id) => {
+        const existing = platformModels.find((m) => m.id === id)
+        return existing || { id, role: 'tool' }
+      }),
+    }
+    setSpecJson(JSON.stringify(next, null, 2))
+  }
 
   return (
     <section className="space-y-3">
@@ -628,6 +655,17 @@ function Step1CreateAgent({ ns, tpl, specJson, setSpecJson, onNext }: {
             </div>
           </div>
 
+          <div>
+            <label className="block text-[10px] font-mono uppercase text-text-secondary mb-1">
+              Platform models — RobustIDPS detection / response models as special tools
+            </label>
+            <PlatformModelPicker
+              templateId={tpl.id}
+              selected={selectedPlatformModels}
+              onChange={setPlatformModels}
+            />
+          </div>
+
           <details className="text-[10px] font-mono text-text-secondary">
             <summary className="cursor-pointer hover:text-accent-blue">
               Preview generated spec
@@ -646,6 +684,16 @@ function Step1CreateAgent({ ns, tpl, specJson, setSpecJson, onNext }: {
           {!tryParse(specJson) && (
             <div className="mt-1 text-[10px] text-accent-red">⚠ JSON does not parse.</div>
           )}
+          <div className="mt-3">
+            <label className="block text-[10px] font-mono uppercase text-text-secondary mb-1">
+              Platform models (mirrors spec.platform_models[])
+            </label>
+            <PlatformModelPicker
+              templateId={tpl.id}
+              selected={selectedPlatformModels}
+              onChange={setPlatformModels}
+            />
+          </div>
         </div>
       )}
 

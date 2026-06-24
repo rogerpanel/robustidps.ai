@@ -583,6 +583,20 @@ TOOLS = [
         "description": "Surface which LLM provider Agent Studio test sessions will use (synthetic_fallback when no provider key is configured). Use when the user asks 'are sessions hitting a real model?'",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "list_agent_studio_platform_models",
+        "description": "Catalog of the 17+ platform-side detection / response / certified-defence models customers can attach to their Agent Studio agents as 'special tools' (surrogate, neural_ode, cybersec_llm, mambaguard, ssl_graph_anomaly, sode_guard, lipmamba, clrl_unified, …). Each entry has id, name, role hint, category, paper citation.",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "recommend_agent_studio_platform_models",
+        "description": "Get the curated default platform-model picks for a Quickstart template id (e.g. 'network_traffic_monitor' → surrogate + neural_ode + ssl_graph_anomaly + multi_agent_pqc + sode_guard + lipmamba). Use when the user asks 'which platform models should my <archetype> use?'",
+        "input_schema": {
+            "type": "object",
+            "properties": {"template_id": {"type": "string"}},
+            "required": ["template_id"],
+        },
+    },
 ]
 
 
@@ -1588,6 +1602,19 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_agent_studio_llm_info":
             from plugins.agent_studio.llm_dispatch import info
             return json.dumps(info())
+
+        elif name == "list_agent_studio_platform_models":
+            from plugins.agent_studio.platform_models import list_models
+            return json.dumps({"models": list_models()})
+
+        elif name == "recommend_agent_studio_platform_models":
+            from plugins.agent_studio.platform_models import defaults_for, get_model
+            tid = args["template_id"]
+            ids = defaults_for(tid)
+            return json.dumps({
+                "template_id": tid, "model_ids": ids,
+                "models": [m for m in [get_model(mid) for mid in ids] if m],
+            })
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

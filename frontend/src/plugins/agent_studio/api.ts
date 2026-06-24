@@ -83,6 +83,34 @@ export interface AccessInfo {
 export const fetchAccessInfo = () =>
   getJson<AccessInfo>('/api/agent-studio/access-info')
 
+// ── Platform models (17+ IDS-side models as "special tools") ─────────
+
+export interface PlatformModel {
+  id: string
+  name: string
+  description: string
+  paper: string
+  category: string
+  role: string
+  role_blurb: string
+  has_ablation: boolean
+  parent_model: string | null
+  sub_models: string[]
+}
+
+export const fetchPlatformModels = () =>
+  getJson<{ models: PlatformModel[] }>('/api/agent-studio/platform-models')
+
+export const fetchPlatformModelRecs = (template_id: string) =>
+  getJson<{ template_id: string; model_ids: string[]; models: PlatformModel[] }>(
+    `/api/agent-studio/platform-models/recommend/${template_id}`)
+
+export const fetchBuildSuggestions = (template_id: string, step: number,
+                                       category?: string) =>
+  getJson<{ template_id: string; step: number; category: string | null; tips: string[] }>(
+    `/api/agent-studio/build-suggestions/${template_id}?step=${step}` +
+    (category ? `&category=${encodeURIComponent(category)}` : ''))
+
 // ── Eval Harness ─────────────────────────────────────────────────────
 
 export interface EvalResult {
