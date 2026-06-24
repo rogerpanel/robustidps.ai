@@ -111,6 +111,70 @@ export const fetchBuildSuggestions = (template_id: string, step: number,
     `/api/agent-studio/build-suggestions/${template_id}?step=${step}` +
     (category ? `&category=${encodeURIComponent(category)}` : ''))
 
+// ── Workspaces — server-side per-user saved state ────────────────────
+
+export interface WorkspaceRecord {
+  workspace_id: string
+  owner_id: string
+  owner_email: string
+  template_id: string
+  name: string
+  state: Record<string, unknown>
+  created_at: string | null
+  updated_at: string | null
+  archived_at: string | null
+  note: string
+}
+
+export interface WorkspaceStats {
+  n_total: number
+  n_active: number
+  n_archived: number
+  by_owner: Record<string, number>
+  by_template: Record<string, number>
+}
+
+export const saveWorkspace = (body: {
+  workspace_id?: string | null
+  template_id: string
+  name: string
+  state: Record<string, unknown>
+  note?: string
+}) =>
+  _authJson<WorkspaceRecord>('POST', '/api/agent-studio/workspaces', body)
+
+export const listWorkspaces = (params?: {
+  template_id?: string; include_archived?: boolean
+}) => {
+  const q = new URLSearchParams()
+  if (params?.template_id) q.set('template_id', params.template_id)
+  if (params?.include_archived) q.set('include_archived', 'true')
+  const qs = q.toString() ? `?${q}` : ''
+  return _authJson<{ workspaces: WorkspaceRecord[]; stats?: WorkspaceStats }>(
+    'GET', `/api/agent-studio/workspaces${qs}`)
+}
+
+export const fetchWorkspace = (id: string) =>
+  _authJson<WorkspaceRecord>('GET', `/api/agent-studio/workspaces/${id}`)
+
+export const exportWorkspaceUrl = (id: string) =>
+  `${API}/api/agent-studio/workspaces/${id}/export`
+
+export const importWorkspace = (payload: Record<string, unknown>) =>
+  _authJson<WorkspaceRecord>('POST', '/api/agent-studio/workspaces/import', { payload })
+
+export const archiveWorkspace = (id: string) =>
+  _authJson<{ ok: boolean; workspace_id?: string; archived_at?: string; error?: string }>(
+    'POST', `/api/agent-studio/workspaces/${id}/archive`)
+
+export const deleteWorkspace = (id: string) =>
+  _authJson<{ ok: boolean; workspace_id?: string; deleted?: boolean; error?: string }>(
+    'DELETE', `/api/agent-studio/workspaces/${id}`)
+
+export const adminListWorkspaces = (include_archived = true) =>
+  _authJson<{ workspaces: WorkspaceRecord[]; stats: WorkspaceStats }>(
+    'GET', `/api/agent-studio/admin/workspaces?include_archived=${include_archived}`)
+
 // ── Eval Harness ─────────────────────────────────────────────────────
 
 export interface EvalResult {

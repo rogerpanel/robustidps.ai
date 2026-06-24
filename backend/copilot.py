@@ -597,6 +597,23 @@ TOOLS = [
             "required": ["template_id"],
         },
     },
+    {
+        "name": "list_agent_studio_workspaces",
+        "description": "List saved BuildWizard workspaces. Without owner_id this lists ALL workspaces across users (admin-only view). With owner_id (e.g. 'platform_demo@example.com'), scopes to one user. Each entry: workspace_id, owner_email, template_id, name, updated_at, state keys.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "owner_id": {"type": "string"},
+                "include_archived": {"type": "boolean", "default": False},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_agent_studio_workspace_stats",
+        "description": "Aggregate workspace stats: n_total, n_active, n_archived, by_owner (distinct user count), by_template. Use when the user asks 'how many users have saved agents?' or 'what's the most-used template?'",
+        "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -1615,6 +1632,21 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
                 "template_id": tid, "model_ids": ids,
                 "models": [m for m in [get_model(mid) for mid in ids] if m],
             })
+
+        elif name == "list_agent_studio_workspaces":
+            from plugins.agent_studio.workspaces import list_workspaces
+            # owner_id given → scope to that user; absent → admin-view (all)
+            owner_id = args.get("owner_id")
+            cust = ({"customer_id": owner_id, "role": "user"} if owner_id
+                    else {"role": "admin"})
+            return json.dumps({
+                "workspaces": list_workspaces(db, cust,
+                    include_archived=bool(args.get("include_archived", False))),
+            })
+
+        elif name == "get_agent_studio_workspace_stats":
+            from plugins.agent_studio.workspaces import stats
+            return json.dumps(stats(db))
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:

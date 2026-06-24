@@ -192,6 +192,40 @@ class AgentStudioSupplyChainScan(Base):
     payload = Column(JSON, nullable=False)
 
 
+class AgentStudioWorkspace(Base):
+    """A user's saved in-progress build — wizard step + spec + env +
+    selected platform models + chat history, etc.
+
+    Owner identity is the `customer_id` returned by the auth layer:
+      - platform_<email>  for platform-JWT users (incl. admins)
+      - cust_<token>      for Agent Studio API key holders
+      - platform_admin    shared admin id (admins generally manage
+                          other users' workspaces, not their own)
+      - demo_anon         demo mode — saving is refused at the API layer
+
+    Strict per-user isolation: every list / read / update / delete
+    enforces (owner_id == caller customer_id) OR caller is admin via
+    the `scoped(...)` helper. Postgres-true RLS policies for this table
+    are appended to RLS_POSTGRES.sql.
+    """
+    __tablename__ = "agent_studio_workspaces"
+    __table_args__ = (
+        Index("ix_workspaces_owner_template", "owner_id", "template_id"),
+    )
+
+    workspace_id = Column(String(64), primary_key=True)
+    owner_id     = Column(String(64), nullable=False, index=True)
+    owner_email  = Column(String(256), nullable=False)
+    template_id  = Column(String(64), nullable=False, index=True)
+    name         = Column(String(128), nullable=False)
+    state        = Column(JSON, nullable=False)
+    created_at   = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    updated_at   = Column(DateTime, default=datetime.datetime.utcnow,
+                          onupdate=datetime.datetime.utcnow, nullable=False)
+    archived_at  = Column(DateTime, nullable=True)
+    note         = Column(Text, default="")
+
+
 # ── Tenant scoping helper ───────────────────────────────────────────────
 
 def scoped(query: Query, model_cls: type, customer: dict | None,

@@ -16,6 +16,7 @@ import type {
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 import PlatformModelPicker from '../components/PlatformModelPicker'
 import SideSuggestions from '../components/SideSuggestions'
+import WorkspaceBar from '../components/WorkspaceBar'
 import AccessBanner from '../components/AccessBanner'
 
 type Step = 1 | 2 | 3 | 4
@@ -144,6 +145,25 @@ export default function BuildWizard() {
       </header>
 
       <Stepper step={step} setStep={setStep} done={stepDone} />
+
+      <WorkspaceBar
+        templateId={templateId}
+        getState={() => ({
+          step, specJson, envJson, sessionId, chatInput, snippetIdx,
+        })}
+        onLoad={(state) => {
+          const s = state as {
+            step?: Step; specJson?: string; envJson?: string
+            sessionId?: string | null; chatInput?: string; snippetIdx?: number
+          }
+          if (typeof s.step === 'number')   setStep(s.step as Step)
+          if (typeof s.specJson === 'string') setSpecJson(s.specJson)
+          if (typeof s.envJson === 'string')  setEnvJson(s.envJson)
+          if (s.sessionId !== undefined)      setSessionId(s.sessionId ?? null)
+          if (typeof s.chatInput === 'string') setChatInput(s.chatInput)
+          if (typeof s.snippetIdx === 'number') setSnippetIdx(s.snippetIdx)
+        }}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_18rem] gap-4">
         <div className="space-y-4 min-w-0">

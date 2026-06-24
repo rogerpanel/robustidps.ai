@@ -145,6 +145,127 @@ async def build_suggestions(template_id: str, step: int = 1,
     }
 
 
+# ── Workspaces — server-side per-user saved build state ──────────────
+
+class WorkspaceSaveRequest(BaseModel):
+    workspace_id: str | None = Field(None, max_length=64)
+    template_id: str = Field(..., max_length=64)
+    name: str = Field(..., min_length=1, max_length=128)
+    state: dict
+    note: str = Field("", max_length=512)
+
+
+def _reject_demo(customer: dict) -> None:
+    """Demo-mode users can't persist; surfaces a 403 with hint."""
+    if customer.get("source") == "demo_mode":
+        raise HTTPException(403, "Demo mode cannot save workspaces. "
+                            "Sign in or paste an API key to persist your work.")
+
+
+@router.post("/workspaces")
+@limiter.limit(RATE_BILLING)
+async def workspaces_save(request: Request, req: WorkspaceSaveRequest,
+                          customer: dict = Depends(require_api_key),
+                          db: Session = Depends(get_db)) -> dict:
+    """Upsert a workspace. Returns the persisted record."""
+    _reject_demo(customer)
+    from plugins.agent_studio.workspaces import save_workspace
+    return save_workspace(db, customer, req.template_id, req.name,
+                          req.state, note=req.note,
+                          workspace_id=req.workspace_id)
+
+
+@router.get("/workspaces")
+async def workspaces_list(template_id: str | None = None,
+                          include_archived: bool = False,
+                          customer: dict = Depends(require_api_key),
+                          db: Session = Depends(get_db)) -> dict:
+    """List the caller's workspaces (or all, if admin). Strict per-user
+    scoping via scoped(); admins see everything."""
+    from plugins.agent_studio.workspaces import list_workspaces, stats
+    items = list_workspaces(db, customer, template_id, include_archived)
+    body = {"workspaces": items}
+    if customer.get("role") == "admin":
+        body["stats"] = stats(db)
+    return body
+
+
+@router.get("/workspaces/{workspace_id}")
+async def workspaces_detail(workspace_id: str,
+                            customer: dict = Depends(require_api_key),
+                            db: Session = Depends(get_db)) -> dict:
+    from plugins.agent_studio.workspaces import get_workspace
+    data = get_workspace(db, workspace_id, customer)
+    if data is None:
+        raise HTTPException(404, "Workspace not found (or not yours)")
+    return data
+
+
+@router.get("/workspaces/{workspace_id}/export")
+async def workspaces_export(workspace_id: str,
+                            customer: dict = Depends(require_api_key),
+                            db: Session = Depends(get_db)):
+    """Download as JSON file (Content-Disposition: attachment)."""
+    from fastapi.responses import JSONResponse
+    from plugins.agent_studio.workspaces import get_workspace
+    data = get_workspace(db, workspace_id, customer)
+    if data is None:
+        raise HTTPException(404, "Workspace not found (or not yours)")
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in data["name"])
+    return JSONResponse(
+        content=data,
+        headers={"Content-Disposition":
+                 f'attachment; filename="{safe_name}_{workspace_id}.json"'},
+    )
+
+
+class WorkspaceImportRequest(BaseModel):
+    payload: dict
+
+
+@router.post("/workspaces/import")
+@limiter.limit(RATE_BILLING)
+async def workspaces_import(request: Request, req: WorkspaceImportRequest,
+                            customer: dict = Depends(require_api_key),
+                            db: Session = Depends(get_db)) -> dict:
+    """Restore from a user-uploaded export. Caller becomes the owner."""
+    _reject_demo(customer)
+    from plugins.agent_studio.workspaces import import_workspace
+    return import_workspace(db, customer, req.payload)
+
+
+@router.post("/workspaces/{workspace_id}/archive")
+async def workspaces_archive(workspace_id: str,
+                             customer: dict = Depends(require_api_key),
+                             db: Session = Depends(get_db)) -> dict:
+    """Soft-delete (recoverable via include_archived=true list)."""
+    from plugins.agent_studio.workspaces import archive_workspace
+    return archive_workspace(db, workspace_id, customer)
+
+
+@router.delete("/workspaces/{workspace_id}")
+async def workspaces_delete(workspace_id: str,
+                            customer: dict = Depends(require_api_key),
+                            db: Session = Depends(get_db)) -> dict:
+    """Hard delete. Owner-only unless admin."""
+    from plugins.agent_studio.workspaces import delete_workspace
+    return delete_workspace(db, workspace_id, customer)
+
+
+@router.get("/admin/workspaces")
+async def admin_workspaces_list(include_archived: bool = True,
+                                admin: dict = Depends(require_admin),
+                                db: Session = Depends(get_db)) -> dict:
+    """Admin-only — every user's workspace, with stats."""
+    from plugins.agent_studio.workspaces import list_workspaces, stats
+    # admin dict has role=admin, scoped() returns all rows
+    return {
+        "workspaces": list_workspaces(db, {"role": "admin"},
+                                      include_archived=include_archived),
+        "stats": stats(db),
+    }
+
+
 # ── Entitlement ──────────────────────────────────────────────────────────
 
 @router.get("/entitlement/tiers")

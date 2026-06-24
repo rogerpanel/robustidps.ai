@@ -112,5 +112,16 @@ CREATE POLICY sc_self ON agent_studio_supply_chain_scans
         OR current_setting('app.role', true) = 'admin'
     );
 
+-- ── Workspaces (per-user saved build state) ─────────────────────────
+-- Owner column is `owner_id`, not `customer_id`. Same admin override.
+ALTER TABLE agent_studio_workspaces ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS workspace_self ON agent_studio_workspaces;
+CREATE POLICY workspace_self ON agent_studio_workspaces
+    FOR ALL
+    USING (
+        owner_id = current_setting('app.current_customer_id', true)
+        OR current_setting('app.role', true) = 'admin'
+    );
+
 -- ── Sanity: confirm the policies actually load ─────────────────────
 -- SELECT policyname, tablename FROM pg_policies WHERE tablename LIKE 'agent_studio_%';
