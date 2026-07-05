@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
-import { Lightbulb, Loader2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Lightbulb, Loader2, ExternalLink } from 'lucide-react'
 import { fetchBuildSuggestions } from '../api'
+import type { TemplateBridge } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 
 /**
@@ -20,12 +22,13 @@ export default function SideSuggestions({ templateId, step, category }: {
 }) {
   const ns = `tips:${templateId}:${step}`
   const [tips, setTips] = useAgentStudioState<string[] | null>(ns, 'cached', null)
+  const [bridges, setBridges] = useAgentStudioState<TemplateBridge[]>(ns, 'bridges', [])
   const [busy, setBusy] = useAgentStudioState<boolean>(ns, 'loading', false)
 
   useEffect(() => {
     setBusy(true)
     fetchBuildSuggestions(templateId, step, category)
-      .then((r) => setTips(r.tips))
+      .then((r) => { setTips(r.tips); setBridges(r.bridges || []) })
       .catch(() => setTips([]))
       .finally(() => setBusy(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,6 +59,26 @@ export default function SideSuggestions({ templateId, step, category }: {
           </li>
         ))}
       </ul>
+
+      {bridges.length > 0 && (
+        <div className="mt-3 pt-2 border-t border-accent-amber/30">
+          <div className="text-[10px] font-mono uppercase text-accent-amber mb-1">
+            Related pages
+          </div>
+          <div className="space-y-1">
+            {bridges.map((b) => (
+              <Link key={b.to} to={b.to}
+                    className="flex items-start gap-1.5 p-1 rounded hover:bg-accent-amber/10 text-[11px]">
+                <ExternalLink className="w-3 h-3 mt-0.5 shrink-0 text-accent-amber" />
+                <span className="min-w-0">
+                  <span className="text-accent-blue">{b.label}</span>
+                  <span className="text-text-secondary block leading-tight">{b.blurb}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </aside>
   )
 }

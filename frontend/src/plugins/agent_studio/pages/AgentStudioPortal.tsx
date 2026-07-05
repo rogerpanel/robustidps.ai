@@ -3,10 +3,14 @@ import { Link } from 'react-router-dom'
 import {
   ShieldCheck, FileSearch, FileCheck2, ArrowRight,
   CheckCircle2, Lock, Sparkles, Loader2,
+  Cloud, FolderOpen, Lightbulb,
 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
-import { createCheckout, fetchActivity, getStoredApiKey } from '../api'
-import type { ActivityRollup } from '../api'
+import {
+  createCheckout, fetchActivity, getStoredApiKey,
+  listWorkspaces, listDeployments,
+} from '../api'
+import type { ActivityRollup, WorkspaceRecord, DeploymentRecord } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
 import AccessBanner from '../components/AccessBanner'
 
@@ -29,6 +33,8 @@ export default function AgentStudioPortal() {
   const [pending, setPending] = useState<'pro' | 'enterprise' | null>(null)
   const [stagingNote, setStagingNote] = useState<string | null>(null)
   const [activity, setActivity] = useAgentStudioState<ActivityRollup | null>('portal', 'activity', null)
+  const [workspaces, setWorkspaces] = useAgentStudioState<WorkspaceRecord[]>('portal', 'workspaces', [])
+  const [deployments, setDeployments] = useAgentStudioState<DeploymentRecord[]>('portal', 'deployments', [])
 
   useEffect(() => {
     Promise.all([
@@ -40,6 +46,8 @@ export default function AgentStudioPortal() {
 
     if (getStoredApiKey()) {
       fetchActivity(3).then(setActivity).catch(() => { /* unauthed → leave blank */ })
+      listWorkspaces().then((r) => setWorkspaces(r.workspaces.slice(0, 4))).catch(() => {})
+      listDeployments().then((r) => setDeployments(r.deployments.slice(0, 4))).catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -120,6 +128,12 @@ export default function AgentStudioPortal() {
           { title: 'Subscribe', desc: 'Buttons go live the moment Stripe is funded — webhook endpoint already deployed at /api/agent-studio/billing/webhook.' },
         ]}
         tip="Print theme + Cmd-P of this page = a paper-ready commercial one-pager. Useful for investor / customer hand-offs."
+      />
+
+      <HubBlock
+        workspaces={workspaces}
+        deployments={deployments}
+        activity={activity}
       />
 
       {activity && (
@@ -276,6 +290,165 @@ export default function AgentStudioPortal() {
       </section>
     </div>
   )
+}
+
+function HubBlock({ workspaces, deployments, activity }: {
+  workspaces: WorkspaceRecord[]
+  deployments: DeploymentRecord[]
+  activity: ActivityRollup | null
+}) {
+  const hasAnything = workspaces.length > 0 || deployments.length > 0
+                    || (activity && (activity.eval_runs.length + activity.red_team_runs.length
+                                    + activity.supply_chain_scans.length > 0))
+
+  const nextStep = pickNextStep({ workspaces, deployments, activity })
+
+  if (!hasAnything && !nextStep) return null
+
+  return (
+    <section className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {/* Workspaces */}
+      <div className="bg-bg-card rounded-xl p-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <FolderOpen className="w-4 h-4 text-accent-blue" />
+          <h3 className="text-sm font-semibold">Your workspaces</h3>
+          <Link to="/agent-studio/workspaces"
+                className="ml-auto text-[10px] font-mono text-text-secondary hover:text-accent-blue">
+            all →
+          </Link>
+        </div>
+        {workspaces.length === 0 ? (
+          <div className="text-[11px] text-text-secondary italic">
+            No saved builds yet. Open the Quickstart → Build → Save.
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {workspaces.map((w) => (
+              <Link key={w.workspace_id}
+                    to={`/agent-studio/build/${w.template_id}`}
+                    onClick={() => {
+                      try {
+                        localStorage.setItem(
+                          `rids:as:wsbar:${w.template_id}:activeId`,
+                          JSON.stringify(w.workspace_id))
+                        localStorage.setItem(
+                          `rids:as:wsbar:${w.template_id}:activeName`,
+                          JSON.stringify(w.name))
+                      } catch { /* */ }
+                    }}
+                    className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-bg-secondary/50 text-[11px] font-mono truncate">
+                <span className="truncate">
+                  <span className="text-accent-blue">{w.name}</span>
+                  <span className="text-text-secondary ml-1">· {w.template_id}</span>
+                </span>
+                <ArrowRight className="w-3 h-3 text-text-secondary shrink-0" />
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Deployments */}
+      <div className="bg-bg-card rounded-xl p-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Cloud className="w-4 h-4 text-accent-blue" />
+          <h3 className="text-sm font-semibold">Your deployments</h3>
+          <Link to="/agent-studio/deployments"
+                className="ml-auto text-[10px] font-mono text-text-secondary hover:text-accent-blue">
+            all →
+          </Link>
+        </div>
+        {deployments.length === 0 ? (
+          <div className="text-[11px] text-text-secondary italic">
+            No deployments registered. Ship an agent → Register.
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {deployments.map((d) => {
+              const tone = d.status === 'healthy'  ? 'text-accent-green'
+                         : d.status === 'degraded' ? 'text-accent-amber'
+                         : 'text-text-secondary'
+              return (
+                <Link key={d.deployment_id}
+                      to="/agent-studio/deployments"
+                      className="flex items-center justify-between gap-2 p-1.5 rounded hover:bg-bg-secondary/50 text-[11px] font-mono truncate">
+                  <span className="truncate">
+                    <span className={tone}>● </span>
+                    <span className="text-accent-blue">{d.name}</span>
+                    <span className="text-text-secondary ml-1">· {d.tier}/{d.cloud}</span>
+                  </span>
+                  <span className={`text-[9px] uppercase ${tone} shrink-0`}>{d.status}</span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* What's next? */}
+      <div className="bg-accent-amber/5 border border-accent-amber/30 rounded-xl p-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Lightbulb className="w-4 h-4 text-accent-amber" />
+          <h3 className="text-sm font-semibold text-accent-amber">What's next?</h3>
+        </div>
+        {nextStep ? (
+          <div className="space-y-2">
+            <div className="text-[11px] leading-snug">{nextStep.text}</div>
+            <Link to={nextStep.to}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium bg-accent-amber/20 hover:bg-accent-amber/30 text-accent-amber px-2 py-1 rounded">
+              {nextStep.cta} <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        ) : (
+          <div className="text-[11px] text-text-secondary italic">
+            You're all caught up.
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function pickNextStep({ workspaces, deployments, activity }: {
+  workspaces: WorkspaceRecord[]
+  deployments: DeploymentRecord[]
+  activity: ActivityRollup | null
+}): { text: string; cta: string; to: string } | null {
+  // Stale/degraded deployments take highest priority
+  const flaky = deployments.find((d) => d.status === 'stale' || d.status === 'degraded')
+  if (flaky) {
+    return {
+      text: `Deployment "${flaky.name}" is ${flaky.status}. Investigate the runtime telemetry or retire the instance.`,
+      cta: 'Open runtime monitor', to: '/agent-studio/runtime',
+    }
+  }
+  // No workspaces yet — invite to build the first
+  if (workspaces.length === 0) {
+    return {
+      text: 'No saved builds yet. Start with a Quickstart archetype — the wizard walks you through spec + environment + test session + shipping in four steps.',
+      cta: 'Open Quickstart', to: '/agent-studio/quickstart',
+    }
+  }
+  // Have workspaces but no deployment — nudge to register
+  if (deployments.length === 0) {
+    const w = workspaces[0]
+    return {
+      text: `You have "${w.name}" saved. Register it as a deployment so the runtime telemetry flows in.`,
+      cta: 'Open Deployments', to: '/agent-studio/deployments',
+    }
+  }
+  // Have deployment but no recent evals — nudge to eval
+  if (activity && activity.eval_runs.length === 0) {
+    return {
+      text: 'Run the eval harness on your saved workspace — pre-flight safety checks before your next production push.',
+      cta: 'Run eval harness', to: '/agent-studio/eval',
+    }
+  }
+  // Have everything — suggest generating the dossier
+  return {
+    text: 'You have workspaces + deployments + eval runs. Roll them into an auditor-ready assurance dossier.',
+    cta: 'Generate dossier', to: '/dossier?vertical=agent_studio',
+  }
 }
 
 function ActivityCol({ title, link, empty, children }: {

@@ -134,14 +134,17 @@ async def platform_models_recommend(template_id: str) -> dict:
 @router.get("/build-suggestions/{template_id}")
 async def build_suggestions(template_id: str, step: int = 1,
                             category: str | None = None) -> dict:
-    """Side-tips for the BuildWizard — varies per (step, archetype)."""
-    from plugins.agent_studio.platform_models import suggestions
+    """Side-tips for the BuildWizard — varies per (step, archetype).
+    Also surfaces cross-vertical deep-links so a UAV coordinator template
+    can point at /uav/mission-plan, a network monitor at /live-monitor, etc."""
+    from plugins.agent_studio.platform_models import suggestions, template_bridges
     from plugins.agent_studio.templates import get_template
     tpl = get_template(template_id)
     cat = category or (tpl["category"] if tpl else None)
     return {
         "template_id": template_id, "step": step, "category": cat,
         "tips": suggestions(step, template_id, cat),
+        "bridges": template_bridges(template_id),
     }
 
 

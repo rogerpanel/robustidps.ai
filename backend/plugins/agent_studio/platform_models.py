@@ -216,6 +216,75 @@ def suggestions(step: int, template_id: str | None,
     if category:
         tips.extend(_STEP_BY_CATEGORY.get((step, category), []))
     tips.extend(_STEP_GENERIC.get(step, []))
-    # Deduplicate while preserving order
     seen: set[str] = set()
     return [t for t in tips if not (t in seen or seen.add(t))][:6]
+
+
+# ── Cross-vertical bridges — deep-links from a template to related pages
+
+_TEMPLATE_BRIDGES: dict[str, list[dict]] = {
+    "network_traffic_monitor": [
+        {"label": "Live network monitor", "to": "/live-monitor",
+         "blurb": "Watch classifier output on live traffic."},
+        {"label": "Analytics dashboard", "to": "/analytics",
+         "blurb": "Aggregate detection stats across your fleet."},
+        {"label": "Threat response",     "to": "/threat-response",
+         "blurb": "Wire the agent's tickets into the response engine."},
+    ],
+    "uav_swarm_coordinator": [
+        {"label": "UAV mission plan review", "to": "/uav/mission-plan",
+         "blurb": "Design + review scope polygons and NOTAMs."},
+        {"label": "Swarm graph",             "to": "/uav/swarm",
+         "blurb": "Live swarm formation + link quality."},
+        {"label": "Fleet demo",              "to": "/uav/fleet-demo",
+         "blurb": "Simulate the mission before flight."},
+        {"label": "UAV certification",       "to": "/uav/certification",
+         "blurb": "DO-326A + GOST R 59276 airworthiness dossier."},
+    ],
+    "mcp_auditor": [
+        {"label": "MCP Security",       "to": "/mcp-security",
+         "blurb": "Interactive MCP protocol test-bench."},
+        {"label": "Free MCP scanner",   "to": "/agent-scanner",
+         "blurb": "24-check ruleset against any MCP manifest."},
+    ],
+    "red_team_operator": [
+        {"label": "Red Team Arena",     "to": "/red-team-arena",
+         "blurb": "Interactive adversarial testing against IDS models."},
+        {"label": "Attack chain predictor", "to": "/attack-chain",
+         "blurb": "Model likely follow-on tactics after a finding."},
+    ],
+    "vuln_triage": [
+        {"label": "CVE mapper",         "to": "/cve-mapper",
+         "blurb": "Interactive CVE → affected-service graph."},
+    ],
+    "threat_hunter": [
+        {"label": "Threat Hunt",        "to": "/threat-hunt",
+         "blurb": "Interactive hypothesis workspace."},
+        {"label": "Investigation chain", "to": "/investigation-chain",
+         "blurb": "Multi-step reasoning over log lake."},
+    ],
+    "compliance_auditor": [
+        {"label": "Compliance Hub",     "to": "/compliance",
+         "blurb": "ISO 42001 + EU AI Act + NIST AI RMF mapping."},
+        {"label": "MITRE ATLAS mapper", "to": "/atlas",
+         "blurb": "OWASP-Agentic → ATLAS tactic cross-reference."},
+    ],
+    "soc_triage": [
+        {"label": "Alert triage",       "to": "/alert-triage",
+         "blurb": "Manual triage bench for calibration."},
+        {"label": "Incident reports",   "to": "/incident-reports",
+         "blurb": "Post-mortem archive to learn from."},
+    ],
+    "incident_commander": [
+        {"label": "Alert causality graph", "to": "/alert-causality",
+         "blurb": "Root-cause the alert storm."},
+        {"label": "Auto investigation", "to": "/auto-investigation",
+         "blurb": "The multi-hop RCA workflow."},
+    ],
+}
+
+
+def template_bridges(template_id: str) -> list[dict]:
+    """Related-page deep-links per template — surfaces cross-vertical
+    connections (UAV, network IDS, compliance, etc.)."""
+    return list(_TEMPLATE_BRIDGES.get(template_id, []))

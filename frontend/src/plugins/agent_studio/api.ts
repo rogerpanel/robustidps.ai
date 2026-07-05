@@ -105,9 +105,12 @@ export const fetchPlatformModelRecs = (template_id: string) =>
   getJson<{ template_id: string; model_ids: string[]; models: PlatformModel[] }>(
     `/api/agent-studio/platform-models/recommend/${template_id}`)
 
+export interface TemplateBridge { label: string; to: string; blurb: string }
+
 export const fetchBuildSuggestions = (template_id: string, step: number,
                                        category?: string) =>
-  getJson<{ template_id: string; step: number; category: string | null; tips: string[] }>(
+  getJson<{ template_id: string; step: number; category: string | null
+            tips: string[]; bridges: TemplateBridge[] }>(
     `/api/agent-studio/build-suggestions/${template_id}?step=${step}` +
     (category ? `&category=${encodeURIComponent(category)}` : ''))
 

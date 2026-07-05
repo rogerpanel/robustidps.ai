@@ -466,6 +466,23 @@ finding. Together they prevent regressions from reaching production.
 
 ---
 
+## 9.4 The `/agent-studio` hub
+
+The Portal landing now shows a three-column hub above the SKU catalog:
+
+- **Your workspaces** — top 4 saved BuildWizard sessions. Click any row
+  to resume in-place; the wizard restores the exact step / spec /
+  environment / chat you left.
+- **Your deployments** — colour-coded status per registered instance
+  (healthy / degraded / stale / retired) with live block-rate.
+- **What's next?** — contextual next-step card. Reads workspaces +
+  deployments + activity and picks the highest-priority nudge
+  (stale deployment → investigate; no workspace → open Quickstart;
+  workspace but no deployment → register; missing evals → run
+  harness; everything green → generate dossier).
+
+Everything deep-links, so the hub is the true starting point.
+
 ## 9.5 Pick up where you left off
 
 Every Agent Studio surface persists its state — the textarea you were

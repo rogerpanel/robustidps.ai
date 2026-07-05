@@ -420,7 +420,30 @@ export default function BuildWizard() {
             <SnippetView snippet={tpl.integration_snippets[snippetIdx]} />
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+            <button onClick={() => {
+              // Prefill the Deployments register form with everything we
+              // can infer from this workspace so the user just clicks Submit.
+              try {
+                const runtimeId = `${templateId}-${new Date().toISOString().slice(0,10).replace(/-/g,'')}`
+                localStorage.setItem('rids:as:deploy:fName', JSON.stringify(runtimeId))
+                localStorage.setItem('rids:as:deploy:fTemplate', JSON.stringify(templateId))
+                localStorage.setItem('rids:as:deploy:fAgentId', JSON.stringify(runtimeId))
+                localStorage.setItem('rids:as:deploy:fCloud',
+                  JSON.stringify(tpl.integration_snippets[snippetIdx]?.framework === 'k8s'
+                                  ? 'k8s_self' : 'other'))
+              } catch { /* */ }
+              window.location.href = '/agent-studio/deployments'
+            }}
+                    className="text-left bg-accent-green/5 border border-accent-green/30 rounded-xl p-4 hover:border-accent-green/60">
+              <div className="text-sm font-semibold inline-flex items-center gap-1.5 text-accent-green">
+                <Rocket className="w-4 h-4" /> Register this deployment
+              </div>
+              <div className="text-[11px] text-text-secondary mt-1">
+                Prefills the Deployments register form with template + a
+                suggested runtime_agent_id. One click and telemetry flows.
+              </div>
+            </button>
             <Link to="/dossier?vertical=agent_studio"
                   className="bg-bg-card rounded-xl p-4 hover:border-accent-blue/40 border border-transparent">
               <div className="text-sm font-semibold inline-flex items-center gap-1.5">
