@@ -131,6 +131,36 @@ async def platform_models_recommend(template_id: str) -> dict:
             "models": [m for m in [get_model(mid) for mid in ids] if m]}
 
 
+# ── One-shot orchestrator — build → secure → ship in one call ─────
+
+class OrchestrateRequest(BaseModel):
+    template_id: str = Field(..., max_length=64)
+    name: str | None = Field(None, max_length=128)
+    cloud: Literal["aws", "gcp", "azure", "fly", "modal", "vercel",
+                    "k8s_self", "docker_self", "bare_metal", "other"] = "docker_self"
+    region: str = Field("", max_length=64)
+    tier: Literal["dev", "staging", "production"] = "dev"
+    supply_model_id: str | None = Field(None, max_length=64)
+    register_deployment: bool = True
+
+
+@router.post("/orchestrate")
+@limiter.limit(RATE_REDTEAM)
+async def orchestrate(request: Request, req: OrchestrateRequest,
+                       customer: dict = Depends(require_api_key),
+                       db: Session = Depends(get_db)) -> dict:
+    """Chain eval → red-team → supply-chain scan → workspace → deployment.
+    One turn, one result bundle. Rate-limited at the red-team quota
+    since Garak is the heaviest stage."""
+    from plugins.agent_studio.orchestrator import orchestrate_build_and_ship
+    return orchestrate_build_and_ship(
+        db, customer, req.template_id, req.name,
+        cloud=req.cloud, region=req.region, tier=req.tier,
+        supply_model_id=req.supply_model_id,
+        register_deployment=req.register_deployment,
+    )
+
+
 @router.get("/build-suggestions/{template_id}")
 async def build_suggestions(template_id: str, step: int = 1,
                             category: str | None = None) -> dict:

@@ -614,6 +614,29 @@ TOOLS = [
         "description": "Aggregate workspace stats: n_total, n_active, n_archived, by_owner (distinct user count), by_template. Use when the user asks 'how many users have saved agents?' or 'what's the most-used template?'",
         "input_schema": {"type": "object", "properties": {}, "required": []},
     },
+    {
+        "name": "orchestrate_build_and_ship_agent",
+        "description": "ONE-CALL build → secure → ship pipeline. Chains: eval harness → Garak red-team → supply-chain scan → saves a workspace → registers a deployment. Returns run_ids + workspace_id + deployment_id + a bundle of next-step URLs (dossier, runtime monitor, workspaces, deployments). Use when the user says 'build me a <archetype>' or 'ship a soc_triage agent'. Idempotent: rerun with the same name upserts the workspace. Demo mode is refused for persistence stages.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "template_id": {"type": "string",
+                                "description": "Quickstart template id — e.g. soc_triage, network_traffic_monitor, uav_swarm_coordinator, mcp_auditor."},
+                "name": {"type": "string",
+                          "description": "Human-friendly workspace + deployment name. Defaults to <template>-orchestrated-<YYYYMMDD>."},
+                "cloud": {"type": "string",
+                          "enum": ["aws", "gcp", "azure", "fly", "modal", "vercel",
+                                   "k8s_self", "docker_self", "bare_metal", "other"],
+                          "default": "docker_self"},
+                "region": {"type": "string", "default": ""},
+                "tier": {"type": "string", "enum": ["dev", "staging", "production"], "default": "dev"},
+                "supply_model_id": {"type": "string",
+                                     "description": "Model id for the supply-chain stage. Defaults to cybersec_llm."},
+                "register_deployment": {"type": "boolean", "default": True},
+            },
+            "required": ["template_id"],
+        },
+    },
 ]
 
 
@@ -1647,6 +1670,33 @@ def _exec_tool(name: str, args: dict, db: Session, user: Optional["User"] = None
         elif name == "get_agent_studio_workspace_stats":
             from plugins.agent_studio.workspaces import stats
             return json.dumps(stats(db))
+
+        elif name == "orchestrate_build_and_ship_agent":
+            from plugins.agent_studio.orchestrator import orchestrate_build_and_ship
+            # Copilot calls run as admin (server-side); if the caller
+            # user is on the request state, thread it through — else
+            # fall back to a synthetic admin identity so the workspace/
+            # deployment stages don't get rejected.
+            requesting = getattr(user, "email", None) if user else None
+            cust = ({"customer_id": f"platform_{requesting}",
+                      "email": requesting,
+                      "tier": (getattr(user, "subscription_tier", None) or "enterprise"),
+                      "role": (getattr(user, "role", None) or "user"),
+                      "source": "platform_jwt"}
+                     if requesting
+                     else {"customer_id": "platform_admin",
+                            "email": "admin@robustidps.ai",
+                            "tier": "enterprise", "role": "admin",
+                            "source": "copilot"})
+            return json.dumps(orchestrate_build_and_ship(
+                db, cust, args["template_id"],
+                args.get("name"),
+                cloud=args.get("cloud", "docker_self"),
+                region=args.get("region", ""),
+                tier=args.get("tier", "dev"),
+                supply_model_id=args.get("supply_model_id"),
+                register_deployment=bool(args.get("register_deployment", True)),
+            ))
 
         return json.dumps({"error": f"Unknown tool: {name}"})
     except Exception as e:
