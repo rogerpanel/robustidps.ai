@@ -3,6 +3,7 @@ import {
   Plane, Play, Pause, RotateCcw, Upload, Download, AlertCircle, Loader2,
 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
+import ExportMenu from '../../../components/ExportMenu'
 import {
   fleetReset, fleetStep, fleetUpload, fleetSamplePackUrl,
 } from '../api'
@@ -115,9 +116,12 @@ export default function FleetDemo() {
             Upload your own fleet bundle (or download the sample pack to see the schema). Steps run at 1 Hz.
           </p>
         </div>
-        <div className="flex flex-col gap-1 text-[10px] font-mono text-text-secondary text-right">
-          <span>session: <span className="text-text-primary">{sessionId}</span></span>
-          <span>{snapshot?.n_completed ?? 0} done · {snapshot?.n_in_flight ?? 0} flying · {snapshot?.n_failed ?? 0} failed</span>
+        <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-1 text-[10px] font-mono text-text-secondary text-right">
+            <span>session: <span className="text-text-primary">{sessionId}</span></span>
+            <span>{snapshot?.n_completed ?? 0} done · {snapshot?.n_in_flight ?? 0} flying · {snapshot?.n_failed ?? 0} failed</span>
+          </div>
+          <ExportMenu filename="uav-fleet-demo" />
         </div>
       </div>
 

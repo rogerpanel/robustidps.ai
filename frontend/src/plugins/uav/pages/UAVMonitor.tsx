@@ -4,6 +4,7 @@ import {
   Plane, Radar, ShieldCheck, Network, Eye, ClipboardCheck, Cpu, AlertTriangle,
 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
+import ExportMenu from '../../../components/ExportMenu'
 import MCRJSChart from '../components/MCRJSChart'
 import SwarmGraphAnimated from '../components/SwarmGraphAnimated'
 import CertificateStrip from '../components/CertificateStrip'
@@ -55,9 +56,12 @@ export default function UAVMonitor() {
             on UAV-EW-Bench-2026 ({(overview.benchmark.n_flights ?? 0).toLocaleString()} simulated flights).
           </p>
         </div>
-        <div className="text-right text-[10px] text-text-secondary font-mono">
-          plugin: <span className="text-text-primary">robustidps_web_app/plugins/uav/</span><br/>
-          kernel: unchanged
+        <div className="flex items-start gap-3">
+          <div className="text-right text-[10px] text-text-secondary font-mono">
+            plugin: <span className="text-text-primary">robustidps_web_app/plugins/uav/</span><br/>
+            kernel: unchanged
+          </div>
+          <ExportMenu filename="uav-monitor" />
         </div>
       </div>
 

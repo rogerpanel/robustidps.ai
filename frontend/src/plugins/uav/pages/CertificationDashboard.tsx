@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldCheck, RefreshCw, FileCheck2, FileText } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
+import ExportMenu from '../../../components/ExportMenu'
 import CertificateStrip from '../components/CertificateStrip'
 import PhaseBPanel from '../components/PhaseBPanel'
 import { fetchCertificates, fetchIndustry, fetchRegulatory } from '../api'
@@ -40,6 +41,7 @@ export default function CertificationDashboard() {
           <button onClick={reload} className="text-xs flex items-center gap-1 text-accent-blue hover:text-accent-orange">
             <RefreshCw className="w-3.5 h-3.5" /> Re-measure
           </button>
+          <ExportMenu filename="uav-certification-dashboard" />
         </div>
       </div>
 

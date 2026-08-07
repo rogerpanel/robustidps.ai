@@ -46,14 +46,35 @@ export interface OverviewResponse {
 }
 export interface SwarmNode { id: string; kind: 'uav' | 'droneport' | 'intruder'; label: string }
 export interface SwarmEdge { src: string; dst: string; kind: 'trust' | 'jammed' | 'hostile' }
-export interface SwarmSnapshot { t: number; label: string; nodes: SwarmNode[]; edges: SwarmEdge[] }
+export interface SwarmSnapshot {
+  t: number; label: string; nodes: SwarmNode[]; edges: SwarmEdge[]
+  description?: string
+}
 export interface SatelliteFix {
   sv: string; azimuth_deg: number; elevation_deg: number;
   cno_db_hz: number; spoof_confidence: number; spoofed: boolean
+  flagged?: boolean
+}
+export interface ReceiverProfile {
+  id: string; label: string;
+  nominal_cno: number; jam_rejection_db: number; pvt_collapse_js_db: number
+}
+export interface GNSSControls {
+  seed: number; receiver_model: string; receiver_label: string;
+  jamming_db: number; effective_js_db: number;
+  pvt_collapse_js_db: number; pvt_collapsed: boolean;
+  spoof_threshold: number; n_spoofed_requested: number
 }
 export interface GNSSResponse {
   satellites: SatelliteFix[]; fleet_disagreement: number;
-  mode: string; fallback: string | null
+  mode: string; fallback: string | null;
+  n_spoofed_satellites?: number; n_flagged_satellites?: number;
+  controls?: GNSSControls; receiver_catalog?: ReceiverProfile[]
+}
+export interface GNSSQuery {
+  seed?: number | null; receiver_model?: string;
+  jamming_db?: number; n_spoofed?: number | null;
+  spoof_threshold?: number
 }
 export interface CertificateResponse {
   lipschitz_L_g: number; gronwall_radius: number; rs_certified_radius: number;
@@ -122,7 +143,16 @@ export interface RegulatoryEntry {
 export const fetchUAVOverview     = () => getJson<OverviewResponse>('/api/uav/overview')
 export const fetchEWCurves        = () => getJson<{ benchmark: BenchMeta; curves: MCRCurve[] }>('/api/uav/ew-bench/curves')
 export const fetchSwarmSnapshot   = () => getJson<{ snapshots: SwarmSnapshot[] }>('/api/uav/swarm/snapshot')
-export const fetchGNSS            = () => getJson<GNSSResponse>('/api/uav/gnss/sky')
+export const fetchGNSS            = (q: GNSSQuery = {}) => {
+  const p = new URLSearchParams()
+  if (q.seed != null) p.set('seed', String(q.seed))
+  if (q.receiver_model) p.set('receiver_model', q.receiver_model)
+  if (q.jamming_db != null) p.set('jamming_db', String(q.jamming_db))
+  if (q.n_spoofed != null) p.set('n_spoofed', String(q.n_spoofed))
+  if (q.spoof_threshold != null) p.set('spoof_threshold', String(q.spoof_threshold))
+  const qs = p.toString()
+  return getJson<GNSSResponse>('/api/uav/gnss/sky' + (qs ? '?' + qs : ''))
+}
 export const fetchCertificates    = () => getJson<CertificateResponse>('/api/uav/certificates')
 export const fetchIndustry        = () => getJson<IndustryResponse>('/api/uav/industry-comparison')
 export const fetchRegulatory      = () => getJson<{ entries: RegulatoryEntry[] }>('/api/uav/regulatory')

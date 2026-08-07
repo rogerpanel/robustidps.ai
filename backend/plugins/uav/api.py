@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Body
+from fastapi import APIRouter, HTTPException, UploadFile, File, Body, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -66,8 +66,24 @@ async def swarm_snapshot() -> dict:
 
 
 @router.get("/gnss/sky")
-async def gnss_sky() -> dict:
-    return _svc.gnss_payload()
+async def gnss_sky(
+    seed: int | None = Query(None, ge=0, le=2**31 - 1,
+                             description="Reproducible seed; None = time-bucketed"),
+    receiver_model: Literal["gp_software", "ublox_f9p_sim", "novatel_oem7_sim"] = Query("gp_software"),
+    jamming_db: float = Query(0.0, ge=0.0, le=40.0,
+                              description="J/S ratio in dB at the antenna"),
+    n_spoofed: int | None = Query(None, ge=0, le=8,
+                                  description="How many satellites the jammer targets (None = default {G03,G05})"),
+    spoof_threshold: float = Query(0.5, ge=0.0, le=1.0,
+                                   description="M1 CT-TGNN spoof-confidence flagging threshold"),
+) -> dict:
+    return _svc.gnss_payload(
+        seed=seed,
+        receiver_model=receiver_model,
+        jamming_db=jamming_db,
+        n_spoofed=n_spoofed,
+        spoof_threshold=spoof_threshold,
+    )
 
 
 @router.get("/certificates")

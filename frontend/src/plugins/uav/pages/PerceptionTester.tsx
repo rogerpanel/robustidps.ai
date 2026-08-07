@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Eye, Play, Loader2 } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
+import ExportMenu from '../../../components/ExportMenu'
 import DatasetSelector from '../components/DatasetSelector'
 import { runPerceptionAttack, fetchAttackCatalog } from '../api'
 import type { AttackResult, AttackCatalogEntry } from '../api'
@@ -84,15 +85,18 @@ export default function PerceptionTester() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-display font-bold flex items-center gap-2">
-          <Eye className="w-5 h-5 text-accent-blue" /> Perception Tester
-        </h1>
-        <p className="text-xs text-text-secondary mt-1">
-          Nine attack families across white-box / black-box / baseline / training-time categories.
-          M1 CT-TGNN on the SyntheticTEXBAT 8-satellite CAF graph.
-          Phase-A surrogate of the YOLOv8/v10/DETR vision-perception page chapter 6 §6.5.1 binds to.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-display font-bold flex items-center gap-2">
+            <Eye className="w-5 h-5 text-accent-blue" /> Perception Tester
+          </h1>
+          <p className="text-xs text-text-secondary mt-1">
+            Nine attack families across white-box / black-box / baseline / training-time categories.
+            M1 CT-TGNN on the SyntheticTEXBAT 8-satellite CAF graph.
+            Phase-A surrogate of the YOLOv8/v10/DETR vision-perception page chapter 6 §6.5.1 binds to.
+          </p>
+        </div>
+        <ExportMenu filename="uav-perception-tester" />
       </div>
 
       <PageGuide

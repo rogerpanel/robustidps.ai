@@ -2,7 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <script>
+      // Pre-hydration favicon pick — avoids the vite.svg flash on first paint.
+      // Reconciled by the React effect once App mounts (App.tsx).
+      (function () {
+        try {
+          if (location.pathname.indexOf('/uav') === 0) {
+            var l = document.querySelector('link[rel~="icon"]');
+            if (l) l.href = '/icons/uav-icon.svg';
+            document.title = 'RobustUAVs.ai — Coordinated Adversarially Robust UAV Swarms';
+          }
+        } catch (e) { /* SSR / feature-flag safe no-op */ }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RobustIDPS.ai — Adversarially Robust Network Intrusion Detection</title>
 

@@ -326,6 +326,29 @@ export default function App() {
   const { loading: analysisRunning, clearResults } = useAnalysis()
   const location = useLocation()
 
+  // Dynamic favicon + document title for the UAV / robustuavs sub-brand.
+  // Under /uav/*, the browser tab shows the RobustUAVs mark; everywhere
+  // else it stays on the RobustIDPS mark. Keeps the two verticals
+  // visually distinct in tab strips and bookmark bars.
+  useEffect(() => {
+    const isUAV = location.pathname.startsWith('/uav')
+    const iconHref = isUAV ? '/icons/uav-icon.svg' : '/icons/icon.svg'
+    const brandTitle = isUAV
+      ? 'RobustUAVs.ai — Coordinated Adversarially Robust UAV Swarms'
+      : 'RobustIDPS.ai — Adversarially Robust Network Intrusion Detection'
+    document.title = brandTitle
+    let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]')
+    if (!link) {
+      link = document.createElement('link')
+      link.rel = 'icon'
+      link.type = 'image/svg+xml'
+      document.head.appendChild(link)
+    }
+    link.href = iconHref
+    let appleLink = document.querySelector<HTMLLinkElement>('link[rel="apple-touch-icon"]')
+    if (appleLink) appleLink.href = iconHref
+  }, [location.pathname])
+
   // Toggle group collapse
   const toggleGroup = useCallback((heading: string) => {
     setCollapsedGroups((prev) => {

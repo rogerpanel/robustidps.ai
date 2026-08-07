@@ -156,33 +156,108 @@ def swarm_snapshot_payload() -> dict:
                          {"src": "u3", "dst": "p",  "kind": "trust"},
                          {"src": "b",  "dst": "u2", "kind": "hostile"},
                          {"src": "b",  "dst": "u3", "kind": "hostile"}]}
-    return {"snapshots": [snap_t1, snap_t2, snap_t3]}
+    snap_t4 = {"t": 4.0, "label": "t4 — combined view",
+               "description": "Superimposed t1+t2+t3: trusted topology, jammed links (orange), hostile edges (red), intruder node.",
+               "nodes": intruder,
+               "edges": [{"src": "u1", "dst": "u2", "kind": "trust"},
+                         {"src": "u2", "dst": "u3", "kind": "jammed"},
+                         {"src": "u1", "dst": "p",  "kind": "trust"},
+                         {"src": "u3", "dst": "p",  "kind": "jammed"},
+                         {"src": "b",  "dst": "u2", "kind": "hostile"},
+                         {"src": "b",  "dst": "u3", "kind": "hostile"}]}
+    return {"snapshots": [snap_t1, snap_t2, snap_t3, snap_t4]}
 
 
-def gnss_payload() -> dict:
-    rng = random.Random(int(time.time()) // 10)
-    spoofed = {3, 5}
+RECEIVER_MODELS: dict[str, dict] = {
+    "gp_software":      {"label": "GP-software",       "nominal_cno": 45.0, "jam_rejection_db":  0.0, "pvt_collapse_js_db": 22.0},
+    "ublox_f9p_sim":    {"label": "u-blox F9P (sim)",  "nominal_cno": 47.0, "jam_rejection_db":  8.0, "pvt_collapse_js_db": 28.0},
+    "novatel_oem7_sim": {"label": "NovAtel OEM7 (sim)","nominal_cno": 49.0, "jam_rejection_db": 12.0, "pvt_collapse_js_db": 32.0},
+}
+
+
+def gnss_payload(
+    seed: int | None = None,
+    receiver_model: str = "gp_software",
+    jamming_db: float = 0.0,
+    n_spoofed: int | None = None,
+    spoof_threshold: float = 0.5,
+) -> dict:
+    """Interactive GNSS snapshot.
+
+    Parameters let the UI drive the physics: pick the receiver front-end
+    (each has its own jamming-rejection budget), dial the jammer level in
+    dB, choose how many satellites are targeted, and set the M1 spoof-
+    confidence flag threshold. Seed=None picks a time-bucketed seed
+    (original behaviour); providing a seed makes results reproducible.
+    """
+    if seed is None:
+        seed = int(time.time()) // 10
+    rng = random.Random(int(seed))
+
+    rx = RECEIVER_MODELS.get(receiver_model, RECEIVER_MODELS["gp_software"])
+    nominal_cno = rx["nominal_cno"]
+    jam_rejection = rx["jam_rejection_db"]
+    pvt_collapse = rx["pvt_collapse_js_db"]
+
+    # How many satellites the jammer targets. Default behaviour = {3,5}
+    # to match the pre-existing snapshot; the UI can override.
+    if n_spoofed is None:
+        spoofed_ids = {3, 5}
+    else:
+        n_spoofed = max(0, min(8, int(n_spoofed)))
+        spoofed_ids = set(rng.sample(range(1, 9), n_spoofed)) if n_spoofed else set()
+
+    # Effective jamming above the receiver's front-end rejection budget.
+    effective_js = max(0.0, float(jamming_db) - jam_rejection)
+    # Signal degradation curve: linear drop, ceiling at pvt_collapse_js_db.
+    signal_penalty_db = min(nominal_cno - 20.0, effective_js * 0.6)
+
     sats = []
     for sv in range(1, 9):
         azimuth = (sv * 47) % 360
         elevation = 25 + (sv * 13) % 55
-        cno = 32 + rng.uniform(-3, 8) if sv not in spoofed else 41 + rng.uniform(-1, 1)
-        spoof_conf = 0.82 + rng.uniform(-0.05, 0.08) if sv in spoofed else 0.08 + rng.uniform(0, 0.06)
+        is_spoofed = sv in spoofed_ids
+        if is_spoofed:
+            # Spoofed sats read anomalously hot regardless of receiver
+            cno_base = nominal_cno - 4.0 + rng.uniform(-1, 1)
+        else:
+            cno_base = nominal_cno - 13.0 + rng.uniform(-3, 8)
+        cno = max(0.0, cno_base - signal_penalty_db)
+        base_conf = 0.82 + rng.uniform(-0.05, 0.08) if is_spoofed else 0.08 + rng.uniform(0, 0.06)
+        # Higher jamming raises the false-positive floor slightly.
+        spoof_conf = min(0.99, base_conf + effective_js * 0.004)
         sats.append({
             "sv": f"G{sv:02d}",
             "azimuth_deg": azimuth, "elevation_deg": elevation,
             "cno_db_hz": round(cno, 1),
             "spoof_confidence": round(spoof_conf, 3),
-            "spoofed": sv in spoofed,
+            "spoofed": is_spoofed,
+            "flagged": spoof_conf >= spoof_threshold,
         })
-    fleet_disagreement = 0.18 + rng.uniform(-0.04, 0.05)
-    any_spoofed = any(s["spoofed"] for s in sats)
+    fleet_disagreement = 0.18 + rng.uniform(-0.04, 0.05) + (0.02 * len(spoofed_ids))
+    any_flagged = any(s["flagged"] for s in sats)
+    pvt_collapsed = jamming_db >= pvt_collapse
     return {
         "satellites": sats,
-        "fleet_disagreement": round(fleet_disagreement, 3),
-        "mode": "GNSS-degraded" if any_spoofed else "nominal",
-        "fallback": "INS + visual odometry" if any_spoofed else None,
-        "n_spoofed_satellites": sum(1 for s in sats if s["spoofed"]),
+        "fleet_disagreement": round(min(1.0, fleet_disagreement), 3),
+        "mode": "GNSS-degraded" if (any_flagged or pvt_collapsed) else "nominal",
+        "fallback": "INS + visual odometry" if (any_flagged or pvt_collapsed) else None,
+        "n_spoofed_satellites": len(spoofed_ids),
+        "n_flagged_satellites": sum(1 for s in sats if s["flagged"]),
+        "controls": {
+            "seed": int(seed),
+            "receiver_model": receiver_model,
+            "receiver_label": rx["label"],
+            "jamming_db": float(jamming_db),
+            "effective_js_db": round(effective_js, 2),
+            "pvt_collapse_js_db": pvt_collapse,
+            "pvt_collapsed": pvt_collapsed,
+            "spoof_threshold": float(spoof_threshold),
+            "n_spoofed_requested": len(spoofed_ids),
+        },
+        "receiver_catalog": [
+            {"id": k, **v} for k, v in RECEIVER_MODELS.items()
+        ],
     }
 
 

@@ -1,8 +1,8 @@
 import type { SatelliteFix } from '../api'
 
-interface Props { satellites: SatelliteFix[]; size?: number }
+interface Props { satellites: SatelliteFix[]; size?: number; showLabels?: boolean }
 
-export default function SkyPlotGNSS({ satellites, size = 240 }: Props) {
+export default function SkyPlotGNSS({ satellites, size = 240, showLabels = true }: Props) {
   const cx = size / 2, cy = size / 2, R = size / 2 - 14
 
   const toXY = (azDeg: number, elDeg: number) => {
@@ -26,13 +26,16 @@ export default function SkyPlotGNSS({ satellites, size = 240 }: Props) {
       {satellites.map((s) => {
         const { x, y } = toXY(s.azimuth_deg, s.elevation_deg)
         const r = 4 + s.cno_db_hz / 18
-        const fill = s.spoofed ? 'rgb(var(--color-accent-red))' : 'rgb(var(--color-accent-blue))'
+        const flagged = s.flagged ?? s.spoofed
+        const fill = flagged ? 'rgb(var(--color-accent-red))' : 'rgb(var(--color-accent-blue))'
         return (
           <g key={s.sv}>
             <circle cx={x} cy={y} r={r} fill={fill} fillOpacity={0.85} />
-            <text x={x} y={y - r - 2} fontSize="8" textAnchor="middle"
-                  fill="rgb(var(--color-text-primary))">{s.sv}</text>
-            {s.spoofed && (
+            {showLabels && (
+              <text x={x} y={y - r - 2} fontSize="8" textAnchor="middle"
+                    fill="rgb(var(--color-text-primary))">{s.sv}</text>
+            )}
+            {flagged && (
               <circle cx={x} cy={y} r={r + 3} fill="none"
                       stroke="rgb(var(--color-accent-red))" strokeWidth={1} strokeDasharray="2 2" />
             )}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ClipboardCheck, Play, Loader2, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
+import ExportMenu from '../../../components/ExportMenu'
 import { reviewMissionPlan } from '../api'
 import type { MissionReview } from '../api'
 
@@ -34,15 +35,18 @@ export default function MissionPlanReview() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-display font-bold flex items-center gap-2">
-          <ClipboardCheck className="w-5 h-5 text-accent-blue" /> Mission Plan Review
-        </h1>
-        <p className="text-xs text-text-secondary mt-1">
-          Chapter 6 §6.5 cloud-tier surface — CyberSecLLM zero-shot audit of <span className="font-mono">.plan</span> /
-          JSON-LD / OWL mission documents. Phase-A surrogate flags missing geofence, RTL fallback, altitude band,
-          and RF Decree №1701 acknowledgment. Production swap-in: existing LLM router (<span className="font-mono">copilot.py</span>).
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-display font-bold flex items-center gap-2">
+            <ClipboardCheck className="w-5 h-5 text-accent-blue" /> Mission Plan Review
+          </h1>
+          <p className="text-xs text-text-secondary mt-1">
+            Chapter 6 §6.5 cloud-tier surface — CyberSecLLM zero-shot audit of <span className="font-mono">.plan</span> /
+            JSON-LD / OWL mission documents. Phase-A surrogate flags missing geofence, RTL fallback, altitude band,
+            and RF Decree №1701 acknowledgment. Production swap-in: existing LLM router (<span className="font-mono">copilot.py</span>).
+          </p>
+        </div>
+        <ExportMenu filename="uav-mission-plan-review" />
       </div>
 
       <PageGuide
