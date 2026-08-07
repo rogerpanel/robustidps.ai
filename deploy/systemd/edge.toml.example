@@ -1,0 +1,38 @@
+# RobustIDPS.ai edge-agent config template.
+# Install to /etc/robustidps/edge.toml, edit values, then:
+#   systemctl daemon-reload
+#   systemctl restart robustidps-edge
+
+# Stable identifier echoed in GetStats. Defaults to hostname if absent.
+agent_id = "edge-prod-01"
+
+[capture]
+# Live capture from a kernel interface. Needs CAP_NET_RAW (already
+# granted by the systemd unit's AmbientCapabilities).
+mode = "live"
+interface = "eth0"
+snaplen = 1600
+promisc = true
+
+# OR — replay a PCAP file (e.g. for soak-testing a new model build):
+# mode = "pcap_replay"
+# path = "/var/lib/robustidps/edge/captures/today.pcap"
+
+[grpc]
+# Bind the gRPC server. Use 127.0.0.1:50090 if you want to expose only
+# to the local control plane + tunnel access via nginx / wireguard.
+bind = "0.0.0.0:50090"
+
+[flow]
+idle_timeout_secs = 15
+active_timeout_secs = 120
+sweep_interval_secs = 2
+max_flows = 200000
+
+[inference]
+# Initial block list. The control plane will push updates over gRPC.
+block_ips = []
+# Severity threshold for upstream streaming over StreamFlows. Flows whose
+# severity ranks below this are not forwarded. Values: benign | low |
+# medium | high | critical.
+min_severity = "low"

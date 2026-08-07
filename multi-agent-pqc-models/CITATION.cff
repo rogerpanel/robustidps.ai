@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Multi-Agent PQC-IDS: Post-Quantum Cryptography-Aware Intrusion Detection System"
+type: software
+authors:
+  - family-names: "Anaedevha"
+    given-names: "Roger Nick"
+version: "1.0.0"
+date-released: "2026-03-30"
+url: "https://github.com/rogerpanel/Multi-Agent-PQC-models"
+license: MIT
+repository-code: "https://github.com/rogerpanel/Multi-Agent-PQC-models"
+keywords:
+  - intrusion-detection
+  - post-quantum-cryptography
+  - multi-agent-systems
+  - deep-learning
+  - network-security
+references:
+  - type: dataset
+    title: "PQC-IDS Dataset"
+    url: "https://doi.org/10.34740/kaggle/dsv/15424420"

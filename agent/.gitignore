@@ -1,0 +1,4 @@
+/target
+**/*.rs.bk
+# Cargo.lock IS committed — the workspace ships a binary (`robustidps-agent`)
+# and reproducible builds matter for the runtime sidecar story.

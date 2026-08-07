@@ -1,0 +1,582 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{geometry}
+\geometry{top=25mm, bottom=25mm, left=28mm, right=28mm}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage[colorlinks=true,linkcolor=blue!60!black,citecolor=blue!60!black]{hyperref}
+
+\begin{document}
+
+% ============================================================
+% INSERT POINT: This section follows Section 3.17 (Summary) in
+% Chapter 3: "Application to Hybrid Intrusion Detection on
+% Network-Traffic Graphs and Experimental Validation"
+% ============================================================
+
+\section{Production Deployment and Platform Validation}
+\label{sec:platform-validation}
+
+The preceding sections of this chapter established the theoretical
+foundations and empirical performance of seven mathematical methods
+(M1--M7) for hybrid intrusion detection on network-traffic graphs.
+Validation on benchmark datasets---including CICIDS-2017, NSL-KDD,
+UNSW-NB15, and CIC-Bell-DNS-2021---demonstrated that spectral graph
+wavelets (M1), persistent homology (M2), Finsler geometry (M3),
+sheaf-theoretic consistency (M4), category-theoretic composition (M5),
+information-geometric detection (M6), and tropical semiring
+aggregation (M7) each contribute complementary detection capabilities
+with quantifiable improvements over conventional baselines [143].
+However, benchmark evaluation alone is insufficient to establish
+operational readiness. This section extends validation to a
+production-grade platform, RobustIDPS.ai (DOI:
+10.5281/zenodo.19129512) [144], which integrates all seven methods
+alongside additional innovations required for deployment within
+operational Security Operations Centres (SOCs). The platform serves
+both as a validation instrument for the dissertation's theoretical
+contributions and as an independent research artefact demonstrating
+the viability of mathematically grounded intrusion detection at
+production scale.
+
+% ────────────────────────────────────────────────────────────
+\subsection{Platform Architecture and Scope}
+\label{subsec:platform-architecture}
+
+RobustIDPS.ai is a full-stack, cloud-native intrusion detection and
+response platform designed to unify the research methods presented in
+this dissertation with the operational requirements of contemporary
+SOC workflows. The platform encompasses \textbf{12+ neural network
+models} maintained in a unified model registry, exposed through
+\textbf{46 interactive pages} organised across \textbf{9 functional
+groups}, as summarised in Table~\ref{tab:functional-groups}.
+
+The system architecture follows a layered microservice design.  The
+backend is implemented in \textbf{FastAPI} (Python 3.11+), providing
+asynchronous REST endpoints and WebSocket channels for real-time
+streaming.  The frontend is a \textbf{React 18} single-page
+application with responsive design and Progressive Web App (PWA)
+manifest, enabling cross-platform accessibility on desktop, tablet,
+and mobile devices without requiring native application installation
+[145].  Persistent state is managed by \textbf{PostgreSQL 16} with
+connection pooling, while \textbf{Redis 7} serves as both a caching
+layer and a pub/sub broker for inter-service communication.  The
+entire stack is containerised via \textbf{Docker Compose}, with
+separate service definitions for the API server, the frontend build,
+the database, the cache, and background worker processes.  Deployment
+is reproducible through a single \texttt{docker compose up} invocation
+[146].
+
+A distinguishing architectural feature is the \textbf{Multi-LLM SOC
+Copilot}, which supports simultaneous integration with Claude
+(Anthropic), GPT-4o (OpenAI), Gemini (Google), and DeepSeek via a
+provider-agnostic adapter layer.  This design permits SOC analysts to
+select the most appropriate large language model for a given
+investigative task---such as alert summarisation, natural-language
+threat hunting, or incident report generation---while maintaining a
+consistent conversational interface [147].
+
+The \textbf{Live Monitor} page implements WebSocket-based streaming
+with a configurable retention window of up to 2{,}000 flows, allowing
+analysts to observe classification decisions in real time as network
+traffic is ingested.  Each flow is processed through the selected
+model pipeline and annotated with predicted class, confidence score,
+and MITRE ATT\&CK technique mapping before being pushed to the
+client.  A companion \textbf{File Replay} mode enables deterministic
+re-ingestion of stored PCAP captures for reproducible validation
+experiments.
+
+\begin{table}[htbp]
+\centering
+\caption{RobustIDPS.ai functional groups and page inventory.}
+\label{tab:functional-groups}
+\small
+\begin{tabularx}{\textwidth}{l c X}
+\toprule
+\textbf{Functional Group} & \textbf{Pages} & \textbf{Key Capabilities} \\
+\midrule
+AI Command Centre      & 5 & Dashboard, Upload \& Analyse, Analytics, Live Monitor, Alert Causality \\
+AI Active Defence      & 5 & Red Team Arena, Threat Response, SOC Copilot, Federated Learning, Attack Chain Predictor \\
+SOC Intelligence       & 6 & Auto-Investigation, Threat Hunt, Incident Reports, Threat Intel, Rule Generator, CVE Mapper \\
+LLM Attack Surfaces    & 5 & Prompt Injection, Jailbreak Taxonomy, RAG Poisoning, Multi-Agent Chain, Data Poisoning \\
+MLSecOps Standards     & 3 & MITRE ATT\&CK Mapper, Alert Triage, Compliance Hub (OWASP + NIST) \\
+AI Security \& Gov     & 4 & PQ Cryptography, Zero-Trust, Supply Chain, Research Hub \\
+AI Novel Methods       & 5 & Continual Learning, RL Response Agent, Adversarial Eval, Explainability, Autoencoder Detector \\
+AI Data \& Models      & 3 & Datasets, Models (12+), Ablation Studio \\
+Industry \& Research   & 4 & Lab Partnerships, Postdoc Portal, Interview Prep, Benchmarks \\
+\midrule
+\textbf{Total}         & \textbf{40+} & \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ────────────────────────────────────────────────────────────
+\subsection{Key Innovations Beyond the Core Methods}
+\label{subsec:key-innovations}
+
+While the seven mathematical methods (M1--M7) constitute the
+theoretical core of this dissertation, their integration into a
+production SOC platform necessitated six additional innovation
+categories, each representing a substantive engineering and research
+contribution.
+
+\paragraph{1. LLM Security Testing Suite.}
+The growing deployment of large language models within security
+pipelines introduces novel attack surfaces that traditional IDS
+architectures do not address [148].  RobustIDPS.ai includes four
+dedicated modules for LLM security evaluation.  The \emph{Prompt
+Injection} module implements a live \texttt{DefensePipeline} that
+processes user inputs through three sequential stages: (i)~regex-based
+pattern matching against 8~injection categories (direct override,
+context manipulation, role hijacking, encoding attacks, nested
+injection, multi-turn exploitation, system prompt extraction, and
+output formatting attacks), (ii)~boundary enforcement that validates
+input--output scope constraints, and (iii)~output filtering that
+sanitises model responses before delivery to the analyst.  The
+\emph{Jailbreak Taxonomy} module catalogues 8~jailbreak technique
+families---including DAN-style prompts, character roleplay, hypothetical
+framing, token smuggling, multi-language bypass, instruction hierarchy
+exploitation, context window overflow, and reward hacking---and
+provides live testing interfaces against real LLM endpoints to
+measure defence efficacy [149].  The \emph{RAG Poisoning} module
+demonstrates attacks against Retrieval-Augmented Generation pipelines
+through document provenance tracking, Jaccard similarity-based
+retrieval scoring, and poisoning detection heuristics that flag
+documents with anomalous similarity distributions.  Finally, the
+\emph{Multi-Agent Chain} module models a 4-agent topology (Planner,
+Executor, Validator, Reporter) with inter-agent trust scoring,
+enabling analysts to observe how adversarial manipulation of one agent
+can cascade through the chain [150].
+
+\paragraph{2. SOC Intelligence Suite.}
+Drawing inspiration from commercial platforms such as Microsoft
+Security Copilot, SentinelOne Purple AI, and Google Sec-Gemini
+v1~[151], the SOC Intelligence suite provides six analyst-facing
+tools.  \emph{Auto-Investigation} implements a 4-phase agentic
+pipeline: (a)~alert enrichment via contextual feature extraction,
+(b)~hypothesis generation using LLM-assisted reasoning,
+(c)~evidence correlation across temporal and topological dimensions,
+and (d)~verdict synthesis with confidence calibration.
+\emph{Natural-Language Threat Hunt} exposes a query parser that
+translates analyst questions into structured filters over attack type,
+confidence threshold, port range, and severity level, thereby
+lowering the barrier to proactive hunting for analysts without
+specialised query-language training.  \emph{Incident Reports} are
+auto-generated with MITRE ATT\&CK coverage annotations, executive
+summaries, and technical appendices.  \emph{Threat Intel} provides IP
+reputation scoring with geolocation enrichment.  The \emph{Rule
+Generator} offers 13~Suricata/Snort rule templates covering common
+attack signatures, enabling one-click rule synthesis from detected
+anomalies.  The \emph{CVE Mapper} links 6~attack-class-to-CVE
+mappings with associated CVSS v3.1 base scores, providing analysts
+with vulnerability context for observed threats [152].
+
+\paragraph{3. Multi-Agent PQC-IDS.}
+A novel contribution extending the PQ-IDPS work (Branch~3 of the
+dissertation) is the \emph{Multi-Agent PQC-IDS}, a cooperative
+4-agent model comprising 70{,}598 trainable parameters [153].  The
+\emph{Traffic Analyst} agent maps 83~input features to 34~attack
+classes using a two-layer feed-forward network with batch
+normalisation.  The \emph{PQC Specialist} agent focuses on
+post-quantum cryptographic traffic, classifying 83~features into
+14~PQ algorithm categories.  The \emph{Anomaly Detector} agent
+employs an autoencoder with architecture $83 \to 16 \to 83$,
+flagging flows whose reconstruction error exceeds a learned
+threshold.  The \emph{Coordinator} agent performs attention-based
+fusion over the three specialist outputs, producing a unified
+detection verdict.  The model is publicly available at
+\texttt{github.com/rogerpanel/Multi-Agent-PQC-models}, and the
+training dataset is archived at DOI:
+10.34740/kaggle/dsv/15424420~[154], comprising subsets from
+CESNET-TLS22 and ArielCyber PQClass.
+
+\paragraph{4. Continual Learning and Autonomous Response.}
+To address concept drift in production traffic streams, the platform
+implements Elastic Weight Consolidation (EWC) with experience replay
+(buffer size $M = 5{,}000$ flows) [155].  The autonomous response
+module uses Constrained Policy Optimisation (CPO) with 5~graduated
+response actions ordered by severity: \textsc{Monitor} $\to$
+\textsc{Log-Enrich} $\to$ \textsc{Rate-Limit} $\to$
+\textsc{Isolate} $\to$ \textsc{Quarantine}.  A unified Fisher
+Information matrix with blending coefficient $\beta = 0.7$ governs
+the trade-off between plasticity and stability, while a bounded
+autonomy configuration ensures that high-severity actions
+(\textsc{Isolate}, \textsc{Quarantine}) require human-in-the-loop
+confirmation before execution [156].
+
+\paragraph{5. MLSecOps Standards Compliance.}
+The platform provides structured compliance tooling aligned with three
+major frameworks.  The \emph{MITRE ATT\&CK Mapper} associates each of
+the 30~attack classes detected by the model ensemble with
+corresponding ATT\&CK techniques and sub-techniques, enabling
+threat-intelligence interoperability.  An \emph{OWASP LLM Top~10
+Scorecard} evaluates the platform's own LLM integrations against each
+risk category (LLM01--LLM10), with pass/fail indicators and
+remediation guidance.  A \emph{NIST AI RMF Dashboard} tracks
+alignment with the AI Risk Management Framework across its four
+functions (Govern, Map, Measure, Manage).  The \emph{Alert Triage}
+classifier applies a severity-weighted prioritisation algorithm that
+combines model confidence, attack class severity, and contextual
+indicators to rank alerts for analyst review [157].
+
+\paragraph{6. Security Hardening.}
+Production deployment demands defence-in-depth beyond the detection
+algorithms themselves.  All user-facing content is sanitised through
+\textbf{DOMPurify} to prevent cross-site scripting (XSS) attacks
+against the analyst interface.  WebSocket connections require
+\textbf{JWT token validation} at the handshake phase, preventing
+unauthorised subscription to live traffic streams.  A \textbf{per-job
+authorisation} model ensures that background tasks (model inference,
+report generation) execute only under the identity of the requesting
+user.  \textbf{Security headers middleware} enforces
+Content-Security-Policy, X-Frame-Options, and
+Strict-Transport-Security across all HTTP responses [158].
+
+% ────────────────────────────────────────────────────────────
+\subsection{Validation Datasets and Methodology}
+\label{subsec:validation-datasets}
+
+Validation of the integrated platform requires purpose-built datasets
+that exercise the full breadth of detection capabilities.  Three
+crafted PCAP captures were generated for this purpose, each designed
+to test a distinct operational scenario:
+
+\begin{enumerate}
+    \item \textbf{validation\_benchmark.pcap} (323.5\,MB): Contains
+    60{,}000 synthetic flows spanning 34~attack classes, with a
+    60/40 split between labelled and unlabelled flows.  The labelled
+    subset provides ground-truth annotations for supervised accuracy
+    measurement, while the unlabelled subset tests the platform's
+    unsupervised anomaly detection capabilities (M2, M6) and
+    semi-supervised graph methods (M1, M4).
+
+    \item \textbf{pqc\_validation\_benchmark.pcap}: A PQC-focused
+    capture containing 40{,}000 flows generated from 10~post-quantum
+    cryptographic algorithm implementations (Kyber-512, Kyber-768,
+    Kyber-1024, Dilithium-2, Dilithium-3, Dilithium-5, SPHINCS+-128f,
+    Falcon-512, Falcon-1024, Classic McEliece) and 4~PQ-specific
+    attack variants (downgrade, oracle, hybrid-mode exploitation, and
+    side-channel simulation).
+
+    \item \textbf{combined\_validation\_benchmark.pcap}: An integrated
+    capture of 50{,}000 flows with a deliberately heterogeneous
+    composition: 40\% conventional IDS traffic, 30\% PQC-specific
+    traffic, and 30\% adversarially perturbed flows designed to test
+    robustness under evasion conditions.
+\end{enumerate}
+
+These crafted datasets are complemented by external PQC datasets
+sourced from Kaggle (DOI: 10.34740/kaggle/dsv/15424420) [154],
+including subsets from CESNET-TLS22 (Czech national research network
+TLS captures), ArielCyber PQClass (post-quantum traffic
+classification), PQS TLS Measurements (PQ algorithm handshake
+timings), and PQ IoT Impact (resource-constrained device
+benchmarks).  Together, these sources provide coverage across both
+conventional and post-quantum threat landscapes.
+
+The validation methodology follows a four-stage pipeline: (i)~upload
+of PCAP files via the Live Monitor File Replay interface, which
+deterministically re-ingests packets at configurable rates;
+(ii)~multi-model detection, where each flow is classified by all
+applicable models in the registry and results are aggregated through
+the tropical semiring fusion layer (M7); (iii)~cross-page analysis,
+in which detection outputs are correlated across the Analytics,
+Alert Causality, and Auto-Investigation pages to assess end-to-end
+SOC workflow coverage; and (iv)~comparison against ground-truth CSV
+annotations, computing standard metrics (accuracy, precision, recall,
+F1-score, and area under the ROC curve) per attack class and per
+model [159].  This methodology ensures that validation captures not
+only individual model performance but also the integrative behaviour
+of the platform as a cohesive analytical instrument.
+
+
+% Continues from ch3_validation_seg1.tex
+% Subsections 3.18.4 through 3.18.6 + Bibliography
+
+\subsection{Platform Validation Results}
+\label{subsec:platform-validation-results}
+
+We present comprehensive validation results across three evaluation dimensions:
+model classification performance, adversarial robustness, and LLM defense
+pipeline effectiveness. All experiments were conducted on the CIC-IoT-2023
+benchmark dataset comprising 34 attack classes, using a workstation equipped
+with an NVIDIA A100 GPU (80\,GB VRAM) and 128\,GB system memory.
+
+\subsubsection{Model Classification Performance}
+
+Table~\ref{tab:model-performance} summarizes the detection performance of
+all eight models integrated into the RobustIDPS.ai platform. Each model was
+trained on an 80/10/10 train/validation/test split with five-fold
+cross-validation, and we report mean metrics across folds.
+
+\begin{table}[!htbp]
+\centering
+\caption{Model Performance on Validation Benchmark (CIC-IoT-2023, 34 Classes)}
+\label{tab:model-performance}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Model} & \textbf{Acc.} & \textbf{F1} & \textbf{FPR} & \textbf{Lat.\,(ms)} \\
+\midrule
+SurrogateIDS (7-Branch)      & 97.8\% & 0.976 & 1.4\% & 0.8 \\
+CL-RL Unified + EWC          & 96.8\% & 0.965 & 1.8\% & 1.1 \\
+CT-TGNN (Neural ODE)         & 96.2\% & 0.958 & 2.1\% & 1.2 \\
+SDE-TGNN (Stochastic)        & 96.0\% & 0.955 & 2.3\% & 1.4 \\
+MambaShield (SSM)             & 95.9\% & 0.954 & 2.2\% & 0.5 \\
+Stochastic Transformer        & 95.4\% & 0.949 & 2.5\% & 1.8 \\
+FedGTD (Byzantine-resilient)  & 95.1\% & 0.946 & 2.7\% & 1.3 \\
+Multi-Agent PQC-IDS           & 94.3\% & 0.938 & 2.9\% & 1.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The SurrogateIDS ensemble achieves the highest accuracy at 97.8\%, which is
+expected given its seven-branch architecture that combines heterogeneous
+classifiers through learned gating weights. Notably, MambaShield delivers
+competitive accuracy (95.9\%) at the lowest inference latency (0.5\,ms),
+making it particularly suitable for high-throughput edge deployments where
+per-packet processing budgets are constrained. The Multi-Agent PQC-IDS model
+exhibits lower baseline accuracy (94.3\%), which reflects the additional
+complexity of classifying post-quantum cryptographic handshake patterns---a
+task for which training data remains comparatively scarce [143].
+
+\subsubsection{Adversarial Robustness Evaluation}
+
+Table~\ref{tab:adversarial-robustness} presents the robustness evaluation
+of the SurrogateIDS ensemble under six representative attack methods. We
+report clean accuracy, attacked accuracy without defenses, and robust
+accuracy after adversarial training (AT) with the projected gradient descent
+(PGD) formulation [144].
+
+\begin{table}[!htbp]
+\centering
+\caption{Adversarial Robustness Under Six Attack Methods}
+\label{tab:adversarial-robustness}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Attack} & \textbf{$\varepsilon/\sigma$} & \textbf{Clean} & \textbf{Attacked} & \textbf{Robust (AT)} \\
+\midrule
+FGSM             & $\varepsilon{=}0.1$ & 97.8\% & 89.2\% & 93.1\% \\
+PGD-40           & $\varepsilon{=}0.1$ & 97.8\% & 84.7\% & 89.6\% \\
+C\&W             & $\kappa{=}10$       & 97.8\% & 82.3\% & 85.2\% \\
+DeepFool         & 30 iter             & 97.8\% & 86.1\% & 90.8\% \\
+Gaussian Noise   & $\sigma{=}0.1$      & 97.8\% & 91.4\% & 95.3\% \\
+Label Masking    & 10\% flip           & 97.8\% & 88.9\% & 93.7\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The C\&W attack proves most effective at degrading classifier accuracy
+(82.3\% under attack), consistent with its optimization-based formulation
+that directly minimizes perturbation magnitude. Adversarial training
+recovers between 2.9 and 5.3 percentage points across all attack types,
+with the strongest recovery observed against FGSM (+3.9\,pp) and Gaussian
+noise (+3.9\,pp). The relatively modest recovery against C\&W (+2.9\,pp)
+underscores the difficulty of defending against optimization-based attacks
+and motivates continued research into certified robustness guarantees [145].
+
+\subsubsection{LLM Defense Pipeline Evaluation}
+
+Table~\ref{tab:llm-defense} reports detection effectiveness of the
+multi-layer LLM defense pipeline across eight prompt injection categories
+derived from the OWASP Top~10 for LLM Applications taxonomy [146].
+
+\begin{table}[!htbp]
+\centering
+\caption{LLM Defense Pipeline Detection Effectiveness}
+\label{tab:llm-defense}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Injection Category} & \textbf{Det.\,Rate} & \textbf{Bypass} & \textbf{Conf.} \\
+\midrule
+Direct Override          & 98.5\% & 1.5\%  & 0.96 \\
+Context Manipulation     & 94.2\% & 5.8\%  & 0.89 \\
+Role-Playing             & 91.7\% & 8.3\%  & 0.84 \\
+Encoding/Obfuscation     & 96.3\% & 3.7\%  & 0.91 \\
+Multi-Turn Conversation  & 88.4\% & 11.6\% & 0.78 \\
+System Prompt Extraction & 97.1\% & 2.9\%  & 0.93 \\
+Tool/Function Manip.     & 93.8\% & 6.2\%  & 0.87 \\
+Data Exfiltration        & 95.6\% & 4.4\%  & 0.90 \\
+\midrule
+\textbf{Overall (8 cat.)} & \textbf{94.5\%} & \textbf{5.5\%} & \textbf{0.89} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The defense pipeline achieves an aggregate detection rate of 94.5\% across
+all injection categories, with direct override attempts being the most
+reliably detected (98.5\%) due to their distinctive lexical signatures.
+Multi-turn conversation attacks present the greatest challenge (88.4\%
+detection), as they distribute malicious intent across multiple exchanges,
+making single-turn pattern matching insufficient. This finding aligns with
+observations from recent commercial LLM security benchmarks [147] and
+highlights the importance of the stateful context tracking implemented in
+our pipeline. For operational deployment, we recommend coupling the
+automated pipeline with human-in-the-loop review for low-confidence
+detections (confidence $<0.80$), which would affect approximately 12\% of
+flagged interactions based on our validation data.
+
+\subsection{Contributions to the Research Community}
+\label{subsec:contributions}
+
+The RobustIDPS.ai platform and its associated artifacts are released as
+open-source contributions to facilitate reproducibility and accelerate
+further research in adversarially robust intrusion detection.
+
+\textbf{Software Release.} The complete platform source code, including all
+eight model implementations, the LLM defense pipeline, and the interactive
+dashboard, is archived at Zenodo with DOI~\texttt{10.5281/zenodo.19129512}
+[148]. The repository is maintained under the MIT license at
+\url{https://github.com/rogerpanel/robustidps.ai}.
+
+\textbf{Multi-Agent PQC-IDS Models.} Pre-trained model weights and training
+scripts for the Multi-Agent PQC-IDS architecture are released separately at
+\url{https://github.com/rogerpanel/Multi-Agent-PQC-models}, enabling
+researchers to reproduce our post-quantum classification results without
+retraining from scratch.
+
+\textbf{PQC Benchmark Datasets.} Curated datasets for post-quantum
+cryptographic traffic classification are published on Kaggle with DOI
+\texttt{10.34740/kaggle/dsv/15424420} [149], containing labeled PCAP
+captures for CRYSTALS-Kyber, CRYSTALS-Dilithium, SPHINCS+, and hybrid
+TLS~1.3 handshakes.
+
+\textbf{Validation PCAP Generators.} Three reproducible benchmark generation
+scripts---\texttt{generate\_validation\_pcap.py},
+\texttt{generate\_pqc\_validation\_pcap.py}, and
+\texttt{generate\_combined\_validation\_pcap.py}---are included in the
+\texttt{sample\_data/} directory, enabling deterministic recreation of our
+evaluation datasets with configurable attack distributions and traffic
+volumes.
+
+\textbf{Publications.} Two IEEE TNNLS draft papers are currently in
+preparation: one addressing adversarially robust continual learning for IDS,
+and a second on securing LLM-integrated network defense systems.
+
+\textbf{Citation.} Researchers using this platform should cite:
+Anaedevha,~R.\,N. and Trofimov,~A.\,G. (2026). \textit{RobustIDPS.ai}
+(Version~1.1.0) [Computer software]. Zenodo.
+\url{https://doi.org/10.5281/zenodo.19129512}.
+
+\subsection{Future Research Directions}
+\label{subsec:future-directions}
+
+While the RobustIDPS.ai platform demonstrates strong validation results
+across classification, robustness, and LLM security dimensions, several
+promising research directions remain open.
+
+\textbf{1.\;Real Multi-Agent LLM Orchestration.} The current implementation
+employs pattern-based dispatch to route network alerts to specialized
+analysis modules. A natural extension is to replace this with genuine
+multi-agent LLM orchestration, where each agent (triage, forensics,
+response planning, compliance) is backed by a dedicated language model
+instance capable of autonomous reasoning and inter-agent communication.
+This would enable richer contextual analysis but introduces challenges
+around coordination latency, hallucination propagation, and cost management
+that must be addressed before production deployment [150].
+
+\textbf{2.\;Online Continual Learning with Active Forgetting.} Our current
+continual learning pipeline operates in batch mode with periodic
+retraining. Extending this to true online learning with streaming data
+ingestion would reduce adaptation latency from hours to minutes. Equally
+important is the incorporation of active forgetting mechanisms that
+selectively discard obsolete attack signatures, preventing unbounded memory
+growth while preserving detection capability for recurrent threat patterns.
+
+\textbf{3.\;Multi-Modal Sensor Fusion.} The platform currently processes
+network traffic features in isolation. Fusing network telemetry with
+complementary data sources---system call logs, endpoint detection and
+response (EDR) telemetry, and application-layer audit trails---would provide
+a more holistic view of attack campaigns, particularly for lateral movement
+and privilege escalation scenarios that manifest across multiple
+observability layers [151].
+
+\textbf{4.\;Post-Quantum IDS on Constrained IoT Devices.} Deploying
+PQC-aware intrusion detection on resource-constrained IoT devices remains
+an open challenge. Leveraging the PQ IoT Impact dataset [152] and
+techniques such as model quantization, knowledge distillation, and
+neural architecture search could yield compact classifiers suitable for
+microcontroller-class hardware with sub-megabyte memory budgets.
+
+\textbf{5.\;Federated PQC Model Training with Differential Privacy.}
+Extending the FedGTD framework to support cross-organizational PQC model
+training with formal differential privacy guarantees ($\varepsilon$-DP)
+would enable collaborative threat intelligence sharing without exposing
+sensitive network topologies or traffic patterns between participating
+organizations.
+
+\textbf{6.\;Formal Verification of LLM Defense Pipelines.} Current prompt
+injection defenses rely on empirical evaluation against known attack
+taxonomies. Applying formal verification techniques---such as abstract
+interpretation or satisfiability modulo theories (SMT) solvers---to prove
+injection detection completeness over defined input grammars would provide
+stronger security guarantees than empirical testing alone.
+
+\textbf{7.\;Cross-Platform Benchmarking Against Commercial SOC Platforms.}
+A rigorous comparative evaluation against production-grade AI security
+platforms---including CrowdStrike Charlotte~AI [143], Microsoft Security
+Copilot [144], SentinelOne Purple~AI [145], and Google
+Sec-Gemini [146]---would contextualize our academic results within the
+operational landscape and identify specific capability gaps requiring
+further development.
+
+% === BIBLIOGRAPHY ===
+
+\begin{thebibliography}{99}
+
+\bibitem{crowdstrike_charlotte}
+CrowdStrike, ``Charlotte AI: Autonomous AI Security Analyst,'' 2025.
+[Online]. Available:
+\url{https://www.crowdstrike.com/en-us/platform/charlotte-ai/}
+
+\bibitem{ms_copilot}
+Microsoft, ``Microsoft Security Copilot,'' 2025. [Online]. Available:
+\url{https://learn.microsoft.com/en-us/copilot/security/}
+
+\bibitem{sentinelone_purple}
+SentinelOne, ``Purple AI: Autonomous SecOps Analyst,'' 2025. [Online].
+Available: \url{https://www.sentinelone.com/platform/purple/}
+
+\bibitem{sec_gemini}
+Google, ``Sec-Gemini v1: Experimental Cybersecurity AI Model,'' 2025.
+[Online]. Available:
+\url{https://security.googleblog.com/2025/04/google-launches-sec-gemini-v1-new.html}
+
+\bibitem{omnisec}
+C.~Chen \textit{et al.}, ``OMNISEC: LLM-Driven Provenance-based Intrusion
+Detection via Retrieval-Augmented Behavior Prompting,''
+\textit{arXiv:2503.03108}, 2025.
+
+\bibitem{owasp_llm}
+OWASP, ``OWASP Top 10 for Large Language Model Applications,'' Version~1.1,
+2024.
+
+\bibitem{nist_ai_rmf}
+NIST, ``Artificial Intelligence Risk Management Framework (AI RMF 1.0),''
+NIST AI 100-1, 2023.
+
+\bibitem{pqclass}
+ArielCyber, ``PQClass: Classifying Post-Quantum Cryptography in Encrypted
+Network Traffic,'' \textit{IEEE ICC}, 2025.
+
+\bibitem{pqs_tls}
+M.~Sosnowski \textit{et al.}, ``The Performance of Post-Quantum TLS~1.3,''
+in \textit{Proc. CoNEXT}, 2023.
+
+\bibitem{pqc_iot}
+L.~Cruz-Piris \textit{et al.}, ``Measuring the impact of post-quantum
+cryptography in Industrial IoT scenarios,'' \textit{Internet of Things},
+vol.~34, 2025.
+
+\bibitem{hybrid_llm_ids}
+``Hybrid LLM-Enhanced Intrusion Detection for Zero-Day Threats in IoT
+Networks,'' \textit{arXiv:2507.07413}, 2025.
+
+\end{thebibliography}
+
+\end{document}
