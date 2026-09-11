@@ -49,7 +49,17 @@ for i in $(seq 1 30); do
   if $COMPOSE exec -T certbot test -s "/etc/letsencrypt/live/$MAIL_HOSTNAME/fullchain.pem" 2>/dev/null; then
     green "  certificate ready"; break
   fi
-  [[ $i -eq 30 ]] && { red "  certificate not issued after 5 min — check: $COMPOSE logs certbot"; exit 1; }
+  [[ $i -eq 30 ]] && {
+    red "  certificate not issued after 5 min — certbot output follows:"
+    echo
+    $COMPOSE logs --no-log-prefix --tail=40 certbot | sed 's/^/    /'
+    echo
+    red "  Most common cause: the Cloudflare API token needs BOTH"
+    red "    Zone / Zone / Read     and     Zone / DNS / Edit"
+    red "  The 'Edit zone DNS' template includes both; a hand-built token often omits Zone:Read."
+    red "  Fix the token, update deploy/mail/cloudflare.ini, then re-run this script."
+    exit 1
+  }
   sleep 10
 done
 

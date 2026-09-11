@@ -18,7 +18,7 @@ certbot (DNS-01 via Cloudflare API) ─▶ Let's Encrypt cert for mail.robustidp
 |---|-------|------|
 | 1 | Hetzner → server → Networking | Reverse DNS for 37.27.31.70 = `mail.robustidps.ai` ✅ done |
 | 2 | Hetzner → Support / Limits | Request unblock of outbound port 25 ✅ requested |
-| 3 | Cloudflare → My Profile → API Tokens | Token with **Zone / DNS / Edit** on `robustidps.ai` only (for certbot) |
+| 3 | Cloudflare → My Profile → API Tokens | Use the **Edit zone DNS** template, scoped to `robustidps.ai`. It must carry **both** `Zone / Zone / Read` *and* `Zone / DNS / Edit` — certbot looks the zone up by name before writing the challenge record, so a DNS:Edit-only token fails. |
 | 4 | Cloudflare → SSL/TLS → Origin Server | Confirm the origin cert covers `*.robustidps.ai` (needed for webmail.) |
 | 5 | Optional relay | SMTP2GO / Brevo / SES account → SMTP username + password |
 
@@ -111,13 +111,13 @@ SMTP_FROM="RobustIDPS <noreply@robustidps.ai>"
 
 ## Backups
 
-Everything lives in three named volumes: `robustidpsai_dms-data` (mail),
-`robustidpsai_dms-state` (rspamd/fail2ban state), `robustidpsai_roundcube-db`.
+Everything lives in three named volumes: `robustidps-mail_dms-data` (mail),
+`robustidps-mail_dms-state` (rspamd/fail2ban state), `robustidps-mail_roundcube-db`.
 Plus `deploy/mail/config/` (accounts, aliases, **DKIM private key**) —
 back this directory up and never commit it.
 
 ```bash
-docker run --rm -v robustidpsai_dms-data:/data -v "$PWD/backups":/out alpine \
+docker run --rm -v robustidps-mail_dms-data:/data -v "$PWD/backups":/out alpine \
   tar czf /out/mail-$(date +%F).tgz -C /data .
 ```
 
