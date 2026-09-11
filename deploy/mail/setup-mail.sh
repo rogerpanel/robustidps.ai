@@ -50,6 +50,51 @@ done
 # Empty cert volume from that project; refuses if still referenced, which is fine.
 docker volume rm robustidpsai_letsencrypt >/dev/null 2>&1 || true
 
+# ── 0c. Verify the Cloudflare token BEFORE involving Let's Encrypt ───────
+# Two cheap API calls that distinguish the two failure modes Cloudflare
+# reports identically as error 9109. Without this, a bad credential sends
+# certbot into repeated failed lookups, trips Cloudflare's auth rate
+# limiter (10502/429), and burns ACME attempts for nothing.
+bold "[0/6] Verifying Cloudflare API token"
+CF_TOKEN=$(sed -n 's/^[[:space:]]*dns_cloudflare_api_token[[:space:]]*=[[:space:]]*//p' \
+           deploy/mail/cloudflare.ini | tr -d '"'\''\r\n[:space:]')
+[[ -n $CF_TOKEN ]] || { red "  no dns_cloudflare_api_token found in deploy/mail/cloudflare.ini"; exit 1; }
+echo "      token length: ${#CF_TOKEN} chars (Cloudflare API tokens are 40)"
+
+CF_CODE=$(curl -s -o /tmp/cf_verify.$$ -w '%{http_code}' \
+  https://api.cloudflare.com/client/v4/user/tokens/verify \
+  -H "Authorization: Bearer $CF_TOKEN") || true
+case "$CF_CODE" in
+  200) green "  [1/2] token string is valid" ;;
+  429) red "  Cloudflare is rate-limiting this IP: 'too many authentication failures'."
+       red "  This clears on its own — wait 30-60 min and re-run. Do NOT retry in a loop."
+       rm -f /tmp/cf_verify.$$; exit 1 ;;
+  *)   red "  [1/2] token REJECTED by Cloudflare (HTTP $CF_CODE)"
+       sed 's/^/      /' /tmp/cf_verify.$$ 2>/dev/null | head -5
+       red "  The token string itself is wrong — permissions are not the issue here."
+       red "  Re-copy it from Cloudflare -> My Profile -> API Tokens (it is shown once;"
+       red "  use 'Roll' to generate a fresh value), then ensure cloudflare.ini reads"
+       red "  exactly:   dns_cloudflare_api_token = <40 chars>"
+       red "  with no quotes, trailing spaces, or line break inside the token."
+       rm -f /tmp/cf_verify.$$; exit 1 ;;
+esac
+rm -f /tmp/cf_verify.$$
+
+# The token can be valid yet unable to resolve the zone by name, which is
+# precisely the call certbot makes first. Test that exact capability.
+CF_ZONES=$(curl -s "https://api.cloudflare.com/client/v4/zones?name=$DOMAIN" \
+  -H "Authorization: Bearer $CF_TOKEN") || true
+if grep -q '"id"' <<<"$CF_ZONES" && grep -q '"success":true' <<<"$CF_ZONES"; then
+  green "  [2/2] token can resolve zone $DOMAIN"
+else
+  red "  [2/2] token is valid but CANNOT look up zone '$DOMAIN'"
+  sed 's/^/      /' <<<"$CF_ZONES" | head -5
+  red "  certbot resolves the zone by name before writing the challenge record."
+  red "  Add 'Zone / Zone / Read' to the token (keep 'Zone / DNS / Edit'), or confirm"
+  red "  the token's Zone Resources include robustidps.ai. Then re-run this script."
+  exit 1
+fi
+
 # ── 1. Firewall ──────────────────────────────────────────────────────────
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   bold "[1/6] Opening mail ports in ufw"
