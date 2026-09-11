@@ -1,0 +1,10 @@
+# Copy to deploy/mail/cloudflare.ini, then: chmod 600 deploy/mail/cloudflare.ini
+#
+# Create the token at Cloudflare → My Profile → API Tokens → Create Token
+#   Template: "Edit zone DNS"
+#   Permissions: Zone / DNS / Edit
+#   Zone Resources: Include / Specific zone / robustidps.ai
+#
+# Used only by certbot for the DNS-01 challenge (it writes a temporary
+# _acme-challenge TXT record and removes it again).
+dns_cloudflare_api_token = PASTE_TOKEN_HERE

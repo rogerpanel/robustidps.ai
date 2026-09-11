@@ -36,3 +36,8 @@ backend/*.db
 
 # Large generated datasets (regenerate with sample_data/generate_pqc_dataset.py)
 sample_data/pqc_test_dataset.csv
+
+# ── Self-hosted mail (deploy/mail) — secrets + account DB + DKIM keys ──
+deploy/mail/.env.mail
+deploy/mail/cloudflare.ini
+deploy/mail/config/
