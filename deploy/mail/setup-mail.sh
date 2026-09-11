@@ -90,7 +90,12 @@ if [[ ! -f $DKIM_DNS ]]; then
   $COMPOSE exec -T mailserver setup config dkim keytype rsa keysize 2048 selector mail domain "$DOMAIN" >/dev/null
   $COMPOSE restart mailserver >/dev/null
 fi
-DKIM_VALUE=$(tr -d '\n' < "$DKIM_DNS" | sed -E 's/.*"(v=DKIM1[^"]*)".*/\1/; s/"[[:space:]]*"//g')
+# The generated file splits the record across several quoted chunks:
+#   mail._domainkey IN TXT ( "v=DKIM1; k=rsa; "
+#           "p=MIIBIjANBg..." ) ;
+# Concatenate every quoted chunk — a single-chunk regex silently drops p=.
+DKIM_VALUE=$(grep -oE '"[^"]*"' "$DKIM_DNS" | tr -d '"' | tr -d '\n')
+[[ $DKIM_VALUE == v=DKIM1*p=?* ]] || { red "DKIM extraction failed — inspect $DKIM_DNS manually"; exit 1; }
 
 # ── 6. Webmail behind nginx ──────────────────────────────────────────────
 bold "[6/6] Reloading app nginx so webmail.$DOMAIN is served"

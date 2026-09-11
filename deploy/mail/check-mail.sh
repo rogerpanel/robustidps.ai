@@ -4,6 +4,7 @@
 set -uo pipefail
 DOMAIN=robustidps.ai
 HOST=mail.$DOMAIN
+command -v dig >/dev/null || { echo "dig not found — install it first:  apt-get install -y dnsutils"; exit 1; }
 ok()   { printf '  \033[32m✔\033[0m %s\n' "$*"; }
 bad()  { printf '  \033[31m✘\033[0m %s\n' "$*"; }
 info() { printf '  \033[2m  %s\033[0m\n' "$*"; }
