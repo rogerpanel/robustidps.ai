@@ -41,3 +41,5 @@ sample_data/pqc_test_dataset.csv
 deploy/mail/.env.mail
 deploy/mail/cloudflare.ini
 deploy/mail/config/
+
+deploy/mail/*.last.log

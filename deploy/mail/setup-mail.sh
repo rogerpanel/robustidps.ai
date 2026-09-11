@@ -33,6 +33,23 @@ set -a; source "$ENV_FILE"; set +a
 MAIL_HOSTNAME=${MAIL_HOSTNAME:-mail.$DOMAIN}
 mkdir -p deploy/mail/config
 
+# ── 0b. Migrate containers from the pre-rename compose project ───────────
+# Before the project was pinned to "robustidps-mail" it inherited the
+# directory name, colliding with the prod stack. Containers created then
+# are invisible to compose now, so remove them and let this project
+# recreate them. Their logs are still reachable via `docker logs <name>`.
+for c in robustidps-certbot robustidps-mail robustidps-webmail; do
+  docker inspect "$c" >/dev/null 2>&1 || continue
+  owner=$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$c" 2>/dev/null || true)
+  [[ -z $owner || $owner == robustidps-mail ]] && continue
+  bold "[0/6] Removing stale container $c left by old compose project '$owner'"
+  docker logs --tail=25 "$c" > "deploy/mail/${c}.last.log" 2>&1 || true
+  echo "      previous output saved to deploy/mail/${c}.last.log"
+  docker rm -f "$c" >/dev/null
+done
+# Empty cert volume from that project; refuses if still referenced, which is fine.
+docker volume rm robustidpsai_letsencrypt >/dev/null 2>&1 || true
+
 # ── 1. Firewall ──────────────────────────────────────────────────────────
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   bold "[1/6] Opening mail ports in ufw"
