@@ -320,7 +320,12 @@ account_exists() {
     | grep -qE "(^|[^[:alnum:]._%+-])${esc}([^[:alnum:]._%+-]|$)"
 }
 
+# A plain counter alongside the map: ${#NEWPW[@]} on an *empty*
+# associative array trips `set -u` with "unbound variable" — reproduced on
+# bash 5.2, so this is not a legacy-version quirk. It fires on exactly the
+# common path where every mailbox already exists and nothing was created.
 declare -A NEWPW
+NEWPW_COUNT=0
 for u in "${ACCOUNTS[@]}"; do
   addr="$u@$DOMAIN"
   if account_exists "$addr"; then
@@ -347,7 +352,7 @@ for u in "${ACCOUNTS[@]}"; do
     sleep 10
   done
   case $created in
-    1) NEWPW[$addr]=$pw; green "  created $addr" ;;
+    1) NEWPW[$addr]=$pw; NEWPW_COUNT=$((NEWPW_COUNT + 1)); green "  created $addr" ;;
     2) ;;
     *) red "  could not create $addr after 4 attempts."
        red "  Last output from 'setup email add':"
@@ -366,7 +371,7 @@ echo "  aliases: postmaster@, abuse@, hostmaster@, webmaster@ → admin@"
 # Print credentials here, not only in the closing summary. A failure in any
 # later step would otherwise discard passwords that were already generated
 # and applied to live accounts, leaving mailboxes nobody can log into.
-if [[ ${#NEWPW[@]} -gt 0 ]]; then
+if [[ $NEWPW_COUNT -gt 0 ]]; then
   echo
   bold "  ══ NEW MAILBOX PASSWORDS — shown once, store them now ══"
   for a in "${!NEWPW[@]}"; do printf '    %-30s %s\n' "$a" "${NEWPW[$a]}"; done
@@ -478,7 +483,7 @@ cat <<EOF
   Cloudflare Email Routing if they are locked).
 EOF
 
-if [[ ${#NEWPW[@]} -gt 0 ]]; then
+if [[ $NEWPW_COUNT -gt 0 ]]; then
   echo
   bold "════════════ NEW MAILBOX PASSWORDS — shown once, store them now ════════════"
   for a in "${!NEWPW[@]}"; do printf '  %-28s %s\n' "$a" "${NEWPW[$a]}"; done
