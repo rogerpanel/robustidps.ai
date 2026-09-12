@@ -253,11 +253,25 @@ echo "  aliases: postmaster@, abuse@, hostmaster@, webmaster@ → admin@"
 
 # ── 5. DKIM ──────────────────────────────────────────────────────────────
 bold "[5/6] DKIM key (rspamd, selector 'mail', 2048-bit)"
-DKIM_DNS=deploy/mail/config/rspamd/dkim/rsa-2048-mail-$DOMAIN.public.dns.txt
-if [[ ! -f $DKIM_DNS ]]; then
+# Locate the generated record by searching rather than assuming a filename:
+# the layout differs between docker-mailserver versions and between the
+# rspamd and opendkim backends, and a stale hardcoded path would fail the
+# run at the last step after everything else had already been created.
+find_dkim() { find deploy/mail/config -path '*dkim*' -name '*.public.dns.txt' 2>/dev/null | head -1; }
+DKIM_DNS=$(find_dkim)
+if [[ -z $DKIM_DNS ]]; then
   $COMPOSE exec -T mailserver setup config dkim keytype rsa keysize 2048 selector mail domain "$DOMAIN" >/dev/null
   $COMPOSE restart mailserver >/dev/null
+  DKIM_DNS=$(find_dkim)
 fi
+if [[ -z $DKIM_DNS ]]; then
+  red "  DKIM key generated but no *.public.dns.txt found under deploy/mail/config."
+  red "  Everything else is installed. Inspect with:"
+  red "      find deploy/mail/config -path '*dkim*'"
+  red "  then add the TXT record for mail._domainkey.$DOMAIN by hand."
+  exit 1
+fi
+echo "      record file: $DKIM_DNS"
 # The generated file splits the record across several quoted chunks:
 #   mail._domainkey IN TXT ( "v=DKIM1; k=rsa; "
 #           "p=MIIBIjANBg..." ) ;
