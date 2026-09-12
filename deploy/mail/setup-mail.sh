@@ -249,12 +249,39 @@ done
 # ── 3. Mail server + webmail ─────────────────────────────────────────────
 bold "[3/6] Starting mailserver + roundcube"
 $COMPOSE up -d mailserver roundcube
-printf '  waiting for postfix'
-for i in $(seq 1 30); do
-  if $COMPOSE exec -T mailserver ss -ltn 2>/dev/null | grep -q ':25 '; then echo; green "  mailserver up"; break; fi
-  [[ $i -eq 30 ]] && { echo; red "  mailserver did not come up — check: $COMPOSE logs mailserver"; exit 1; }
+# First boot initialises Postfix, Dovecot and Rspamd and can exceed the
+# previous 2.5-minute budget; the image's own healthcheck allows a 90s
+# start period before it even begins probing. Wait 6 minutes, accept
+# either the container healthcheck or a listening port 25, bail out early
+# if the container exits, and print the log automatically on failure
+# instead of asking the operator to fetch it in another round trip.
+printf '  waiting for mailserver'
+MAIL_OK=0
+for i in $(seq 1 72); do
+  state=$(docker inspect -f '{{ .State.Status }}' robustidps-mail 2>/dev/null || echo missing)
+  if [[ $state == exited || $state == dead ]]; then
+    echo; red "  mailserver container exited ($state). Last 40 log lines:"
+    $COMPOSE logs --no-log-prefix --tail=40 mailserver 2>&1 | sed 's/^/    /'
+    exit 1
+  fi
+  health=$(docker inspect -f '{{ if .State.Health }}{{ .State.Health.Status }}{{ else }}none{{ end }}' \
+           robustidps-mail 2>/dev/null || echo none)
+  if [[ $health == healthy ]] \
+     || $COMPOSE exec -T mailserver ss -ltn 2>/dev/null | grep -qE ':25[[:space:]]'; then
+    echo; green "  mailserver up (health=$health)"; MAIL_OK=1; break
+  fi
   printf '.'; sleep 5
 done
+if [[ $MAIL_OK -eq 0 ]]; then
+  echo
+  red "  mailserver still not ready after 6 minutes. Last 40 log lines:"
+  $COMPOSE logs --no-log-prefix --tail=40 mailserver 2>&1 | sed 's/^/    /'
+  echo
+  red "  If the log shows no error it is simply still initialising — wait a"
+  red "  minute and re-run this script. It is idempotent: the certificate and"
+  red "  any accounts already created are preserved."
+  exit 1
+fi
 
 # ── 4. Accounts + aliases ────────────────────────────────────────────────
 bold "[4/6] Creating mailboxes"
