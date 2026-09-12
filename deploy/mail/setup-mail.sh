@@ -322,6 +322,17 @@ for pair in "${ALIASES[@]}"; do
 done
 echo "  aliases: postmaster@, abuse@, hostmaster@, webmaster@ → admin@"
 
+# Print credentials here, not only in the closing summary. A failure in any
+# later step would otherwise discard passwords that were already generated
+# and applied to live accounts, leaving mailboxes nobody can log into.
+if [[ ${#NEWPW[@]} -gt 0 ]]; then
+  echo
+  bold "  ══ NEW MAILBOX PASSWORDS — shown once, store them now ══"
+  for a in "${!NEWPW[@]}"; do printf '    %-30s %s\n' "$a" "${NEWPW[$a]}"; done
+  bold "  ═══════════════════════════════════════════════════════"
+  echo
+fi
+
 # With at least one mailbox present, Dovecot can finally start. The
 # container may still be inside a 120s shutdown countdown from a previous
 # accountless cycle, so restart it to begin a clean boot rather than
@@ -372,8 +383,27 @@ echo "      record file: $DKIM_DNS"
 #   mail._domainkey IN TXT ( "v=DKIM1; k=rsa; "
 #           "p=MIIBIjANBg..." ) ;
 # Concatenate every quoted chunk — a single-chunk regex silently drops p=.
-DKIM_VALUE=$(grep -oE '"[^"]*"' "$DKIM_DNS" | tr -d '"' | tr -d '\n')
-[[ $DKIM_VALUE == v=DKIM1*p=?* ]] || { red "DKIM extraction failed — inspect $DKIM_DNS manually"; exit 1; }
+# The container writes this file asynchronously after the restart, so it
+# can exist while still empty — `find` sees it before it has content.
+for _i in $(seq 1 12); do
+  [[ -s $DKIM_DNS ]] && break
+  sleep 5
+done
+# `|| true` is required, not cosmetic: with `set -o pipefail` a grep that
+# matches nothing makes the whole substitution non-zero, and `set -e` then
+# kills the script with no message at all — which is exactly how this
+# failed before, appearing to "finish" silently after step 5.
+DKIM_VALUE=$(grep -oE '"[^"]*"' "$DKIM_DNS" 2>/dev/null | tr -d '"' | tr -d '\n' || true)
+if [[ $DKIM_VALUE != v=DKIM1*p=?* ]]; then
+  red "  could not parse a complete DKIM record from:"
+  red "      $DKIM_DNS"
+  red "  File contents were:"
+  sed 's/^/      /' "$DKIM_DNS" 2>/dev/null | head -10 || echo "      (empty or unreadable)"
+  red "  Everything else is installed. Retrieve the record with:"
+  red "      sudo docker exec robustidps-mail setup config dkim help"
+  red "  and add it as the mail._domainkey TXT record by hand."
+  exit 1
+fi
 
 # ── 6. Webmail behind nginx ──────────────────────────────────────────────
 bold "[6/6] Reloading app nginx so webmail.$DOMAIN is served"
