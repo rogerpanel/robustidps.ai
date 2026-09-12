@@ -270,7 +270,11 @@ printf '  waiting for the setup CLI'
 CLI_OK=0
 for i in $(seq 1 36); do
   state=$(docker inspect -f '{{ .State.Status }}' robustidps-mail 2>/dev/null || echo missing)
-  if [[ $state == running ]] && docker exec robustidps-mail setup email list >/dev/null 2>&1; then
+  # Probe only that the container runs commands and the CLI is on PATH.
+  # `setup email list` is NOT usable here: it exits non-zero when no
+  # accounts exist, which is exactly the state being waited on, so it can
+  # never report ready no matter how long the wait.
+  if [[ $state == running ]] && docker exec robustidps-mail sh -c 'command -v setup' >/dev/null 2>&1; then
     echo; green "  ready for provisioning"; CLI_OK=1; break
   fi
   printf '.'; sleep 5
@@ -291,7 +295,23 @@ for u in "${ACCOUNTS[@]}"; do
     echo "  $addr exists — skipped"
   else
     pw=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)
-    docker exec robustidps-mail setup email add "$addr" "$pw" >/dev/null
+    # While accountless the container shuts down every 120s and restarts,
+    # so an add can land in the gap. Retry instead of aborting the run —
+    # accounts persist to the mounted config, so partial progress is kept
+    # and the first success ends the restart cycle.
+    created=0
+    for attempt in 1 2 3 4; do
+      if docker exec robustidps-mail setup email add "$addr" "$pw" >/dev/null 2>&1; then
+        created=1; break
+      fi
+      printf '  %s: attempt %s failed, container may be restarting — retrying\n' "$addr" "$attempt"
+      sleep 10
+    done
+    if [[ $created -eq 0 ]]; then
+      red "  could not create $addr after 4 attempts. Last 20 log lines:"
+      docker logs --tail=20 robustidps-mail 2>&1 | sed 's/^/    /'
+      exit 1
+    fi
     NEWPW[$addr]=$pw
     green "  created $addr"
   fi
