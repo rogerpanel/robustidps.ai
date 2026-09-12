@@ -249,37 +249,36 @@ done
 # ── 3. Mail server + webmail ─────────────────────────────────────────────
 bold "[3/6] Starting mailserver + roundcube"
 $COMPOSE up -d mailserver roundcube
-# First boot initialises Postfix, Dovecot and Rspamd and can exceed the
-# previous 2.5-minute budget; the image's own healthcheck allows a 90s
-# start period before it even begins probing. Wait 6 minutes, accept
-# either the container healthcheck or a listening port 25, bail out early
-# if the container exits, and print the log automatically on failure
-# instead of asking the operator to fetch it in another round trip.
-printf '  waiting for mailserver'
-MAIL_OK=0
-for i in $(seq 1 72); do
+# docker-mailserver refuses to start Dovecot until at least one mailbox
+# exists. It warns for 120 seconds, shuts down, and the restart policy
+# brings it back to repeat the cycle indefinitely:
+#
+#   You need at least one mail account to start Dovecot (120s left ...)
+#   Failed to start accounts provisioning because no accounts were
+#   provided - Dovecot could not be started!
+#
+# So waiting for "healthy" before provisioning is a deadlock: healthy is
+# unreachable until accounts exist, and accounts were only created after
+# the wait. Provision first, then wait for health.
+#
+# Only the setup CLI is needed for provisioning, and that is available as
+# soon as the container is running — no need for Dovecot to be up. The
+# account file lives in the mounted config directory, so even if the
+# container hits its 120s shutdown mid-provisioning, the next restart
+# finds the accounts and boots cleanly.
+printf '  waiting for the setup CLI'
+CLI_OK=0
+for i in $(seq 1 36); do
   state=$(docker inspect -f '{{ .State.Status }}' robustidps-mail 2>/dev/null || echo missing)
-  if [[ $state == exited || $state == dead ]]; then
-    echo; red "  mailserver container exited ($state). Last 40 log lines:"
-    $COMPOSE logs --no-log-prefix --tail=40 mailserver 2>&1 | sed 's/^/    /'
-    exit 1
-  fi
-  health=$(docker inspect -f '{{ if .State.Health }}{{ .State.Health.Status }}{{ else }}none{{ end }}' \
-           robustidps-mail 2>/dev/null || echo none)
-  if [[ $health == healthy ]] \
-     || $COMPOSE exec -T mailserver ss -ltn 2>/dev/null | grep -qE ':25[[:space:]]'; then
-    echo; green "  mailserver up (health=$health)"; MAIL_OK=1; break
+  if [[ $state == running ]] && docker exec robustidps-mail setup email list >/dev/null 2>&1; then
+    echo; green "  ready for provisioning"; CLI_OK=1; break
   fi
   printf '.'; sleep 5
 done
-if [[ $MAIL_OK -eq 0 ]]; then
+if [[ $CLI_OK -eq 0 ]]; then
   echo
-  red "  mailserver still not ready after 6 minutes. Last 40 log lines:"
+  red "  mailserver never became usable. Last 40 log lines:"
   $COMPOSE logs --no-log-prefix --tail=40 mailserver 2>&1 | sed 's/^/    /'
-  echo
-  red "  If the log shows no error it is simply still initialising — wait a"
-  red "  minute and re-run this script. It is idempotent: the certificate and"
-  red "  any accounts already created are preserved."
   exit 1
 fi
 
@@ -288,20 +287,45 @@ bold "[4/6] Creating mailboxes"
 declare -A NEWPW
 for u in "${ACCOUNTS[@]}"; do
   addr="$u@$DOMAIN"
-  if $COMPOSE exec -T mailserver setup email list 2>/dev/null | grep -q "^\* $addr"; then
+  if docker exec robustidps-mail setup email list 2>/dev/null | grep -q "^\* $addr"; then
     echo "  $addr exists — skipped"
   else
     pw=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)
-    $COMPOSE exec -T mailserver setup email add "$addr" "$pw" >/dev/null
+    docker exec robustidps-mail setup email add "$addr" "$pw" >/dev/null
     NEWPW[$addr]=$pw
     green "  created $addr"
   fi
 done
 for pair in "${ALIASES[@]}"; do
   src="${pair%%:*}@$DOMAIN"; dst="${pair##*:}@$DOMAIN"
-  $COMPOSE exec -T mailserver setup alias add "$src" "$dst" >/dev/null 2>&1 || true
+  docker exec robustidps-mail setup alias add "$src" "$dst" >/dev/null 2>&1 || true
 done
 echo "  aliases: postmaster@, abuse@, hostmaster@, webmaster@ → admin@"
+
+# With at least one mailbox present, Dovecot can finally start. The
+# container may still be inside a 120s shutdown countdown from a previous
+# accountless cycle, so restart it to begin a clean boot rather than
+# waiting out a timer that is already doomed.
+bold "      starting Dovecot now that mailboxes exist"
+$COMPOSE restart mailserver >/dev/null
+printf '      waiting for mailserver to become healthy'
+MAIL_OK=0
+for i in $(seq 1 72); do
+  state=$(docker inspect -f '{{ .State.Status }}' robustidps-mail 2>/dev/null || echo missing)
+  health=$(docker inspect -f '{{ if .State.Health }}{{ .State.Health.Status }}{{ else }}none{{ end }}' \
+           robustidps-mail 2>/dev/null || echo none)
+  if [[ $health == healthy ]] \
+     || { [[ $state == running ]] && docker exec robustidps-mail ss -ltn 2>/dev/null | grep -qE ':993[[:space:]]'; }; then
+    echo; green "      mailserver healthy (Dovecot listening)"; MAIL_OK=1; break
+  fi
+  printf '.'; sleep 5
+done
+if [[ $MAIL_OK -eq 0 ]]; then
+  echo
+  red "      Dovecot did not start even though mailboxes exist. Last 40 lines:"
+  $COMPOSE logs --no-log-prefix --tail=40 mailserver 2>&1 | sed 's/^/        /'
+  exit 1
+fi
 
 # ── 5. DKIM ──────────────────────────────────────────────────────────────
 bold "[5/6] DKIM key (rspamd, selector 'mail', 2048-bit)"
@@ -312,7 +336,7 @@ bold "[5/6] DKIM key (rspamd, selector 'mail', 2048-bit)"
 find_dkim() { find deploy/mail/config -path '*dkim*' -name '*.public.dns.txt' 2>/dev/null | head -1; }
 DKIM_DNS=$(find_dkim)
 if [[ -z $DKIM_DNS ]]; then
-  $COMPOSE exec -T mailserver setup config dkim keytype rsa keysize 2048 selector mail domain "$DOMAIN" >/dev/null
+  docker exec robustidps-mail setup config dkim keytype rsa keysize 2048 selector mail domain "$DOMAIN" >/dev/null
   $COMPOSE restart mailserver >/dev/null
   DKIM_DNS=$(find_dkim)
 fi
