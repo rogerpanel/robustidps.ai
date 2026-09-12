@@ -16,6 +16,26 @@ a=$(dig +short A "$HOST"); [[ -n $a ]] && ok "A $HOST → $a" || bad "no A recor
 ptr=$(dig +short -x "${a:-0.0.0.0}"); [[ $ptr == "$HOST." ]] && ok "PTR $a → $ptr" || bad "PTR is '$ptr' (expected $HOST.)"
 spf=$(dig +short TXT "$DOMAIN" | grep v=spf1); [[ -n $spf ]] && ok "SPF $spf" || bad "no SPF record"
 dkim=$(dig +short TXT "mail._domainkey.$DOMAIN" | grep -c v=DKIM1); [[ $dkim -gt 0 ]] && ok "DKIM mail._domainkey present" || bad "no DKIM record at mail._domainkey.$DOMAIN"
+# Compare the published key against the one this server signs with. The
+# record is ~400 base64 characters copied by hand into a web form, and a
+# single altered character makes every signature fail verification while
+# the record still *looks* correct. Presence alone proves nothing.
+dkim_file=$(find deploy/mail/config -path '*dkim*' -name '*.public.dns.txt' 2>/dev/null | head -1)
+if [[ -n $dkim_file && -r $dkim_file ]]; then
+  pub=$(dig +short TXT "mail._domainkey.$DOMAIN" | tr -d '" ' | grep -oE 'p=[A-Za-z0-9+/=]+' | head -1 | cut -d= -f2-)
+  loc=$(tr -d '\n\r" ' < "$dkim_file" | grep -oE 'p=[A-Za-z0-9+/=]+' | head -1 | cut -d= -f2-)
+  if [[ -z $pub ]]; then
+    bad "DKIM published record has no p= key"
+  elif [[ "$pub" == "$loc" ]]; then
+    ok "DKIM key in DNS matches this server (${#loc} chars)"
+  else
+    bad "DKIM key MISMATCH — signatures will fail verification"
+    info "published: ${#pub} chars, server: ${#loc} chars"
+    info "re-copy the value from $dkim_file into the mail._domainkey TXT record"
+  fi
+elif [[ -n $dkim_file ]]; then
+  info "DKIM key file not readable as $(id -un); re-run with sudo to compare it against DNS"
+fi
 dmarc=$(dig +short TXT "_dmarc.$DOMAIN" | grep v=DMARC1); [[ -n $dmarc ]] && ok "DMARC $dmarc" || bad "no DMARC record"
 
 echo "Ports (from this host)"
