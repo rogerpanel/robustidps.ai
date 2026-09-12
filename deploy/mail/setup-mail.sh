@@ -435,11 +435,32 @@ for _i in $(seq 1 12); do
   [[ -s $DKIM_DNS ]] && break
   sleep 5
 done
-# `|| true` is required, not cosmetic: with `set -o pipefail` a grep that
-# matches nothing makes the whole substitution non-zero, and `set -e` then
-# kills the script with no message at all — which is exactly how this
-# failed before, appearing to "finish" silently after step 5.
-DKIM_VALUE=$(grep -oE '"[^"]*"' "$DKIM_DNS" 2>/dev/null | tr -d '"' | tr -d '\n' || true)
+# Two layouts exist and the earlier version only handled one.
+#
+#   rspamd (what this install produces) writes the bare value:
+#       v=DKIM1; k=rsa; p=MIIBIjANBgkq...
+#
+#   opendkim / BIND style wraps it in a zone record, split across quoted
+#   chunks because TXT strings cap at 255 bytes:
+#       mail._domainkey IN TXT ( "v=DKIM1; k=rsa; "
+#               "p=MIIBIjANBgkq..." ) ;
+#
+# Extracting only quoted chunks found nothing in the bare layout and
+# reported a complete, valid key as unparseable. Normalise instead:
+# flatten to one line, join adjacent quoted chunks, drop quotes, take
+# everything from v=DKIM1 onward, then trim any zone-file tail.
+#
+# `|| true` is load-bearing: under `set -o pipefail` a non-matching grep
+# makes the substitution non-zero and `set -e` would exit with no message.
+DKIM_VALUE=$(
+  tr -d '\n\r' < "$DKIM_DNS" 2>/dev/null \
+  | sed -E 's/"[[:space:]]*"//g' \
+  | tr -d '"' \
+  | grep -oE 'v=DKIM1.*' \
+  | sed -E 's/[[:space:]]*\)[[:space:]]*;?[[:space:]]*$//' \
+  | sed -E 's/[[:space:]]+/ /g; s/[[:space:]]+$//' \
+  || true
+)
 if [[ $DKIM_VALUE != v=DKIM1*p=?* ]]; then
   red "  could not parse a complete DKIM record from:"
   red "      $DKIM_DNS"
