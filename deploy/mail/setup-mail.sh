@@ -5,7 +5,18 @@
 #
 # Idempotent: re-running skips accounts that already exist and reuses
 # existing DKIM keys / certificates. Run from the repo root on the server.
+#
+# Flags:
+#   --check   Run preconditions + Cloudflare token verification only, then
+#             stop. Changes nothing. Use this to diagnose credential
+#             problems without starting containers or contacting Let's
+#             Encrypt. Exists so operators never have to paste complex
+#             shell one-liners into a web console, which silently mangles
+#             bracket and quote characters.
 set -euo pipefail
+
+CHECK_ONLY=0
+[[ ${1:-} == --check ]] && CHECK_ONLY=1
 
 cd "$(dirname "$0")/../.."
 ENV_FILE=deploy/mail/.env.mail
@@ -39,6 +50,7 @@ mkdir -p deploy/mail/config
 # are invisible to compose now, so remove them and let this project
 # recreate them. Their logs are still reachable via `docker logs <name>`.
 for c in robustidps-certbot robustidps-mail robustidps-webmail; do
+  [[ $CHECK_ONLY -eq 1 ]] && break          # --check must not remove anything
   docker inspect "$c" >/dev/null 2>&1 || continue
   owner=$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$c" 2>/dev/null || true)
   [[ -z $owner || $owner == robustidps-mail ]] && continue
@@ -48,7 +60,7 @@ for c in robustidps-certbot robustidps-mail robustidps-webmail; do
   docker rm -f "$c" >/dev/null
 done
 # Empty cert volume from that project; refuses if still referenced, which is fine.
-docker volume rm robustidpsai_letsencrypt >/dev/null 2>&1 || true
+[[ $CHECK_ONLY -eq 1 ]] || docker volume rm robustidpsai_letsencrypt >/dev/null 2>&1 || true
 
 # ── 0c. Verify the Cloudflare token BEFORE involving Let's Encrypt ───────
 # Two cheap API calls that distinguish the two failure modes Cloudflare
@@ -93,6 +105,12 @@ else
   red "  Add 'Zone / Zone / Read' to the token (keep 'Zone / DNS / Edit'), or confirm"
   red "  the token's Zone Resources include robustidps.ai. Then re-run this script."
   exit 1
+fi
+
+if [[ $CHECK_ONLY -eq 1 ]]; then
+  echo
+  green "All preconditions pass. Re-run without --check to install."
+  exit 0
 fi
 
 # ── 1. Firewall ──────────────────────────────────────────────────────────
