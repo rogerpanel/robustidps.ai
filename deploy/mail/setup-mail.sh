@@ -202,7 +202,14 @@ fi
 
 # ── 2. Certificate ───────────────────────────────────────────────────────
 bold "[2/6] Issuing Let's Encrypt certificate for $MAIL_HOSTNAME (DNS-01 via Cloudflare)"
-$COMPOSE up -d certbot
+# Force-recreate rather than plain `up -d`. The container attempts issuance
+# once at startup and then only loops on renewal, so a container left
+# running by a failed attempt never retries — and `up -d` is a no-op when
+# the config is unchanged, silently reusing it. That makes a re-run after
+# fixing the credential appear to fail with the ORIGINAL error, which is
+# only the old container's log. Recreating is idempotent: when a valid
+# certificate already exists the container reports that and skips issuance.
+$COMPOSE up -d --force-recreate certbot
 for i in $(seq 1 30); do
   if $COMPOSE exec -T certbot test -s "/etc/letsencrypt/live/$MAIL_HOSTNAME/fullchain.pem" 2>/dev/null; then
     green "  certificate ready"; break
@@ -212,10 +219,14 @@ for i in $(seq 1 30); do
     echo
     $COMPOSE logs --no-log-prefix --tail=40 certbot | sed 's/^/    /'
     echo
-    red "  Most common cause: the Cloudflare API token needs BOTH"
-    red "    Zone / Zone / Read     and     Zone / DNS / Edit"
-    red "  The 'Edit zone DNS' template includes both; a hand-built token often omits Zone:Read."
-    red "  Fix the token, update deploy/mail/cloudflare.ini, then re-run this script."
+    red "  The token itself already passed verification in step [0/6], so the"
+    red "  credential is not the problem. Read the error above and match it:"
+    red "    'Too many authentication failures' (429) — Cloudflare rate limit."
+    red "        Wait 30-60 min, then re-run. Do not retry in a loop."
+    red "    'too many certificates' / 'rateLimited'  — Let's Encrypt limit."
+    red "        5 failed validations per hostname per hour. Wait an hour."
+    red "    anything else — capture it with:"
+    red "        docker compose -f docker-compose.mail.yml --env-file $ENV_FILE logs certbot"
     exit 1
   }
   sleep 10

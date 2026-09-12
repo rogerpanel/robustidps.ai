@@ -17,10 +17,10 @@ certbot (DNS-01 via Cloudflare API) ─▶ Let's Encrypt cert for mail.robustidp
 | # | Where | What |
 |---|-------|------|
 | 1 | Hetzner → server → Networking | Reverse DNS for 37.27.31.70 = `mail.robustidps.ai` ✅ done |
-| 2 | Hetzner → Support / Limits | Request unblock of outbound port 25 ✅ requested |
+| 2 | Hetzner → Support / Limits | Unblock outbound port 25 ✅ **granted** — verified with `nc -zv gmail-smtp-in.l.google.com 25` |
 | 3 | Cloudflare → My Profile → API Tokens | Use the **Edit zone DNS** template, scoped to `robustidps.ai`. It must carry **both** `Zone / Zone / Read` *and* `Zone / DNS / Edit` — certbot looks the zone up by name before writing the challenge record, so a DNS:Edit-only token fails. |
-| 4 | Cloudflare → SSL/TLS → Origin Server | Confirm the origin cert covers `*.robustidps.ai` (needed for webmail.) |
-| 5 | Optional relay | SMTP2GO / Brevo / SES account → SMTP username + password |
+| 4 | Cloudflare → SSL/TLS → Origin Server | Origin cert covers `*.robustidps.ai` ✅ confirmed (webmail. is served under it) |
+| 5 | Outbound relay | **Not needed** — port 25 is open, mail sends direct from 37.27.31.70 |
 
 ## Install (on the server, ~10 min)
 
@@ -50,7 +50,7 @@ the DKIM key, reloads nginx, and prints the exact DNS records to add.
 | A | `mail` | `37.27.31.70` | **DNS only** |
 | A | `webmail` | `37.27.31.70` | Proxied |
 | MX | `@` | `mail.robustidps.ai` · priority 10 | — |
-| TXT | `@` | `v=spf1 mx include:<relay-spf> -all` (drop `include:` if no relay) | — |
+| TXT | `@` | `v=spf1 mx -all` | — |
 | TXT | `mail._domainkey` | `v=DKIM1; k=rsa; p=…` (from script output) | — |
 | TXT | `_dmarc` | `v=DMARC1; p=quarantine; rua=mailto:admin@robustidps.ai; adkim=s; aspf=s; pct=100` | — |
 
@@ -82,18 +82,22 @@ Mail clients (Thunderbird, Apple Mail, Outlook, phones):
 | Incoming IMAP | `mail.robustidps.ai` | 993 | SSL/TLS | full address |
 | Outgoing SMTP | `mail.robustidps.ai` | 587 | STARTTLS | full address |
 
-## Outbound relay vs direct send
+## Outbound: direct send
 
-Hetzner blocks outbound port 25 on this account today (`nc` to Gmail
-times out). Two ways to send:
+Hetzner has unblocked outbound port 25 for this server, so mail is
+delivered straight from 37.27.31.70 with no third party in the path.
+`RELAY_*` in `.env.mail` stays empty and SPF stays `v=spf1 mx -all`.
 
-- **Relay (now):** fill `RELAY_*` in `.env.mail`; all outbound goes over
-  587 to SMTP2GO/Brevo/SES. Add their `include:` to SPF. Inbound and
-  storage remain entirely on our server.
-- **Direct (after the Hetzner ticket clears):** blank out `RELAY_HOST`,
-  remove the `include:` from SPF, `$M up -d mailserver`. Expect Gmail to
-  route the first days of mail from a brand-new IP to spam; keep volume
-  low and consistent while the reputation builds.
+The IP has no sending history, so warm it up: keep early volume low and
+steady rather than sending a burst. Expect some providers to greylist or
+spam-folder the first messages even with SPF, DKIM and DMARC all passing
+— reputation accrues over days. rDNS is already set to mail.robustidps.ai,
+which is the single biggest factor after authentication.
+
+If deliverability ever needs a shortcut, `RELAY_HOST`/`RELAY_PORT`/
+`RELAY_USER`/`RELAY_PASSWORD` route outbound through SMTP2GO, Brevo or
+SES over port 587; add that provider's `include:` to SPF at the same
+time. Inbound and storage stay on this server either way.
 
 ## The platform sending as noreply@
 
