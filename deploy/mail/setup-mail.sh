@@ -45,12 +45,20 @@ if [[ $SET_TOKEN -eq 1 ]]; then
   read -rsp '  token: ' _TOK; echo
   _TOK=$(printf '%s' "$_TOK" | tr -d '[:space:]')
   [[ -n $_TOK ]] || { red "  nothing entered"; exit 1; }
-  if [[ ${#_TOK} -ne 40 ]]; then
-    red "  warning: got ${#_TOK} characters; Cloudflare API tokens are normally 40."
-    red "  If this came from a paste, the terminal may have altered it."
-    read -rp "  Write it anyway? [y/N] " _yn
-    [[ ${_yn:-N} =~ ^[Yy]$ ]] || { echo "  aborted, file unchanged"; exit 1; }
+  # Validate the character set, not the length. Cloudflare has shipped
+  # tokens of differing lengths, so a hardcoded length produces false
+  # alarms. The character set is stable (base62 plus - and _), and it is
+  # what actually catches a terminal that rewrites characters on paste:
+  # the Hetzner web console maps '[' to '{', and '{' is not legal here.
+  if [[ ! $_TOK =~ ^[A-Za-z0-9_-]+$ ]]; then
+    red "  rejected: contains characters that never appear in a Cloudflare token."
+    red "  Legal characters are A-Z a-z 0-9 _ -"
+    red "  This is the signature of a terminal altering the text on paste."
+    red "  Copy the token again in a terminal that pastes verbatim (not the"
+    red "  Hetzner web console), or type it by hand."
+    exit 1
   fi
+  echo "  length: ${#_TOK} characters, character set valid"
   printf 'dns_cloudflare_api_token = %s\n' "$_TOK" > deploy/mail/cloudflare.ini
   chmod 600 deploy/mail/cloudflare.ini
   green "  wrote deploy/mail/cloudflare.ini (${#_TOK} characters)"
@@ -100,7 +108,15 @@ bold "[0/6] Verifying Cloudflare API token"
 CF_TOKEN=$(sed -n 's/^[[:space:]]*dns_cloudflare_api_token[[:space:]]*=[[:space:]]*//p' \
            deploy/mail/cloudflare.ini | tr -d '"'\''\r\n[:space:]')
 [[ -n $CF_TOKEN ]] || { red "  no dns_cloudflare_api_token found in deploy/mail/cloudflare.ini"; exit 1; }
-echo "      token length: ${#CF_TOKEN} chars (Cloudflare API tokens are 40)"
+echo "      token length: ${#CF_TOKEN} chars"
+# No length assertion: Cloudflare token length has varied, and a hardcoded
+# value only produces false alarms. The API call below is the arbiter.
+if [[ ! $CF_TOKEN =~ ^[A-Za-z0-9_-]+$ ]]; then
+  red "  token contains illegal characters (legal: A-Z a-z 0-9 _ -)"
+  red "  Almost certainly altered on paste. Re-set it with:"
+  red "      bash deploy/mail/setup-mail.sh --set-token"
+  exit 1
+fi
 
 CF_CODE=$(curl -s -o /tmp/cf_verify.$$ -w '%{http_code}' \
   https://api.cloudflare.com/client/v4/user/tokens/verify \
@@ -115,7 +131,8 @@ case "$CF_CODE" in
        red "  The token string itself is wrong — permissions are not the issue here."
        red "  Re-copy it from Cloudflare -> My Profile -> API Tokens (it is shown once;"
        red "  use 'Roll' to generate a fresh value), then ensure cloudflare.ini reads"
-       red "  exactly:   dns_cloudflare_api_token = <40 chars>"
+       red "  exactly:   dns_cloudflare_api_token = <token>"
+       red "  Easiest: bash deploy/mail/setup-mail.sh --set-token"
        red "  with no quotes, trailing spaces, or line break inside the token."
        rm -f /tmp/cf_verify.$$; exit 1 ;;
 esac
