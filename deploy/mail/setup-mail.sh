@@ -41,6 +41,19 @@ bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 # "Invalid API Token". Also keeps the token out of shell history.
 if [[ $SET_TOKEN -eq 1 ]]; then
   bold "Set Cloudflare API token"
+  # Check writability BEFORE prompting. cloudflare.ini is usually created by
+  # an earlier root-run step and chmod'd 600, while SSH logins are an
+  # unprivileged user — so the write fails. Discovering that after the
+  # operator has already pasted a secret wastes a rolled token.
+  CF_INI=deploy/mail/cloudflare.ini
+  if { [[ -e $CF_INI && ! -w $CF_INI ]]; } || { [[ ! -e $CF_INI && ! -w deploy/mail ]]; }; then
+    red "  cannot write $CF_INI — you are $(id -un)"
+    [[ -e $CF_INI ]] && ls -l "$CF_INI" | sed 's/^/      /'
+    red "  The file belongs to another user (it was created by a root-run step)."
+    red "  Re-run with sudo:"
+    red "      sudo bash deploy/mail/setup-mail.sh --set-token"
+    exit 1
+  fi
   echo "  Paste the token, then press Enter. Input is hidden."
   read -rsp '  token: ' _TOK; echo
   _TOK=$(printf '%s' "$_TOK" | tr -d '[:space:]')
@@ -67,10 +80,29 @@ if [[ $SET_TOKEN -eq 1 ]]; then
 fi
 
 # ── 0. Preconditions ─────────────────────────────────────────────────────
+# The install path needs root: ufw rule changes and the compose stack both
+# require it. Say so up front rather than failing partway through with a
+# bare "Permission denied". --check and --set-token do not need root.
+if [[ $CHECK_ONLY -eq 0 && ${EUID:-$(id -u)} -ne 0 ]]; then
+  red "This script must run as root to install (ufw rules, containers)."
+  red "  sudo bash deploy/mail/setup-mail.sh"
+  red "Read-only modes do not need root: --check, --set-token"
+  exit 1
+fi
 [[ -f $ENV_FILE ]] || { red "Missing $ENV_FILE — copy deploy/mail/.env.mail.example and fill it in."; exit 1; }
 [[ -f deploy/mail/cloudflare.ini ]] || { red "Missing deploy/mail/cloudflare.ini — copy the .example and paste your Cloudflare API token."; exit 1; }
+for f in deploy/mail/cloudflare.ini "$ENV_FILE"; do
+  [[ -r $f ]] && continue
+  red "Cannot read $f — you are $(id -un)"
+  ls -l "$f" 2>/dev/null | sed 's/^/  /'
+  red "These files are mode 600 and owned by the user that created them."
+  red "Re-run with sudo, e.g.:  sudo bash deploy/mail/setup-mail.sh ${1:-}"
+  exit 1
+done
 grep -q PASTE_TOKEN_HERE deploy/mail/cloudflare.ini && { red "deploy/mail/cloudflare.ini still has the placeholder token."; exit 1; }
-chmod 600 deploy/mail/cloudflare.ini "$ENV_FILE"
+# Non-owners cannot chmod; not fatal, the readability check above already
+# established we can use the files.
+chmod 600 deploy/mail/cloudflare.ini "$ENV_FILE" 2>/dev/null || true
 docker network inspect robustidpsai_app >/dev/null 2>&1 || {
   red "Docker network robustidpsai_app not found. Start the app stack first:"
   red "  docker compose -f docker-compose.prod.yml up -d"
