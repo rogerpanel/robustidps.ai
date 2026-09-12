@@ -288,33 +288,74 @@ fi
 
 # ── 4. Accounts + aliases ────────────────────────────────────────────────
 bold "[4/6] Creating mailboxes"
+
+# Does this mailbox already exist?
+#
+# Primary source is the accounts file docker-mailserver itself reads,
+# visible on the host through the mounted config directory. Its shape is
+# "address|{SCHEME}hash", so a fixed-string match on "address|" is exact
+# and does not depend on any CLI presentation format.
+#
+# The previous check grepped `setup email list` for "^* address", a format
+# assumed rather than verified. It never matched, so every existing
+# account looked absent, `setup email add` was called for accounts that
+# already existed, and each failed — turning a completed install into a
+# hard error on re-run. The fallback below therefore matches the address
+# anywhere in the output instead of assuming a line prefix.
+account_exists() {
+  local a=$1
+  # Exact field comparison, not a substring match: grep -F "addr|" also
+  # matches "oger@domain|" inside "roger@domain|", which would report a
+  # non-existent account as present and silently skip creating it.
+  if [[ -f deploy/mail/config/postfix-accounts.cf ]] \
+     && awk -F'|' -v a="$a" '$1 == a { found = 1 } END { exit !found }' \
+            deploy/mail/config/postfix-accounts.cf; then
+    return 0
+  fi
+  # Fallback when the accounts file is not present on the host. Bound the
+  # match so it cannot hit a longer address that contains this one.
+  local esc
+  esc=$(printf '%s' "$a" | sed 's/[][\.*^$+?(){}|/]/\\&/g')
+  docker exec robustidps-mail setup email list 2>/dev/null \
+    | grep -qE "(^|[^[:alnum:]._%+-])${esc}([^[:alnum:]._%+-]|$)"
+}
+
 declare -A NEWPW
 for u in "${ACCOUNTS[@]}"; do
   addr="$u@$DOMAIN"
-  if docker exec robustidps-mail setup email list 2>/dev/null | grep -q "^\* $addr"; then
-    echo "  $addr exists — skipped"
-  else
-    pw=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)
-    # While accountless the container shuts down every 120s and restarts,
-    # so an add can land in the gap. Retry instead of aborting the run —
-    # accounts persist to the mounted config, so partial progress is kept
-    # and the first success ends the restart cycle.
-    created=0
-    for attempt in 1 2 3 4; do
-      if docker exec robustidps-mail setup email add "$addr" "$pw" >/dev/null 2>&1; then
-        created=1; break
-      fi
-      printf '  %s: attempt %s failed, container may be restarting — retrying\n' "$addr" "$attempt"
-      sleep 10
-    done
-    if [[ $created -eq 0 ]]; then
-      red "  could not create $addr after 4 attempts. Last 20 log lines:"
-      docker logs --tail=20 robustidps-mail 2>&1 | sed 's/^/    /'
-      exit 1
-    fi
-    NEWPW[$addr]=$pw
-    green "  created $addr"
+  if account_exists "$addr"; then
+    echo "  $addr exists — skipped (password unchanged)"
+    continue
   fi
+  pw=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-24)
+  # While accountless the container shuts down every 120s and restarts, so
+  # an add can land in the gap. Retry rather than aborting; accounts persist
+  # to the mounted config, so partial progress is kept.
+  created=0
+  add_out=""
+  for attempt in 1 2 3 4; do
+    if add_out=$(docker exec robustidps-mail setup email add "$addr" "$pw" 2>&1); then
+      created=1; break
+    fi
+    # A failed add whose account now exists is success, not an error —
+    # another run, or a partially completed earlier attempt, created it.
+    if account_exists "$addr"; then
+      echo "  $addr already present — keeping its existing password"
+      created=2; break
+    fi
+    printf '  %s: attempt %s failed, container may be restarting — retrying\n' "$addr" "$attempt"
+    sleep 10
+  done
+  case $created in
+    1) NEWPW[$addr]=$pw; green "  created $addr" ;;
+    2) ;;
+    *) red "  could not create $addr after 4 attempts."
+       red "  Last output from 'setup email add':"
+       printf '%s\n' "$add_out" | sed 's/^/      /'
+       red "  Container log:"
+       docker logs --tail=20 robustidps-mail 2>&1 | sed 's/^/      /'
+       exit 1 ;;
+  esac
 done
 for pair in "${ALIASES[@]}"; do
   src="${pair%%:*}@$DOMAIN"; dst="${pair##*:}@$DOMAIN"
