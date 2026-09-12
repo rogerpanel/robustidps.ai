@@ -16,7 +16,11 @@
 set -euo pipefail
 
 CHECK_ONLY=0
-[[ ${1:-} == --check ]] && CHECK_ONLY=1
+SET_TOKEN=0
+case ${1:-} in
+  --check)     CHECK_ONLY=1 ;;
+  --set-token) SET_TOKEN=1; CHECK_ONLY=1 ;;
+esac
 
 cd "$(dirname "$0")/../.."
 ENV_FILE=deploy/mail/.env.mail
@@ -28,6 +32,31 @@ ALIASES=("postmaster:admin" "abuse:admin" "hostmaster:admin" "webmaster:admin")
 red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
+
+# ── 0a. Write the Cloudflare token (--set-token) ─────────────────────────
+# Reads the token from a hidden prompt and writes cloudflare.ini directly.
+# Avoids an editor entirely: a terminal emulator that rewrites characters
+# on paste (the Hetzner web console does) silently corrupts the token, and
+# the resulting file looks plausible while Cloudflare rejects it with 1000
+# "Invalid API Token". Also keeps the token out of shell history.
+if [[ $SET_TOKEN -eq 1 ]]; then
+  bold "Set Cloudflare API token"
+  echo "  Paste the token, then press Enter. Input is hidden."
+  read -rsp '  token: ' _TOK; echo
+  _TOK=$(printf '%s' "$_TOK" | tr -d '[:space:]')
+  [[ -n $_TOK ]] || { red "  nothing entered"; exit 1; }
+  if [[ ${#_TOK} -ne 40 ]]; then
+    red "  warning: got ${#_TOK} characters; Cloudflare API tokens are normally 40."
+    red "  If this came from a paste, the terminal may have altered it."
+    read -rp "  Write it anyway? [y/N] " _yn
+    [[ ${_yn:-N} =~ ^[Yy]$ ]] || { echo "  aborted, file unchanged"; exit 1; }
+  fi
+  printf 'dns_cloudflare_api_token = %s\n' "$_TOK" > deploy/mail/cloudflare.ini
+  chmod 600 deploy/mail/cloudflare.ini
+  green "  wrote deploy/mail/cloudflare.ini (${#_TOK} characters)"
+  unset _TOK
+  echo
+fi
 
 # ── 0. Preconditions ─────────────────────────────────────────────────────
 [[ -f $ENV_FILE ]] || { red "Missing $ENV_FILE — copy deploy/mail/.env.mail.example and fill it in."; exit 1; }
