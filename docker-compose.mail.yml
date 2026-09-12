@@ -111,7 +111,10 @@ services:
       - app
 
   roundcube:
-    image: roundcube/roundcubemail:1.6-apache
+    # Pinned to an exact patch that exists in the registry. "1.6-apache" is
+    # NOT a published tag — the series tags are 1.6.x-apache (floating) and
+    # 1.6.<patch>-apache. Verified against Docker Hub before pinning.
+    image: roundcube/roundcubemail:1.6.19-apache
     container_name: robustidps-webmail
     restart: always
     volumes:

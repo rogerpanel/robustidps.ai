@@ -185,6 +185,20 @@ else
   exit 1
 fi
 
+# ── 0d. Confirm every image reference resolves ───────────────────────────
+# A bad tag otherwise surfaces at step 3, after the certificate has already
+# been issued — the expensive place to find out. Non-fatal: a registry
+# hiccup or rate limit must not block an otherwise valid install, so this
+# warns rather than exits and lets the pull be the final authority.
+bold "[0/6] Checking image references"
+for _img in $(awk '/^[[:space:]]+image:[[:space:]]*/{print $2}' docker-compose.mail.yml); do
+  if docker manifest inspect "$_img" >/dev/null 2>&1; then
+    green "  ok  $_img"
+  else
+    red   "  !!  $_img — not resolvable (bad tag, or registry unreachable)"
+  fi
+done
+
 if [[ $CHECK_ONLY -eq 1 ]]; then
   echo
   green "All preconditions pass. Re-run without --check to install."
