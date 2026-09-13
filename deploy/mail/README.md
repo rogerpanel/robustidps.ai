@@ -61,6 +61,20 @@ so an orange-clouded MX target silently breaks SMTP and IMAP.
 4. Send a test from Roundcube to a Gmail address and open *Show original*:
    SPF, DKIM and DMARC must all say `PASS`.
 
+## Everything on this page needs sudo
+
+`deploy/mail/.env.mail` and `cloudflare.ini` are mode 600 and owned by
+root, because they can hold relay credentials and an API token. SSH
+logins are the unprivileged repo owner, so any `docker compose` command
+carrying `--env-file deploy/mail/.env.mail` fails with "permission
+denied" without sudo. Commands that address a container by name do not
+need the env file:
+
+```bash
+docker logs --tail=40 robustidps-mail          # no sudo needed
+sudo docker compose -f docker-compose.mail.yml --env-file deploy/mail/.env.mail ps
+```
+
 ## Day-to-day: managing mailboxes
 
 Use the helper — no docker commands to remember, and it refuses unsafe
@@ -142,7 +156,7 @@ Plus `deploy/mail/config/` (accounts, aliases, **DKIM private key**) —
 back this directory up and never commit it.
 
 ```bash
-docker run --rm -v robustidps-mail_dms-data:/data -v "$PWD/backups":/out alpine \
+sudo docker run --rm -v robustidps-mail_dms-data:/data -v "$PWD/backups":/out alpine \
   tar czf /out/mail-$(date +%F).tgz -C /data .
 ```
 
