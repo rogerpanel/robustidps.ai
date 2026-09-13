@@ -128,7 +128,13 @@ services:
       - ROUNDCUBEMAIL_SMTP_SERVER=tls://${MAIL_HOSTNAME}
       - ROUNDCUBEMAIL_SMTP_PORT=587
       - ROUNDCUBEMAIL_SKIN=elastic
-      - ROUNDCUBEMAIL_PLUGINS=archive,zipdownload,managesieve,password
+      # No `password` plugin: it needs a driver that can write to the
+      # account store, and none can reach docker-mailserver's
+      # postfix-accounts.cf — separate container, no password-change API.
+      # Listing it produced a Settings tab that fails on submit, which
+      # reads as "mail is broken" rather than "unsupported here".
+      # Passwords are changed by an admin: deploy/mail/mailuser.sh passwd
+      - ROUNDCUBEMAIL_PLUGINS=archive,zipdownload,managesieve
       - ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE=25M
       - ROUNDCUBEMAIL_REQUEST_PATH=/
     depends_on:

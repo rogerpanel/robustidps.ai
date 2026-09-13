@@ -61,19 +61,40 @@ so an orange-clouded MX target silently breaks SMTP and IMAP.
 4. Send a test from Roundcube to a Gmail address and open *Show original*:
    SPF, DKIM and DMARC must all say `PASS`.
 
-## Day-to-day
+## Day-to-day: managing mailboxes
+
+Use the helper — no docker commands to remember, and it refuses unsafe
+operations rather than silently doing the wrong thing:
 
 ```bash
-M="docker compose -f docker-compose.mail.yml --env-file deploy/mail/.env.mail"
-$M ps                                       # status
-$M logs -f mailserver                       # live log
-$M exec mailserver setup email list         # mailboxes
-$M exec mailserver setup email add  x@robustidps.ai 'password'
-$M exec mailserver setup email update x@robustidps.ai 'new-password'
-$M exec mailserver setup alias add  sales@robustidps.ai roger@robustidps.ai
-$M exec mailserver setup fail2ban   # banned IPs
-$M exec mailserver setup email del  x@robustidps.ai
+sudo bash deploy/mail/mailuser.sh list
+sudo bash deploy/mail/mailuser.sh add     sarah          # prompts for a password
+sudo bash deploy/mail/mailuser.sh passwd  sarah          # reset a forgotten password
+sudo bash deploy/mail/mailuser.sh quota   sarah 2G
+sudo bash deploy/mail/mailuser.sh alias   sales sarah    # sales@ delivers to sarah@
+sudo bash deploy/mail/mailuser.sh aliases
+sudo bash deploy/mail/mailuser.sh delete  sarah          # asks you to type the address
 ```
+
+A bare name gets `@robustidps.ai` appended; a full address is used as
+given, so aliases can forward off-domain.
+
+### There is no self-service password reset
+
+Nobody can reset their own password from webmail, and there is no
+"forgot password" link. A password-reset link needs a trusted second
+channel to send it to, and for a mailbox the mailbox *is* that channel —
+so the only safe reset path is an administrator:
+
+```bash
+sudo bash deploy/mail/mailuser.sh passwd sarah
+```
+
+Roundcube's `password` plugin is deliberately not enabled: every driver
+it ships writes to an account store it can reach, and docker-mailserver
+keeps accounts in another container with no password-change API. Enabling
+it yields a Settings tab that fails on submit, which users read as broken
+mail rather than an unsupported feature.
 
 Mail clients (Thunderbird, Apple Mail, Outlook, phones):
 
