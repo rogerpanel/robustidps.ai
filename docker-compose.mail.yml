@@ -128,6 +128,12 @@ services:
       - ROUNDCUBEMAIL_SMTP_SERVER=tls://${MAIL_HOSTNAME}
       - ROUNDCUBEMAIL_SMTP_PORT=587
       - ROUNDCUBEMAIL_SKIN=elastic
+      # Idle timeout in MINUTES. Roundcube's default is 10, which forces a
+      # re-login several times a day. 480 = one working day. Sessions are
+      # held in Roundcube's own sqlite store (session_storage defaults to
+      # 'db'), so PHP's file-session garbage collector does not expire them
+      # early and this value alone governs the timeout.
+      - ROUNDCUBEMAIL_SESSION_LIFETIME=${ROUNDCUBE_SESSION_LIFETIME:-480}
       # No `password` plugin: it needs a driver that can write to the
       # account store, and none can reach docker-mailserver's
       # postfix-accounts.cf — separate container, no password-change API.

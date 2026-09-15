@@ -110,6 +110,36 @@ keeps accounts in another container with no password-change API. Enabling
 it yields a Settings tab that fails on submit, which users read as broken
 mail rather than an unsupported feature.
 
+### Webmail idle timeout
+
+Roundcube signs users out after 10 minutes idle by default. Set
+`ROUNDCUBE_SESSION_LIFETIME` in `deploy/mail/.env.mail` (minutes, default
+480 = one working day), then apply it:
+
+```bash
+sudo docker compose -f docker-compose.mail.yml --env-file deploy/mail/.env.mail up -d roundcube
+```
+
+Confirm it actually took effect — the value must appear in the generated
+config, not merely in the container's environment:
+
+```bash
+sudo docker exec robustidps-webmail \
+  grep -i session_lifetime /var/www/html/config/config.inc.php
+```
+
+Expect a line setting `$config['session_lifetime']` to your value. If the
+grep finds nothing, this image build does not map that environment
+variable into its config, and the setting must be written into the
+mounted config volume instead.
+
+Sessions live in Roundcube's sqlite store rather than PHP files, so PHP's
+session garbage collector will not expire them ahead of this value.
+
+Longer sessions trade convenience against exposure: a signed-in browser
+left unattended stays signed in for the whole window. 480 suits a
+workday; use 60 for shared machines.
+
 Mail clients (Thunderbird, Apple Mail, Outlook, phones):
 
 | | Server | Port | Security | Username |
