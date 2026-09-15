@@ -1,0 +1,17 @@
+# Don't ship Rust build artefacts into the image build context.
+target/
+**/target/
+
+# Editor / OS junk.
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.bak
+
+# Git internals — the multi-stage build doesn't need them.
+.git/
+.gitignore
+
+# Tests fixtures larger than the source they exercise.
+**/*.pcap.gz

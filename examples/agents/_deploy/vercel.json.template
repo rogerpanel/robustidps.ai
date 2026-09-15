@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "<agent>-rids-aegis",
+  "regions": ["fra1"],
+  "builds": [
+    {
+      "src": "api/handler.py",
+      "use": "@vercel/python",
+      "config": { "maxLambdaSize": "50mb" }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "api/handler.py" }
+  ],
+  "env": {
+    "ROBUSTIDPS_API_BASE": "https://robustidps.ai",
+    "RUNTIME_AGENT_ID": "<agent>-prod-vercel-1"
+  },
+  "build": {
+    "env": {
+      "PIP_DISABLE_PIP_VERSION_CHECK": "1"
+    }
+  }
+}

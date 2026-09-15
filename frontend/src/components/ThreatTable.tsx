@@ -114,8 +114,8 @@ export default function ThreatTable({ predictions }: Props) {
                 <td className="px-3 py-2 font-mono">{r.src_ip}</td>
                 <td className="px-3 py-2 font-mono">{r.dst_ip}</td>
                 <td className="px-3 py-2 font-medium">{r.label_predicted}</td>
-                <td className="px-3 py-2 font-mono">{(r.confidence * 100).toFixed(1)}%</td>
-                <td className="px-3 py-2 font-mono">{r.total_uncertainty.toFixed(3)}</td>
+                <td className="px-3 py-2 font-mono">{((r.confidence ?? 0) * 100).toFixed(1)}%</td>
+                <td className="px-3 py-2 font-mono">{(r.total_uncertainty ?? 0).toFixed(3)}</td>
                 <td className="px-3 py-2">
                   <span
                     className={`px-2 py-0.5 rounded text-xs font-medium ${SEV_COLOR[r.severity] || 'bg-bg-card text-text-secondary'}`}

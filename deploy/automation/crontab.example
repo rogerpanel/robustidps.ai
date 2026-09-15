@@ -1,0 +1,19 @@
+# RobustIDPS.ai — weekly model refresh cron entry.
+#
+# Install with:
+#   sudo -u robustidps crontab /home/robustidps/robustidps.ai/deploy/automation/crontab.example
+# Verify with:
+#   sudo -u robustidps crontab -l
+#
+# Distil + push runs every Sunday at 04:00 UTC. The Python script
+# emails a JSON summary on every run (success or failure) thanks to
+# MAILTO below — set the address before installing.
+
+MAILTO=ops@robustidps.ai
+
+# Comma-separated edge agent endpoints. The orchestrator reads this
+# from the environment if --agents is not passed.
+ROBUSTIDPS_FLEET_AGENTS=37.27.31.70:50090
+
+# m  h dom mon dow  command
+  0  4   *   *   0  cd /home/robustidps/robustidps.ai && /usr/bin/python3 deploy/automation/distill_and_push.py --epochs 50 --n-train 20000 >> /var/log/robustidps/distill_and_push.cron.log 2>&1
