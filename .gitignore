@@ -43,3 +43,9 @@ deploy/mail/cloudflare.ini
 deploy/mail/config/
 
 deploy/mail/*.last.log
+
+# Generated registration deposit listing — reproduce with
+#   python3 scripts/make-deposit-listing.py --pages 70 -o deposit-listing.txt
+# Not tracked: it is a redacted copy of the tree, so committing it would
+# duplicate the source inside itself and silently go stale as code changes.
+deposit-listing.txt
