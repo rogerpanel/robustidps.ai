@@ -171,6 +171,24 @@ sudo bash deploy/mail/apply-fail2ban-whitelist.sh
 It refuses to apply if Docker is hiding real client addresses, which is
 the one condition under which the whitelist would exempt attackers.
 
+### Restart is not enough — recreate
+
+docker-mailserver applies files from `deploy/mail/config/` (fail2ban,
+Postfix/Dovecot overrides and similar) only when a container is **first
+created**. On `docker restart` it finds its `/CONTAINER_START` marker,
+logs "Container was restarted. Skipping most setup routines." and keeps
+the old config — the server comes back healthy with the change silently
+missing. After editing such a file, recreate instead:
+
+```bash
+sudo docker compose -f docker-compose.mail.yml --env-file deploy/mail/.env.mail \
+  up -d --force-recreate --no-deps mailserver
+```
+
+Safe: mailboxes, accounts, DKIM keys, certificates and fail2ban state are
+in volumes and bind mounts, not the container. Accounts are an exception
+in the other direction — `mailuser.sh` changes take effect live.
+
 **Trade-off:** fail2ban no longer limits password guessing through the
 webmail login form. It never did so usefully: a ban there blocked every
 user, not the attacker. Real protection for that form is a rate limit on

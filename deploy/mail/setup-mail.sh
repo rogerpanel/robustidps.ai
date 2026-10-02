@@ -114,7 +114,9 @@ MAIL_HOSTNAME=${MAIL_HOSTNAME:-mail.$DOMAIN}
 mkdir -p deploy/mail/config
 # Keep fail2ban from banning Docker-internal addresses, above all the
 # webmail container: see deploy/mail/fail2ban-jail.cf for the incident and
-# why this is safe. DMS copies it into jail.d when the container starts.
+# why this is safe. DMS copies it into jail.d only when a container is
+# first created — restarts skip setup — so this takes effect for new
+# installs; an existing server needs apply-fail2ban-whitelist.sh.
 [[ $CHECK_ONLY -eq 1 ]] || install -m 644 deploy/mail/fail2ban-jail.cf deploy/mail/config/fail2ban-jail.cf
 
 # ── 0b. Migrate containers from the pre-rename compose project ───────────

@@ -3,8 +3,10 @@
 #
 #   sudo bash deploy/mail/apply-fail2ban-whitelist.sh
 #
-# Restarts the mailserver once (about 1-2 minutes). Mail sent to you
-# during that window is not lost: sending servers queue and retry.
+# Recreates the mailserver container once (about 2 minutes). Mail sent to
+# you during that window is not lost: sending servers queue and retry.
+# Mailboxes, accounts, DKIM keys, certificates and fail2ban state all live
+# in volumes and bind mounts, so recreating loses nothing.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -54,19 +56,42 @@ mkdir -p "$(dirname "$DST")"
 install -m 644 "$SRC" "$DST"
 ok "installed"
 
-# ── 3. Restart so DMS copies it into jail.d ──────────────────────────────
-hdr "3. Restarting $MAIL (DMS reads fail2ban-jail.cf at startup)"
-docker restart "$MAIL" >/dev/null
+# ── 3. Recreate so DMS runs full setup and copies it into jail.d ─────────
+# NOT `docker restart`. docker-mailserver v15 start-mailserver.sh skips
+# setup when /CONTAINER_START exists, i.e. on any restart of an existing
+# container ("Container was restarted. Skipping most setup routines."), so
+# the copy into jail.d never runs. Only a fresh container runs _setup. The
+# first version of this script restarted, the server came back healthy,
+# and the file was silently never applied.
+hdr "3. Recreating $MAIL (full setup runs only in a fresh container)"
+old_id=$(docker inspect -f '{{.Id}}' "$MAIL")
+docker compose -f docker-compose.mail.yml --env-file deploy/mail/.env.mail \
+  up -d --force-recreate --no-deps mailserver
+new_id=$(docker inspect -f '{{.Id}}' "$MAIL")
+if [[ $new_id == "$old_id" ]]; then
+  bad "container ID unchanged — it was not recreated. Aborting."; exit 1
+fi
+ok "recreated (new container ${new_id:0:12})"
 printf '    waiting for healthy'
 healthy=0
-for _ in $(seq 1 40); do
+for _ in $(seq 1 60); do
   h=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$MAIL" 2>/dev/null || true)
   [[ $h == healthy ]] && { healthy=1; break; }
   printf '.'; sleep 5
 done
 echo
 if (( healthy )); then ok "healthy"
-else bad "not healthy after 200s:"; docker logs --tail=30 "$MAIL" 2>&1 | sed 's/^/      /'; exit 1; fi
+else bad "not healthy after 300s:"; docker logs --tail=30 "$MAIL" 2>&1 | sed 's/^/      /'; exit 1; fi
+
+# Confirm setup actually copied the file, rather than inferring it from
+# the container being healthy — healthy is exactly what misled the first run.
+if docker exec "$MAIL" grep -qF '172.16.0.0/12' /etc/fail2ban/jail.d/user-jail.local 2>/dev/null; then
+  ok "user-jail.local present in the container"
+else
+  bad "/etc/fail2ban/jail.d/user-jail.local missing or wrong after recreate."
+  docker exec "$MAIL" ls -l /tmp/docker-mailserver/fail2ban-jail.cf 2>&1 | sed 's/^/      /'
+  exit 1
+fi
 
 # ── 4. Lift the existing ban ─────────────────────────────────────────────
 # fail2ban restores bans from its database on restart, so unban explicitly
