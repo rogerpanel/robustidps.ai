@@ -81,7 +81,11 @@ docker logs --since 6h "$MAIL" 2>&1 \
 
 # ── 5 ────────────────────────────────────────────────────────────────────
 hdr "5. Roundcube's own errors (last 6h)"
+# Drop Apache access-log lines first: Roundcube URLs carry `_error=1` on
+# routine requests (e.g. contact-photo lookups returning 204), which would
+# otherwise match 'error' and present normal traffic as faults.
 docker logs --since 6h "$WEB" 2>&1 \
+  | grep -vE '^[0-9a-fA-F.:]+ - - \[' \
   | grep -iE 'error|imap|storage|fail|refused|timed out|ssl' \
   | tail -n 15 | sed 's/^/    /'
 
