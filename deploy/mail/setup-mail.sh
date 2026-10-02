@@ -112,6 +112,10 @@ docker network inspect robustidpsai_app >/dev/null 2>&1 || {
 set -a; source "$ENV_FILE"; set +a
 MAIL_HOSTNAME=${MAIL_HOSTNAME:-mail.$DOMAIN}
 mkdir -p deploy/mail/config
+# Keep fail2ban from banning Docker-internal addresses, above all the
+# webmail container: see deploy/mail/fail2ban-jail.cf for the incident and
+# why this is safe. DMS copies it into jail.d when the container starts.
+[[ $CHECK_ONLY -eq 1 ]] || install -m 644 deploy/mail/fail2ban-jail.cf deploy/mail/config/fail2ban-jail.cf
 
 # ── 0b. Migrate containers from the pre-rename compose project ───────────
 # Before the project was pinned to "robustidps-mail" it inherited the

@@ -98,8 +98,10 @@ for f in "${FAULTS[@]}"; do
     fail2ban)
       bad "fail2ban has banned the webmail. Restore service now with:"
       for ip in "${banned_self[@]}"; do note "sudo docker exec $MAIL setup fail2ban unban $ip"; done
-      note "Then re-run this script. Ask before treating it as fixed: it will"
-      note "recur on the next run of mistyped passwords unless prevented." ;;
+      note "That restores webmail but it will recur after the next few mistyped"
+      note "passwords. The permanent fix (whitelists Docker's internal network,"
+      note "restarts the mailserver once, unbans, and verifies):"
+      note "sudo bash deploy/mail/apply-fail2ban-whitelist.sh" ;;
     container:*)
       bad "${f#container:} is not healthy. Its log:"
       note "sudo docker logs --tail=40 ${f#container:}" ;;

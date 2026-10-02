@@ -147,6 +147,35 @@ Mail clients (Thunderbird, Apple Mail, Outlook, phones):
 | Incoming IMAP | `mail.robustidps.ai` | 993 | SSL/TLS | full address |
 | Outgoing SMTP | `mail.robustidps.ai` | 587 | STARTTLS | full address |
 
+## Webmail says "Connection to storage server failed"
+
+That message comes from Roundcube itself, so the browser reached the
+server; the failing hop is Roundcube -> IMAP. Diagnose (read-only):
+
+```bash
+sudo bash deploy/mail/diagnose-webmail.sh
+```
+
+The usual cause is fail2ban banning the webmail container. Roundcube
+reaches IMAP from one internal address, so every user's mistyped password
+counts against it, and docker-mailserver bans after 6 failures within a
+week. That took webmail down for everyone on 2026-10-02.
+
+`fail2ban-jail.cf` prevents it by never banning Docker's internal range
+(`172.16.0.0/12`). To apply it to a running server:
+
+```bash
+sudo bash deploy/mail/apply-fail2ban-whitelist.sh
+```
+
+It refuses to apply if Docker is hiding real client addresses, which is
+the one condition under which the whitelist would exempt attackers.
+
+**Trade-off:** fail2ban no longer limits password guessing through the
+webmail login form. It never did so usefully: a ban there blocked every
+user, not the attacker. Real protection for that form is a rate limit on
+the login URL at Cloudflare, keyed on the client's actual IP.
+
 ## Outbound: direct send
 
 Hetzner has unblocked outbound port 25 for this server, so mail is
