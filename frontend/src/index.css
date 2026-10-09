@@ -48,6 +48,11 @@
   --surface-text:    rgb(248 250 252);
   --scrollbar-track: rgb(30 41 59);
   --scrollbar-thumb: rgb(51 65 85);
+
+  /* Two-series chart pair (validated for colour-vision deficiency against
+     the card surface): series 1 blue, series 2 orange. */
+  --chart-1: #3B82F6;
+  --chart-2: #EA580C;
 }
 
 :root[data-theme="print"] {
@@ -71,6 +76,9 @@
   --surface-text:    rgb(15 23 42);
   --scrollbar-track: rgb(238 242 247);
   --scrollbar-thumb: rgb(203 213 225);
+
+  --chart-1: #1D4ED8;
+  --chart-2: #C2410C;
 }
 
 body {

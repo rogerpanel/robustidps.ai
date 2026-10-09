@@ -248,6 +248,8 @@ app.include_router(dossier_router)
 # falls back to a separate, unregistered Limiter.
 from plugins.investigator.api import router as investigator_router  # noqa: E402
 app.include_router(investigator_router)
+from plugins.bluesec_runs.api import router as bluesec_runs_router  # noqa: E402
+app.include_router(bluesec_runs_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 

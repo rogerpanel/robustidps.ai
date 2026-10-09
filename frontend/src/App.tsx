@@ -63,6 +63,7 @@ import {
   Cloud,
   FolderOpen,
   Bot,
+  ListChecks,
 } from 'lucide-react'
 import NoticeBoard from './components/NoticeBoard'
 import ThemeToggle from './components/ThemeToggle'
@@ -123,6 +124,7 @@ const MitreAtlasMapper = lazy(() => import('./pages/MitreAtlasMapper'))
 const MCPSecurity = lazy(() => import('./pages/MCPSecurity'))
 const InvestigationChain = lazy(() => import('./pages/InvestigationChain'))
 const SocInvestigator = lazy(() => import('./pages/SocInvestigator'))
+const BlueSecRuns = lazy(() => import('./pages/BlueSecRuns'))
 const BreachAttackSimulation = lazy(() => import('./pages/BreachAttackSimulation'))
 const MambaGuard = lazy(() => import('./pages/MambaGuard'))
 const SODEGuard = lazy(() => import('./pages/SODEGuard'))
@@ -225,6 +227,7 @@ const NAV_GROUPS: NavGroup[] = [
     heading: 'SOC Intelligence',
     items: [
       { to: '/soc-investigator', label: 'SOC Investigator (AI Agent)', icon: Bot },
+      { to: '/bluesec-runs', label: 'BlueSec Runs (Agent Traces)', icon: ListChecks },
       { to: '/auto-investigate', label: 'Auto-Investigation', icon: Zap },
       { to: '/investigation-chain', label: 'Investigation Chain', icon: Workflow },
       { to: '/threat-hunt', label: 'Threat Hunt', icon: Search },
@@ -864,6 +867,7 @@ export default function App() {
               <Route path="/mcp-security" element={<MCPSecurity />} />
               <Route path="/investigation-chain" element={<InvestigationChain />} />
               <Route path="/soc-investigator" element={<SocInvestigator />} />
+              <Route path="/bluesec-runs" element={<BlueSecRuns />} />
               <Route path="/bas" element={<BreachAttackSimulation />} />
               <Route path="/mambaguard" element={<MambaGuard />} />
               <Route path="/sode-guard" element={<SODEGuard />} />

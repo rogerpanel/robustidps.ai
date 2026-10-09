@@ -40,6 +40,9 @@ services:
     volumes:
       - ./backend/weights:/app/weights
       - ./sample_data:/app/sample_data
+      # BlueSec agent traces, read-only, for "Import from server" on BlueSec Runs.
+      # Set BLUESEC_TRACES_DIR in .env to the agent's traces folder.
+      - ${BLUESEC_TRACES_DIR:-./bluesec_traces}:/app/bluesec_traces:ro
     env_file:
       - .env
     environment:
@@ -94,6 +97,9 @@ services:
     volumes:
       - ./backend/weights:/app/weights
       - ./sample_data:/app/sample_data
+      # BlueSec agent traces, read-only, for "Import from server" on BlueSec Runs.
+      # Set BLUESEC_TRACES_DIR in .env to the agent's traces folder.
+      - ${BLUESEC_TRACES_DIR:-./bluesec_traces}:/app/bluesec_traces:ro
     env_file:
       - .env
     environment:

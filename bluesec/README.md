@@ -74,6 +74,22 @@ Options: `--provider openai` (uses `LLM_BASE_URL`, `LLM_API_KEY`,
 The original agent still runs as before with `uv run --env-file .env bluesec1-agent`.
 (The moderator's note says `uv launch`; the command is `uv run`.)
 
+## Reviewing runs on robustidps.ai
+
+The **BlueSec Runs** page (SOC Intelligence → BlueSec Runs, `/bluesec-runs`)
+stores runs in your account and shows each task step by step, with the
+scores and a trend across runs. Two ways to add a run:
+
+- **Upload**: drop a `traces/<run>/` folder onto the page, or choose its files.
+- **Import from server** (admins): mount the agent's traces folder into the
+  backend once. Add this line to `~/robustidps.ai/.env`, then rebuild:
+
+  ```bash
+  BLUESEC_TRACES_DIR=/home/robustidps/bluesec1-agent/traces
+  ```
+
+  New run folders then appear on the page with an Import button.
+
 ## Improving between runs
 
 The leaderboard keeps your current result, so iterate on the practice arena:
