@@ -14,18 +14,26 @@ unchanged, because the runtime, not this module, is the authority.
 """
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import time
 from dataclasses import dataclass
 from typing import Any
 
-from bluesec1_client import TaskResult, ToolCallResult
+from bluesec1_client import (
+    OperationCapacityExceededError,
+    RemoteRateLimitError,
+    TaskResult,
+    ToolCallResult,
+)
 
 from .catalog import FINISH_TOOL, ToolCatalog
 from .prompt import budget_note, render
 
 _ID_KEYS = ("entity_id", "relation_id", "ad_object_id")
+TIME_UP = ("[The competition deadline is close: no more evidence calls. Call "
+           "finish_investigation now with the evidence you have.]")
 
 
 @dataclass
@@ -44,8 +52,10 @@ class Investigation:
         soft_budget: int,
         hard_budget: int,
         max_result_chars: int,
+        finish_by: float | None = None,
     ) -> None:
         self.session = session
+        self.finish_by = finish_by          # wall-clock time after which only submitting is allowed
         self.catalog = catalog
         self.soft_budget = soft_budget
         self.hard_budget = hard_budget
@@ -81,6 +91,8 @@ class Investigation:
         if not is_finish and self.spent >= self.hard_budget:
             return self._local(name, arguments, budget_note(self.spent, self.soft_budget,
                                                             self.hard_budget), soft=True)
+        if not is_finish and self.out_of_time():
+            return self._local(name, arguments, TIME_UP, soft=True)
         if key not in self._rejected:
             problems = self.catalog.specs[name].validate(arguments)
             if problems:
@@ -98,7 +110,7 @@ class Investigation:
                         "(Resubmitting unchanged sends it as is.)",
                     )
 
-        response: ToolCallResult = await self.session.call_tool(name, arguments)
+        response = await self._call(name, arguments)
         self.spent += 1
         feedback = {
             "status": response.info.get("tool_status", "unknown"),
@@ -120,7 +132,27 @@ class Investigation:
         return Outcome(self._clip(text), is_error=failed)
 
     def note(self) -> str:
+        if self.out_of_time():
+            return TIME_UP
         return budget_note(self.spent, self.soft_budget, self.hard_budget)
+
+    def out_of_time(self) -> bool:
+        return self.finish_by is not None and time.time() >= self.finish_by
+
+    async def _call(self, name: str, arguments: dict[str, Any]) -> ToolCallResult:
+        """Call the runtime, waiting out brief capacity or rate-limit refusals.
+
+        A refused call was not executed, so repeating it spends nothing extra.
+        """
+        for attempt in range(6):
+            try:
+                return await self.session.call_tool(name, arguments)
+            except (OperationCapacityExceededError, RemoteRateLimitError) as exc:
+                if attempt == 5:
+                    raise
+                delay = getattr(exc, "retry_after_seconds", None) or min(2 ** attempt, 20)
+                await asyncio.sleep(delay)
+        raise RuntimeError("unreachable")
 
     def log_model(self, kind: str, text: str) -> None:
         if text and text.strip():

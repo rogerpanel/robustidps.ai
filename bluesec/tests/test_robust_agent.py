@@ -267,3 +267,150 @@ def test_agent_runs_through_the_real_remote_client(tmp_path: Path) -> None:
     assert summary["completed"] == 2 and summary["mean_quality"] > 0.9
     assert summary["mean_tool_calls"] == 3.5
     assert transport.closed and transport.closed[0].reason == "client_requested"
+
+
+# --------------------------------------------------------------- parallel mode
+class ScriptedByTask:
+    """Fake Claude for parallel runs: the script is chosen by the task's trigger id."""
+
+    def __init__(self, scripts: dict[str, list[NS]]) -> None:
+        self.scripts = scripts
+        self.inflight = 0
+        self.max_inflight = 0
+        self.beta = NS(messages=NS(stream=self._stream))
+
+    def _stream(self, **kw: Any) -> Any:
+        first = kw["messages"][0]["content"]
+        key = next(k for k in self.scripts if k in first)
+        turn = sum(1 for m in kw["messages"] if m["role"] == "assistant")
+        resp = self.scripts[key][turn]
+        outer = self
+
+        class _S:
+            async def __aenter__(self_inner):
+                outer.inflight += 1
+                outer.max_inflight = max(outer.max_inflight, outer.inflight)
+                await asyncio.sleep(0.01)
+                return self_inner
+
+            async def __aexit__(self_inner, *a):
+                outer.inflight -= 1
+                return False
+
+            async def get_final_message(self_inner):
+                return resp
+
+        return _S()
+
+
+SCRIPTS = {
+    "proc-7a1": [
+        reply(tu(1, "get_entity", {"entity_id": "proc-7a1", "purpose": "trigger"})),
+        reply(tu(2, "get_relation", {"relation_id": "rel-1", "purpose": "parent"})),
+        reply(tu(3, "finish_investigation", {"submission": BENIGN})),
+    ],
+    "proc-c33": [
+        reply(tu(1, "get_entity", {"entity_id": "proc-c33", "purpose": "trigger"})),
+        reply(tu(2, "get_relation", {"relation_id": "rel-11", "purpose": "where"}),
+              tu(3, "get_relation", {"relation_id": "rel-10", "purpose": "file"})),
+        reply(tu(4, "finish_investigation", {"submission": MALICIOUS})),
+    ],
+}
+
+
+def test_parallel_run_learns_the_runtime_task_limit(tmp_path: Path) -> None:
+    settings = RobustSettings(ROBUST_TRACE_DIR=tmp_path, ANTHROPIC_API_KEY="k",
+                              ROBUST_CONCURRENCY=4)
+    client = MockClient(repeat=4, max_active=2)      # 8 tasks, runtime allows 2 at once
+    claude = ScriptedByTask(SCRIPTS)
+    summary = asyncio.run(RobustAgent(settings, claude).run(client))
+    assert summary["tasks"] == 8 and summary["completed"] == 8
+    assert client.peak_active == 2 and summary["peak_parallel_tasks"] == 2
+    assert client.refused_leases >= 1                 # the limit was discovered, not assumed
+    assert claude.max_inflight == 2
+    assert len(list(next(tmp_path.iterdir()).glob("mock-*.json"))) == 8
+
+
+def test_parallel_run_without_a_runtime_limit(tmp_path: Path) -> None:
+    settings = RobustSettings(ROBUST_TRACE_DIR=tmp_path, ANTHROPIC_API_KEY="k",
+                              ROBUST_CONCURRENCY=3)
+    client = MockClient(repeat=3)
+    summary = asyncio.run(RobustAgent(settings, ScriptedByTask(SCRIPTS)).run(client))
+    assert summary["completed"] == 6 and summary["peak_parallel_tasks"] == 3
+    assert client.refused_leases == 0
+
+
+def test_busy_runtime_is_waited_out_without_spending(monkeypatch) -> None:
+    from bluesec1_agent.robust import investigation as inv_mod
+    from bluesec1_client import OperationCapacityExceededError
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr(inv_mod.asyncio, "sleep", no_sleep)
+    session = malicious_session()
+    real = session.call_tool
+    refusals = {"left": 2}
+
+    async def flaky(name: str, args: dict[str, Any]) -> Any:
+        if refusals["left"]:
+            refusals["left"] -= 1
+            raise OperationCapacityExceededError(
+                "busy", reason="SUBJECT_IN_FLIGHT_OPERATION_LIMIT_REACHED")
+        return await real(name, args)
+
+    session.call_tool = flaky
+    inv = mk_inv(session)
+    out = asyncio.run(inv.execute("get_entity", {"entity_id": "proc-c33", "purpose": "x"}))
+    assert not out.is_error and inv.spent == 1 and len(session.calls) == 1
+
+
+def test_deadline_stops_leasing_and_forces_submission(tmp_path: Path) -> None:
+    import datetime
+    import time
+
+    session = malicious_session()
+    inv = Investigation(session, ToolCatalog.from_observation(session.task.observation),
+                        soft_budget=8, hard_budget=30, max_result_chars=20_000,
+                        finish_by=time.time() - 1)
+    out = asyncio.run(inv.execute("get_entity", {"entity_id": "proc-c33", "purpose": "x"}))
+    assert "deadline" in out.text and session.calls == []
+    done = asyncio.run(inv.execute("finish_investigation", {"submission": {
+        **MALICIOUS, "ir_artifacts": MALICIOUS["ir_artifacts"][:1]}}))
+    assert done.terminal is not None
+
+    soon = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=3)
+    settings = RobustSettings(ROBUST_TRACE_DIR=tmp_path, ANTHROPIC_API_KEY="k",
+                              ROBUST_CONCURRENCY=2, ROBUST_DEADLINE=soon)   # inside the 6-min stop
+    client = MockClient()
+    summary = asyncio.run(RobustAgent(settings, ScriptedByTask(SCRIPTS)).run(client))
+    assert summary["tasks"] == 0 and len(client._queue) == 2
+
+
+def test_cli_deadline_parsing() -> None:
+    import argparse
+
+    from bluesec1_agent.robust.cli import parse_deadline
+
+    d = parse_deadline("14:58")
+    assert (d.hour, d.minute) == (14, 58) and d.utcoffset().total_seconds() == 3 * 3600
+    assert parse_deadline("2026-10-10T14:58:00+03:00").hour == 14
+    try:
+        parse_deadline("2026-10-10T14:58:00")
+        raise AssertionError("naive ISO time must be rejected")
+    except argparse.ArgumentTypeError:
+        pass
+
+
+def test_parallel_run_through_the_real_remote_client(tmp_path: Path) -> None:
+    settings = RobustSettings(ROBUST_TRACE_DIR=tmp_path, ANTHROPIC_API_KEY="k",
+                              ROBUST_CONCURRENCY=2)
+    transport = MockTransport()
+
+    async def go() -> dict[str, Any]:
+        async with RemoteBenchmarkClient(transport=transport) as client:
+            return await RobustAgent(settings, ScriptedByTask(SCRIPTS)).run(client)
+
+    summary = asyncio.run(go())
+    assert summary["completed"] == 2 and summary["peak_parallel_tasks"] == 2
+    assert transport.closed[0].reason == "client_requested"

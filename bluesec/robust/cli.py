@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import datetime
 import json
 import sys
 from typing import Any
@@ -37,19 +38,45 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"],
                    help="override ANTHROPIC_EFFORT")
     p.add_argument("--agent-name", help="override AGENT_NAME")
+    p.add_argument("--mock-tasks", type=int, default=1, metavar="N",
+                   help="with --mock: repeat the mock scenarios N times (2*N tasks)")
+    p.add_argument("--mock-limit", type=int, metavar="N",
+                   help="with --mock: imitate a runtime that holds at most N tasks at once")
+    p.add_argument("--concurrency", type=int,
+                   help="tasks investigated in parallel (override ROBUST_CONCURRENCY)")
+    p.add_argument("--deadline", type=parse_deadline,
+                   help="submission cutoff: HH:MM Moscow time today, or ISO 8601 with timezone")
     return p
+
+
+MOSCOW = datetime.timezone(datetime.timedelta(hours=3), "MSK")   # no DST since 2014
+
+
+def parse_deadline(value: str) -> datetime.datetime:
+    try:
+        if len(value) <= 5 and ":" in value:
+            hh, mm = (int(x) for x in value.split(":"))
+            today = datetime.datetime.now(MOSCOW).date()
+            return datetime.datetime.combine(today, datetime.time(hh, mm), tzinfo=MOSCOW)
+        parsed = datetime.datetime.fromisoformat(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("use HH:MM (Moscow time) or ISO 8601") from None
+    if parsed.tzinfo is None:
+        raise argparse.ArgumentTypeError("an ISO deadline needs a timezone, e.g. +03:00")
+    return parsed
 
 
 def make_llm(s: RobustSettings) -> Any:
     if s.provider == "anthropic":
         from anthropic import AsyncAnthropic
 
+        # Parallel tasks share one rate limit: allow more SDK retries on 429/529.
         return AsyncAnthropic(api_key=s.anthropic_api_key.get_secret_value(),
-                              timeout=s.llm_timeout_seconds * 5, max_retries=4)
+                              timeout=s.llm_timeout_seconds * 5, max_retries=8)
     from openai import AsyncOpenAI
 
     return AsyncOpenAI(base_url=s.llm_base_url, api_key=s.llm_api_key.get_secret_value(),
-                       timeout=s.llm_timeout_seconds, max_retries=3)
+                       timeout=s.llm_timeout_seconds, max_retries=6)
 
 
 async def run(args: argparse.Namespace) -> dict[str, Any]:
@@ -64,6 +91,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         overrides["agent_name"] = args.agent_name
     if args.arena:
         overrides["scenario_runtime_arena"] = args.arena
+    if args.concurrency:
+        overrides["concurrency"] = args.concurrency
+    if args.deadline:
+        overrides["deadline"] = args.deadline
     if overrides:
         s = s.model_copy(update=overrides)
     if args.model:
@@ -80,7 +111,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         if args.mock:
             from .mock import MockClient
 
-            return await RobustAgent(s, llm).run(MockClient())
+            mock = MockClient(repeat=max(1, args.mock_tasks), max_active=args.mock_limit)
+            return await RobustAgent(s, llm).run(mock)
         async with RemoteBenchmarkClient(
             endpoint=s.scenario_runtime_endpoint,
             token=s.scenario_runtime_token.get_secret_value(),

@@ -1,6 +1,7 @@
 """Settings for the RobustIDPS agent. Reads the same .env as the reference agent."""
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -42,6 +43,13 @@ class RobustSettings(BaseSettings):
     max_turns: int = Field(45, alias="ROBUST_MAX_TURNS", ge=1, le=200)
     max_result_chars: int = Field(24_000, alias="ROBUST_MAX_RESULT_CHARS", ge=1000)
     trace_dir: Path = Field(Path("traces"), alias="ROBUST_TRACE_DIR")
+
+    # Parallel tasks. The runtime may allow fewer; the agent then learns its limit.
+    concurrency: int = Field(1, alias="ROBUST_CONCURRENCY", ge=1, le=16)
+    # Hard submission deadline (ISO 8601 with timezone, or --deadline HH:MM Moscow time).
+    deadline: datetime.datetime | None = Field(None, alias="ROBUST_DEADLINE")
+    lease_stop_minutes: float = Field(6.0, alias="ROBUST_LEASE_STOP_MINUTES", ge=0)
+    finish_minutes: float = Field(2.0, alias="ROBUST_FINISH_MINUTES", ge=0)
 
     def model_label(self) -> str:
         if self.provider == "anthropic":

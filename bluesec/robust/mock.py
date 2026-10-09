@@ -9,11 +9,12 @@ graphs and its score are toys, not the competition's.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
 
-from bluesec1_client import PublicTask, TaskResult, ToolCallResult
+from bluesec1_client import PublicTask, TaskCapacityExceededError, TaskResult, ToolCallResult
 
 from .catalog import _reference_schemas
 
@@ -85,9 +86,9 @@ def mock_catalog() -> str:
 
 
 class MockSession:
-    def __init__(self, scenario: dict[str, Any]) -> None:
+    def __init__(self, scenario: dict[str, Any], task_id: str | None = None) -> None:
         self.sc = scenario
-        self.task = PublicTask(task_id=scenario["task_id"], observation={
+        self.task = PublicTask(task_id=task_id or scenario["task_id"], observation={
             "alert_text": scenario["alert"], "available_tools": mock_catalog()})
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.result: TaskResult | None = None
@@ -97,6 +98,7 @@ class MockSession:
         return self.task.task_id
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
+        await asyncio.sleep(0)  # let parallel tasks interleave, as over the network
         self.calls.append((tool_name, arguments))
         ents, rels = self.sc["entities"], self.sc["relations"]
         status, payload, error = "ok", None, None
@@ -158,10 +160,31 @@ class MockSession:
 
 
 class MockClient:
-    def __init__(self, scenarios: list[dict[str, Any]] | None = None) -> None:
+    """`repeat` multiplies the scenarios (unique task ids); `max_active` imitates the
+    runtime's cap on tasks held at once by refusing further leases."""
+
+    def __init__(self, scenarios: list[dict[str, Any]] | None = None, *, repeat: int = 1,
+                 max_active: int | None = None) -> None:
         self.run = SimpleNamespace(run_id="mock-run")
-        self.sessions = [MockSession(s) for s in (scenarios or SCENARIOS)]
+        base = scenarios or SCENARIOS
+        self.sessions = [MockSession(s, f"{s['task_id']}-{i}" if repeat > 1 else None)
+                         for i in range(repeat) for s in base]
         self._queue = list(self.sessions)
+        self.max_active = max_active
+        self.refused_leases = 0
+        self.peak_active = 0
+
+    def _active(self) -> int:
+        return sum(1 for s in self.sessions if s not in self._queue and s.result is None)
 
     async def start_task(self) -> MockSession | None:
-        return self._queue.pop(0) if self._queue else None
+        await asyncio.sleep(0)
+        if not self._queue:
+            return None
+        if self.max_active is not None and self._active() >= self.max_active:
+            self.refused_leases += 1
+            raise TaskCapacityExceededError("Remote task capacity has been reached.",
+                                            reason="RUN_ACTIVE_TASK_LIMIT_REACHED")
+        session = self._queue.pop(0)
+        self.peak_active = max(self.peak_active, self._active())
+        return session

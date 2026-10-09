@@ -55,6 +55,34 @@ uv run --with anthropic --with jsonschema --env-file .env \
     python -m bluesec1_agent.robust.cli --arena practice
 ```
 
+### Parallel mode and the finals deadline
+
+The finals give 3 hours (12:00–15:00 Moscow time) for 40 tasks. Run several
+tasks at once and set the deadline:
+
+```bash
+uv run --with anthropic --with jsonschema --env-file .env \
+    python -m bluesec1_agent.robust.cli --concurrency 4 --deadline 14:58
+```
+
+- `--concurrency N`: N tasks are investigated in parallel. If the runtime
+  holds fewer tasks at once, the agent learns its limit from the refusal and
+  waits for a free slot. That costs no calls and fails no tasks; the log says
+  `Runtime holds K task(s) at a time`.
+- `--deadline HH:MM` (Moscow time): no new tasks are taken from 6 minutes
+  before it, and from 2 minutes before it running investigations may only
+  submit (`ROBUST_LEASE_STOP_MINUTES`, `ROBUST_FINISH_MINUTES`).
+- Parallel tasks share your LLM rate limit. The SDK retries rate-limit errors
+  with backoff; if the log shows many of them, lower `--concurrency`.
+
+Check parallel mode offline first, with your real key (16 mock tasks,
+imitating a runtime that holds 2 at a time):
+
+```bash
+uv run --with anthropic --with jsonschema --env-file .env \
+    python -m bluesec1_agent.robust.cli --mock --mock-tasks 8 --mock-limit 2 --concurrency 4
+```
+
 If tasks abort with `model refused: ...`, run the probe. It sends only the
 first request in three variants and shows which one is declined (a few cents):
 
