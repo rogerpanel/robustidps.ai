@@ -55,6 +55,18 @@ uv run --with anthropic --with jsonschema --env-file .env \
     python -m bluesec1_agent.robust.cli --arena practice
 ```
 
+If tasks abort with `model refused: ...`, run the probe. It sends only the
+first request in three variants and shows which one is declined (a few cents):
+
+```bash
+uv run --with anthropic --with jsonschema --env-file .env python -m bluesec1_agent.robust.probe
+```
+
+The runtime's free-text fields are called `reasoning`. Claude declines
+requests that ask it to write out its reasoning (`reasoning_extraction`), so
+the model sees them as `purpose` (what a call checks) and `summary` (the
+incident summary), and they are renamed back to `reasoning` before sending.
+
 Options: `--provider openai` (uses `LLM_BASE_URL`, `LLM_API_KEY`,
 `LLM_DEFAULT_MODEL`), `--model`, `--effort low|medium|high|xhigh|max`,
 `--agent-name`, `--arena`.

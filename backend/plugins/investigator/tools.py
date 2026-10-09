@@ -1,9 +1,11 @@
 """Tools exposed to the investigator, and their dispatch.
 
-Every evidence tool takes a required `rationale`: the hypothesis the query
-tests and what result would confirm or rule it out. That makes each call
-hypothesis-driven (fewer wasted queries, which is what efficiency scoring
-counts) and turns the tool inputs themselves into the investigation trace.
+Every evidence tool takes a required `purpose`: one short sentence saying what
+the query checks. It keeps each call deliberate (fewer wasted queries, which
+is what efficiency scoring counts) and labels every step of the trace. It asks
+for a statement of the action, not the model's reasoning: requests that ask a
+model to write out its reasoning can be declined ("reasoning_extraction");
+the reasoning itself is read from the summarized thinking blocks.
 
 `submit_verdict` ends the investigation. It is `strict` so its arguments
 always match the schema; forced tool_choice is unavailable on current
@@ -15,8 +17,9 @@ import json
 
 from .evidence import EvidenceSource
 
-RATIONALE = {"type": "string", "description":
-             "The hypothesis this query tests and what result would confirm or rule it out."}
+PURPOSE = {"type": "string", "description":
+           "One short sentence naming what this query checks, e.g. 'Find which process "
+           "contacted the remote address'."}
 
 EVIDENCE_TOOLS = [
     {
@@ -28,7 +31,7 @@ EVIDENCE_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "rationale": RATIONALE,
+                "purpose": PURPOSE,
                 "host": {"type": "string", "description": "Exact host name."},
                 "user": {"type": "string", "description": "Exact account name."},
                 "event_type": {"type": "string", "description":
@@ -40,7 +43,7 @@ EVIDENCE_TOOLS = [
                 "time_to": {"type": "string", "description": "ISO-8601 upper bound, inclusive."},
                 "limit": {"type": "integer", "description": "Max events to return (1-50, default 20)."},
             },
-            "required": ["rationale"],
+            "required": ["purpose"],
         },
     },
     {
@@ -48,9 +51,9 @@ EVIDENCE_TOOLS = [
         "description": "Return a process's ancestor chain and direct children on one host.",
         "input_schema": {
             "type": "object",
-            "properties": {"rationale": RATIONALE, "host": {"type": "string"},
+            "properties": {"purpose": PURPOSE, "host": {"type": "string"},
                            "pid": {"type": "integer"}},
-            "required": ["rationale", "host", "pid"],
+            "required": ["purpose", "host", "pid"],
         },
     },
     {
@@ -58,8 +61,8 @@ EVIDENCE_TOOLS = [
         "description": "Asset inventory record for a host: role, owner, criticality, and any notes.",
         "input_schema": {
             "type": "object",
-            "properties": {"rationale": RATIONALE, "host": {"type": "string"}},
-            "required": ["rationale", "host"],
+            "properties": {"purpose": PURPOSE, "host": {"type": "string"}},
+            "required": ["purpose", "host"],
         },
     },
     {
@@ -67,8 +70,8 @@ EVIDENCE_TOOLS = [
         "description": "Threat-intelligence verdict for an IP address, domain, or file hash.",
         "input_schema": {
             "type": "object",
-            "properties": {"rationale": RATIONALE, "value": {"type": "string"}},
-            "required": ["rationale", "value"],
+            "properties": {"purpose": PURPOSE, "value": {"type": "string"}},
+            "required": ["purpose", "value"],
         },
     },
 ]
@@ -137,7 +140,7 @@ def run_evidence_tool(name: str, args: dict, source: EvidenceSource) -> tuple[di
     missing = [k for k in schema["required"] if args.get(k) in (None, "")]
     if missing:
         return {"error": f"missing required argument(s): {', '.join(missing)}"}, True
-    kwargs = {k: v for k, v in args.items() if k != "rationale" and k in schema["properties"]}
+    kwargs = {k: v for k, v in args.items() if k != "purpose" and k in schema["properties"]}
     try:
         result = getattr(source, name)(**kwargs)
     except (TypeError, ValueError) as exc:

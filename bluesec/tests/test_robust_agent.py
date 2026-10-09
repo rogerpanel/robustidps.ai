@@ -23,7 +23,7 @@ from bluesec1_client.remote.models import (
 
 MALICIOUS = {
     "verdict": "malicious",
-    "reasoning": "Unsigned download beaconing to a listed C2 address.",
+    "summary": "Unsigned download beaconing to a listed C2 address.",
     "ir_artifacts": [
         {"entity_id": "host-fin-02", "kind": "host_to_isolate"},
         {"entity_id": "conn-44", "kind": "network_block"},
@@ -33,7 +33,7 @@ MALICIOUS = {
 }
 BENIGN = {
     "verdict": "benign",
-    "reasoning": "Signed vendor updater launched by its own service created its update task.",
+    "summary": "Signed vendor updater launched by its own service created its update task.",
     "legitimacy_evidence": [
         {"anchor": "entity", "entity_id": "proc-7a1",
          "property_fields": ["signer", "signature_status"]},
@@ -88,9 +88,14 @@ def test_catalog_inlines_refs_and_validates() -> None:
     cat = ToolCatalog.from_observation(malicious_session().task.observation)
     finish = cat.specs["finish_investigation"]
     assert "$defs" not in json.dumps(finish.schema) and "$ref" not in json.dumps(finish.schema)
-    assert finish.validate({"submission": MALICIOUS}) == []
-    assert finish.validate({"submission": {**MALICIOUS, "verdict": "maybe"}})
+    assert finish.validate(finish.from_llm({"submission": MALICIOUS})) == []
+    assert finish.validate(finish.from_llm({"submission": {**MALICIOUS, "verdict": "maybe"}}))
     assert cat.specs["get_entity"].validate({"reasoning": "x"})  # entity_id missing
+    # the model never sees a field called `reasoning`; the runtime always gets one
+    assert '"reasoning"' not in json.dumps(cat.anthropic_tools())
+    assert '"reasoning"' not in json.dumps(cat.openai_tools())
+    assert '"reasoning"' in json.dumps(finish.schema)
+    assert finish.from_llm({"submission": MALICIOUS})["submission"]["reasoning"]
     schema = prepare_schema({"$defs": {"A": {"type": "string", "title": "A"}},
                              "properties": {"a": {"$ref": "#/$defs/A"}}})
     assert schema == {"type": "object", "properties": {"a": {"type": "string"}}}
@@ -101,11 +106,11 @@ def test_claude_loop_saves_calls_and_submits() -> None:
     inv = mk_inv(session)
     claude = FakeClaude([
         reply(NS(type="thinking", thinking="H1 C2 beacon; H2 benign app."),
-              tu(1, "get_entity", {"entity_id": "proc-c33", "reasoning": "Inspect trigger."})),
-        reply(tu(2, "get_relation", {"relation_id": "rel-11", "reasoning": "Where to?"}),
-              tu(3, "get_relation", {"relation_id": "rel-10", "reasoning": "Which file?"})),
-        reply(tu(4, "get_entity", {"entity_id": "proc-c33", "reasoning": "again"}),  # cached
-              tu(5, "get_entity", {"reasoning": "no id"})),  # schema error
+              tu(1, "get_entity", {"entity_id": "proc-c33", "purpose": "Inspect trigger."})),
+        reply(tu(2, "get_relation", {"relation_id": "rel-11", "purpose": "Where to?"}),
+              tu(3, "get_relation", {"relation_id": "rel-10", "purpose": "Which file?"})),
+        reply(tu(4, "get_entity", {"entity_id": "proc-c33", "purpose": "again"}),  # cached
+              tu(5, "get_entity", {"purpose": "no id"})),  # schema error
         reply(tu(6, "finish_investigation", {"submission": {
             **MALICIOUS, "ir_artifacts": [{"entity_id": "conn-99", "kind": "network_block"}]}})),
         reply(tu(7, "finish_investigation", {"submission": MALICIOUS})),
@@ -116,6 +121,9 @@ def test_claude_loop_saves_calls_and_submits() -> None:
     assert [c[0] for c in session.calls] == [
         "get_entity", "get_relation", "get_relation", "finish_investigation"]
     assert inv.spent == 4 and inv.saved == 1
+    assert session.calls[0][1] == {"entity_id": "proc-c33", "reasoning": "Inspect trigger."}
+    sent = session.calls[-1][1]["submission"]
+    assert "summary" not in sent and sent["reasoning"] == MALICIOUS["summary"]
     statuses = [s["status"] for s in inv.steps if s["type"] == "tool_call"]
     assert statuses == ["ok", "ok", "ok", "cached", "refused_locally", "refused_locally",
                         "terminal"]
@@ -137,8 +145,8 @@ def test_hard_budget_refuses_evidence_calls_but_allows_submission() -> None:
     session = malicious_session()
     inv = mk_inv(session, hard=1)
     claude = FakeClaude([
-        reply(tu(1, "get_entity", {"entity_id": "proc-c33", "reasoning": "trigger"})),
-        reply(tu(2, "get_entity", {"entity_id": "conn-44", "reasoning": "more"})),
+        reply(tu(1, "get_entity", {"entity_id": "proc-c33", "purpose": "trigger"})),
+        reply(tu(2, "get_entity", {"entity_id": "conn-44", "purpose": "more"})),
         reply(tu(3, "finish_investigation", {"submission": {
             **MALICIOUS, "ir_artifacts": MALICIOUS["ir_artifacts"][:1]}})),
     ])
@@ -169,9 +177,9 @@ def test_openai_loop_handles_bad_json_and_string_submission() -> None:
     session = MockSession(next(s for s in SCENARIOS if s["task_id"] == "mock-benign-updater"))
     inv = mk_inv(session)
     oai = FakeOpenAI([
-        [call(1, "get_entity", '{"entity_id": "proc-7a1", "reasoning": '),  # truncated JSON
-         call(2, "get_entity", {"entity_id": "proc-7a1", "reasoning": "trigger"})],
-        [call(3, "get_relation", {"relation_id": "rel-1", "reasoning": "parent?"})],
+        [call(1, "get_entity", '{"entity_id": "proc-7a1", "purpose": '),  # truncated JSON
+         call(2, "get_entity", {"entity_id": "proc-7a1", "purpose": "trigger"})],
+        [call(3, "get_relation", {"relation_id": "rel-1", "purpose": "parent?"})],
         [call(4, "finish_investigation", {"submission": json.dumps(BENIGN)})],
     ])
     result = asyncio.run(run_openai(inv, oai, model="m", max_turns=6,
@@ -188,8 +196,8 @@ def test_openai_loop_handles_bad_json_and_string_submission() -> None:
 def test_run_writes_traces_and_aborts_on_refusal(tmp_path: Path) -> None:
     settings = RobustSettings(ROBUST_TRACE_DIR=tmp_path, ANTHROPIC_API_KEY="k")
     claude = FakeClaude([
-        reply(tu(1, "get_entity", {"entity_id": "proc-7a1", "reasoning": "trigger"})),
-        reply(tu(2, "get_relation", {"relation_id": "rel-1", "reasoning": "parent?"})),
+        reply(tu(1, "get_entity", {"entity_id": "proc-7a1", "purpose": "trigger"})),
+        reply(tu(2, "get_relation", {"relation_id": "rel-1", "purpose": "parent?"})),
         reply(tu(3, "finish_investigation", {"submission": BENIGN})),
         reply(stop="refusal"),
     ])
@@ -241,12 +249,12 @@ class MockTransport:
 def test_agent_runs_through_the_real_remote_client(tmp_path: Path) -> None:
     settings = RobustSettings(ROBUST_TRACE_DIR=tmp_path, ANTHROPIC_API_KEY="k")
     claude = FakeClaude([
-        reply(tu(1, "get_entity", {"entity_id": "proc-7a1", "reasoning": "trigger"}),
-              tu(2, "get_relation", {"relation_id": "rel-1", "reasoning": "parent?"})),
+        reply(tu(1, "get_entity", {"entity_id": "proc-7a1", "purpose": "trigger"}),
+              tu(2, "get_relation", {"relation_id": "rel-1", "purpose": "parent?"})),
         reply(tu(3, "finish_investigation", {"submission": BENIGN})),
-        reply(tu(4, "get_entity", {"entity_id": "proc-c33", "reasoning": "trigger"})),
-        reply(tu(5, "get_relation", {"relation_id": "rel-11", "reasoning": "where?"}),
-              tu(6, "get_relation", {"relation_id": "rel-10", "reasoning": "file?"})),
+        reply(tu(4, "get_entity", {"entity_id": "proc-c33", "purpose": "trigger"})),
+        reply(tu(5, "get_relation", {"relation_id": "rel-11", "purpose": "where?"}),
+              tu(6, "get_relation", {"relation_id": "rel-10", "purpose": "file?"})),
         reply(tu(7, "finish_investigation", {"submission": MALICIOUS})),
     ])
     transport = MockTransport()

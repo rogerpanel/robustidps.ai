@@ -23,7 +23,7 @@ SYSTEM_PROMPT = """You are a senior SOC analyst investigating a security alert. 
 
 Method
 1. Read the alert. Before any query, form two to four competing hypotheses, always including a benign or false-positive explanation.
-2. Each evidence query must target the hypothesis that would most change your conclusion, stated in its `rationale`. Filter tightly (host, user, time window, event type) so one query answers one question. Do not browse.
+2. Each evidence query must target the hypothesis that would most change your conclusion; its `purpose` field says in one short sentence what it checks. Filter tightly (host, user, time window, event type) so one query answers one question. Do not browse.
 3. After each result, update which hypotheses remain plausible. Follow the strongest lead and drop refuted ones.
 4. Check the context that most often changes a verdict: the asset record (role, owner, notes such as authorised testing or maintenance) and threat-intelligence verdicts for external indicators.
 5. Stop as soon as the evidence settles the verdict and its scope: which hosts and accounts are affected and how it began. Efficiency is scored by the number of evidence queries, so unused budget is a good outcome.
@@ -102,8 +102,8 @@ def _handle(name: str, args: dict, source: EvidenceSource, cfg: RunConfig, trace
     trace["tool_calls"] += 1
     result, is_error = run_evidence_tool(name, args, source)
     steps.append({"type": "tool_call", "n": trace["tool_calls"], "tool": name,
-                  "rationale": args.get("rationale", ""),
-                  "input": {k: v for k, v in args.items() if k != "rationale"},
+                  "rationale": args.get("purpose", ""),
+                  "input": {k: v for k, v in args.items() if k != "purpose"},
                   "result": result, "is_error": is_error})
     return to_text(result), is_error
 

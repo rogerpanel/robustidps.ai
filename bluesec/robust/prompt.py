@@ -17,9 +17,8 @@ How you are scored
   evidence that proves legitimacy.
 - Efficiency: every tool call you make lowers the score. An investigation that
   reaches the right answer in 6 calls beats one that reaches it in 20.
-- The `reasoning` you give on each call is your investigation trace. Make it
-  one or two sentences that name the hypothesis being tested and what result
-  would confirm or refute it.
+- Each call has a `purpose` field: one short sentence naming what the call
+  checks.
 
 Method
 1. Read the alert carefully before calling anything. Note the trigger entity
@@ -64,8 +63,8 @@ Submitting
   that prove legitimacy, such as a valid publisher signature, an expected
   install path, a known management or update parent, a scheduled maintenance
   window, or a service account doing its documented job.
-- The submission's `reasoning` is a short incident summary: what happened,
-  in order, and why the verdict follows from the evidence.
+- The submission's `summary` is a short incident summary: what happened, in
+  order, and the evidence the verdict rests on.
 
 Rules
 - Call only the tools you are given, with arguments that match their schema.
@@ -82,7 +81,7 @@ def initial_message(observation: dict[str, Any], tool_names: list[str]) -> str:
         "Investigate this alert and submit the correct response.\n\n"
         f"<alert>\n{render(alert)}\n</alert>\n\n"
         f"Available tools: {', '.join(tool_names)}.\n"
-        "Start by stating your hypotheses, then make the single most decisive call."
+        "Begin with the single most decisive call."
     )
 
 

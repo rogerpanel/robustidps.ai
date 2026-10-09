@@ -68,7 +68,8 @@ class Investigation:
             return self._local(
                 name, arguments, f"Unknown tool {name!r}. Available: {self.catalog.names()}"
             )
-        arguments = _normalise(arguments, self.catalog.specs[name].schema)
+        spec = self.catalog.specs[name]
+        arguments = spec.from_llm(_normalise(arguments, spec.llm_schema))
         key = _key(name, arguments)
         is_finish = name == FINISH_TOOL
 

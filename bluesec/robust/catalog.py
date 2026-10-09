@@ -27,6 +27,12 @@ class ToolSpec:
     description: str
     schema: dict[str, Any]
     _validator: Any = field(default=None, repr=False)
+    llm_schema: dict[str, Any] = field(default_factory=dict)
+    aliased: bool = False
+
+    def from_llm(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Map the model-facing field names back to the runtime's."""
+        return unalias(arguments) if self.aliased else arguments
 
     def validate(self, arguments: dict[str, Any]) -> list[str]:
         """Return readable schema violations (empty when valid or unknown)."""
@@ -73,7 +79,8 @@ class ToolCatalog:
                     validator = Draft202012Validator(schema)
                 except Exception:  # an exotic schema: let the server judge
                     validator = None
-            specs.append(ToolSpec(name, description, schema, validator))
+            llm_schema, aliased = alias_schema(schema)
+            specs.append(ToolSpec(name, description, schema, validator, llm_schema, aliased))
         if FINISH_TOOL not in {s.name for s in specs}:
             raise ValueError("The runtime did not advertise finish_investigation.")
         return cls(specs)
@@ -86,7 +93,7 @@ class ToolCatalog:
 
     def anthropic_tools(self) -> list[dict[str, Any]]:
         return [
-            {"name": s.name, "description": s.description, "input_schema": s.schema}
+            {"name": s.name, "description": s.description, "input_schema": s.llm_schema}
             for s in self.specs.values()
         ]
 
@@ -94,7 +101,8 @@ class ToolCatalog:
         return [
             {
                 "type": "function",
-                "function": {"name": s.name, "description": s.description, "parameters": s.schema},
+                "function": {"name": s.name, "description": s.description,
+                             "parameters": s.llm_schema},
             }
             for s in self.specs.values()
         ]
@@ -144,6 +152,63 @@ def prepare_schema(schema: dict[str, Any]) -> dict[str, Any]:
     if schema.get("type") != "object":
         schema = {"type": "object", **{k: v for k, v in schema.items() if k != "type"}}
     return schema
+
+
+# The runtime names its free-text fields `reasoning`. Asking a model to write
+# its reasoning into the response can be declined (stop_details category
+# "reasoning_extraction"); a short statement of what a call checks, or a
+# summary of the outcome, is fine. So the model sees `purpose` / `summary`,
+# and the runtime still receives `reasoning`.
+PURPOSE = {"type": "string", "minLength": 1, "maxLength": 1000,
+           "description": "One short sentence naming what this call checks, e.g. "
+                          "'Find which process launched the trigger process'."}
+SUMMARY = {"type": "string", "minLength": 1,
+           "description": "Short incident summary: what happened, in order, and the "
+                          "evidence the verdict rests on."}
+
+
+def alias_schema(schema: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    dumped = json.dumps(schema)
+    if '"reasoning"' not in dumped or '"purpose"' in dumped or '"summary"' in dumped:
+        return schema, False
+    out = copy.deepcopy(schema)
+
+    def rename(node: Any, top: bool) -> None:
+        if isinstance(node, list):
+            for n in node:
+                rename(n, top)
+            return
+        if not isinstance(node, dict):
+            return
+        props = node.get("properties")
+        if isinstance(props, dict) and "reasoning" in props:
+            new = "purpose" if top else "summary"
+            node["properties"] = {(new if k == "reasoning" else k):
+                                  (dict(PURPOSE if top else SUMMARY) if k == "reasoning" else v)
+                                  for k, v in props.items()}
+            if isinstance(node.get("required"), list):
+                node["required"] = [new if r == "reasoning" else r for r in node["required"]]
+        for key, value in node.items():
+            if key == "properties" and isinstance(value, dict):
+                for v in value.values():
+                    rename(v, False)
+            elif key != "required":
+                rename(value, False)
+
+    rename(out, True)
+    return out, True
+
+
+def unalias(arguments: dict[str, Any]) -> dict[str, Any]:
+    def back(node: Any) -> Any:
+        if isinstance(node, list):
+            return [back(n) for n in node]
+        if isinstance(node, dict):
+            return {("reasoning" if k == "summary" else k): back(v) for k, v in node.items()}
+        return node
+
+    out = {("reasoning" if k == "purpose" else k): v for k, v in arguments.items()}
+    return {k: (back(v) if isinstance(v, dict | list) else v) for k, v in out.items()}
 
 
 def _reference_schemas() -> dict[str, tuple[dict[str, Any], str]]:
