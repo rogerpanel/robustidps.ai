@@ -243,6 +243,12 @@ app.include_router(uav_router)
 app.include_router(agent_studio_router)
 app.include_router(dossier_router)
 
+# Imported here, not with the other plugins above: its `from main import
+# limiter` must find the limiter already defined (line ~136), otherwise it
+# falls back to a separate, unregistered Limiter.
+from plugins.investigator.api import router as investigator_router  # noqa: E402
+app.include_router(investigator_router)
+
 # ── Model loading ─────────────────────────────────────────────────────────
 
 model: SurrogateIDS | None = None

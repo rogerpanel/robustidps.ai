@@ -1,0 +1,44 @@
+{
+  "id": "m02-threat-intel-match",
+  "title": "Workstation contacting a known-bad address",
+  "difficulty": "simple",
+  "brief": {
+    "alert_id": "ALR-20261001-0907",
+    "rule": "Threat-intelligence match: outbound connection to a listed address",
+    "severity": "high",
+    "detected_at": "2026-10-01T09:41:00Z",
+    "summary": "Host WS-FIN-02 made outbound connections to 203.0.113.50, which appears on a threat-intelligence feed.",
+    "entities": {"host": "WS-FIN-02", "remote_ip": "203.0.113.50"}
+  },
+  "hosts": {
+    "WS-FIN-02": {"host": "WS-FIN-02", "role": "Finance workstation", "os": "Windows 11", "owner": "m.kuznetsova", "criticality": "medium", "ip": "10.30.2.12"}
+  },
+  "intel": {
+    "203.0.113.50": {"value": "203.0.113.50", "verdict": "malicious", "category": "command-and-control server", "first_seen": "2026-09-22"},
+    "files-share-docs.example": {"value": "files-share-docs.example", "verdict": "malicious", "category": "malware distribution site"},
+    "9f2c4e7a1b3d5f6e8a0c2b4d6f8e0a1c3b5d7f9e1a2c4b6d8f0e2a4c6b8d0f1e": {"value": "9f2c4e7a1b3d5f6e8a0c2b4d6f8e0a1c3b5d7f9e1a2c4b6d8f0e2a4c6b8d0f1e", "verdict": "malicious", "category": "trojan downloader"},
+    "office-updates.example": {"value": "office-updates.example", "verdict": "benign", "category": "software vendor"}
+  },
+  "events": [
+    {"id": "e-1c7f30", "ts": "2026-10-01T08:58:03Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "windows_security", "event_type": "logon", "details": {"logon_type": "interactive", "result": "success"}},
+    {"id": "e-8a40d9", "ts": "2026-10-01T09:05:44Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "dns", "event_type": "dns_query", "details": {"domain": "office-updates.example", "answer": "198.51.100.20"}},
+    {"id": "e-f39b62", "ts": "2026-10-01T09:11:20Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "dns", "event_type": "dns_query", "details": {"domain": "files-share-docs.example", "answer": "198.51.100.77"}},
+    {"id": "e-4de1a8", "ts": "2026-10-01T09:12:06Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "edr", "event_type": "file_write", "details": {"process": "browser.exe", "file_path": "C:\\Users\\m.kuznetsova\\Downloads\\invoice_viewer.exe", "sha256": "9f2c4e7a1b3d5f6e8a0c2b4d6f8e0a1c3b5d7f9e1a2c4b6d8f0e2a4c6b8d0f1e", "origin_domain": "files-share-docs.example"}},
+    {"id": "e-b62c05", "ts": "2026-10-01T09:13:31Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "edr", "event_type": "process_start", "details": {"process": "invoice_viewer.exe", "path": "C:\\Users\\m.kuznetsova\\Downloads\\invoice_viewer.exe", "sha256": "9f2c4e7a1b3d5f6e8a0c2b4d6f8e0a1c3b5d7f9e1a2c4b6d8f0e2a4c6b8d0f1e", "pid": 6120, "ppid": 3388, "parent_process": "explorer.exe", "signed": false}},
+    {"id": "e-0e9d73", "ts": "2026-10-01T09:14:02Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "edr", "event_type": "network_connection", "details": {"process": "invoice_viewer.exe", "pid": 6120, "dst_ip": "203.0.113.50", "dst_port": 443}},
+    {"id": "e-75a2fe", "ts": "2026-10-01T09:24:05Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "edr", "event_type": "network_connection", "details": {"process": "invoice_viewer.exe", "pid": 6120, "dst_ip": "203.0.113.50", "dst_port": 443}},
+    {"id": "e-c81b4e", "ts": "2026-10-01T09:34:01Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "edr", "event_type": "network_connection", "details": {"process": "invoice_viewer.exe", "pid": 6120, "dst_ip": "203.0.113.50", "dst_port": 443}},
+    {"id": "e-a3f6c9", "ts": "2026-10-01T09:20:15Z", "host": "WS-FIN-02", "user": "m.kuznetsova", "source": "edr", "event_type": "network_connection", "details": {"process": "browser.exe", "dst_ip": "198.51.100.20", "dst_port": 443}},
+    {"id": "e-29d7b1", "ts": "2026-10-01T09:30:40Z", "host": "WS-HR-04", "user": "o.smirnova", "source": "edr", "event_type": "network_connection", "details": {"process": "browser.exe", "dst_ip": "198.51.100.20", "dst_port": 443}}
+  ],
+  "answer": {
+    "verdict": "true_positive",
+    "attack_techniques": ["T1204.002", "T1071.001"],
+    "affected_hosts": ["WS-FIN-02"],
+    "affected_accounts": ["m.kuznetsova"],
+    "indicators": ["203.0.113.50", "files-share-docs.example", "9f2c4e7a1b3d5f6e8a0c2b4d6f8e0a1c3b5d7f9e1a2c4b6d8f0e2a4c6b8d0f1e"],
+    "key_events": ["e-4de1a8", "e-b62c05", "e-0e9d73"],
+    "explanation": "An unsigned executable downloaded from a malware-distribution domain was run by the user and then contacted a listed command-and-control address at regular ten-minute intervals. Contain WS-FIN-02 and reset the user's credentials."
+  },
+  "optimal_tool_calls": 4
+}
