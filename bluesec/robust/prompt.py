@@ -42,6 +42,20 @@ Method
 6. Stop as soon as the verdict and the artifact list are supported by
    evidence. Do not keep exploring to be thorough.
 
+Spending calls
+- Before every call, ask whether its answer could change the verdict or the
+  artifact list. If not, skip it.
+- Do not look up what you already know: the host and user named in the alert,
+  the relation that only says a process runs on that host, or an entity whose
+  relevant details a relation or the alert already gave you.
+- Fetch an entity when you need its properties: to decide the verdict, to name
+  it as an artifact with confidence, or to cite its fields as legitimacy
+  evidence.
+- When you need several relations or entities you already hold ids for,
+  request them together in the same turn.
+- As a rough guide, a simple alert needs 3 to 6 calls and a multi-stage
+  incident 8 to 15.
+
 Submitting
 - Malicious: list in ir_artifacts every entity that needs a response, each
   with the most specific kind:
