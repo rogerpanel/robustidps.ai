@@ -12,7 +12,7 @@ nfstream==6.6.0
 dpkt>=1.9.8
 
 # ── Enterprise: Database ──────────────────────────────────────────────────
-sqlalchemy>=2.0.0
+sqlalchemy>=2.0.0,<2.1   # 2.1 switched postgresql:// to the psycopg (v3) driver; we ship psycopg2
 psycopg2-binary>=2.9.0
 
 # ── Enterprise: Authentication ────────────────────────────────────────────

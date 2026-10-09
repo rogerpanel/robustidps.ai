@@ -4,7 +4,6 @@ Runs execute in a background thread and are polled, because a full
 investigation can outlast Cloudflare's 100-second proxy timeout. Run state
 lives in this process; the backend runs a single uvicorn worker.
 """
-from __future__ import annotations
 
 import os
 import threading

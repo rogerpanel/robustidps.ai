@@ -5,7 +5,6 @@ documents from the browser. Admins can also import a run folder straight
 from the agent's trace directory on the server, mounted read-only into the
 container at BLUESEC_TRACES_DIR.
 """
-from __future__ import annotations
 
 import datetime
 import json
