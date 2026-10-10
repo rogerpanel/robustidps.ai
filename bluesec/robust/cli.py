@@ -32,6 +32,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="RobustIDPS investigation agent for BlueSec1")
     p.add_argument("--mock", action="store_true",
                    help="run against the built-in offline mock instead of the competition")
+    p.add_argument("--local", nargs="?", const="all", metavar="IDS",
+                   help="run the practice tasks built from public datasets (all, or "
+                        "comma-separated scenario ids); see localdata/fetch.py --list")
+    p.add_argument("--data-dir", default="datasets/otrf",
+                   help="where the public datasets were downloaded (default datasets/otrf)")
     p.add_argument("--arena", help="override SCENARIO_RUNTIME_ARENA (e.g. practice)")
     p.add_argument("--provider", choices=["anthropic", "openai"], help="override ROBUST_PROVIDER")
     p.add_argument("--model", help="override ANTHROPIC_MODEL / LLM_DEFAULT_MODEL")
@@ -101,13 +106,22 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         key = "anthropic_model" if s.provider == "anthropic" else "llm_default_model"
         s = s.model_copy(update={key: args.model})
 
-    missing = s.missing(need_runtime=not args.mock)
+    missing = s.missing(need_runtime=not (args.mock or args.local))
     if missing:
         print("Missing configuration in .env: " + ", ".join(missing), file=sys.stderr)
         raise SystemExit(1)
 
     llm = make_llm(s)
     try:
+        if args.local:
+            from pathlib import Path
+
+            from .localdata.fetch import load_tasks
+            from .localdata.runtime import LocalClient
+
+            ids = None if args.local == "all" else [i.strip() for i in args.local.split(",")]
+            tasks = load_tasks(Path(args.data_dir), ids)
+            return await RobustAgent(s, llm).run(LocalClient(tasks))
         if args.mock:
             from .mock import MockClient
 

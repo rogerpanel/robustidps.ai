@@ -16,7 +16,7 @@ fi
 rm -rf "$TARGET/src/bluesec1_agent/robust"
 cp -r "$HERE/robust" "$TARGET/src/bluesec1_agent/robust"
 find "$TARGET/src/bluesec1_agent/robust" -name __pycache__ -prune -exec rm -rf {} +
-cp "$HERE/tests/test_robust_agent.py" "$TARGET/tests/test_robust_agent.py"
+cp "$HERE"/tests/test_*.py "$TARGET/tests/"
 
 cat <<EOF
 Installed into $TARGET/src/bluesec1_agent/robust

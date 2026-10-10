@@ -102,6 +102,52 @@ Options: `--provider openai` (uses `LLM_BASE_URL`, `LLM_API_KEY`,
 The original agent still runs as before with `uv run --env-file .env bluesec1-agent`.
 (The moderator's note says `uv launch`; the command is `uv run`.)
 
+## Practice on public attack telemetry (no competition token needed)
+
+`--local` runs the agent on 11 practice tasks built from **OTRF
+Security-Datasets** (Open Threat Research Forge, MIT licence): real Sysmon and
+Windows Security telemetry recorded while ATT&CK techniques were executed in
+a lab. The telemetry becomes the same kind of evidence graph the competition
+uses (processes, files, registry keys, connections and their relations),
+served through the same tools, so the agent runs unchanged.
+
+| Scenario | Verdict | ATT&CK | What happened |
+|---|---|---|---|
+| lsass-dump-comsvcs | malicious | T1003.001 | LSASS memory dumped to disk with comsvcs.dll |
+| logon-script-persistence | malicious | T1037.001 | Logon script set via UserInitMprLogonScript |
+| service-binpath-hijack | malicious | T1543.003 | Fax service binPath pointed at PowerShell |
+| hta-startup-folder | malicious | T1218.005 | HTA downloaded into Startup, run by mshta |
+| firewall-rule-added | malicious | T1562.004 | Inbound allow rule added with netsh |
+| python-http-server | malicious | T1059 | Python HTTP server from AppData, firewall opened |
+| bits-download | malicious | T1197 | BITS job downloading a remote file |
+| run-key-and-beacon | malicious | T1547.001 | Run key persistence plus repeated beaconing |
+| lsass-query-by-svchost | benign | – | svchost opened LSASS with query-only access |
+| w32time-runtime-key | benign | – | W32Time `\RunTime\` key mistaken for a Run key |
+| gpsvc-service-host | benign | – | Group Policy service host started as SYSTEM |
+
+Benign tasks are real background events from the same recordings that a naive
+rule would flag: the false positives a SOC agent must clear.
+
+```bash
+cd ~/bluesec1-agent
+uv run --with anthropic --with jsonschema python -m bluesec1_agent.robust.localdata.fetch
+uv run --with anthropic --with jsonschema --env-file .env \
+    python -m bluesec1_agent.robust.cli --local --concurrency 4
+```
+
+`fetch` downloads 8 datasets (about 10 MB) into `datasets/otrf/`; `--list`
+shows the scenarios, and `--local id1,id2` runs a subset.
+
+**Scoring (ours, not the competition's).** Quality is half verdict, half
+artifacts. For malicious tasks, artifacts are scored as F1: recall over a core
+set (the activity, its output or persistence, the host, the account; a fitting
+response kind earns full credit, another kind half) and precision against
+everything the operator session touched. For benign tasks, the evidence must
+cite the legitimate anchors with a decisive property (for example
+`granted_access` 0x1000 on the LSASS handle). Efficiency is
+`min(1, (optimal + 1) / calls)`. Each task's trace records the score breakdown,
+including any missed core items.
+
 ## Reviewing runs on robustidps.ai
 
 The **BlueSec Runs** page (SOC Intelligence → BlueSec Runs, `/bluesec-runs`)
