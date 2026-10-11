@@ -63,11 +63,24 @@ or the nearest ancestor with a given image). The core set $C$ contains the trigg
 key commands, the artefacts that carry persistence or impact (the dump file, the Run-key value, the module
 copied into \texttt{/lib/modules}, the script that wiped directories), the host, and the account to act on:
 the session owner, plus the trigger's account unless it is the system account the session elevated to
-(\texttt{SYSTEM}, \texttt{root}). The acceptable set $A^\star$ adds every process in the session and every
+(\texttt{SYSTEM}, \texttt{root}). The acceptable set $A^\star$ adds every process in the session, the accounts they ran as, and every
 file, registry key, connection and process the session touched. For a benign task, the anchors are the trigger
 and the entities that prove legitimacy, for example the parent that launched it (the package manager, the
 login daemon) or the relation carrying the decisive property (the access mask), each with its real property
-fields.
+fields. The neutral set holds the trigger's lineage up to the highest anchor, with its host and accounts:
+an analyst who cites the full chain from the login daemon to the trigger should not be penalised for the
+intermediate shells.
+
+\paragraph{Revision 1.1} The first study run exposed two ground-truth defects, both on Linux. Benign Linux
+tasks scored the same partial quality under every configuration; the value ($Q=0.683$) is exactly two of three
+anchors plus three cited ids outside the anchors (the only decomposition that yields it), and the trigger
+lineages contain processes between the anchors (three shells in the login-message chain, the
+\texttt{apache2.postinst} script between \texttt{dpkg} and \texttt{systemctl}). In v1.0 citing them counted as
+citing unrelated ids. Second, session processes entered the acceptable set only through
+process-creation relations, and the Linux relation type was missing from that list, so naming \texttt{sudo} or
+an intermediate shell lowered precision. Version~1.1 adds the neutral set and puts session processes and their
+accounts in $A^\star$ on both platforms. Graphs and alerts are byte-identical between the versions; the Windows
+malicious answers are unchanged. All results in \S\ref{sec:results} use v1.1, and both versions are released.
 
 \subsection{Statistics and format}
 Graphs have \BenchEntMin{}--\BenchEntMax{} entities (median \BenchEntMedian{}) and

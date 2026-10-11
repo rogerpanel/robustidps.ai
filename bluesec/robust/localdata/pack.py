@@ -30,6 +30,9 @@ from .graph import Graph
 from .scenarios import BY_ID, OTRF_BASE, SOURCE_LABEL, SPLUNK_BASE, Scenario, Task
 
 PACK_FORMAT = "robustidps-bluesec-pack/1"
+# Ground-truth revision. 1.1: session processes and accounts are acceptable on
+# Linux too; benign citations of the trigger's lineage are neutral.
+PACK_VERSION = "1.1"
 MAX_MEMBER_BYTES = 64 * 1024 * 1024
 LICENSE_DIR = Path(__file__).parent / "licenses"
 
@@ -60,6 +63,7 @@ def answer_record(t: Task) -> dict[str, Any]:
         "core": sorted(t.core),
         "acceptable": sorted(t.acceptable),
         "evidence_fields": {k: sorted(v) for k, v in t.evidence_fields.items()},
+        "neutral": sorted(t.neutral),
     }
 
 
@@ -67,6 +71,7 @@ def build_pack(tasks: list[Task], out: Path) -> dict[str, Any]:
     manifest = {
         "format": PACK_FORMAT,
         "name": "RobustIDPS BlueSec practice pack",
+        "version": PACK_VERSION,
         "created": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "tasks": [
             {
@@ -125,6 +130,7 @@ def load_pack(path: Path, ids: list[str] | None = None) -> list[Task]:
                 scenario=sc, graph=g, alert=rec["alert"], core=set(ans["core"]),
                 acceptable=set(ans["acceptable"]),
                 evidence_fields={k: set(v) for k, v in ans.get("evidence_fields", {}).items()},
+                neutral=set(ans.get("neutral", [])),
             ))
     if ids:
         missing = set(ids) - {t.scenario.id for t in tasks}
@@ -189,7 +195,9 @@ Sources:
 Quality = half verdict, half artifacts. Malicious: F1 of recall over `core`
 (full credit for a fitting response kind, half for another kind) and
 precision against `acceptable`. Benign: share of `evidence_fields` anchors
-cited with a decisive property field. Wrong verdict = 0.
+cited with a decisive property field, less half the share of cited ids that
+are neither anchors nor `neutral` (the trigger's lineage, host and accounts).
+Wrong verdict = 0.
 Efficiency = min(1, (optimal_calls + 1) / tool calls).
 Reward = quality x (0.8 + 0.2 x efficiency).
 

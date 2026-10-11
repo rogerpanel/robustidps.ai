@@ -184,6 +184,46 @@ def test_scoring_rewards_complete_and_precise_answers() -> None:
     assert score(b, {"verdict": "benign", "legitimacy_evidence": weak})[0] == 0.5
 
 
+def test_session_processes_and_accounts_are_acceptable() -> None:
+    g = build_graph(EVENTS)
+    t = build_task(SC_MAL, g)
+    shell = next(i for i, e in g.entities.items() if e.get("command_line") == "cmd.exe")
+    alice = g.entities[shell]["user_entity_id"]
+    assert {shell, alice} <= t.acceptable
+    _, d = score(t, {"verdict": "malicious", "ir_artifacts": [
+        {"entity_id": i, "kind": "process_observed"} for i in (shell,)]})
+    assert d["precision"] == 1.0
+
+
+def test_benign_lineage_is_neutral() -> None:
+    g = build_graph(EVENTS)
+    sc = Scenario(id="t-lin", dataset="x/y", otrf_id="T", attack="-", verdict="benign",
+                  title="reg", summary="reg ran", severity="low",
+                  trigger={"type": "windows_process", "image": "reg.exe"},
+                  core=("trigger", "ancestor:explorer.exe"), optimal_calls=2)
+    t = build_task(sc, g)
+    shell = next(i for i, e in g.entities.items() if e.get("command_line") == "cmd.exe")
+    assert shell in t.neutral and shell not in t.evidence_fields
+    good = [{"anchor": "entity", "entity_id": a, "property_fields": ["image"]}
+            for a in t.evidence_fields]
+    lineage = good + [{"anchor": "entity", "entity_id": shell, "property_fields": ["image"]}]
+    assert score(t, {"verdict": "benign", "legitimacy_evidence": lineage})[0] == 1.0
+    other = good + [{"anchor": "entity", "entity_id": "proc-unrelated", "property_fields": ["image"]}]
+    assert score(t, {"verdict": "benign", "legitimacy_evidence": other})[0] < 1.0
+
+
+def test_runtime_rejects_malformed_arguments_without_crashing() -> None:
+    g = build_graph(EVENTS)
+    s = LocalSession(build_task(SC_MAL, g), "t-mal")
+    r = asyncio.run(s.call_tool("search", {"query": "x", "reasoning": "x", "scope": "entity"}))
+    assert r.info["tool_status"] == "error"
+    for bad in ({"submission": "malicious"},
+                {"submission": {"verdict": "malicious", "ir_artifacts": ["proc-1"]}}):
+        r = asyncio.run(s.call_tool("finish_investigation", bad))
+        assert r.info["tool_status"] == "error" and not r.terminated and s.result is None
+    assert len(s.calls) == 3          # rejected calls still count, as on a server
+
+
 def test_local_session_tools() -> None:
     g = build_graph(EVENTS)
     s = LocalSession(build_task(SC_MAL, g), "t-mal")
@@ -343,3 +383,29 @@ def test_pack_round_trip_and_rejects_foreign_zip(tmp_path: Path) -> None:
         zf.writestr("manifest.json", json.dumps({"format": "something-else"}))
     with pytest.raises(ValueError):
         load_pack(bad)
+
+
+def test_rescore_recomputes_scores_from_traces(tmp_path: Path) -> None:
+    from bluesec1_agent.robust.localdata.pack import build_pack
+    from bluesec1_agent.robust.rescore import rescore
+
+    g = build_graph(EVENTS)
+    task = build_task(SC_MAL, g)
+    pack = tmp_path / "pack.zip"
+    build_pack([task], pack)
+    run = tmp_path / "20260101-000000-local-run"
+    run.mkdir()
+    (run / "summary.json").write_text(json.dumps(
+        {"run_id": "local-run", "config": {"label": "full", "ablations": []}}))
+    sub = {"verdict": "malicious",
+           "ir_artifacts": [{"entity_id": i, "kind": "other"} for i in sorted(task.core)]}
+    (run / "t-mal.json").write_text(json.dumps({
+        "task_id": "t-mal", "submission": sub, "steps": [],
+        "result": {"completion_reason": "terminated", "tool_calls": 6,
+                   "quality_score": 0.1, "total_reward": 0.1}}))
+    out = rescore([run], pack)
+    s = json.loads((tmp_path / f"{run.name}-rescored-v1.1" / "summary.json").read_text())
+    row = s["task_rows"][0]
+    assert row["quality"] == round(score(task, sub)[0], 4) and row["original_quality"] == 0.1
+    assert row["efficiency"] == 0.5 and row["verdict"] == "malicious"   # (2 + 1) / 6
+    assert out["runs"] == 1 and Path(out["ablation_table"]).is_file()

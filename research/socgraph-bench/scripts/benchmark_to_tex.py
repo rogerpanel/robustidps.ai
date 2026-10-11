@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the benchmark's task table and statistics macros from the pack zip.
 
-    python scripts/benchmark_to_tex.py --pack benchmark/socgraph-21-v1.zip --out paper
+    python scripts/benchmark_to_tex.py --pack benchmark/socgraph-21-v1.1.zip --out paper
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def esc(s: str) -> str:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pack", type=Path, default=Path("benchmark/socgraph-21-v1.zip"))
+    ap.add_argument("--pack", type=Path, default=Path("benchmark/socgraph-21-v1.1.zip"))
     ap.add_argument("--out", type=Path, default=Path("paper"))
     a = ap.parse_args()
     z = zipfile.ZipFile(a.pack)

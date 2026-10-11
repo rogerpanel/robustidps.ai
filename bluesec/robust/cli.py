@@ -54,6 +54,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="turn components off to measure them: cache, validation, grounding, "
                         "budget, method (comma-separated)")
     p.add_argument("--label", help="name for this configuration in summaries (ROBUST_LABEL)")
+    p.add_argument("--rescore", nargs="+", metavar="RUN_DIR",
+                   help="rescore finished practice runs (trace folders) against --pack, "
+                        "offline: no model or runtime calls")
     p.add_argument("--ablation-suite", action="store_true",
                    help="with --pack or --local: run the full agent, then each component "
                         "turned off in turn, and write an ablation table (md + csv)")
@@ -196,6 +199,15 @@ async def run_suite(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.rescore:
+        from pathlib import Path
+
+        from .rescore import rescore
+
+        if not args.pack:
+            raise SystemExit("--rescore needs --pack (the task pack to score against)")
+        print(json.dumps(rescore([Path(d) for d in args.rescore], Path(args.pack)), indent=2))
+        return
     try:
         summary = asyncio.run(run_suite(args) if args.ablation_suite else run(args))
     except RunCapacityExceededError as error:

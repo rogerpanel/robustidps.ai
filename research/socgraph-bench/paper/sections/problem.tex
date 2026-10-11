@@ -32,9 +32,10 @@ $L=\{(x_j,F_j)\}$ citing an entity or relation $x_j$ and the property fields $F_
 \subsection{Scoring}
 Let $y\in\{\textsf{mal},\textsf{ben}\}$ be the true verdict. For malicious tasks the ground truth contains a
 \emph{core} set $C\subseteq V$ that a complete response must name and an \emph{acceptable} set
-$C\subseteq A^\star\subseteq V\cup E$ of entities touched by the attack, which may be named without
+$C\subseteq A^\star\subseteq V\cup E$ of entities involved in the attack, which may be named without
 penalty. For benign tasks it contains anchors $\mathcal{L}$, each with the set $D(x)$ of its decisive
-property fields. Quality $Q\in[0,1]$ is
+property fields, and a \emph{neutral} set $N$ (the trigger's process lineage up to the highest anchor, its
+host and accounts) whose citation neither earns nor loses credit. Quality $Q\in[0,1]$ is
 \begin{equation}
 Q(\sigma)=\begin{cases}0 & \text{if the verdict is wrong,}\\ \tfrac12+\tfrac12\,S(\sigma) & \text{otherwise,}\end{cases}
 \end{equation}
@@ -46,7 +47,8 @@ where for malicious submissions $S$ is the F1 score of
 with $\kappa(v)=1$ if $v$ is named with a response kind that fits its type, $0.5$ if named with another
 kind, and $0$ if not named. For benign submissions,
 $S=\max\bigl(0,\ \frac{|\{x\in\mathcal L:\ \exists (x,F)\in L,\ F\cap D(x)\neq\emptyset\}|}{|\mathcal L|}-\tfrac12\pi\bigr)$,
-where $\pi$ is the fraction of cited items outside $\mathcal L$. With $n$ tool calls and a task-specific
+where $\pi=o/(h+o)$, with $h$ the number of anchors credited and $o$ the number of cited items outside
+$\mathcal L\cup N$. With $n$ tool calls and a task-specific
 optimum $n^\star$, efficiency and reward are
 \begin{equation}
 E=\min\!\left(1,\frac{n^\star+1}{n}\right),\qquad R=Q\,(0.8+0.2\,E).

@@ -16,6 +16,11 @@ from typing import Any
 
 from bluesec1_client import PublicTask, TaskResult, ToolCallResult
 
+try:
+    import jsonschema
+except ImportError:  # pragma: no cover - then only the handlers' own checks apply
+    jsonschema = None
+
 from ..mock import mock_catalog
 from .scenarios import Task
 
@@ -43,6 +48,9 @@ KINDS = {
     "windows_service": {"persistence_to_remove"},
     "named_pipe": {"artifact_observed"},
 }
+# Argument schemas, checked like a server would before running a tool.
+SCHEMAS = {t["name"]: t["parameters"] for t in json.loads(mock_catalog())}
+
 # Bookkeeping fields that cannot prove legitimacy on their own.
 NON_EVIDENCE = {"count", "last_seen", "timestamp", "process_guid", "hostname", "process_id"}
 
@@ -72,8 +80,14 @@ class LocalSession:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
         await asyncio.sleep(0)
         self.calls.append((tool_name, arguments))
+        problem = invalid_arguments(tool_name, arguments)
+        if problem:
+            return self._reply(tool_name, None, problem)
         if tool_name == "finish_investigation":
-            return self._finish(arguments)
+            try:
+                return self._finish(arguments)
+            except (AttributeError, TypeError, ValueError, KeyError) as exc:
+                return self._reply(tool_name, None, f"Malformed submission: {exc}")
         handler = {
             "get_entity": self._get_entity,
             "get_relation": self._get_relation,
@@ -85,6 +99,8 @@ class LocalSession:
             payload = handler(arguments)
         except LookupError as exc:
             return self._reply(tool_name, None, str(exc))
+        except (AttributeError, TypeError, ValueError) as exc:
+            return self._reply(tool_name, None, f"Malformed arguments: {exc}")
         return self._reply(tool_name, payload, None)
 
     async def abort_task(self, *, error_message: str | None = None) -> TaskResult:
@@ -202,6 +218,25 @@ class LocalSession:
         )
 
 
+def invalid_arguments(tool: str, arguments: Any) -> str | None:
+    """A server-style schema check: the reason a call is rejected, or None.
+
+    A rejected call still counts as a tool call, as on a real runtime.
+    """
+    if not isinstance(arguments, dict):
+        return "Invalid arguments: expected an object"
+    if jsonschema is None or tool not in SCHEMAS:
+        return None
+    try:
+        jsonschema.validate(arguments, SCHEMAS[tool])
+    except jsonschema.ValidationError as exc:
+        where = "/".join(str(x) for x in exc.absolute_path) or "(root)"
+        return f"Invalid arguments at {where}: {exc.message}"[:500]
+    except jsonschema.SchemaError:
+        return None
+    return None
+
+
 def _compact_entity(eid: str, e: dict[str, Any]) -> dict[str, Any]:
     keep = (
         "type",
@@ -227,7 +262,8 @@ def score(task: Task, sub: dict[str, Any]) -> tuple[float, dict[str, Any]]:
     counts 1, with another kind 0.5) combined with precision over the
     acceptable set, as F1. Benign: the share of core anchors cited with at
     least one decisive property field, each anchor counted once; citing ids
-    outside the anchors lowers it. A wrong verdict scores 0 overall.
+    outside the anchors lowers it, except the trigger's lineage, host and
+    accounts (`neutral`). A wrong verdict scores 0 overall.
     """
     verdict = sub.get("verdict")
     expected = task.scenario.verdict
@@ -257,7 +293,7 @@ def score(task: Task, sub: dict[str, Any]) -> tuple[float, dict[str, Any]]:
         if anchor in task.evidence_fields:
             if fields & valid or (ev.get("anchor") == "relation" and not fields):
                 hits.add(anchor)
-        else:
+        elif anchor not in task.neutral:
             outside += 1
     coverage = len(hits) / len(task.evidence_fields)
     penalty = outside / (len(hits) + outside) if hits or outside else 0.0

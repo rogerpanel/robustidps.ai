@@ -6,7 +6,9 @@ All runs use Claude Opus 5.5 (\texttt{claude-opus-5-5}) through the Anthropic Me
 thinking and effort level \emph{high}, a soft budget of 12 tool calls, a hard cap of 30, at most 45 model turns
 per task, and tool results truncated at 24{,}000 characters. Four tasks run in parallel. The local runtime
 serves \bench through the same client interface as the competition runtime and scores each submission with
-the scorer of \S\ref{sec:problem}. The optimum $n^\star$ is set per task when the task is defined, as the
+the scorer of \S\ref{sec:problem}. Like a server, it checks every call's arguments against the tool schema
+and answers a non-conforming call with an error; the call still counts. This fixes what the \emph{no
+validation} ablation measures: malformed calls cost runtime calls instead of being caught locally. The optimum $n^\star$ is set per task when the task is defined, as the
 length of a minimal investigation path to the ground truth (2 to 5 calls, including the submission).
 
 \subsection{Configurations}
@@ -22,7 +24,11 @@ rules (Appendix~\ref{app:prompts}).
 \end{itemize}
 Because LLM outputs vary between runs, each configuration is run three times on all 21 tasks, and we report
 means with standard deviations across repeats. A single command runs the full configuration followed by the
-five ablations on the same tasks.
+five ablations on the same tasks. The first repeat was made with \bench v1.0 and rescored on v1.1
+(\S\ref{sec:benchmark}); since the graphs are identical and scores depend only on the submission and the
+number of calls, rescoring from the stored traces is exact. One run is excluded: in the first repeat of
+\emph{no validation}, a malformed argument crashed the v1.0 runtime and aborted a task, which a schema-checking
+runtime would have rejected instead; that configuration therefore has two repeats.
 
 \subsection{Metrics}
 Per task we record quality $Q$, efficiency $E$, reward $R$, tool calls spent, calls answered by the cache,
@@ -33,12 +39,15 @@ verdict. All figures in \S\ref{sec:results} are regenerated from the run folders
 
 \subsection{Pilot}
 Before the Linux tasks existed, we ran the full configuration once on the \ResPilotTasks{} Windows tasks (then
-\bench v0). The pilot used the same model, prompt and scorer; ground truth for accounts was refined
-afterwards (\S\ref{sec:benchmark}), which leaves the core sets of these tasks naming the same operator account.
+\bench v0). The pilot used the same model and prompt and is reported as scored at the time, with the v1.0
+ground truth. The revision to v1.1 leaves the Windows malicious ground truth unchanged; the three Windows benign
+tasks gained small neutral sets (one or two lineage ids each), so the pilot's benign quality can only be
+understated.
 
 \subsection{Implementation and testing}
 The agent is written in Python and installs into the competition's public reference client. Its test suite
-(41 tests) covers the catalog normalisation, every safeguard and ablation switch, the field aliasing, parallel
-execution against a simulated runtime with a task limit (including through the reference client's own
-transport layer), deadline handling, the graph builder on Windows and Linux events, scoring, the benchmark
-pack round trip and a scripted run on the real recordings.
+(25 tests, in addition to the reference client's own) covers the catalog normalisation, every safeguard and
+ablation switch, the field aliasing, parallel execution against a simulated runtime with a task limit
+(including through the reference client's own transport layer), deadline handling, the graph builder on
+Windows and Linux events, scoring and the ground-truth rules, the runtime's rejection of malformed calls, the
+benchmark pack round trip, offline rescoring and a scripted run on the real recordings.

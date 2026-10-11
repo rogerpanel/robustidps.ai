@@ -11,8 +11,11 @@ Splunk recordings, and to other corpora~\cite{darpa_tc,landauer2023maintainable,
 the activity, with explicit core artefacts) applied through selectors we wrote. Other analysts could reasonably
 draw the core set differently, for example including or excluding a tool binary. Ground truth for the DARPA
 datasets shows how much label granularity can vary~\cite{jiang2025orthrus,wang2022threatrace}, and evaluation
-choices can change conclusions about detectors~\cite{bilot2025simpler}. We publish
-the selectors and the answer files so that the rule can be inspected and changed.
+choices can change conclusions about detectors~\cite{bilot2025simpler}. Our own first release had two
+ground-truth defects that only per-task inspection of a full run revealed (\S\ref{sec:benchmark},
+Revision~1.1); scores that are identical across configurations proved a useful signal of a scorer artefact
+rather than agent behaviour. We publish the selectors, the answer files of both versions and the rescoring
+tool so that the rule can be inspected and changed, and earlier runs re-evaluated.
 
 \paragraph{Scoring} The scorer follows the published structure of the competition's scoring but its weights
 are ours. Different weights change absolute numbers; comparisons between configurations on the same scorer

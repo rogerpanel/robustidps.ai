@@ -1,6 +1,6 @@
 # Data licences and attribution
 
-SOCGraph-21 (`benchmark/socgraph-21-v1.zip`) is derived from two public
+SOCGraph-21 (`benchmark/socgraph-21-v1.1.zip`) is derived from two public
 datasets. The derived tasks keep field values from the original events
 (capped at 600 characters) and restructure them into an entity-relation graph;
 the original licences apply to that content.

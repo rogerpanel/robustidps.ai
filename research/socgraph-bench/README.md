@@ -33,19 +33,26 @@ uv run --with anthropic --with jsonschema pytest            # agent tests
 
 cp .env.example .env    # add ANTHROPIC_API_KEY (or an OpenAI-compatible LLM_*), see agent/env.robust.example
 uv run --with anthropic --with jsonschema --env-file .env \
-    python -m bluesec1_agent.robust.cli --pack ../benchmark/socgraph-21-v1.zip --concurrency 4
+    python -m bluesec1_agent.robust.cli --pack ../benchmark/socgraph-21-v1.1.zip --concurrency 4
 ```
 
 Ablation study (the full agent, then each component turned off in turn):
 
 ```bash
 uv run --with anthropic --with jsonschema --env-file .env \
-    python -m bluesec1_agent.robust.cli --pack ../benchmark/socgraph-21-v1.zip \
+    python -m bluesec1_agent.robust.cli --pack ../benchmark/socgraph-21-v1.1.zip \
     --concurrency 4 --ablation-suite
 ```
 
-Copy the run folders from `bluesec1-agent/traces/` into `results/study/` and
-regenerate the paper's tables:
+Rescore finished runs against a revised pack, offline (no model calls):
+
+```bash
+uv run --with anthropic --with jsonschema python -m bluesec1_agent.robust.cli \
+    --pack ../benchmark/socgraph-21-v1.1.zip --rescore traces/<run folder> ...
+```
+
+Copy the run folders from `bluesec1-agent/traces/` into `results/study/`
+(see `results/README.md` for the protocol) and regenerate the paper's tables:
 
 ```bash
 python scripts/results_to_tex.py --pilot results/pilot-2026-10-10 \

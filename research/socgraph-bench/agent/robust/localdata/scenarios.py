@@ -16,8 +16,13 @@ naive detection rule would flag (a common source of SOC false positives).
 Ground truth per malicious task:
 - core: what a complete response must name (the activity, its persistence or
   output, the host, the account).
-- acceptable: everything the operator session touched; naming these is not
-  penalised, naming anything else is.
+- acceptable: every process in the operator session, the accounts they ran
+  as, and everything they touched; naming these is not penalised, naming
+  anything else is.
+
+Benign tasks have anchors (the entities that prove legitimacy) and a neutral
+set: the trigger's process lineage up to the highest anchor, the host and the
+accounts on that lineage. Citing a neutral id neither earns nor loses credit.
 """
 
 from __future__ import annotations
@@ -452,6 +457,7 @@ class Task:
     core: set[str]
     acceptable: set[str]
     evidence_fields: dict[str, set[str]]  # benign: anchor id -> property fields that prove it
+    neutral: set[str] = field(default_factory=set)  # benign: lineage ids, cited without effect
 
 
 class ScenarioError(ValueError):
@@ -515,7 +521,7 @@ def build_task(sc: Scenario, g: Graph) -> Task:
             if not hits:
                 raise ScenarioError(f"{sc.id}: core selector matched nothing: {sel}")
             core.update(hits)
-        acceptable = set(core) | _touched(g, session | core)
+        acceptable = set(core) | session | _accounts(g, session) | _touched(g, session | core)
         return Task(sc, g, alert, core, acceptable, {})
 
     # benign: anchors that legitimately prove the activity, with their real fields
@@ -540,7 +546,16 @@ def build_task(sc: Scenario, g: Graph) -> Task:
             if anc is None:
                 raise ScenarioError(f"{sc.id}: no {a} above the trigger")
             anchors[anc] = _fields(g.entities[anc])
-    return Task(sc, g, alert, set(anchors), set(anchors), anchors)
+    start = g.relations[trigger_rel]["source"] if trigger_rel else trig
+    chain = [start]
+    while len(chain) < 16 and (p := g.parent(chain[-1])) is not None and p not in chain:
+        chain.append(p)
+    top = max((i for i, eid in enumerate(chain) if eid in anchors), default=0)
+    lineage = set(chain[: top + 1])
+    neutral = lineage | _accounts(g, lineage) | ({host} if host else set())
+    if trigger_rel:
+        neutral |= {trigger_rel, g.relations[trigger_rel]["target"]}
+    return Task(sc, g, alert, set(anchors), set(anchors), anchors, neutral - set(anchors))
 
 
 def _fields(obj: dict[str, Any]) -> set[str]:
@@ -559,6 +574,10 @@ def _ancestor(g: Graph, eid: str, image: str) -> str | None:
             return p
         p = g.parent(p)
     return None
+
+
+def _accounts(g: Graph, procs: set[str]) -> set[str]:
+    return {u for p in procs if (u := g.entities.get(p, {}).get("user_entity_id")) in g.entities}
 
 
 def _host_of(g: Graph, eid: str) -> str | None:
@@ -594,6 +613,7 @@ TOUCH = {
     "accessed_process",
     "created_scheduled_task",
     "win_process_create",
+    "linux_process_create",
 }
 
 
