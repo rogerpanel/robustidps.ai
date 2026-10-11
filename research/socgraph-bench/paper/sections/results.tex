@@ -1,0 +1,72 @@
+\section{Results and Analysis}
+\label{sec:results}
+
+\subsection{Pilot: Windows tasks}
+\label{sec:pilot}
+Table~\ref{tab:pilot} reports the pilot on the \ResPilotTasks{} Windows tasks. All tasks completed and every
+verdict was correct (accuracy \ResPilotAccuracy{}): the eight attacks were judged malicious and the three
+benign look-alikes benign, so the false-positive and false-negative rates were both zero. Mean quality was
+\ResPilotQuality{}, mean efficiency \ResPilotEfficiency{} and mean reward \ResPilotReward{}, with
+\ResPilotCalls{} tool calls per task (range \ResPilotMinCalls{}--\ResPilotMaxCalls{}). The whole run took
+\ResPilotWall\,s of wall-clock time with four tasks in parallel.
+
+\input{tables/results_pilot}
+
+\paragraph{Where reward is lost (RQ2)} Since $R=Q(0.8+0.2E)$, the gap between the mean reward and its maximum
+of 1 decomposes into a quality part, $\overline{1-Q}=0.068$, and an efficiency part,
+$\overline{0.2\,Q(1-E)}=0.063$. Efficiency therefore costs almost as much as imperfect artifacts.
+Fig.~\ref{fig:pilotcalls} shows why: the agent used 80 tool calls against a target of 49 (the sum of
+$n^\star+1$), and 10 of 11 tasks exceeded their target. The largest overruns were the HTA execution (12 calls
+against a target of 6), the Python HTTP server (11 against 5) and the service-configuration change (10 against
+6), all multi-step chains in which the agent fetched relations one at a time. Benign tasks were cheaper
+(4.7 calls on average, efficiency 0.73) than malicious ones (8.3 calls, efficiency 0.63), except the Group
+Policy service host (7 calls against a target of 3), where the agent kept collecting evidence after the parent
+process alone settled the question.
+
+\paragraph{Quality} Quality was 1.0 on three tasks and at least 0.85 on all. With a correct verdict, the
+score leaves only two ways to lose quality: for malicious tasks, missing core entities or naming entities
+outside the acceptable set; for benign tasks, citing only some anchors or non-decisive fields. The per-call
+traces of the study runs attribute these losses per task.
+
+\input{figures/pilot_calls}
+
+\subsection{Full study and ablation (RQ1, RQ3, RQ4)}
+\label{sec:study}
+\ifnum\ResStudyAvailable=1
+Table~\ref{tab:ablation} reports the full configuration and the five ablations over \ResStudyTasks{} tasks
+with \ResStudyRepeats{} repeats per configuration. The full configuration reached mean quality
+\ResFullQuality{}, efficiency \ResFullEfficiency{} and reward \ResFullReward{}, with verdict accuracy
+\ResFullAccuracy{}, a false-positive rate of \ResFullFPR{} and a false-negative rate of \ResFullFNR{}, at
+\ResFullCalls{} tool calls per task. Fig.~\ref{fig:ablation} compares quality and efficiency across
+configurations; Table~\ref{tab:breakdown} breaks results down by operating system and expected verdict, and
+Table~\ref{tab:pertask} gives the per-task matrix.
+% Interpretation of the ablation deltas goes here once the study results are in.
+\input{figures/ablation_plot}
+\else
+The full study runs every configuration of \S\ref{sec:experiments} three times on all 21 tasks. Its results
+are generated into Tables~\ref{tab:ablation}--\ref{tab:pertask} and a comparison figure by the release
+script from the run folders, and this subsection will report them.
+\fi
+
+\input{tables/results_ablation}
+\input{tables/results_breakdown}
+\input{tables/results_per_task}
+
+\subsection{Engineering observations}
+\label{sec:engineering}
+
+\paragraph{Policy-compatible rationale fields} With the runtime's field names exposed as they were, every task
+of an initial mock run was declined at its first request with the refusal category
+\texttt{reasoning\_extraction}. After presenting the fields as \texttt{purpose} and \texttt{summary} and removing the instruction to
+state hypotheses from the first message (\S\ref{sec:alias}), all tasks completed, and the runtime still
+received its required \texttt{reasoning} fields.
+
+\paragraph{Parallel execution} On a simulated runtime that allowed two tasks in flight, the agent was started
+with four workers. It learned the limit from the first refused leases (the log shows the limit lowered first
+to three, then to two, as refusals arrived), never ran more than two tasks at once afterwards, and completed
+all 16 tasks of that run in 112\,s with the real model, without a failed task.
+
+\paragraph{Benign twins} The two Linux service tasks share an identical alert (``Service state changed by
+systemctl as root'') and graph, and differ only in the lineage of the triggering process: an operator's login
+shell through \texttt{sudo} versus the package manager's post-installation script. They test whether an agent
+reads provenance rather than the alert text; results for this pair appear in Table~\ref{tab:pertask}.

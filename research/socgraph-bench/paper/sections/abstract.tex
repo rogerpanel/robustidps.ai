@@ -1,0 +1,32 @@
+\begin{abstract}
+Security operations centres (SOCs) receive far more alerts than analysts can investigate, and most of them
+turn out to be benign. Investigating an alert means walking the evidence behind it: which process started
+which, what it wrote, where it connected and under which account. Large language model (LLM) agents can
+perform this walk through tools, but every lookup costs time and money, and an agent may overspend, issue
+malformed calls or cite evidence it never saw. We present a grounded, budget-aware LLM agent for
+provenance-graph alert investigation and \bench, a cross-platform benchmark built from public attack
+telemetry. The agent derives its tools from the runtime's advertised catalog and routes every call through
+local safeguards (a response cache, schema validation, a grounding check that flags submitted entities never
+observed in the evidence, and soft and hard call budgets with deadline control), so that avoidable calls are
+never spent. It runs tasks in parallel under a learned runtime limit and keeps free-text rationale fields
+compatible with model-side policies that decline requests to externalise internal reasoning.
+\bench converts Windows Sysmon recordings (OTRF Security-Datasets) and Sysmon-for-Linux recordings
+(Splunk attack\_data) into 21 evidence-graph tasks: 15 executions of distinct ATT\&CK techniques and
+6 benign look-alikes recorded on the same hosts, including twins that share their alert with an attack,
+each with selector-defined ground truth and a quality and efficiency score. In a pilot on the
+\ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent reached the correct verdict on every task
+(8 malicious, 3 benign) with mean quality \ResPilotQuality{} and mean efficiency \ResPilotEfficiency{}
+(\ResPilotCalls{} tool calls per task).%
+\ifnum\ResStudyAvailable=1
+\ On all of \bench, the full configuration reached mean quality \ResFullQuality{}, verdict accuracy
+\ResFullAccuracy{} and \ResFullCalls{} tool calls per task, and an ablation over
+\ResStudyConfigs{} configurations quantifies the contribution of each safeguard.
+\else
+\ We further define an ablation protocol that isolates each safeguard's contribution.
+\fi
+We release the agent, the benchmark, run traces and the tooling that regenerates every table in this paper.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Security operations, alert triage, provenance graphs, large language model agents, tool use, benchmark, ablation study.
+\end{IEEEkeywords}

@@ -1,0 +1,26 @@
+% Benchmark construction pipeline (TikZ). Included by sections/benchmark.tex.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw, rounded corners=2pt, align=center, minimum width=23mm, minimum height=7mm, inner sep=2pt, fill=white},
+  srcbox/.style={box, fill=gray!10},
+  stepbox/.style={box, fill=cA!8},
+  outbox/.style={box, fill=cB!10},
+  arr/.style={-{Latex[length=1.6mm]}, thick},
+  node distance=4mm and 5mm]
+\node[srcbox] (o) {OTRF Security-Datasets\\Windows Sysmon/Security};
+\node[srcbox, right=of o] (s) {Splunk attack\_data\\Sysmon for Linux};
+\node[stepbox, below=of $(o)!0.5!(s)$] (p) {Parse (JSON / XML, DTD refused)};
+\node[stepbox, below=of p] (f) {Drop collector self-telemetry};
+\node[stepbox, below=of f] (g) {Graph builder: entities, relations};
+\node[stepbox, below=of g] (sel) {Scenario selectors: alert,\\core / acceptable / anchors};
+\node[outbox, below left=4mm and -9mm of sel] (t) {\texttt{tasks/}: alert + graph};
+\node[outbox, below right=4mm and -9mm of sel] (a) {\texttt{answers/}: ground truth};
+\draw[arr] (o) -- (p); \draw[arr] (s) -- (p);
+\draw[arr] (p) -- (f); \draw[arr] (f) -- (g); \draw[arr] (g) -- (sel);
+\draw[arr] (sel) -- (t); \draw[arr] (sel) -- (a);
+\end{tikzpicture}
+\caption{Construction of \bench from public recordings. Agents see only \texttt{tasks/}; the scorer uses \texttt{answers/}.}
+\label{fig:pipeline}
+\end{figure}

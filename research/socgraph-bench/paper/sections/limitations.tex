@@ -1,0 +1,46 @@
+\section{Limitations and Threats to Validity}
+\label{sec:limitations}
+
+\paragraph{Benchmark scale and realism} \bench has 21 tasks recorded in lab environments, one technique per
+recording, with modest benign background. Real enterprise telemetry is larger, noisier and contains
+multi-stage campaigns across hosts; results here do not establish performance at that scale. The benchmark
+is designed to be extended: the selector-based ground truth and the graph builder apply to further OTRF and
+Splunk recordings, and to other corpora~\cite{darpa_tc,landauer2023maintainable,grimmer2023lidds}.
+
+\paragraph{Ground-truth construction} Ground truth follows a stated rule (the operator session is the root of
+the activity, with explicit core artefacts) applied through selectors we wrote. Other analysts could reasonably
+draw the core set differently, for example including or excluding a tool binary. Ground truth for the DARPA
+datasets shows how much label granularity can vary~\cite{jiang2025orthrus,wang2022threatrace}, and evaluation
+choices can change conclusions about detectors~\cite{bilot2025simpler}. We publish
+the selectors and the answer files so that the rule can be inspected and changed.
+
+\paragraph{Scoring} The scorer follows the published structure of the competition's scoring but its weights
+are ours. Different weights change absolute numbers; comparisons between configurations on the same scorer
+remain meaningful.
+
+\paragraph{Models and variance} The pilot is a single run with one model. LLM outputs vary between runs, and
+the study therefore uses repeated runs; conclusions about other models require running them through the
+OpenAI-compatible driver.
+
+\paragraph{Training-data contamination} OTRF Security-Datasets and Splunk attack\_data are public, so models
+may have seen the raw recordings during training~\cite{sainz2023contamination}. The tasks restructure them
+into graphs with opaque identifiers and new alerts, which limits but does not exclude memorisation effects.
+
+\paragraph{Prompt injection through telemetry} Command lines, file paths and other fields can contain
+attacker-controlled text that an LLM agent reads. \bench does not include adversarial content of this kind;
+evaluating agents against injected instructions in telemetry is important future work.
+
+\paragraph{No official competition results} We built the agent for the BlueSec1 runtime, but did not obtain
+results on the official competition tasks; all results here are on \bench with our scorer.
+
+\paragraph{Methodology} Following common pitfalls in security machine learning~\cite{arp2022dosdonts}, we avoid
+tuning on the evaluation tasks during the study (the prompt and safeguards were fixed before the study runs),
+report the class balance, and break results down per class and platform.
+
+\section{Ethics and Availability}
+\label{sec:ethics}
+\bench is derived solely from public, permissively licensed recordings made by their publishers in lab
+environments; it contains lab host and account names, not personal data. The agent is defensive: it reads
+telemetry and recommends responses, and takes no action on systems. Code (MIT), the benchmark (with the
+upstream MIT and Apache-2.0 licences), run traces and the scripts that regenerate every table are released
+with the paper.

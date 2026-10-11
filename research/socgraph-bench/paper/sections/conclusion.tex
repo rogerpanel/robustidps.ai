@@ -1,0 +1,16 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented an LLM agent that investigates security alerts by walking provenance evidence under a tool-call
+budget, and \bench, a cross-platform benchmark of 21 investigation tasks built from public Windows and Linux
+attack telemetry, with benign look-alikes and selector-defined ground truth. The agent's local safeguards (a
+response cache, schema validation, a grounding check and budgets) resolve avoidable mistakes before they cost a
+call; parallel workers learn the runtime's limit; and rationale fields are presented in a form compatible with
+model-side policies. In a pilot on the Windows tasks, every verdict was correct and wasted calls were the
+largest single source of lost reward, which motivates the ablation protocol we define and release.
+\ifnum\ResStudyAvailable=1
+On the full benchmark, the full configuration reached mean quality \ResFullQuality{} at \ResFullCalls{} calls
+per task, and the ablation quantifies each component's contribution.
+\fi
+Future work includes larger, multi-host scenarios, adversarial telemetry, more models, and human-in-the-loop
+studies with SOC analysts.

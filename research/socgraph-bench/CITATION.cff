@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software or benchmark, please cite it as below, and cite OTRF Security-Datasets and Splunk attack_data."
+title: "SOCGraph: LLM agents for provenance-graph alert investigation (code, SOCGraph-21 benchmark and results)"
+authors:
+  - family-names: Anaedevha
+    given-names: Roger Nick
+    affiliation: "National Research Nuclear University MEPhI"
+version: "1.0.0"
+date-released: "2026-10-11"
+license: MIT
+keywords:
+  - security operations
+  - alert triage
+  - provenance graph
+  - LLM agents
+  - benchmark
+  - ablation

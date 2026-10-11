@@ -1,0 +1,97 @@
+\section{Background and Related Work}
+\label{sec:background}
+
+\subsection{Provenance graphs and causality analysis}
+Endpoint sensors record system activity as events between subjects (processes) and objects (files, sockets,
+registry keys, pipes). Joined by causal relations, these events form a provenance graph. Early systems used
+the graph to reconstruct attacks in real time from audit data, with tag propagation and attack-pattern rules:
+SLEUTH~\cite{hossain2017sleuth} and HOLMES~\cite{milajerdi2019holmes}, which maps low-level events to
+ATT\&CK-style tactics, and POIROT~\cite{milajerdi2019poirot}, which aligns observed graphs with threat-intelligence
+query graphs. To fight alert fatigue, NoDoze~\cite{hassan2019nodoze} ranks alerts by the rarity of their
+causal context, RapSheet~\cite{hassan2020rapsheet} builds tactical provenance graphs from endpoint
+detection alerts, and RAPID~\cite{liu2022rapid} prioritises alert investigation in real time using context.
+DepImpact~\cite{fang2022depimpact} propagates dependency impact backwards to focus investigations on the
+entities most relevant to an alert. A second line learns benign behaviour and flags deviations: StreamSpot~\cite{manzoor2016streamspot}
+and UNICORN~\cite{han2020unicorn} detect anomalous graphs, ProvDetector~\cite{wang2020provdetector} embeds
+causal paths, ShadeWatcher~\cite{zeng2022shadewatcher} adapts recommendation models to system entities,
+ThreaTrace~\cite{wang2022threatrace} detects anomalous nodes, and KAIROS~\cite{cheng2024kairos},
+FLASH~\cite{rehman2024flash}, MAGIC~\cite{jia2024magic}, NodLink~\cite{li2024nodlink} and
+ORTHRUS~\cite{jiang2025orthrus} use graph neural networks and graph representation learning, with growing
+attention to explaining detections and to reducing false positives. ATLAS~\cite{alsaheel2021atlas} learns
+attack sequences from causal graphs to reconstruct attack stories. Inam et al.~\cite{inam2023sok} systematise
+this literature and its evaluation practice; Bilot et al.~\cite{bilot2025simpler} re-evaluate recent
+detectors under a common framework and find that simpler methods are often competitive, and Dong et
+al.~\cite{dong2023arewethereyet} contrast academic systems with the needs of industrial endpoint detection
+and response. Closest to our use of language models, OCR-APT~\cite{aly2025ocrapt} combines subgraph anomaly
+detection with LLMs to reconstruct attack stories from audit logs.
+
+These systems \emph{detect}; their output is an alert, a ranked list or a subgraph. Our work starts where
+they stop: given an alert, an agent investigates the surrounding evidence through a constrained query
+interface and produces a decision an analyst can act on (a verdict plus the entities to respond to, or the
+evidence that the activity is legitimate), while paying for every query.
+
+\subsection{Datasets for host-based detection}
+Provenance research has relied on the DARPA Transparent Computing engagements~\cite{darpa_tc} and the
+OpTC dataset~\cite{darpa_optc}, which record multi-day red-team campaigns on instrumented hosts. They are
+large (tens to hundreds of gigabytes per host) and ship ground truth as prose reports, so research groups
+have published their own node-level labels with diverging granularity~\cite{jiang2025orthrus,wang2022threatrace,pidsmaker_repo}.
+Syscall-level datasets such as ADFA-LD~\cite{creech2013adfa} and LID-DS~\cite{grimmer2023lidds} label sequences but not
+entities with file and network context; the AIT log datasets~\cite{landauer2023maintainable} label log lines in
+simulated enterprise networks, and the LANL dataset~\cite{kent2016lanl} records authentication and process
+events across an enterprise with red-team labels. Practitioner corpora record individual techniques with
+real sensors: OTRF Security-Datasets~\cite{otrf_securitydatasets} (Windows Sysmon and Security logs
+from ATT\&CK simulations) and Splunk attack\_data~\cite{splunk_attackdata} (including Sysmon for
+Linux~\cite{microsoft_sysmonforlinux}), each labelled per recording with an ATT\&CK technique~\cite{strom2018attack}.
+\bench builds on the latter: the recordings are small, permissively licensed and carry real benign
+background, and we add task-level ground truth on top.
+
+\subsection{SOC operations and alert triage}
+Interview studies of SOC analysts report that the large majority of alerts are false positives and that
+confirming benign activity dominates their work~\cite{alahmadi2022falsepositives}; mismatches between SOC
+managers' and analysts' views of what matters are documented in~\cite{kokulu2019soc}, how SOCs manage
+detection rules and the decisions around them in~\cite{vermeer2023alertalchemy}, and the human cost of
+repetitive triage in~\cite{sundaramurthy2015burnout}. These findings motivate two design choices in our
+benchmark: benign tasks are first-class (one in three tasks), and efficiency, not only accuracy, is scored.
+
+\subsection{LLM agents and tool use}
+ReAct~\cite{yao2023react} interleaves reasoning traces with actions; Toolformer~\cite{schick2023toolformer}
+teaches models to call tools; Reflexion~\cite{shinn2023reflexion} adds verbal self-feedback; chain-of-thought
+prompting~\cite{wei2022cot} improves multi-step reasoning. Agent benchmarks evaluate tool use in
+environments~\cite{liu2024agentbench}, software repositories~\cite{jimenez2024swebench}, policy-constrained
+customer-service dialogues~\cite{yao2025taubench} and function calling at scale~\cite{patil2025bfcl}. Our setting differs in that the environment is an
+evidence graph, the cost of each action is scored, and ground truth includes the entities a response must
+name. Because current models can reason internally before acting, we keep the visible per-call rationale
+short (a statement of what each call checks) and read the model's own summarised reasoning separately.
+
+\subsection{LLMs for security}
+LLM security evaluations have focused on model risks and capabilities: the CyberSecEval
+suites~\cite{bhatt2023cyberseceval,bhatt2024cyberseceval2,wan2024cyberseceval3} measure risks such as
+insecure-code generation and cyberattack helpfulness; CTIBench~\cite{alam2024ctibench} evaluates
+cyber threat intelligence knowledge and reasoning; Cybench~\cite{zhang2025cybench} and NYU CTF
+Bench~\cite{shao2024nyuctf} evaluate capture-the-flag solving, and PentestGPT~\cite{deng2024pentestgpt}
+automates penetration testing. Surveys map LLM use across security tasks~\cite{xu2025llm4security}. Closest to our setting,
+ExCyTIn-Bench~\cite{wu2026excytin} evaluates LLM agents on cyber threat investigation, answering
+investigation questions by querying security logs. \bench differs in four respects: its evidence is an
+endpoint provenance graph built from public Windows and Linux recordings and accessed through a fixed graph
+tool interface; each task ends in a decision (a verdict with response artifacts, or legitimacy evidence);
+a third of the tasks are benign look-alikes, including twins that share an alert with an attack; and every
+tool call counts against the score. We also study agent design through ablation.
+Table~\ref{tab:positioning} summarises the positioning against the main lines of work.
+
+\begin{table}[t]
+\centering\footnotesize
+\caption{Positioning against related lines of work.}
+\label{tab:positioning}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & Graph & Agent & Benign & Cost \\
+ & evidence & investigates & tasks & scored \\
+\midrule
+Provenance detection~\cite{hossain2017sleuth,cheng2024kairos,jiang2025orthrus} & \checkmark & -- & \checkmark & -- \\
+Agent benchmarks~\cite{liu2024agentbench,jimenez2024swebench} & -- & \checkmark & -- & -- \\
+LLM security benchmarks~\cite{bhatt2023cyberseceval,zhang2025cybench} & -- & partly & -- & -- \\
+\textbf{This work} & \checkmark & \checkmark & \checkmark & \checkmark \\
+\bottomrule
+\end{tabular}}
+\end{table}

@@ -1,0 +1,44 @@
+% Agent architecture (TikZ). Included by sections/method.tex.
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  box/.style={draw, rounded corners=2pt, align=center, text width=#1, inner sep=3pt, fill=white, minimum height=9mm},
+  box/.default=30mm,
+  arr/.style={-{Latex[length=2mm]}, thick},
+  darr/.style={-{Latex[length=2mm]}, thick, dashed},
+  lab/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+
+% top row
+\node[box=32mm, fill=gray!10] (rt) at (0,0) {Investigation runtime\\{\scriptsize competition or local:}\\{\scriptsize task queue, evidence graph}};
+\node[box=32mm] (cat) at (5.6,0) {Tool catalog\\{\scriptsize advertised per task;}\\{\scriptsize normalised, aliased}};
+\node[box=34mm, fill=cA!8] (llm) at (11.2,0) {LLM driver\\{\scriptsize Claude (thinking, effort, cache)}\\{\scriptsize or OpenAI-compatible}};
+
+% middle row
+\node[box=26mm, fill=gray!10] (pool) at (0,-2.6) {Worker pool\\{\scriptsize learned task limit}};
+\node[box=58mm, fill=cA!8] (inv) at (5.6,-2.6) {Investigation core\\{\scriptsize \tool{execute}(tool, args) with local safeguards}};
+\node[box=26mm, fill=gray!10] (tr) at (11.6,-4.5) {Traces and metrics\\{\scriptsize per call, per run}};
+
+% safeguards
+\node[box=19mm] (c1) at (2.45,-4.5) {Response cache};
+\node[box=19mm] (c2) at (4.55,-4.5) {Schema validation};
+\node[box=19mm] (c3) at (6.65,-4.5) {Grounding check};
+\node[box=19mm] (c4) at (8.75,-4.5) {Budget, deadline};
+\foreach \c in {c1,c2,c3,c4} \draw[thick, gray] (\c.north) -- (\c.north |- inv.south);
+
+% flows
+\draw[arr] (rt) -- node[lab, above=1pt]{alert, tool catalog} (cat);
+\draw[arr] (cat) -- node[lab, above=1pt]{tool schemas} (llm);
+\draw[arr] ([xshift=-6mm]llm.south) |- node[lab, pos=0.3, right=1pt]{tool call} ([yshift=2mm]inv.east);
+\draw[arr] ([yshift=-2mm]inv.east) -| node[lab, pos=0.75, right=1pt]{result or local feedback} ([xshift=6mm]llm.south);
+\draw[darr] ([xshift=-14mm]inv.north) |- node[lab, pos=0.35, left=1pt]{spent calls only} ([yshift=-2mm]rt.east);
+\draw[arr] (pool) -- (inv);
+\draw[arr] (c4.east) -- (tr.west);
+\end{tikzpicture}
+\caption{Architecture. The runtime advertises a tool catalog with each task; the agent normalises it into
+model tool definitions. Every tool call passes through the investigation core, whose local safeguards answer
+repeated, malformed, ungrounded or over-budget calls without spending a runtime call; only the remaining calls
+reach the runtime (dashed). A worker pool runs tasks in parallel up to the runtime's learned limit, and every
+call and outcome is traced.}
+\label{fig:arch}
+\end{figure*}

@@ -1,0 +1,44 @@
+\section{Experimental Setup}
+\label{sec:experiments}
+
+\subsection{Model and agent configuration}
+All runs use Claude Opus 5.5 (\texttt{claude-opus-5-5}) through the Anthropic Messages API with adaptive
+thinking and effort level \emph{high}, a soft budget of 12 tool calls, a hard cap of 30, at most 45 model turns
+per task, and tool results truncated at 24{,}000 characters. Four tasks run in parallel. The local runtime
+serves \bench through the same client interface as the competition runtime and scores each submission with
+the scorer of \S\ref{sec:problem}. The optimum $n^\star$ is set per task when the task is defined, as the
+length of a minimal investigation path to the ground truth (2 to 5 calls, including the submission).
+
+\subsection{Configurations}
+The \emph{full} configuration enables every component of \S\ref{sec:method}. Five ablations each switch off
+one component:
+\begin{itemize}
+\item \emph{no cache}: repeated calls are sent to the runtime again;
+\item \emph{no validation}: arguments are not checked locally;
+\item \emph{no grounding}: submissions citing unseen identifiers are sent without warning;
+\item \emph{no budget}: no call-count feedback and no hard cap (the turn limit still applies);
+\item \emph{no method}: the investigation-method prompt is replaced by a minimal prompt stating only the tool
+rules (Appendix~\ref{app:prompts}).
+\end{itemize}
+Because LLM outputs vary between runs, each configuration is run three times on all 21 tasks, and we report
+means with standard deviations across repeats. A single command runs the full configuration followed by the
+five ablations on the same tasks.
+
+\subsection{Metrics}
+Per task we record quality $Q$, efficiency $E$, reward $R$, tool calls spent, calls answered by the cache,
+calls refused locally, wall-clock time and tokens (input, output, cache reads). Aggregates per configuration:
+mean $Q$, $E$, $R$ and calls; verdict accuracy; the false-positive rate (benign tasks judged malicious) and the
+false-negative rate (malicious tasks judged benign); each also broken down by operating system and by expected
+verdict. All figures in \S\ref{sec:results} are regenerated from the run folders by a script in the release.
+
+\subsection{Pilot}
+Before the Linux tasks existed, we ran the full configuration once on the \ResPilotTasks{} Windows tasks (then
+\bench v0). The pilot used the same model, prompt and scorer; ground truth for accounts was refined
+afterwards (\S\ref{sec:benchmark}), which leaves the core sets of these tasks naming the same operator account.
+
+\subsection{Implementation and testing}
+The agent is written in Python and installs into the competition's public reference client. Its test suite
+(41 tests) covers the catalog normalisation, every safeguard and ablation switch, the field aliasing, parallel
+execution against a simulated runtime with a task limit (including through the reference client's own
+transport layer), deadline handling, the graph builder on Windows and Linux events, scoring, the benchmark
+pack round trip and a scripted run on the real recordings.

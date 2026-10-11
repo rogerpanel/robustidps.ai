@@ -1,0 +1,34 @@
+\section{Prompts}
+\label{app:prompts}
+Fig.~\ref{fig:prompt} reproduces the investigation-method system prompt used by the full configuration, and
+Fig.~\ref{fig:minprompt} the minimal prompt used by the \emph{no method} ablation. Both are taken verbatim from
+the released code (\texttt{agent/robust/prompt.py}). Field names refer to the aliases presented to the model
+(\S\ref{sec:alias}).
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}{0.92\textwidth}
+\VerbatimInput[fontsize=\scriptsize, frame=single, framesep=2mm]{prompts/method_prompt.txt}
+\end{minipage}
+\caption{Investigation-method system prompt (full configuration).}
+\label{fig:prompt}
+\end{figure*}
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}{0.92\textwidth}
+\VerbatimInput[fontsize=\scriptsize, frame=single, framesep=2mm]{prompts/minimal_prompt.txt}
+\end{minipage}
+\caption{Minimal system prompt (\emph{no method} ablation).}
+\label{fig:minprompt}
+\end{figure*}
+
+\section{Reproducing the tables}
+\label{app:repro}
+Every table and plot in \S\ref{sec:benchmark} and \S\ref{sec:results} is generated from the released files:
+\begin{itemize}
+\item \texttt{scripts/benchmark\_to\_tex.py} writes the task and type tables and the benchmark statistics from
+the benchmark zip;
+\item \texttt{scripts/results\_to\_tex.py} writes the pilot, ablation, breakdown and per-task tables, the
+figure data and the numbers quoted in the text from the run folders.
+\end{itemize}

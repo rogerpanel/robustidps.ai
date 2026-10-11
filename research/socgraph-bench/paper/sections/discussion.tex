@@ -1,0 +1,29 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Cost is a first-class objective} In the pilot, wasted tool calls cost almost as much reward as
+imperfect answers. Accuracy-only evaluation would hide this. For a SOC, every lookup has a latency and,
+with metered model APIs, a price; budgets and spending discipline belong in the agent, and efficiency belongs
+in the benchmark.
+
+\paragraph{Local safeguards are cheap and model-agnostic} The cache, validation, grounding check and budgets
+need no model change and run in constant time per call. They turn several LLM failure modes (repeating
+requests, malformed arguments, invented identifiers, unbounded exploration) into local feedback instead of
+spent calls or wrong answers. Because they sit between the model and the runtime, they apply unchanged to any
+model behind the driver interface. The ablation protocol measures what each buys; we expect the grounding
+check to matter most for quality and the budget and cache for efficiency, and the study tests these
+expectations.
+
+\paragraph{Benign tasks deserve equal weight} Clearing benign activity is most of the work in real SOCs. A
+third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An
+agent that over-reports would show a high false-positive rate on exactly the tasks where analysts most need help.
+
+\paragraph{Contracts and model policies can conflict} Runtimes fix their interfaces, and model providers fix
+their usage policies. A field named \texttt{reasoning}, described as a trace of the model's thinking, was
+enough to have every request declined. Agent builders should treat rationale fields as statements of action
+(what a call checks) and read model reasoning from the channels the provider offers for it.
+
+\paragraph{Towards deployment} The same agent and safeguards run against the competition runtime, the local
+benchmark and, through the BlueSec Runs view of the RobustIDPS platform, a human reviewer who can inspect every
+call, its stated purpose and the submission. That reviewability is a prerequisite for using such an agent to
+assist, rather than replace, an analyst.
