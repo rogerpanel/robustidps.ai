@@ -1,18 +1,29 @@
 \section{Discussion}
 \label{sec:discussion}
 
-\paragraph{Cost is a first-class objective} In the pilot, wasted tool calls cost almost as much reward as
-imperfect answers. Accuracy-only evaluation would hide this. For a SOC, every lookup has a latency and,
+\paragraph{Cost is a first-class objective} In the Windows pilot, wasted tool calls cost almost as much reward
+as imperfect answers, and on the full benchmark they still cost about 0.06 of reward. Accuracy-only evaluation would hide this. For a SOC, every lookup has a latency and,
 with metered model APIs, a price; budgets and spending discipline belong in the agent, and efficiency belongs
 in the benchmark.
 
-\paragraph{Local safeguards are cheap and model-agnostic} The cache, validation, grounding check and budgets
-need no model change and run in constant time per call. They turn several LLM failure modes (repeating
-requests, malformed arguments, invented identifiers, unbounded exploration) into local feedback instead of
-spent calls or wrong answers. Because they sit between the model and the runtime, they apply unchanged to any
-model behind the driver interface. The ablation protocol measures what each buys; we expect the grounding
-check to matter most for quality and the budget and cache for efficiency, and the study tests these
-expectations.
+\paragraph{Prompted method beats mechanical guards, for a strong model} The cache, validation, grounding
+check and budgets need no model change, run in constant time per call and apply unchanged to any model behind
+the driver interface. We expected the grounding check to matter for quality and the budget and cache for
+efficiency. With Claude Opus 5.5 none of them moved reward measurably: the model seldom repeated calls, sent
+malformed arguments or ran into the budget, so the guards had little to act on. What did move efficiency was
+the investigation method in the prompt (start from the trigger, keep competing hypotheses, stop when they are
+settled), which cut calls by about 30\% at unchanged quality. For practitioners the order of work is
+therefore: write down the analyst's method first, then add guards as insurance. The guards remain worth
+keeping; they cost nothing measurable, and their value lies in the cases this study rarely produced: weaker or
+cheaper models, adversarial content in telemetry, and runtimes that do not validate their inputs (the one
+malformed call that reached the v1.0 local runtime crashed it, \S\ref{sec:benchmark}). Testing them there needs
+a benchmark that provokes those failures, which \bench does not yet do.
+
+\paragraph{Variance is concentrated in ambiguous tasks} Run-to-run variation hardly affected tasks with a clear
+answer, but one ambiguous task flipped between verdicts and alone produced reward differences of the size one
+might attribute to a component. Ablations of LLM agents therefore need repeats, paired per-task comparisons and
+a check of which tasks carry a difference; mean-reward tables alone would have credited three safeguards with
+harm they did not do.
 
 \paragraph{Benign tasks deserve equal weight} Clearing benign activity is most of the work in real SOCs. A
 third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An

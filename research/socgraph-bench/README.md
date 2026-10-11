@@ -15,9 +15,27 @@ response. This repository contains:
 |---|---|
 | [`agent/`](agent/) | An LLM investigation agent that walks an evidence graph through a small tool interface (`search`, `get_entity`, `get_relation`, `finish_investigation`) under a tool-call budget. Local safeguards (response cache, schema validation, grounding check, budgets, deadline) avoid spending calls on mistakes; each can be switched off for ablation. |
 | [`benchmark/`](benchmark/) | **SOCGraph-21**: 21 investigation tasks built from public attack telemetry: 11 Windows tasks from OTRF Security-Datasets and 10 Linux tasks from Splunk attack_data (Sysmon for Linux). 15 real attacks and 6 real benign look-alikes recorded on the same machines, with ground truth. One 0.55 MB zip. |
-| [`results/`](results/) | The pilot run (11 Windows tasks) and, once run, the full study and ablation runs. |
-| [`scripts/`](scripts/) | `results_to_tex.py`: turns run folders into the paper's tables, figure data and macros. |
+| [`results/`](results/) | The pilot run (11 Windows tasks) and the study: three repeats of the ablation suite on all 21 tasks (17 runs). |
+| [`scripts/`](scripts/) | `results_to_tex.py` turns run folders into the paper's tables, figure data and macros (with paired bootstrap intervals); `console_to_runs.py` builds run folders from console output; `benchmark_to_tex.py` the benchmark tables. |
 | [`paper/`](paper/) | The manuscript as an Overleaf-ready LaTeX project (IEEEtran). |
+
+## Results at a glance
+
+Claude Opus 5.5, effort high, SOCGraph-21 v1.1, three repeats (`results/`, paper Section VII):
+
+| Configuration | Reward | Quality | Efficiency | Verdict accuracy | False positives | Calls/task |
+|---|---|---|---|---|---|---|
+| Full agent | 0.775 ± 0.012 | 0.836 | 0.626 | 97% (61/63) | 0 | 8.22 |
+| No investigation-method prompt | 0.737 ± 0.022 | 0.830 | 0.432 | 94% (59/63) | 0 | 11.70 |
+
+- The investigation-method prompt is what makes the agent efficient: without
+  it, more calls on 20 of the 20 tasks where the count differed (sign test
+  p < 0.001), at unchanged quality.
+- Turning off the cache, validation, grounding check or budget had no
+  measurable effect with this model (paired differences within ±0.005
+  excluding one unstable task, all 95% intervals containing zero).
+- All verdict errors of the full agent were on one ambiguous task: an
+  operator's service stop that shares its alert with a benign twin.
 
 ## Quick start
 
@@ -56,7 +74,7 @@ Copy the run folders from `bluesec1-agent/traces/` into `results/study/`
 
 ```bash
 python scripts/results_to_tex.py --pilot results/pilot-2026-10-10 \
-    --runs "results/study/*/" --baseline full --out paper
+    --runs "results/study/*/" --baseline full --sensitivity-exclude linux-service-stopped --out paper
 ```
 
 Then upload `paper/` to Overleaf (or run `latexmk -pdf main.tex` in `paper/`).

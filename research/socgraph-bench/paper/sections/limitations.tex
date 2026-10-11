@@ -22,8 +22,11 @@ are ours. Different weights change absolute numbers; comparisons between configu
 remain meaningful.
 
 \paragraph{Models and variance} The pilot is a single run with one model. LLM outputs vary between runs, and
-the study therefore uses repeated runs; conclusions about other models require running them through the
-OpenAI-compatible driver.
+the study therefore uses three repeats per configuration, two of them with per-task results; with these, paired
+task-level intervals resolve reward differences of about $\pm0.02$. Smaller component effects would need more
+repeats or more tasks. All results are for one model at one effort level; the conclusion that the safeguards
+do not matter may not hold for weaker models, which is the next experiment the OpenAI-compatible driver
+enables.
 
 \paragraph{Training-data contamination} OTRF Security-Datasets and Splunk attack\_data are public, so models
 may have seen the raw recordings during training~\cite{sainz2023contamination}. The tasks restructure them

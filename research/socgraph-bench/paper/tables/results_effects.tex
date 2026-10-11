@@ -1,0 +1,11 @@
+\begin{table*}[t]\centering\footnotesize
+\caption{Paired effect of each ablation against the full agent: per-task difference, averaged over the 2 repeats with per-task results, with a bootstrap 95\% interval over the tasks (10{,}000 resamples). The third column leaves out the task whose verdict was unstable. \emph{More calls}: tasks on which the ablation used more calls than the full agent, of those where the number differed.}
+\label{tab:effects}
+\begin{tabular}{@{}lrrrr@{}}\toprule
+Configuration & $\Delta$Reward [95\% CI] & excl.\ \texttt{linux-service-stopped} & $\Delta$Calls [95\% CI] & More calls\\\midrule
+no cache & +0.017 [-0.016, +0.064] & -0.004 [-0.020, +0.009] & +0.17 [-0.29, +0.62] & 9/15\\
+no validation & +0.024 [-0.004, +0.070] & +0.004 [-0.006, +0.015] & +0.17 [-0.14, +0.50] & 9/15\\
+no grounding & +0.007 [-0.003, +0.018] & +0.005 [-0.005, +0.016] & +0.19 [-0.31, +0.76] & 6/12\\
+no budget & +0.022 [-0.008, +0.068] & +0.001 [-0.011, +0.012] & +0.31 [-0.31, +1.02] & 9/15\\
+no method & -0.031 [-0.078, +0.008] & -0.013 [-0.044, +0.015] & +3.57 [+2.43, +4.79] & 20/20\\
+\bottomrule\end{tabular}\end{table*}

@@ -9,8 +9,13 @@ call; parallel workers learn the runtime's limit; and rationale fields are prese
 model-side policies. In a pilot on the Windows tasks, every verdict was correct and wasted calls were the
 largest single source of lost reward, which motivates the ablation protocol we define and release.
 \ifnum\ResStudyAvailable=1
-On the full benchmark, the full configuration reached mean quality \ResFullQuality{} at \ResFullCalls{} calls
-per task, and the ablation quantifies each component's contribution.
+On the full benchmark, over \ResStudyRepeats{} repeats, the agent reached reward \ResFullReward{}, quality
+\ResFullQuality{} and verdict accuracy \ResFullAccuracy{} with no false positives at \ResFullCalls{} calls per
+task. The ablation identifies the investigation-method prompt as the component that makes the agent efficient,
+and finds no measurable effect of the local safeguards with this model; its only verdict errors fell on an
+ambiguous task whose twin shares its alert. Building the benchmark also showed how easily ground truth can
+penalise reasonable evidence: two Linux defects surfaced only from scores that did not vary across
+configurations.
 \fi
 Future work includes larger, multi-host scenarios, adversarial telemetry, more models, and human-in-the-loop
 studies with SOC analysts.

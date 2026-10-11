@@ -51,7 +51,14 @@ In a pilot on the \ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent
 all of them, including all three benign tasks, with mean quality \ResPilotQuality{} and mean efficiency
 \ResPilotEfficiency{}. The ablation protocol switches off one safeguard at a time and reports quality,
 efficiency, verdict accuracy, false-positive and false-negative rates, and cost, per platform and per verdict
-class.
+class, with paired task-level confidence intervals.
+\ifnum\ResStudyAvailable=1
+On all 21 tasks the full agent reached reward \ResFullReward{} with no false positives. The
+investigation-method prompt is what makes it efficient (\ResNoMethodCalls{} instead of \ResFullCalls{} calls
+per task without it);
+the safeguards did not change reward measurably with this model, a negative result we report with its
+statistics.
+\fi
 \item \textbf{An open, reproducible release.} Agent, benchmark, traces of every tool call, and the script that
 regenerates all tables and plots from run folders.
 \end{enumerate}

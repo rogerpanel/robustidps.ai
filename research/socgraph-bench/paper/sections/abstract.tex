@@ -18,9 +18,14 @@ each with selector-defined ground truth and a quality and efficiency score. In a
 (8 malicious, 3 benign) with mean quality \ResPilotQuality{} and mean efficiency \ResPilotEfficiency{}
 (\ResPilotCalls{} tool calls per task).%
 \ifnum\ResStudyAvailable=1
-\ On all of \bench, the full configuration reached mean quality \ResFullQuality{}, verdict accuracy
-\ResFullAccuracy{} and \ResFullCalls{} tool calls per task, and an ablation over
-\ResStudyConfigs{} configurations quantifies the contribution of each safeguard.
+\ On all of \bench, over \ResStudyRepeats{} repeats, the full agent reached reward \ResFullReward{}, quality
+\ResFullQuality{} and verdict accuracy \ResFullAccuracy{} with no false positives, at \ResFullCalls{} tool
+calls per task; its only errors cleared an operator's service stop that shares its alert with a benign twin.
+An ablation over \ResStudyConfigs{} configurations shows that the investigation-method prompt is the component
+that matters: without it the agent spent \ResNoMethodCalls{} instead of \ResFullCalls{} calls per task,
+more on \ResNoMethodMoreCalls{} of \ResNoMethodCallsDiffer{} tasks, at unchanged quality. The local
+safeguards had no measurable effect on reward with this model; we discuss them as insurance against failure
+modes the study rarely provoked.
 \else
 \ We further define an ablation protocol that isolates each safeguard's contribution.
 \fi

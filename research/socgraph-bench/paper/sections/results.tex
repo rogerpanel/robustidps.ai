@@ -39,16 +39,72 @@ with \ResStudyRepeats{} repeats per configuration. The full configuration reache
 \ResFullAccuracy{}, a false-positive rate of \ResFullFPR{} and a false-negative rate of \ResFullFNR{}, at
 \ResFullCalls{} tool calls per task. Fig.~\ref{fig:ablation} compares quality and efficiency across
 configurations; Table~\ref{tab:breakdown} breaks results down by operating system and expected verdict, and
-Table~\ref{tab:pertask} gives the per-task matrix.
-% Interpretation of the ablation deltas goes here once the study results are in.
+Table~\ref{tab:pertask} gives the per-task matrix and Table~\ref{tab:effects} the paired effects. Repeat~1
+was rescored from v1.0 (\S\ref{sec:experiments}) and contributes its run-level means; the per-task, paired and
+breakdown figures use the \ResPairedRepeats{} repeats whose per-task results are in hand.
+
+\input{tables/results_ablation}
+\input{tables/results_effects}
 \input{figures/ablation_plot}
+
+\paragraph{Effectiveness (RQ1)} The full agent reached reward \ResFullReward{}\,$\pm$\,\ResFullRewardSd{} over
+\ResStudyRepeats{} repeats. No configuration judged a benign task malicious in any run, so the false-positive
+rate was zero throughout. The full agent's verdict errors (\ResFullVerdictErrors{}) were both on
+\texttt{linux-service-stopped}, the malicious member of the twin pair: an operator stopping and disabling a web
+service through \texttt{sudo} was judged benign. Across all configurations this task was misjudged in 7 of the
+17 runs, while its benign twin, with the same alert, was judged correctly in all 17. The only other error was
+one malicious Windows task (\texttt{firewall-rule-added}) judged benign without the method prompt.
+
+\paragraph{Platforms and verdict classes (RQ4)} Quality was \ResFullWinQuality{} on Windows tasks and
+\ResFullLinQuality{} on Linux tasks. Part of the Linux gap is the twin error above; the rest is lower artifact
+and evidence scores. Two benign Linux tasks (\texttt{linux-dpkg-service-start}, \texttt{linux-motd-discovery})
+scored $Q=0.708$ in every configuration in both repeats with per-task results, with one exception noted below. With three anchors,
+that value arises only from two anchors credited and two further citations outside $\mathcal L\cup N$; its
+constancy marks a systematic difference between the evidence the agent cites and the anchors, not run-to-run
+noise. Without the method prompt the agent scored 0.857 and 0.875 on the \texttt{dpkg} task, values that
+require all three anchors, so the missing anchor is attainable and the gap lies in which evidence the method
+prompt leads the agent to cite. The lowest malicious score was on \texttt{linux-sudoers-nopasswd}
+(Table~\ref{tab:pertask}).
+
+\paragraph{Efficiency and where reward is lost (RQ2)} The full agent used \ResFullCalls{} calls per task
+against a mean target $n^\star+1$ of 4.6, and exceeded the target in 39 of 42 task runs. As in the pilot, the
+reward gap decomposes into a quality part, $1-\overline{Q}=0.164$, and an efficiency part,
+$\overline{Q}-\overline{R}=0.061$. On the full benchmark, unlike the Windows-only pilot, quality is the larger
+loss, driven by the Linux tasks. The hard cap of 30 calls was never reached (at most 22 calls in any run).
+
+\paragraph{Ablation (RQ3): the method prompt} Replacing the investigation-method prompt with the minimal prompt
+is the only ablation with a consistent effect. The agent then used \ResNoMethodPairedCalls{} calls per task more
+(95\% CI \ResNoMethodPairedCallsCI{}), more on \ResNoMethodMoreCalls{} of the \ResNoMethodCallsDiffer{} tasks
+where the count differed (sign test \ResNoMethodCallsSignP{}), and efficiency fell from \ResFullEfficiency{} to
+\ResNoMethodEfficiency{}. Quality did not fall (\ResNoMethodQuality{} against \ResFullQuality{}): the method
+buys efficiency, not answer quality, and it halved verdict errors (\ResFullVerdictErrors{} against
+\ResNoMethodVerdictErrors{}). Mean reward was \ResNoMethodReward{}, \ResNoMethodDeltaReward{} against the full
+agent; the paired interval \ResNoMethodPairedRewardCI{} still contains zero because the reward weighs
+efficiency at only 0.2.
+
+\paragraph{Ablation (RQ3): the local safeguards} Switching off the cache, validation, grounding check or budget
+produced no measurable change. Three of these ablations score about 0.02--0.03 above the full agent in mean
+reward (Table~\ref{tab:ablation}), but the difference is one task: the full agent misjudged
+\texttt{linux-service-stopped} in two of three repeats, and each miss removes about 0.04 from the mean over 21
+tasks. Leaving that task out, every paired difference lies within $\pm0.005$ and every interval contains zero
+(Table~\ref{tab:effects}). The verdict errors themselves are consistent with a common error rate on that task:
+with the pooled rate of 7 errors in 17 runs, two or more errors in three runs has probability of about 0.37 and
+none in three about 0.20, so the per-configuration counts do not distinguish the configurations. Call counts
+changed by less than a third of a call per task, in no consistent direction, which bounds how often the cache
+and validation could have acted with this model. The budget acted on the few long investigations: in the repeats with per-task results, under the
+full agent only \texttt{linux-shadow-read} (16 calls) and \texttt{linux-ld-preload-hijack} (13--14) exceeded the
+soft budget of 12, and without budget messages \texttt{linux-shadow-read} grew to 21--22 calls, too rare to move
+the mean.
 \else
 The full study runs every configuration of \S\ref{sec:experiments} three times on all 21 tasks. Its results
 are generated into Tables~\ref{tab:ablation}--\ref{tab:pertask} and a comparison figure by the release
 script from the run folders, and this subsection will report them.
 \fi
 
+\ifnum\ResStudyAvailable=0
 \input{tables/results_ablation}
+\input{tables/results_effects}
+\fi
 \input{tables/results_breakdown}
 \input{tables/results_per_task}
 
@@ -69,4 +125,7 @@ all 16 tasks of that run in 112\,s with the real model, without a failed task.
 \paragraph{Benign twins} The two Linux service tasks share an identical alert (``Service state changed by
 systemctl as root'') and graph, and differ only in the lineage of the triggering process: an operator's login
 shell through \texttt{sudo} versus the package manager's post-installation script. They test whether an agent
-reads provenance rather than the alert text; results for this pair appear in Table~\ref{tab:pertask}.
+reads provenance rather than the alert text. The agent never called the package manager's activity malicious,
+but it cleared the operator's service stop in 7 of 17 runs: an interactive administrator stopping a web server
+is an ordinary event in isolation, and only the lab context makes it an attack. Twin pairs thus expose the
+direction in which an agent errs when provenance alone is ambiguous.

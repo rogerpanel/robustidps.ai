@@ -28,6 +28,8 @@ import csv
 import glob
 import json
 import math
+import random
+import re
 import statistics
 from pathlib import Path
 from typing import Any
@@ -56,7 +58,7 @@ def load_run(folder: Path) -> dict[str, Any]:
     metrics = summary.get("metrics") or {"overall": _group(rows)}
     return {"label": (summary.get("config") or {}).get("label") or folder.name,
             "config": summary.get("config") or {}, "metrics": metrics, "rows": rows,
-            "folder": str(folder)}
+            "repeat": summary.get("repeat"), "folder": str(folder)}
 
 
 def _mean(xs: list[float]) -> float | None:
@@ -127,6 +129,60 @@ def pending_table(caption: str, label: str) -> str:
             "\\bottomrule\\end{tabular}\\end{table}\n")
 
 
+# ---------------------------------------------------------------- statistics
+BOOTSTRAP = 10000
+
+
+def _pairs(group: list[dict[str, Any]], base: list[dict[str, Any]]):
+    """Runs of a configuration and the baseline, paired by repeat, that have per-task rows."""
+    bmap = {r.get("repeat"): r for r in base if r["rows"]}
+    return [(r, bmap[r.get("repeat")]) for r in group if r["rows"] and r.get("repeat") in bmap]
+
+
+def paired_delta(group, base, key: str, exclude: tuple[str, ...] = ()) -> dict[str, Any] | None:
+    """Per-task difference to the baseline, averaged over paired repeats, with a bootstrap
+    95% interval over tasks (tasks are the unit that varies; repeats are averaged)."""
+    pairs = _pairs(group, base)
+    if not pairs:
+        return None
+    per: dict[str, list[float]] = {}
+    for run, ref in pairs:
+        ref_rows = {x["task_id"]: x for x in ref["rows"]}
+        for x in run["rows"]:
+            t = x["task_id"]
+            if t in ref_rows and t not in exclude:
+                per.setdefault(t, []).append(float(x[key]) - float(ref_rows[t][key]))
+    diffs = [statistics.mean(v) for v in per.values()]
+    rnd = random.Random(20261011)
+    boots = sorted(statistics.mean(rnd.choices(diffs, k=len(diffs))) for _ in range(BOOTSTRAP))
+    return {"mean": statistics.mean(diffs), "lo": boots[int(0.025 * BOOTSTRAP)],
+            "hi": boots[int(0.975 * BOOTSTRAP) - 1], "tasks": len(diffs),
+            "repeats": len(pairs), "positive": sum(d > 0 for d in diffs),
+            "negative": sum(d < 0 for d in diffs)}
+
+
+def sign_test(k: int, n: int) -> float:
+    """Two-sided exact sign test: probability of a split at least as uneven as k of n."""
+    if n == 0:
+        return 1.0
+    tail = sum(math.comb(n, i) for i in range(max(k, n - k), n + 1)) / 2 ** n
+    return min(1.0, 2 * tail)
+
+
+def ci(d: dict[str, Any] | None, nd: int = 3) -> str:
+    if d is None:
+        return "--"
+    return f"{d['mean']:+.{nd}f} [{d['lo']:+.{nd}f}, {d['hi']:+.{nd}f}]"
+
+
+def _pval(p: float) -> str:
+    return "$p<0.001$" if p < 0.001 else f"$p={p:.3f}$"
+
+
+def camel(label: str) -> str:
+    return "".join(w.capitalize() for w in re.split(r"[^A-Za-z]+", label) if w)
+
+
 # ---------------------------------------------------------------- tables
 def pilot_tables(p: dict[str, Any], out: Path, macros: dict[str, str]) -> None:
     rows, m = p["rows"], p["metrics"]
@@ -171,11 +227,12 @@ def pilot_tables(p: dict[str, Any], out: Path, macros: dict[str, str]) -> None:
 
 
 def study_tables(runs: list[dict[str, Any]], baseline: str, out: Path,
-                 macros: dict[str, str]) -> None:
+                 macros: dict[str, str], exclude: tuple[str, ...] = ()) -> None:
     by_label: dict[str, list[dict[str, Any]]] = {}
     for r in runs:
         by_label.setdefault(r["label"], []).append(r)
-    order = sorted(by_label, key=lambda k: (k != baseline, k))
+    canon = ["full", "no cache", "no validation", "no grounding", "no budget", "no method"]
+    order = sorted(by_label, key=lambda k: (k != baseline, canon.index(k) if k in canon else 99, k))
     base = by_label.get(baseline) or by_label[order[0]]
 
     def vals(group: list[dict[str, Any]], key: str, slice_: tuple[str, str] | None = None):
@@ -219,12 +276,72 @@ def study_tables(runs: list[dict[str, Any]], baseline: str, out: Path,
     lines += ["\\bottomrule\\end{tabular}\\end{table*}"]
     write(out / "tables" / "results_ablation.tex", "\n".join(lines) + "\n")
 
+    # paired effects against the baseline (task-level bootstrap)
+    paired_n = len(_pairs(base, base))
+    ex_tex = ", ".join(f"\\texttt{{{tex_escape(t)}}}" for t in exclude)
+    cols = ["Configuration", "$\\Delta$Reward [95\\% CI]"]
+    if exclude:
+        cols.append("excl.\\ " + ex_tex)
+    cols += ["$\\Delta$Calls [95\\% CI]", "More calls"]
+    lines = ["\\begin{table*}[t]\\centering\\footnotesize",
+             "\\caption{Paired effect of each ablation against the full agent: per-task difference, "
+             f"averaged over the {paired_n} repeats with per-task results, with a bootstrap 95\\% "
+             f"interval over the tasks ({BOOTSTRAP:,} resamples). ".replace(f"{BOOTSTRAP:,}",
+                                                                          f"{BOOTSTRAP:,}".replace(",", "{,}"))
+             + ("The third column leaves out the task whose verdict was unstable. " if exclude else "")
+             + "\\emph{More calls}: tasks on which the ablation used more calls than the full "
+             "agent, of those where the number differed.}",
+             "\\label{tab:effects}",
+             "\\begin{tabular}{@{}l" + "r" * (len(cols) - 1) + "@{}}\\toprule",
+             " & ".join(cols) + "\\\\\\midrule"]
+    for lab in order:
+        if by_label[lab] is base:
+            continue
+        g = by_label[lab]
+        dr, dc = paired_delta(g, base, "reward"), paired_delta(g, base, "calls")
+        cells = [tex_escape(lab), ci(dr)]
+        if exclude:
+            cells.append(ci(paired_delta(g, base, "reward", exclude)))
+        cells += [ci(dc, 2), f"{dc['positive']}/{dc['positive'] + dc['negative']}" if dc else "--"]
+        lines.append(" & ".join(cells) + "\\\\")
+        key = camel(lab)
+        r_vals = [v for v in vals(g, "mean_reward") if v is not None]
+        macros.update({
+            f"Res{key}Repeats": str(len(g)),
+            f"Res{key}Reward": fmt(_mean(r_vals), 3),
+            f"Res{key}Quality": fmt(_mean([v for v in vals(g, "mean_quality") if v is not None]), 3),
+            f"Res{key}Efficiency": fmt(_mean([v for v in vals(g, "mean_efficiency") if v is not None]), 3),
+            f"Res{key}Calls": fmt(_mean([v for v in vals(g, "mean_tool_calls") if v is not None]), 2),
+            f"Res{key}DeltaReward": f"{(_mean(r_vals) or 0) - (_mean(vals(base, 'mean_reward')) or 0):+.3f}",
+        })
+        if dr:
+            macros.update({f"Res{key}PairedReward": f"{dr['mean']:+.3f}",
+                           f"Res{key}PairedRewardCI": f"[{dr['lo']:+.3f}, {dr['hi']:+.3f}]"})
+        if dc:
+            n_diff = dc["positive"] + dc["negative"]
+            macros.update({f"Res{key}PairedCalls": f"{dc['mean']:+.2f}",
+                           f"Res{key}PairedCallsCI": f"[{dc['lo']:+.2f}, {dc['hi']:+.2f}]",
+                           f"Res{key}MoreCalls": f"{dc['positive']}",
+                           f"Res{key}CallsDiffer": f"{n_diff}",
+                           f"Res{key}CallsSignP": _pval(sign_test(dc["positive"], n_diff))})
+        if exclude:
+            de = paired_delta(g, base, "reward", exclude)
+            if de:
+                macros.update({f"Res{key}PairedRewardEx": f"{de['mean']:+.3f}",
+                               f"Res{key}PairedRewardExCI": f"[{de['lo']:+.3f}, {de['hi']:+.3f}]"})
+    lines += ["\\bottomrule\\end{tabular}\\end{table*}"]
+    write(out / "tables" / "results_effects.tex", "\n".join(lines) + "\n")
+    macros.update({"ResPairedRepeats": str(paired_n),
+                   "ResSensTask": ex_tex or "--",
+                   "ResBootstrap": f"{BOOTSTRAP:,}".replace(",", "{,}")})
+
     # breakdown by platform and expected verdict
     slices = [("by_platform", "windows", "Windows"), ("by_platform", "linux", "Linux"),
               ("by_expected_verdict", "malicious", "Malicious"),
               ("by_expected_verdict", "benign", "Benign")]
     lines = ["\\begin{table*}[t]\\centering\\footnotesize",
-             "\\caption{Quality and verdict accuracy by platform and by expected verdict.}",
+             "\\caption{Quality and verdict accuracy by platform and by expected verdict, over the "
+             "repeats with per-task results (mean $\\pm$ standard deviation across repeats).}",
              "\\label{tab:breakdown}",
              "\\begin{tabular}{@{}l " + "rr" * len(slices) + "@{}}\\toprule",
              "Configuration & " + " & ".join(f"\\multicolumn{{2}}{{c}}{{{t}}}" for _, _, t in slices)
@@ -259,7 +376,8 @@ def study_tables(runs: list[dict[str, Any]], baseline: str, out: Path,
                        + [None if v is None else round(v, 4) for v in rew]
                        + [None if v is None else round(v, 4) for v in acc])
     lines = ["\\begin{table*}[t]\\centering\\scriptsize",
-             "\\caption{Mean reward per task and configuration. A dagger marks a configuration whose "
+             "\\caption{Mean reward per task and configuration, over the repeats with per-task "
+             "results. A dagger marks a configuration whose "
              "verdict was wrong in at least one repeat.}",
              "\\label{tab:pertask}",
              "\\begin{tabular}{@{}lll" + "r" * len(order) + "@{}}\\toprule",
@@ -295,6 +413,25 @@ def study_tables(runs: list[dict[str, Any]], baseline: str, out: Path,
         "ResFullFNR": fmt(bm["false_negative_rate"], 3),
         "ResFullCalls": fmt(bm["mean_tool_calls"], 2),
     })
+    rv = [v for v in vals(base, "mean_reward") if v is not None]
+    macros["ResFullRewardSd"] = fmt(statistics.stdev(rv) if len(rv) > 1 else 0.0, 3)
+    for key, val, name in (("by_platform", "windows", "Win"), ("by_platform", "linux", "Lin"),
+                           ("by_expected_verdict", "malicious", "Mal"),
+                           ("by_expected_verdict", "benign", "Ben")):
+        q = [v for v in vals(base, "mean_quality", (key, val)) if v is not None]
+        macros[f"ResFull{name}Quality"] = fmt(_mean(q), 3)
+    # verdict errors over all repeats, per configuration (from accuracy x judged tasks)
+    for lab in order:
+        g = by_label[lab]
+        wrong = total = 0
+        for r in g:
+            m = r["metrics"]["overall"]
+            n = int(m.get("tasks") or 0)
+            if m.get("verdict_accuracy") is not None:
+                wrong += round((1 - m["verdict_accuracy"]) * n)
+                total += n
+            fp = m.get("false_positive_rate")
+        macros[f"Res{camel(lab)}VerdictErrors"] = f"{wrong}/{total}"
 
 
 def main() -> None:
@@ -303,6 +440,8 @@ def main() -> None:
     ap.add_argument("--runs", nargs="*", default=[], help="study run folders (globs allowed)")
     ap.add_argument("--baseline", default="full", help="configuration label used as baseline")
     ap.add_argument("--out", type=Path, default=Path("paper"))
+    ap.add_argument("--sensitivity-exclude", nargs="*", default=[], metavar="TASK",
+                    help="tasks left out in the sensitivity column of the effects table")
     args = ap.parse_args()
 
     (args.out / "data").mkdir(parents=True, exist_ok=True)
@@ -313,14 +452,16 @@ def main() -> None:
     folders = sorted({Path(p) for pat in args.runs for p in glob.glob(pat)
                       if (Path(p) / "summary.json").is_file()})
     if folders:
-        study_tables([load_run(f) for f in folders], args.baseline, args.out, macros)
+        study_tables([load_run(f) for f in folders], args.baseline, args.out, macros,
+                     tuple(args.sensitivity_exclude))
         print(f"study: {len(folders)} run folder(s)")
     else:
         for name, cap, lab in (("results_ablation", "Ablation study on SOCGraph-21.", "tab:ablation"),
                                ("results_breakdown", "Quality and verdict accuracy by platform and "
                                 "expected verdict.", "tab:breakdown"),
                                ("results_per_task", "Mean reward per task and configuration.",
-                                "tab:pertask")):
+                                "tab:pertask"),
+                               ("results_effects", "Paired effect of each ablation.", "tab:effects")):
             write(args.out / "tables" / f"{name}.tex", pending_table(cap, lab))
         print("study: no run folders yet; wrote pending tables")
     lines = ["% Generated by scripts/results_to_tex.py; do not edit by hand."]

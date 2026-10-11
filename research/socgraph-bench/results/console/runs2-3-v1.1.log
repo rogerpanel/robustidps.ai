@@ -1,0 +1,291 @@
+$ for i in 2 3; do python -m bluesec1_agent.robust.cli --pack socgraph-21-v1.1.zip --concurrency 4 --ablation-suite; done
+# repeat 2
+== ablation suite: full
+Task lsass-dump-comsvcs terminated: quality=0.908 efficiency=0.833 reward=0.878 calls=6
+Task hta-startup-folder terminated: quality=0.927 efficiency=0.545 reward=0.843 calls=11
+Task logon-script-persistence terminated: quality=0.955 efficiency=0.714 reward=0.900 calls=7
+Task service-binpath-hijack terminated: quality=0.922 efficiency=0.545 reward=0.839 calls=11
+Task firewall-rule-added terminated: quality=0.887 efficiency=0.444 reward=0.788 calls=9
+Task bits-download terminated: quality=0.875 efficiency=0.800 reward=0.840 calls=5
+Task run-key-and-beacon terminated: quality=0.908 efficiency=0.556 reward=0.827 calls=9
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task python-http-server terminated: quality=0.857 efficiency=0.417 reward=0.757 calls=12
+Task gpsvc-service-host terminated: quality=0.875 efficiency=0.429 reward=0.775 calls=7
+Task linux-wiper-shred terminated: quality=0.850 efficiency=0.833 reward=0.821 calls=6
+Task linux-shadow-read terminated: quality=0.885 efficiency=0.312 reward=0.763 calls=16
+Task linux-kernel-module terminated: quality=0.818 efficiency=0.714 reward=0.771 calls=7
+Task linux-account-created terminated: quality=0.770 efficiency=1.000 reward=0.770 calls=5
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-sudoers-nopasswd terminated: quality=0.662 efficiency=0.455 reward=0.590 calls=11
+Task linux-service-stopped terminated: quality=0.849 efficiency=0.455 reward=0.756 calls=11
+Task linux-ld-preload-hijack terminated: quality=0.767 efficiency=0.462 reward=0.684 calls=13
+Task linux-motd-tmp-cleanup terminated: quality=0.708 efficiency=0.800 reward=0.680 calls=5
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Traces written to traces/20261011-222113-local-run
+== ablation suite: no cache
+Task logon-script-persistence terminated: quality=0.917 efficiency=0.714 reward=0.864 calls=7
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.714 reward=0.943 calls=7
+Task hta-startup-folder terminated: quality=0.922 efficiency=0.500 reward=0.830 calls=12
+Task service-binpath-hijack terminated: quality=0.895 efficiency=0.600 reward=0.823 calls=10
+Task firewall-rule-added terminated: quality=0.853 efficiency=0.667 reward=0.796 calls=6
+Task bits-download terminated: quality=0.929 efficiency=0.800 reward=0.891 calls=5
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task run-key-and-beacon terminated: quality=0.914 efficiency=0.625 reward=0.845 calls=8
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task python-http-server terminated: quality=0.870 efficiency=0.385 reward=0.763 calls=13
+Task gpsvc-service-host terminated: quality=0.875 efficiency=0.500 reward=0.787 calls=6
+Task linux-wiper-shred terminated: quality=0.783 efficiency=0.500 reward=0.705 calls=10
+Task linux-shadow-read terminated: quality=0.886 efficiency=0.294 reward=0.761 calls=17
+Task linux-kernel-module terminated: quality=0.886 efficiency=0.556 reward=0.807 calls=9
+Task linux-account-created terminated: quality=0.875 efficiency=0.714 reward=0.825 calls=7
+Task linux-sudoers-nopasswd terminated: quality=0.664 efficiency=0.385 reward=0.582 calls=13
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-ld-preload-hijack terminated: quality=0.773 efficiency=0.462 reward=0.690 calls=13
+Task linux-service-stopped terminated: quality=0.900 efficiency=0.417 reward=0.795 calls=12
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-motd-tmp-cleanup terminated: quality=0.708 efficiency=0.800 reward=0.680 calls=5
+Traces written to traces/20261011-222324-local-run
+== ablation suite: no validation
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.625 reward=0.925 calls=8
+Task logon-script-persistence terminated: quality=0.917 efficiency=0.714 reward=0.864 calls=7
+Task hta-startup-folder terminated: quality=0.927 efficiency=0.545 reward=0.843 calls=11
+Task service-binpath-hijack terminated: quality=0.955 efficiency=0.545 reward=0.868 calls=11
+Task bits-download terminated: quality=0.833 efficiency=0.667 reward=0.778 calls=6
+Task run-key-and-beacon terminated: quality=0.914 efficiency=0.556 reward=0.833 calls=9
+Task firewall-rule-added terminated: quality=0.887 efficiency=0.444 reward=0.788 calls=9
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task python-http-server terminated: quality=1.000 efficiency=0.333 reward=0.867 calls=15
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task gpsvc-service-host terminated: quality=0.850 efficiency=0.375 reward=0.744 calls=8
+Task linux-shadow-read terminated: quality=0.885 efficiency=0.312 reward=0.763 calls=16
+Task linux-wiper-shred terminated: quality=0.850 efficiency=0.714 reward=0.801 calls=7
+Task linux-kernel-module terminated: quality=0.824 efficiency=0.714 reward=0.776 calls=7
+Task linux-account-created terminated: quality=0.786 efficiency=1.000 reward=0.786 calls=5
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-sudoers-nopasswd terminated: quality=0.786 efficiency=0.500 reward=0.707 calls=10
+Task linux-ld-preload-hijack terminated: quality=0.767 efficiency=0.462 reward=0.684 calls=13
+Task linux-service-stopped terminated: quality=0.918 efficiency=0.417 reward=0.811 calls=12
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-motd-tmp-cleanup terminated: quality=0.750 efficiency=1.000 reward=0.750 calls=4
+Traces written to traces/20261011-222536-local-run
+== ablation suite: no grounding
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.625 reward=0.925 calls=8
+Task logon-script-persistence terminated: quality=0.955 efficiency=0.714 reward=0.900 calls=7
+Task hta-startup-folder terminated: quality=0.930 efficiency=0.462 reward=0.830 calls=13
+Task service-binpath-hijack terminated: quality=0.895 efficiency=0.600 reward=0.823 calls=10
+Task bits-download terminated: quality=0.929 efficiency=0.800 reward=0.891 calls=5
+Task firewall-rule-added terminated: quality=0.853 efficiency=0.571 reward=0.780 calls=7
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.556 reward=0.911 calls=9
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task python-http-server terminated: quality=0.917 efficiency=0.455 reward=0.817 calls=11
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task gpsvc-service-host terminated: quality=0.875 efficiency=0.429 reward=0.775 calls=7
+Task linux-shadow-read terminated: quality=0.900 efficiency=0.312 reward=0.776 calls=16
+Task linux-wiper-shred terminated: quality=0.900 efficiency=0.625 reward=0.833 calls=8
+Task linux-kernel-module terminated: quality=0.900 efficiency=0.625 reward=0.833 calls=8
+Task linux-account-created terminated: quality=0.853 efficiency=0.714 reward=0.804 calls=7
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-ld-preload-hijack terminated: quality=0.773 efficiency=0.667 reward=0.721 calls=9
+Task linux-sudoers-nopasswd terminated: quality=0.664 efficiency=0.385 reward=0.582 calls=13
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-motd-tmp-cleanup terminated: quality=0.708 efficiency=0.800 reward=0.680 calls=5
+Task linux-service-stopped terminated: quality=0.000 efficiency=0.417 reward=0.000 calls=12
+Traces written to traces/20261011-222738-local-run
+== ablation suite: no budget
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.714 reward=0.943 calls=7
+Task logon-script-persistence terminated: quality=0.955 efficiency=0.714 reward=0.900 calls=7
+Task service-binpath-hijack terminated: quality=0.922 efficiency=0.600 reward=0.849 calls=10
+Task hta-startup-folder terminated: quality=0.927 efficiency=0.545 reward=0.843 calls=11
+Task bits-download terminated: quality=0.875 efficiency=0.800 reward=0.840 calls=5
+Task firewall-rule-added terminated: quality=0.853 efficiency=0.400 reward=0.751 calls=10
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task python-http-server terminated: quality=0.857 efficiency=0.500 reward=0.771 calls=10
+Task gpsvc-service-host terminated: quality=0.875 efficiency=0.429 reward=0.775 calls=7
+Task w32time-runtime-key terminated: quality=0.938 efficiency=0.600 reward=0.863 calls=5
+Task linux-wiper-shred terminated: quality=0.848 efficiency=0.500 reward=0.763 calls=10
+Task linux-shadow-read terminated: quality=0.936 efficiency=0.227 reward=0.792 calls=22
+Task linux-kernel-module terminated: quality=0.886 efficiency=0.625 reward=0.820 calls=8
+Task linux-account-created terminated: quality=0.770 efficiency=1.000 reward=0.770 calls=5
+Task linux-sudoers-nopasswd terminated: quality=0.662 efficiency=0.500 reward=0.596 calls=10
+Task linux-ld-preload-hijack terminated: quality=0.773 efficiency=0.462 reward=0.690 calls=13
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-service-stopped terminated: quality=0.914 efficiency=0.625 reward=0.845 calls=8
+Task linux-motd-tmp-cleanup terminated: quality=0.708 efficiency=0.800 reward=0.680 calls=5
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Traces written to traces/20261011-222950-local-run
+== ablation suite: no method
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task logon-script-persistence terminated: quality=1.000 efficiency=0.556 reward=0.911 calls=9
+Task hta-startup-folder terminated: quality=0.955 efficiency=0.400 reward=0.840 calls=15
+Task service-binpath-hijack terminated: quality=0.895 efficiency=0.462 reward=0.798 calls=13
+Task firewall-rule-added terminated: quality=1.000 efficiency=0.400 reward=0.880 calls=10
+Task bits-download terminated: quality=0.773 efficiency=0.286 reward=0.662 calls=14
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task w32time-runtime-key terminated: quality=0.938 efficiency=0.600 reward=0.863 calls=5
+Task python-http-server terminated: quality=1.000 efficiency=0.357 reward=0.871 calls=14
+Task gpsvc-service-host terminated: quality=0.850 efficiency=0.214 reward=0.716 calls=14
+Task linux-wiper-shred terminated: quality=0.824 efficiency=0.294 reward=0.708 calls=17
+Task linux-shadow-read terminated: quality=0.885 efficiency=0.312 reward=0.763 calls=16
+Task linux-kernel-module terminated: quality=0.938 efficiency=0.385 reward=0.823 calls=13
+Task linux-account-created terminated: quality=0.875 efficiency=0.357 reward=0.762 calls=14
+Task linux-ld-preload-hijack terminated: quality=0.767 efficiency=0.429 reward=0.679 calls=14
+Task linux-sudoers-nopasswd terminated: quality=0.667 efficiency=0.357 reward=0.581 calls=14
+Task linux-service-stopped terminated: quality=0.000 efficiency=0.250 reward=0.000 calls=20
+Task linux-dpkg-service-start terminated: quality=0.857 efficiency=0.400 reward=0.754 calls=10
+Task linux-motd-tmp-cleanup terminated: quality=0.683 efficiency=0.571 reward=0.625 calls=7
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.571 reward=0.648 calls=7
+Traces written to traces/20261011-223157-local-run
+| full | 21 | 0.850 | 0.638 | 0.788 | 1.000 | 0.000 | 0.000 | 8.10 | 22.6 |  |
+| no cache | 21 | 0.860 | 0.606 | 0.793 | 1.000 | 0.000 | 0.000 | 8.52 | 23.9 | +0.005 |
+| no validation | 21 | 0.870 | 0.619 | 0.803 | 1.000 | 0.000 | 0.000 | 8.43 | 22.5 | +0.014 |
+| no grounding | 21 | 0.832 | 0.611 | 0.769 | 0.952 | 0.000 | 0.067 | 8.29 | 23.2 | -0.019 |
+| no budget | 21 | 0.863 | 0.613 | 0.796 | 1.000 | 0.000 | 0.000 | 8.48 | 22.7 | +0.007 |
+| no method | 21 | 0.839 | 0.426 | 0.745 | 0.952 | 0.000 | 0.067 | 11.90 | 25.0 | -0.044 |
+# repeat 3
+== ablation suite: full
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.714 reward=0.943 calls=7
+Task logon-script-persistence terminated: quality=0.917 efficiency=0.714 reward=0.864 calls=7
+Task service-binpath-hijack terminated: quality=0.922 efficiency=0.600 reward=0.849 calls=10
+Task hta-startup-folder terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=12
+Task bits-download terminated: quality=0.929 efficiency=0.800 reward=0.891 calls=5
+Task firewall-rule-added terminated: quality=0.887 efficiency=0.444 reward=0.788 calls=9
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.455 reward=0.891 calls=11
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task python-http-server terminated: quality=0.917 efficiency=0.417 reward=0.810 calls=12
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task gpsvc-service-host terminated: quality=0.875 efficiency=0.500 reward=0.787 calls=6
+Task linux-wiper-shred terminated: quality=0.903 efficiency=0.625 reward=0.835 calls=8
+Task linux-shadow-read terminated: quality=0.900 efficiency=0.312 reward=0.776 calls=16
+Task linux-kernel-module terminated: quality=0.900 efficiency=0.714 reward=0.849 calls=7
+Task linux-account-created terminated: quality=0.856 efficiency=0.714 reward=0.807 calls=7
+Task linux-sudoers-nopasswd terminated: quality=0.662 efficiency=0.455 reward=0.590 calls=11
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-ld-preload-hijack terminated: quality=0.773 efficiency=0.429 reward=0.684 calls=14
+Task linux-service-stopped terminated: quality=0.000 efficiency=0.417 reward=0.000 calls=12
+Task linux-motd-tmp-cleanup terminated: quality=0.708 efficiency=0.800 reward=0.680 calls=5
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Traces written to traces/20261011-223416-local-run
+== ablation suite: no cache
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.714 reward=0.943 calls=7
+Task logon-script-persistence terminated: quality=0.917 efficiency=0.714 reward=0.864 calls=7
+Task service-binpath-hijack terminated: quality=0.900 efficiency=0.667 reward=0.840 calls=9
+Task hta-startup-folder terminated: quality=0.955 efficiency=0.462 reward=0.852 calls=13
+Task bits-download terminated: quality=0.929 efficiency=0.667 reward=0.867 calls=6
+Task firewall-rule-added terminated: quality=0.895 efficiency=0.500 reward=0.805 calls=8
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task python-http-server terminated: quality=1.000 efficiency=0.357 reward=0.871 calls=14
+Task w32time-runtime-key terminated: quality=0.938 efficiency=0.600 reward=0.863 calls=5
+Task gpsvc-service-host terminated: quality=0.917 efficiency=0.500 reward=0.825 calls=6
+Task linux-wiper-shred terminated: quality=0.773 efficiency=0.556 reward=0.704 calls=9
+Task linux-shadow-read terminated: quality=0.885 efficiency=0.312 reward=0.763 calls=16
+Task linux-kernel-module terminated: quality=0.823 efficiency=0.714 reward=0.776 calls=7
+Task linux-account-created terminated: quality=0.770 efficiency=1.000 reward=0.770 calls=5
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-service-stopped terminated: quality=0.921 efficiency=0.455 reward=0.821 calls=11
+Task linux-sudoers-nopasswd terminated: quality=0.662 efficiency=0.385 reward=0.581 calls=13
+Task linux-ld-preload-hijack terminated: quality=0.767 efficiency=0.545 reward=0.698 calls=11
+Task linux-motd-tmp-cleanup terminated: quality=0.750 efficiency=1.000 reward=0.750 calls=4
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Traces written to traces/20261011-223624-local-run
+== ablation suite: no validation
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.714 reward=0.943 calls=7
+Task hta-startup-folder terminated: quality=0.927 efficiency=0.545 reward=0.843 calls=11
+Task logon-script-persistence terminated: quality=0.955 efficiency=0.714 reward=0.900 calls=7
+Task service-binpath-hijack terminated: quality=0.922 efficiency=0.500 reward=0.830 calls=12
+Task bits-download terminated: quality=0.929 efficiency=0.800 reward=0.891 calls=5
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task firewall-rule-added terminated: quality=0.853 efficiency=0.500 reward=0.768 calls=8
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task python-http-server terminated: quality=0.922 efficiency=0.385 reward=0.809 calls=13
+Task gpsvc-service-host terminated: quality=0.917 efficiency=0.500 reward=0.825 calls=6
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task linux-shadow-read terminated: quality=0.885 efficiency=0.312 reward=0.763 calls=16
+Task linux-account-created terminated: quality=0.773 efficiency=1.000 reward=0.773 calls=5
+Task linux-kernel-module terminated: quality=0.955 efficiency=0.556 reward=0.870 calls=9
+Task linux-wiper-shred terminated: quality=0.903 efficiency=0.556 reward=0.822 calls=9
+Task linux-sudoers-nopasswd terminated: quality=0.662 efficiency=0.385 reward=0.581 calls=13
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-ld-preload-hijack terminated: quality=0.696 efficiency=0.500 reward=0.627 calls=12
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-service-stopped terminated: quality=0.918 efficiency=0.417 reward=0.811 calls=12
+Task linux-motd-tmp-cleanup terminated: quality=0.708 efficiency=1.000 reward=0.708 calls=4
+Traces written to traces/20261011-223825-local-run
+== ablation suite: no grounding
+Task logon-script-persistence terminated: quality=0.917 efficiency=0.714 reward=0.864 calls=7
+Task hta-startup-folder terminated: quality=0.927 efficiency=0.545 reward=0.843 calls=11
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.714 reward=0.943 calls=7
+Task service-binpath-hijack terminated: quality=0.895 efficiency=0.600 reward=0.823 calls=10
+Task bits-download terminated: quality=0.875 efficiency=0.800 reward=0.840 calls=5
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task firewall-rule-added terminated: quality=0.887 efficiency=0.444 reward=0.788 calls=9
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task python-http-server terminated: quality=1.000 efficiency=0.385 reward=0.877 calls=13
+Task gpsvc-service-host terminated: quality=0.917 efficiency=0.500 reward=0.825 calls=6
+Task linux-shadow-read terminated: quality=0.900 efficiency=0.312 reward=0.776 calls=16
+Task linux-wiper-shred terminated: quality=0.850 efficiency=0.625 reward=0.786 calls=8
+Task linux-kernel-module terminated: quality=0.887 efficiency=0.625 reward=0.821 calls=8
+Task linux-account-created terminated: quality=0.818 efficiency=0.385 reward=0.718 calls=13
+Task linux-ld-preload-hijack terminated: quality=0.767 efficiency=0.429 reward=0.679 calls=14
+Task linux-service-stopped terminated: quality=0.894 efficiency=0.625 reward=0.827 calls=8
+Task linux-sudoers-nopasswd terminated: quality=0.661 efficiency=0.357 reward=0.576 calls=14
+Task linux-motd-tmp-cleanup terminated: quality=0.750 efficiency=1.000 reward=0.750 calls=4
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Traces written to traces/20261011-224032-local-run
+== ablation suite: no budget
+Task logon-script-persistence terminated: quality=0.955 efficiency=0.714 reward=0.900 calls=7
+Task lsass-dump-comsvcs terminated: quality=0.908 efficiency=0.833 reward=0.878 calls=6
+Task service-binpath-hijack terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=12
+Task hta-startup-folder terminated: quality=0.927 efficiency=0.462 reward=0.827 calls=13
+Task firewall-rule-added terminated: quality=0.853 efficiency=0.571 reward=0.780 calls=7
+Task bits-download terminated: quality=0.833 efficiency=0.667 reward=0.778 calls=6
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=1.000 reward=1.000 calls=3
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task w32time-runtime-key terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task gpsvc-service-host terminated: quality=0.917 efficiency=0.600 reward=0.843 calls=5
+Task python-http-server terminated: quality=0.955 efficiency=0.312 reward=0.823 calls=16
+Task linux-shadow-read terminated: quality=0.955 efficiency=0.238 reward=0.809 calls=21
+Task linux-wiper-shred terminated: quality=0.943 efficiency=0.714 reward=0.889 calls=7
+Task linux-kernel-module terminated: quality=0.885 efficiency=0.625 reward=0.818 calls=8
+Task linux-account-created terminated: quality=0.856 efficiency=0.455 reward=0.763 calls=11
+Task linux-sudoers-nopasswd terminated: quality=0.667 efficiency=0.500 reward=0.600 calls=10
+Task linux-ld-preload-hijack terminated: quality=0.769 efficiency=0.462 reward=0.686 calls=13
+Task linux-service-stopped terminated: quality=0.856 efficiency=0.625 reward=0.792 calls=8
+Task linux-dpkg-service-start terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Task linux-motd-tmp-cleanup terminated: quality=0.708 efficiency=1.000 reward=0.708 calls=4
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.667 reward=0.661 calls=6
+Traces written to traces/20261011-224241-local-run
+== ablation suite: no method
+Task logon-script-persistence terminated: quality=1.000 efficiency=0.625 reward=0.925 calls=8
+Task lsass-dump-comsvcs terminated: quality=1.000 efficiency=0.500 reward=0.900 calls=10
+Task hta-startup-folder terminated: quality=0.955 efficiency=0.400 reward=0.840 calls=15
+Task service-binpath-hijack terminated: quality=0.922 efficiency=0.500 reward=0.830 calls=12
+Task firewall-rule-added terminated: quality=0.955 efficiency=0.333 reward=0.827 calls=12
+Task run-key-and-beacon terminated: quality=1.000 efficiency=0.455 reward=0.891 calls=11
+Task lsass-query-by-svchost terminated: quality=1.000 efficiency=0.750 reward=0.950 calls=4
+Task bits-download terminated: quality=0.800 efficiency=0.267 reward=0.683 calls=15
+Task python-http-server terminated: quality=0.955 efficiency=0.333 reward=0.827 calls=15
+Task w32time-runtime-key terminated: quality=0.938 efficiency=0.600 reward=0.863 calls=5
+Task gpsvc-service-host terminated: quality=0.833 efficiency=0.250 reward=0.708 calls=12
+Task linux-wiper-shred terminated: quality=0.864 efficiency=0.357 reward=0.753 calls=14
+Task linux-shadow-read terminated: quality=0.900 efficiency=0.312 reward=0.776 calls=16
+Task linux-kernel-module terminated: quality=0.955 efficiency=0.357 reward=0.832 calls=14
+Task linux-sudoers-nopasswd terminated: quality=0.786 efficiency=0.312 reward=0.678 calls=16
+Task linux-ld-preload-hijack terminated: quality=0.872 efficiency=0.375 reward=0.763 calls=16
+Task linux-account-created terminated: quality=0.875 efficiency=0.357 reward=0.762 calls=14
+Task linux-service-stopped terminated: quality=0.000 efficiency=0.312 reward=0.000 calls=16
+Task linux-motd-tmp-cleanup terminated: quality=0.667 efficiency=0.500 reward=0.600 calls=8
+Task linux-motd-discovery terminated: quality=0.708 efficiency=0.571 reward=0.648 calls=7
+Task linux-dpkg-service-start terminated: quality=0.875 efficiency=0.500 reward=0.787 calls=8
+Traces written to traces/20261011-224458-local-run
+| full | 21 | 0.836 | 0.605 | 0.772 | 0.952 | 0.000 | 0.067 | 8.48 | 23.4 |  |
+| no cache | 21 | 0.867 | 0.618 | 0.801 | 1.000 | 0.000 | 0.000 | 8.38 | 21.9 | +0.028 |
+| no validation | 21 | 0.873 | 0.618 | 0.806 | 1.000 | 0.000 | 0.000 | 8.48 | 22.9 | +0.034 |
+| no grounding | 21 | 0.874 | 0.602 | 0.805 | 1.000 | 0.000 | 0.000 | 8.67 | 23.5 | +0.033 |
+| no budget | 21 | 0.876 | 0.613 | 0.808 | 1.000 | 0.000 | 0.000 | 8.71 | 24.5 | +0.036 |
+| no method | 21 | 0.850 | 0.427 | 0.754 | 0.952 | 0.000 | 0.067 | 11.81 | 26.9 | -0.044 |

@@ -1,0 +1,29 @@
+{
+  "run_id": "repeat-1",
+  "repeat": 1,
+  "source": "printed table only (run1-rescored-v1.1.txt); per-task rows in the traces",
+  "pack_version": "1.1",
+  "config": {
+    "label": "full",
+    "ablations": [],
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "concurrency": 4,
+    "soft_budget": 12,
+    "max_tool_calls": 30
+  },
+  "metrics": {
+    "overall": {
+      "tasks": 21,
+      "mean_quality": 0.823,
+      "mean_efficiency": 0.636,
+      "mean_reward": 0.765,
+      "verdict_accuracy": 0.952,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.067,
+      "mean_tool_calls": 8.1,
+      "mean_wall_seconds": 21.8
+    }
+  },
+  "task_rows": []
+}
