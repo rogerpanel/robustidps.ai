@@ -206,7 +206,7 @@ def test_local_session_tools() -> None:
     assert r.info["tool_status"] == "error"
 
 
-DATA = Path("datasets/otrf")
+DATA = Path("datasets")
 
 
 @pytest.mark.skipif(not DATA.is_dir(), reason="practice datasets not downloaded")
@@ -271,3 +271,46 @@ def test_agent_runs_on_real_public_datasets(tmp_path: Path) -> None:
     assert summary["completed"] == 2 and summary["mean_quality"] == 1.0
     trace = json.loads((next(tmp_path.iterdir()) / "lsass-dump-comsvcs.json").read_text())
     assert "local_score_detail" in json.dumps(trace["steps"][-1])
+
+
+LINUX_XML = [
+    '<Event><System><Provider Name="Linux-Sysmon"/><EventID>1</EventID>'
+    "<Channel>Linux-Sysmon/Operational</Channel><Computer>lab-1</Computer></System>"
+    '<EventData><Data Name="UtcTime">2026-01-01 10:00:00.000</Data>'
+    '<Data Name="ProcessGuid">{child}</Data><Data Name="Image">/usr/bin/cat</Data>'
+    '<Data Name="CommandLine">cat /etc/shadow</Data><Data Name="User">root</Data>'
+    '<Data Name="ParentProcessGuid">{shell}</Data><Data Name="ParentImage">/bin/bash</Data>'
+    '<Data Name="ParentCommandLine">-bash</Data><Data Name="ParentUser">ubuntu</Data>'
+    "</EventData></Event>",
+    '<!DOCTYPE x [<!ENTITY a "boom">]><Event><System><EventID>1</EventID></System></Event>',
+    "not xml at all",
+]
+
+
+def test_sysmon_for_linux_xml_maps_to_linux_vocabulary(tmp_path: Path) -> None:
+    from bluesec1_agent.robust.localdata.graph import load_events
+
+    f = tmp_path / "sysmon_linux.log"
+    f.write_text("\n".join(LINUX_XML))
+    events = load_events(str(f))
+    assert len(events) == 1                                 # DTD line and junk are refused
+    g = build_graph(events)
+    kinds = {e["type"] for e in g.entities.values()}
+    assert {"linux_process", "linux_file", "linux_user", "host"} <= kinds
+    rel = next(r for r in g.relations.values() if r["type"] == "linux_process_create")
+    shell = g.entities[rel["source"]]
+    assert shell["image"] == "/bin/bash" and g.entities[shell["user_entity_id"]]["name"] == "ubuntu"
+
+
+@pytest.mark.skipif(not (DATA / "splunk").is_dir(), reason="Linux practice data not downloaded")
+def test_linux_tasks_build_and_pair_with_benign_twins() -> None:
+    from bluesec1_agent.robust.localdata.fetch import load_tasks
+
+    tasks = {t.scenario.id: t for t in load_tasks(DATA) if t.scenario.platform == "linux"}
+    assert len(tasks) == 10
+    mal, ben = tasks["linux-service-stopped"], tasks["linux-dpkg-service-start"]
+    assert mal.alert["title"] == ben.alert["title"]          # same alert, opposite verdicts
+    assert mal.scenario.verdict == "malicious" and ben.scenario.verdict == "benign"
+    users = {mal.graph.entities[i]["name"] for i in mal.core
+             if mal.graph.entities.get(i, {}).get("type") == "linux_user"}
+    assert users == {"ubuntu"}

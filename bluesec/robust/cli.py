@@ -35,8 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--local", nargs="?", const="all", metavar="IDS",
                    help="run the practice tasks built from public datasets (all, or "
                         "comma-separated scenario ids); see localdata/fetch.py --list")
-    p.add_argument("--data-dir", default="datasets/otrf",
-                   help="where the public datasets were downloaded (default datasets/otrf)")
+    p.add_argument("--data-dir", default="datasets",
+                   help="where the public datasets were downloaded (default datasets)")
     p.add_argument("--arena", help="override SCENARIO_RUNTIME_ARENA (e.g. practice)")
     p.add_argument("--provider", choices=["anthropic", "openai"], help="override ROBUST_PROVIDER")
     p.add_argument("--model", help="override ANTHROPIC_MODEL / LLM_DEFAULT_MODEL")

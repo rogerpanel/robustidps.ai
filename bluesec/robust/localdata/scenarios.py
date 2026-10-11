@@ -1,12 +1,15 @@
-"""Practice tasks built from OTRF Security-Datasets (https://github.com/OTRF/Security-Datasets).
+"""Practice tasks built from public attack telemetry:
+- Windows: OTRF Security-Datasets (https://github.com/OTRF/Security-Datasets, MIT)
+- Linux: Splunk attack_data, Sysmon for Linux (https://github.com/splunk/attack_data,
+  Apache-2.0)
 
 Each scenario names a public dataset, the alert a detection would raise on it,
 and the ground truth an investigation should reach. Ground truth is written
 as selectors over the graph (not hard-coded ids), so it is rebuilt from the
 raw telemetry every time.
 
-Malicious scenarios come from OTRF's recorded technique simulations: the
-operator's shell session in each recording is the root of the activity.
+Malicious scenarios come from recorded technique simulations: the operator's
+shell session in each recording is the root of the activity.
 Benign scenarios are real background events from the same recordings that a
 naive detection rule would flag (a common source of SOC false positives).
 
@@ -28,13 +31,17 @@ from .graph import Graph
 OTRF_BASE = (
     "https://raw.githubusercontent.com/OTRF/Security-Datasets/master/datasets/atomic/windows/"
 )
+SPLUNK_BASE = (
+    "https://media.githubusercontent.com/media/splunk/attack_data/master/datasets/attack_techniques/"
+)
+SOURCE_LABEL = {"otrf": "OTRF Security-Datasets", "splunk": "Splunk attack_data"}
 
 
 @dataclass(frozen=True)
 class Scenario:
     id: str
-    dataset: str  # path under OTRF datasets/atomic/windows/, without .zip
-    otrf_id: str
+    dataset: str  # OTRF: path under datasets/atomic/windows/ without .zip; Splunk: technique dir
+    otrf_id: str  # the source's dataset id
     attack: str  # ATT&CK technique OTRF maps the recording to
     verdict: str  # "malicious" | "benign"
     title: str
@@ -45,6 +52,11 @@ class Scenario:
     core: tuple = ()  # extra core selectors (malicious) or evidence anchors (benign)
     optimal_calls: int = 4
     extra_trigger: tuple = field(default=())
+    source: str = "otrf"  # "otrf" | "splunk"
+
+    @property
+    def platform(self) -> str:
+        return "linux" if self.source == "splunk" else "windows"
 
 
 def _sel(**kw: Any) -> dict[str, Any]:
@@ -216,6 +228,166 @@ SCENARIOS: list[Scenario] = [
         core=("trigger", "trigger_parent"),
         optimal_calls=2,
     ),
+    # ======================================================== Linux (Splunk)
+    Scenario(
+        id="linux-shadow-read",
+        source="splunk",
+        dataset="T1003.008/copy_file_stdoutpipe",
+        otrf_id="T1003.008/copy_file_stdoutpipe",
+        attack="T1003.008",
+        verdict="malicious",
+        title="Credential file read by a script run with sudo",
+        summary="cat read /etc/shadow as root on the host.",
+        severity="high",
+        trigger=_sel(type="linux_process", image="cat", cmd="/etc/shadow"),
+        root="ancestor:bash",
+        core=(_sel(type="linux_process", cmd="stdout_etc.sh"),),
+        optimal_calls=4,
+    ),
+    Scenario(
+        id="linux-wiper-shred",
+        source="splunk",
+        dataset="T1485/rm_shred_critical_dir",
+        otrf_id="T1485/rm_shred_critical_dir",
+        attack="T1485",
+        verdict="malicious",
+        title="shred overwrote a system directory",
+        summary="shred ran against /boot with overwrite and zero-fill options.",
+        severity="critical",
+        trigger=_sel(type="linux_process", image="shred", cmd="/boot"),
+        root="ancestor:bash",
+        core=(
+            _sel(type="linux_process", image="rm", cmd="rm -rf /home --no-preserve-root"),
+            _sel(type="linux_file", path_endswith="/soloshred.sh"),
+        ),
+        optimal_calls=4,
+    ),
+    Scenario(
+        id="linux-kernel-module",
+        source="splunk",
+        dataset="T1547.006/loading_linux_kernel_module",
+        otrf_id="T1547.006/loading_linux_kernel_module",
+        attack="T1547.006",
+        verdict="malicious",
+        title="Kernel module loaded with insmod",
+        summary="insmod loaded a kernel module as root.",
+        severity="high",
+        trigger=_sel(type="linux_process", cmd="insmod rootkit.ko", user="root"),
+        root="ancestor:bash",
+        core=(
+            _sel(type="linux_file", path_contains="drivers/rootkit/rootkit.ko"),
+            _sel(type="linux_process", image="cp", cmd="rootkit.ko", user="root"),
+        ),
+        optimal_calls=4,
+    ),
+    Scenario(
+        id="linux-account-created",
+        source="splunk",
+        dataset="T1548.003/linux_adduser",
+        otrf_id="T1548.003/linux_adduser",
+        attack="T1136.001",
+        verdict="malicious",
+        title="Local account created",
+        summary="useradd created a local account as root.",
+        severity="medium",
+        trigger=_sel(type="linux_process", image="useradd", cmd="atomic_user1", user="root"),
+        root="ancestor:bash",
+        core=(_sel(type="linux_process", image="useradd", cmd="atomic_user2"),),
+        optimal_calls=4,
+    ),
+    Scenario(
+        id="linux-sudoers-nopasswd",
+        source="splunk",
+        dataset="T1548.003/nopasswd_sudoers",
+        otrf_id="T1548.003/nopasswd_sudoers",
+        attack="T1548.003",
+        verdict="malicious",
+        title="Passwordless sudo rule written",
+        summary="A NOPASSWD sudo rule was echoed as root.",
+        severity="high",
+        trigger=_sel(type="linux_process", image="echo", cmd="evil_user all=(all) nopasswd"),
+        root="ancestor:bash",
+        core=(_sel(type="linux_process", image="echo", cmd="root all=(all) nopasswd"),),
+        optimal_calls=4,
+    ),
+    Scenario(
+        id="linux-ld-preload-hijack",
+        source="splunk",
+        dataset="T1574.006/lib_hijack",
+        otrf_id="T1574.006/lib_hijack",
+        attack="T1574.006",
+        verdict="malicious",
+        title="Freshly compiled binary executed as root from a home directory",
+        summary="A binary built minutes earlier in /home ran as root via a shell script.",
+        severity="high",
+        trigger=_sel(type="linux_process", image="prog", user="root"),
+        root="ancestor:bash",
+        core=(
+            _sel(type="linux_process", image="sudo", cmd="run_hook.sh"),
+            _sel(type="linux_process", cmd="dll_hook.sh", user="root"),
+        ),
+        optimal_calls=5,
+    ),
+    Scenario(
+        id="linux-service-stopped",
+        source="splunk",
+        dataset="T1489/linux_service_stop_disable",
+        otrf_id="T1489/linux_service_stop_disable",
+        attack="T1489",
+        verdict="malicious",
+        title="Service state changed by systemctl as root",
+        summary="systemctl changed the state of the apache2 service as root.",
+        severity="medium",
+        trigger=_sel(type="linux_process", image="systemctl", cmd="stop apache2", user="root"),
+        root="ancestor:bash",
+        core=(
+            _sel(type="linux_process", image="systemctl", cmd="disable apache2", user="root"),
+        ),
+        optimal_calls=4,
+    ),
+    # ---------------------------------------------------------- Linux benign
+    Scenario(
+        id="linux-dpkg-service-start",
+        source="splunk",
+        dataset="T1489/linux_service_stop_disable",
+        otrf_id="T1489/linux_service_stop_disable",
+        attack="-",
+        verdict="benign",
+        title="Service state changed by systemctl as root",
+        summary="systemctl changed the state of the apache2 service as root.",
+        severity="medium",
+        trigger=_sel(type="linux_process", image="systemctl", cmd="start apache2.service"),
+        core=("trigger", "trigger_parent", "ancestor:dpkg"),
+        optimal_calls=3,
+    ),
+    Scenario(
+        id="linux-motd-discovery",
+        source="splunk",
+        dataset="T1485/rm_shred_critical_dir",
+        otrf_id="T1485/rm_shred_critical_dir",
+        attack="-",
+        verdict="benign",
+        title="Session discovery command run as root",
+        summary="who -q ran as root on the host.",
+        severity="low",
+        trigger=_sel(type="linux_process", image="who", cmd="who -q"),
+        core=("trigger", "trigger_parent", "ancestor:sshd"),
+        optimal_calls=3,
+    ),
+    Scenario(
+        id="linux-motd-tmp-cleanup",
+        source="splunk",
+        dataset="T1485/rm_shred_critical_dir",
+        otrf_id="T1485/rm_shred_critical_dir",
+        attack="-",
+        verdict="benign",
+        title="Files deleted by rm as root",
+        summary="rm deleted files as root on the host.",
+        severity="medium",
+        trigger=_sel(type="linux_process", image="rm", cmd="/var/lib/update-notifier/tmp."),
+        core=("trigger", "trigger_parent", "ancestor:sshd"),
+        optimal_calls=3,
+    ),
 ]
 
 BY_ID = {s.id: s for s in SCENARIOS}
@@ -234,6 +406,8 @@ def match_entity(g: Graph, sel: dict[str, Any]) -> list[str]:
         if "image" in sel and ntpath.basename(_lc(e.get("image"))) != sel["image"]:
             continue
         if "cmd" in sel and sel["cmd"] not in _lc(e.get("command_line")):
+            continue
+        if "user" in sel and _lc(e.get("user")) != sel["user"]:
             continue
         if "path_contains" in sel and sel["path_contains"] not in _lc(e.get("path")):
             continue
@@ -309,26 +483,32 @@ def build_task(sc: Scenario, g: Graph) -> Task:
             if trigger_rel
             else g.entities[trig].get("start_time")
         ),
-        "source": f"OTRF Security-Datasets {sc.otrf_id}",
+        "source": f"{SOURCE_LABEL[sc.source]} {sc.otrf_id}",
     }
     if trigger_rel:
         alert["trigger_relations"] = [trigger_rel]
 
     if sc.verdict == "malicious":
-        root = (
-            trig
-            if sc.root == "self"
-            else (g.parent(trig) or trig)
-            if sc.root == "parent"
-            else match_entity(g, sc.root)[0]
-        )
+        if sc.root == "self":
+            root = trig
+        elif sc.root == "parent":
+            root = g.parent(trig) or trig
+        elif isinstance(sc.root, str) and sc.root.startswith("ancestor:"):
+            root = _ancestor(g, trig, sc.root.split(":", 1)[1])
+            if root is None:
+                raise ScenarioError(f"{sc.id}: no {sc.root} above the trigger")
+        else:
+            root = match_entity(g, sc.root)[0]
         session = _descendants(g, root)
         core = {trig, root}
         if host:
             core.add(host)
-        for p in session | {trig}:
+        # Accounts to act on: the session owner, and the trigger's account unless it
+        # is the system account the session elevated to (sudo -> root, SYSTEM).
+        for p in (root, trig):
             u = g.entities[p].get("user_entity_id")
-            if u:
+            name = _lc(g.entities[u].get("name")) if u else ""
+            if u and (p == root or name not in SYSTEM_ACCOUNTS):
                 core.add(u)
         for sel in sc.core:
             hits = match_entity(g, sel)
@@ -355,11 +535,30 @@ def build_task(sc: Scenario, g: Graph) -> Task:
             par = g.parent(trig)
             if par:
                 anchors[par] = _fields(g.entities[par])
+        elif a.startswith("ancestor:"):
+            anc = _ancestor(g, trig, a.split(":", 1)[1])
+            if anc is None:
+                raise ScenarioError(f"{sc.id}: no {a} above the trigger")
+            anchors[anc] = _fields(g.entities[anc])
     return Task(sc, g, alert, set(anchors), set(anchors), anchors)
 
 
 def _fields(obj: dict[str, Any]) -> set[str]:
     return {k for k in obj if k not in ("type", "source", "target")}
+
+
+SYSTEM_ACCOUNTS = {"root", "nt authority\\system"}
+
+
+def _ancestor(g: Graph, eid: str, image: str) -> str | None:
+    p = g.parent(eid)
+    for _ in range(12):
+        if p is None:
+            return None
+        if ntpath.basename(_lc(g.entities[p].get("image"))) == image:
+            return p
+        p = g.parent(p)
+    return None
 
 
 def _host_of(g: Graph, eid: str) -> str | None:

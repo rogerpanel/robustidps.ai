@@ -1,10 +1,13 @@
-"""Build a BlueSec-style evidence graph from Windows Sysmon / Security events.
+"""Build a BlueSec-style evidence graph from Sysmon (Windows and Linux) and
+Windows Security events.
 
-Input: event dicts as published by OTRF Security-Datasets (Mordor), one JSON
-object per line. Output: entities and typed relations using the same type
-names as the competition runtime (windows_process, windows_file,
-registry_key, network_connection, ...; win_process_create, wrote_file,
-set_registry_value, connected_to, ...).
+Input: event dicts, either JSON lines as published by OTRF Security-Datasets
+(Mordor) or Sysmon XML `<Event>` lines as published by Splunk attack_data
+(Sysmon for Linux). Output: entities and typed relations using the same type
+names as the competition runtime: windows_process / linux_process,
+windows_file / linux_file, registry_key, network_connection, ...;
+win_process_create / linux_process_create, wrote_file, set_registry_value,
+connected_to, ...
 
 Events are untrusted input: they are read as data, fields are copied with
 length caps, and nothing in them is executed.
@@ -14,13 +17,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import xml.etree.ElementTree as ET  # noqa: N817 - only after rejecting DTDs
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
 SYSMON = "Microsoft-Windows-Sysmon/Operational"
+SYSMON_LINUX = "Linux-Sysmon/Operational"
 MAX_FIELD = 600
+
+WINDOWS = {"process": "windows_process", "file": "windows_file", "user": "windows_user",
+           "create": "win_process_create"}
+LINUX = {"process": "linux_process", "file": "linux_file", "user": "linux_user",
+         "create": "linux_process_create"}
+PROCESS_TYPES = {WINDOWS["process"], LINUX["process"]}
+CREATE_RELATIONS = {WINDOWS["create"], LINUX["create"]}
 
 
 @dataclass
@@ -75,25 +87,28 @@ class Graph:
 
     # --------------------------------------------------------------- queries
     def processes(self) -> Iterable[tuple[str, dict[str, Any]]]:
-        return ((k, v) for k, v in self.entities.items() if v["type"] == "windows_process")
+        return ((k, v) for k, v in self.entities.items() if v["type"] in PROCESS_TYPES)
 
     def children(self, eid: str) -> list[str]:
         return [
             self.relations[r]["target"]
             for r in self.outgoing.get(eid, [])
-            if self.relations[r]["type"] == "win_process_create"
+            if self.relations[r]["type"] in CREATE_RELATIONS
         ]
 
     def parent(self, eid: str) -> str | None:
         for r in self.incoming.get(eid, []):
-            if self.relations[r]["type"] == "win_process_create":
+            if self.relations[r]["type"] in CREATE_RELATIONS:
                 return self.relations[r]["source"]
         return None
 
 
 _PREFIX = {
     "windows_process": "proc",
+    "linux_process": "proc",
     "windows_file": "file",
+    "linux_file": "file",
+    "linux_user": "user",
     "registry_key": "reg",
     "network_connection": "conn",
     "host": "host",
@@ -137,6 +152,7 @@ def build_graph(events: Iterable[dict[str, Any]]) -> Graph:
     g = Graph()
     hosts: dict[str, str] = {}
     users: dict[str, str] = {}
+    v = WINDOWS  # vocabulary of the event being processed
 
     def host_of(e: dict[str, Any]) -> str:
         name = str(e.get("Hostname") or e.get("Computer") or "unknown").lower()
@@ -149,14 +165,14 @@ def build_graph(events: Iterable[dict[str, Any]]) -> Graph:
             return None
         key = name.lower()
         if key not in users:
-            users[key] = g.entity("windows_user", key, name=name)
+            users[key] = g.entity(v["user"], key, name=name)
             g.relate("logged_on_to", users[key], host, None, dedupe=())
         return users[key]
 
     def proc(guid: Any, host: str, **props: Any) -> str | None:
         if not isinstance(guid, str) or not guid:
             return None
-        pid = g.entity("windows_process", guid, process_guid=guid, **props)
+        pid = g.entity(v["process"], guid, process_guid=guid, **props)
         if "hostname" not in g.entities[pid]:
             g.update(pid, hostname=g.entities[host]["hostname"])
             g.relate("runs_process", host, pid, None, dedupe=())
@@ -169,7 +185,7 @@ def build_graph(events: Iterable[dict[str, Any]]) -> Graph:
     def file_(path: Any, **props: Any) -> str | None:
         if not isinstance(path, str) or not path:
             return None
-        return g.entity("windows_file", path, path=path, **props)
+        return g.entity(v["file"], path, path=path, **props)
 
     for e in events:
         if not isinstance(e, dict):
@@ -177,7 +193,8 @@ def build_graph(events: Iterable[dict[str, Any]]) -> Graph:
         ch, eid_ = e.get("Channel"), str(e.get("EventID", ""))
         h = host_of(e)
         ts = _ts(e)
-        if ch == SYSMON:
+        v = LINUX if ch == SYSMON_LINUX else WINDOWS
+        if ch in (SYSMON, SYSMON_LINUX):
             if eid_ == "1":
                 child = proc(
                     e.get("ProcessGuid"),
@@ -208,10 +225,11 @@ def build_graph(events: Iterable[dict[str, Any]]) -> Graph:
                     h,
                     image=e.get("ParentImage"),
                     command_line=e.get("ParentCommandLine"),
+                    user=e.get("ParentUser"),
                     process_id=e.get("ParentProcessId"),
                 )
                 if parent:
-                    g.relate("win_process_create", parent, child, ts)
+                    g.relate(v["create"], parent, child, ts)
                 f = file_(e.get("Image"), sha256=_sha256(e.get("Hashes")))
                 if f:
                     g.relate("executed_file", child, f, ts)
@@ -386,10 +404,13 @@ def build_graph(events: Iterable[dict[str, Any]]) -> Graph:
 
 
 def load_events(path: str) -> list[dict[str, Any]]:
-    """Read one OTRF dataset file: JSON lines (most) or a JSON array."""
+    """Read one dataset file: JSON lines or a JSON array (OTRF), or one Sysmon
+    XML `<Event>` per line (Splunk attack_data, Sysmon for Linux)."""
     with open(path, encoding="utf-8", errors="replace") as fh:
         text = fh.read()
     stripped = text.lstrip()
+    if stripped.startswith("<"):
+        return [e for e in (_xml_event(line) for line in text.splitlines()) if e]
     if stripped.startswith("["):
         data = json.loads(stripped)
         return [e for e in data if isinstance(e, dict)]
@@ -402,3 +423,32 @@ def load_events(path: str) -> list[dict[str, Any]]:
             except json.JSONDecodeError:
                 continue
     return out
+
+
+def _xml_event(line: str) -> dict[str, Any] | None:
+    """Flatten one Sysmon `<Event>` into the dict shape OTRF uses.
+
+    Untrusted input: lines declaring a DTD or entities are skipped, so no
+    entity expansion can happen.
+    """
+    line = line.strip()
+    if not line.startswith("<Event") or "<!" in line:
+        return None
+    try:
+        root = ET.fromstring(line)
+    except ET.ParseError:
+        return None
+    out: dict[str, Any] = {}
+    for el in root.iter():
+        tag = el.tag.split("}")[-1]
+        if tag == "EventID":
+            out["EventID"] = (el.text or "").strip()
+        elif tag == "Channel":
+            out["Channel"] = (el.text or "").strip()
+        elif tag == "Computer":
+            out["Hostname"] = (el.text or "").strip()
+        elif tag == "TimeCreated":
+            out.setdefault("TimeCreated", el.attrib.get("SystemTime"))
+        elif tag == "Data" and "Name" in el.attrib:
+            out[el.attrib["Name"]] = (el.text or "").strip()
+    return out if out.get("EventID") else None

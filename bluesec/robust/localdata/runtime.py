@@ -27,13 +27,16 @@ MAX_IDS_PER_TYPE = 40
 KINDS = {
     "host": {"host_to_isolate"},
     "windows_user": {"identity_to_rotate", "identity_observed"},
+    "linux_user": {"identity_to_rotate", "identity_observed"},
     "windows_process": {"process_observed", "cleanup_to_verify", "other"},
+    "linux_process": {"process_observed", "cleanup_to_verify", "other"},
     "windows_file": {
         "file_to_delete",
         "file_observed",
         "persistence_to_remove",
         "cleanup_to_verify",
     },
+    "linux_file": {"file_to_delete", "file_observed", "persistence_to_remove", "cleanup_to_verify"},
     "registry_key": {"persistence_to_remove", "registry_observed", "cleanup_to_verify"},
     "network_connection": {"network_block", "artifact_observed"},
     "scheduled_task": {"persistence_to_remove"},
