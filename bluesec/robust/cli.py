@@ -35,6 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--local", nargs="?", const="all", metavar="IDS",
                    help="run the practice tasks built from public datasets (all, or "
                         "comma-separated scenario ids); see localdata/fetch.py --list")
+    p.add_argument("--pack", metavar="ZIP",
+                   help="run the tasks in a practice pack zip (see localdata/pack.py); "
+                        "combine with --local IDS to run a subset")
     p.add_argument("--data-dir", default="datasets",
                    help="where the public datasets were downloaded (default datasets)")
     p.add_argument("--arena", help="override SCENARIO_RUNTIME_ARENA (e.g. practice)")
@@ -106,13 +109,22 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         key = "anthropic_model" if s.provider == "anthropic" else "llm_default_model"
         s = s.model_copy(update={key: args.model})
 
-    missing = s.missing(need_runtime=not (args.mock or args.local))
+    missing = s.missing(need_runtime=not (args.mock or args.local or args.pack))
     if missing:
         print("Missing configuration in .env: " + ", ".join(missing), file=sys.stderr)
         raise SystemExit(1)
 
     llm = make_llm(s)
     try:
+        if args.pack:
+            from pathlib import Path
+
+            from .localdata.pack import load_pack
+            from .localdata.runtime import LocalClient
+
+            subset = None if args.local in (None, "all") else args.local.split(",")
+            ids = [i.strip() for i in subset] if subset else None
+            return await RobustAgent(s, llm).run(LocalClient(load_pack(Path(args.pack), ids)))
         if args.local:
             from pathlib import Path
 

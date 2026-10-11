@@ -314,3 +314,32 @@ def test_linux_tasks_build_and_pair_with_benign_twins() -> None:
     users = {mal.graph.entities[i]["name"] for i in mal.core
              if mal.graph.entities.get(i, {}).get("type") == "linux_user"}
     assert users == {"ubuntu"}
+
+
+def test_pack_round_trip_and_rejects_foreign_zip(tmp_path: Path) -> None:
+    import zipfile
+
+    from bluesec1_agent.robust.localdata.pack import build_pack, load_pack
+
+    g = build_graph(EVENTS)
+    tasks = [build_task(SC_MAL, g), build_task(SC_BEN, g)]
+    out = tmp_path / "pack.zip"
+    manifest = build_pack(tasks, out)
+    assert [t["id"] for t in manifest["tasks"]] == ["t-mal", "t-ben"]
+    with zipfile.ZipFile(out) as zf:
+        names = set(zf.namelist())
+        assert {"manifest.json", "README.md", "tasks/t-mal.json", "answers/t-mal.json"} <= names
+        assert any(n.startswith("LICENSES/") for n in names)
+        assert "verdict" not in json.loads(zf.read("tasks/t-mal.json"))   # answers kept apart
+    loaded = {t.scenario.id: t for t in load_pack(out)}
+    assert loaded["t-mal"].core == tasks[0].core and loaded["t-ben"].evidence_fields
+    s = LocalSession(loaded["t-mal"], "t-mal")
+    trig = s.task.observation["alert_text"]["trigger_entities"][0]
+    r = asyncio.run(s.call_tool("get_entity", {"entity_id": trig, "reasoning": "x"}))
+    assert r.info["tool_status"] == "ok" and r.info["tool_result"]["outgoing"]
+
+    bad = tmp_path / "bad.zip"
+    with zipfile.ZipFile(bad, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"format": "something-else"}))
+    with pytest.raises(ValueError):
+        load_pack(bad)
