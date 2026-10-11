@@ -34,12 +34,27 @@ them are generated; do not edit these files by hand:
 |---|---|
 | `benchmark_macros.tex`, `tables/tasks.tex`, `tables/types.tex` | `python ../scripts/benchmark_to_tex.py --pack ../benchmark/socgraph-21-v1.1.zip --out .` |
 | `results_macros.tex`, `tables/results_*.tex`, `data/*.csv` | `python ../scripts/results_to_tex.py --pilot ../results/pilot-2026-10-10 --runs "../results/study/*/" --baseline full --sensitivity-exclude linux-service-stopped --out .` |
+| `trace_macros.tex`, `tables/safeguards.tex` | `python ../scripts/trace_stats.py --pack ../benchmark/socgraph-21-v1.1.zip --runs "../results/study/*/" --out .` (run from the repository root with `--out paper` so trace paths resolve) |
+| `sensitivity_macros.tex`, `tables/sensitivity.tex` | `python scripts/sensitivity.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper` (from the repository root) |
 | `prompts/*.txt` | copied verbatim from `agent/robust/prompt.py` |
 
 ## Other templates
 
-The manuscript uses IEEEtran (journal mode), suitable for IEEE TIFS / TDSC.
-For a conference, change the first line to `\documentclass[conference]{IEEEtran}`.
+Two builds share `preamble.tex` and `content.tex`:
+
+- `main.tex`: IEEEtran journal mode with author block (IEEE TIFS / TDSC).
+- `main-conference.tex`: IEEEtran `conference,compsoc`, anonymous, for
+  double-blind review at IEEE SaTML or IEEE S&P. The platform name is replaced
+  by a neutral phrase (`\ReviewUI`), and the repository link is omitted. Its
+  main text currently ends on page 13 (references start on page 14); check the
+  venue's call for papers for the current page limit and template, and see the
+  trimming notes below. In Overleaf, set *Main document* to
+  `main-conference.tex` to build it.
+
+Trimming for a 13-page limit, if needed: move the pilot (Table and Fig. of
+Section VII-A) and the engineering observations to the appendix, and the
+per-task matrix (Table `tab:pertask`) to the artifact.
+
 For an Elsevier journal (e.g. Computers & Security), switch to `elsarticle`:
 replace the class and the `\author`/`\thanks` block with elsarticle's
 `\author`/`\affiliation`, move the abstract and keywords into the

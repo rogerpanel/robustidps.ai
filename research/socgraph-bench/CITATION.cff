@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software or benchmark, please cite it as below, and cite OTRF Security-Datasets and Splunk attack_data."
-title: "SOCGraph: LLM agents for provenance-graph alert investigation (code, SOCGraph-21 benchmark and results)"
+title: "SOCGraph: Robust LLM agents for provenance-graph alert triage (code, SOCGraph-21 benchmark with cue-controlled variants, traces and results)"
 authors:
   - family-names: Anaedevha
     given-names: Roger Nick
@@ -15,3 +15,6 @@ keywords:
   - LLM agents
   - benchmark
   - ablation
+  - shortcut learning
+  - mimicry
+  - adversarial machine learning

@@ -34,67 +34,92 @@ traces of the study runs attribute these losses per task.
 \label{sec:study}
 \ifnum\ResStudyAvailable=1
 Table~\ref{tab:ablation} reports the full configuration and the five ablations over \ResStudyTasks{} tasks
-with \ResStudyRepeats{} repeats per configuration. The full configuration reached mean quality
-\ResFullQuality{}, efficiency \ResFullEfficiency{} and reward \ResFullReward{}, with verdict accuracy
-\ResFullAccuracy{}, a false-positive rate of \ResFullFPR{} and a false-negative rate of \ResFullFNR{}, at
-\ResFullCalls{} tool calls per task. Fig.~\ref{fig:ablation} compares quality and efficiency across
-configurations; Table~\ref{tab:breakdown} breaks results down by operating system and expected verdict, and
-Table~\ref{tab:pertask} gives the per-task matrix and Table~\ref{tab:effects} the paired effects. Repeat~1
-was rescored from v1.0 (\S\ref{sec:experiments}) and contributes its run-level means; the per-task, paired and
-breakdown figures use the \ResPairedRepeats{} repeats whose per-task results are in hand.
+with \ResStudyRepeats{} repeats per configuration; Table~\ref{tab:effects} gives paired task-level effects,
+Table~\ref{tab:breakdown} a breakdown by operating system and expected verdict, Table~\ref{tab:pertask} the
+per-task matrix and Table~\ref{tab:safeguards} what happened at the tool interface. Repeat~1 was rescored from
+v1.0 (\S\ref{sec:experiments}); all \ResPairedRepeats{} repeats have per-task results and traces.
 
 \input{tables/results_ablation}
 \input{tables/results_effects}
 \input{figures/ablation_plot}
 
-\paragraph{Effectiveness (RQ1)} The full agent reached reward \ResFullReward{}\,$\pm$\,\ResFullRewardSd{} over
-\ResStudyRepeats{} repeats. No configuration judged a benign task malicious in any run, so the false-positive
-rate was zero throughout. The full agent's verdict errors (\ResFullVerdictErrors{}) were both on
-\texttt{linux-service-stopped}, the malicious member of the twin pair: an operator stopping and disabling a web
-service through \texttt{sudo} was judged benign. Across all configurations this task was misjudged in 7 of the
-17 runs, while its benign twin, with the same alert, was judged correctly in all 17. The only other error was
-one malicious Windows task (\texttt{firewall-rule-added}) judged benign without the method prompt.
+\paragraph{Effectiveness (RQ1)} The full agent reached reward \ResFullReward{}\,$\pm$\,\ResFullRewardSd{},
+quality \ResFullQuality{} and verdict accuracy \ResFullAccuracy{}. No configuration judged a benign task
+malicious in any run, so the false-positive rate was zero throughout. The full agent's verdict errors
+(\ResFullVerdictErrors{}) were both on \texttt{linux-service-stopped}, the malicious member of the twin pair.
+Across all configurations this task was cleared in 7 of the 17 runs, while its benign twin, with the same
+alert, was judged correctly in all 17. The traces show why: in each erroneous run the agent observed that the
+operator ran \texttt{status} and \texttt{restart} on the service seconds after stopping it, and concluded that
+nothing was kept down. That sequence is the cleanup step of the recorded test, so the benign reading is
+defensible from the telemetry alone; the label follows the recording's intent. The only other error was one
+malicious Windows task (\texttt{firewall-rule-added}) cleared without the method prompt.
 
 \paragraph{Platforms and verdict classes (RQ4)} Quality was \ResFullWinQuality{} on Windows tasks and
-\ResFullLinQuality{} on Linux tasks. Part of the Linux gap is the twin error above; the rest is lower artifact
-and evidence scores. Two benign Linux tasks (\texttt{linux-dpkg-service-start}, \texttt{linux-motd-discovery})
-scored $Q=0.708$ in every configuration in both repeats with per-task results, with one exception noted below. With three anchors,
-that value arises only from two anchors credited and two further citations outside $\mathcal L\cup N$; its
-constancy marks a systematic difference between the evidence the agent cites and the anchors, not run-to-run
-noise. Without the method prompt the agent scored 0.857 and 0.875 on the \texttt{dpkg} task, values that
-require all three anchors, so the missing anchor is attainable and the gap lies in which evidence the method
-prompt leads the agent to cite. The lowest malicious score was on \texttt{linux-sudoers-nopasswd}
-(Table~\ref{tab:pertask}).
+\ResFullLinQuality{} on Linux tasks. The traces show two systematic patterns that cost quality on both
+platforms, more on Linux. (i) \emph{Hosts named by hostname.} Of the \TrAllMalSubs{} correct malicious
+submissions, \TrAllHostByName{} named the host to isolate by its hostname instead of its entity id, which
+the scorer counts as a missed core entity and an unrelated citation; only \TrAllHostById{} used the id.
+(ii) \emph{Lineage relations and the session root.} On the benign Linux tasks the agent cited the
+process-creation relations along the trigger's lineage, which v1.1 does not count as neutral, and stopped at
+the script that explains the activity (the MOTD script, the package's post-installation script) instead of
+citing the session root above it (\texttt{sshd}, \texttt{dpkg}). Hence the constant $Q=0.708$ on
+\texttt{linux-dpkg-service-start} and \texttt{linux-motd-discovery}: two of three anchors and two relation
+citations outside $\mathcal L\cup N$.
+
+\input{tables/sensitivity}
+
+Table~\ref{tab:sensitivity} rescores the full agent's \TrFullSubmissions{} submissions under alternative rules,
+without new model calls. Accepting hostnames raises Windows quality from \SensOfficialWindows{} to
+\SensHostnamesWindows{}; treating lineage relations as neutral raises benign quality from \SensOfficialBenign{}
+to \SensRelationsBenign{}; with both, overall quality rises from \SensOfficialAll{} to \SensBothAll{} and Linux
+from \SensOfficialLinux{} to \SensBothLinux{}. We keep the official scorer, which is fixed and released; the
+table shows how much of the measured gap reflects identifier discipline and evidence style rather than wrong
+conclusions. The Linux gap that remains comes from the twin errors and from tasks where the agent drew the
+operator session differently from the ground truth: on \texttt{linux-sudoers-nopasswd} it treated the script
+that wrote the rule, not the login shell above it, as the session root, and named \texttt{root} rather than the
+operator account.
 
 \paragraph{Efficiency and where reward is lost (RQ2)} The full agent used \ResFullCalls{} calls per task
-against a mean target $n^\star+1$ of 4.6, and exceeded the target in 39 of 42 task runs. As in the pilot, the
-reward gap decomposes into a quality part, $1-\overline{Q}=0.164$, and an efficiency part,
-$\overline{Q}-\overline{R}=0.061$. On the full benchmark, unlike the Windows-only pilot, quality is the larger
-loss, driven by the Linux tasks. The hard cap of 30 calls was never reached (at most 22 calls in any run).
+against a mean target $n^\star+1$ of 4.6, and exceeded the target in 58 of 63 task runs. The reward gap
+decomposes into a quality part, $1-\overline{Q}=0.164$, and an efficiency part,
+$\overline{Q}-\overline{R}=0.061$; on the full benchmark, unlike the Windows-only pilot, quality is the larger
+loss. A task took \TrFullModelCalls{} model calls on average, with about \TrFullOutTok{} output tokens and
+\TrFullCacheReadTok{} prompt tokens read from the cache; uncached input was negligible because the system
+prompt and tool definitions were cached. The hard cap of 30 calls was never reached (at most 22 in any run).
+
+\input{tables/safeguards}
 
 \paragraph{Ablation (RQ3): the method prompt} Replacing the investigation-method prompt with the minimal prompt
 is the only ablation with a consistent effect. The agent then used \ResNoMethodPairedCalls{} calls per task more
 (95\% CI \ResNoMethodPairedCallsCI{}), more on \ResNoMethodMoreCalls{} of the \ResNoMethodCallsDiffer{} tasks
 where the count differed (sign test \ResNoMethodCallsSignP{}), and efficiency fell from \ResFullEfficiency{} to
-\ResNoMethodEfficiency{}. Quality did not fall (\ResNoMethodQuality{} against \ResFullQuality{}): the method
-buys efficiency, not answer quality, and it halved verdict errors (\ResFullVerdictErrors{} against
-\ResNoMethodVerdictErrors{}). Mean reward was \ResNoMethodReward{}, \ResNoMethodDeltaReward{} against the full
-agent; the paired interval \ResNoMethodPairedRewardCI{} still contains zero because the reward weighs
-efficiency at only 0.2.
+\ResNoMethodEfficiency{}. The paired change in mean reward was \ResNoMethodPairedReward{} (95\% CI
+\ResNoMethodPairedRewardCI{}).
+Quality did not fall (\ResNoMethodQuality{} against \ResFullQuality{}), for a reason the traces make visible:
+the method prompt tells the agent not to look up the host named in the alert, so the full agent rarely held the
+host's entity id (\TrFullHostById{} of \TrFullMalSubs{} correct malicious submissions used it, against
+\TrNoMethodHostById{} of \TrNoMethodMalSubs{} without the method). An efficiency instruction thus cost quality
+through the interface, offsetting what the method gains elsewhere. Without the method the agent also sent more
+malformed calls (\TrNoMethodValidation{} refused by validation, against \TrFullValidation{}) and used about
+30\% more output tokens.
 
 \paragraph{Ablation (RQ3): the local safeguards} Switching off the cache, validation, grounding check or budget
 produced no measurable change. Three of these ablations score about 0.02--0.03 above the full agent in mean
-reward (Table~\ref{tab:ablation}), but the difference is one task: the full agent misjudged
-\texttt{linux-service-stopped} in two of three repeats, and each miss removes about 0.04 from the mean over 21
-tasks. Leaving that task out, every paired difference lies within $\pm0.005$ and every interval contains zero
-(Table~\ref{tab:effects}). The verdict errors themselves are consistent with a common error rate on that task:
-with the pooled rate of 7 errors in 17 runs, two or more errors in three runs has probability of about 0.37 and
-none in three about 0.20, so the per-configuration counts do not distinguish the configurations. Call counts
-changed by less than a third of a call per task, in no consistent direction, which bounds how often the cache
-and validation could have acted with this model. The budget acted on the few long investigations: in the repeats with per-task results, under the
-full agent only \texttt{linux-shadow-read} (16 calls) and \texttt{linux-ld-preload-hijack} (13--14) exceeded the
-soft budget of 12, and without budget messages \texttt{linux-shadow-read} grew to 21--22 calls, too rare to move
-the mean.
+reward, but the difference is the twin task: the full agent cleared \texttt{linux-service-stopped} in two of
+three repeats, and each miss removes about 0.04 from the mean over 21 tasks. Leaving that task out, every
+paired difference lies within $\pm0.004$ and every interval contains zero (Table~\ref{tab:effects}). The
+per-configuration error counts on that task are consistent with one common rate: with the pooled 7 errors in 17
+runs, two or more errors in three runs has probability of about 0.37 and none about 0.20.
+
+Table~\ref{tab:safeguards} shows why the safeguards had nothing to win. In \TrFullTasks{} full-agent tasks the
+cache answered \TrFullCache{} calls, validation refused \TrFullValidation{} malformed calls (a search query
+shorter than the schema's minimum, a submission serialised as an invalid JSON string), the grounding check
+fired \TrFullGrounding{} time (an invented host identifier, \texttt{host-workstation5}, which the agent then
+dropped) and the budget never refused a call. Without validation, the same kinds of malformed call reached the
+runtime \TrNoValidationRuntimeSchema{} times in 42 tasks and were rejected there, each costing a call: about
+0.1 calls per task, too few to move efficiency. The grounding check also missed the most frequent identifier
+error: it accepts any string that occurred in the evidence, and hostnames do occur there. A check that accepts
+only values seen in identifier fields would have flagged all \TrAllHostByName{} hostname citations.
 \else
 The full study runs every configuration of \S\ref{sec:experiments} three times on all 21 tasks. Its results
 are generated into Tables~\ref{tab:ablation}--\ref{tab:pertask} and a comparison figure by the release
@@ -107,6 +132,25 @@ script from the run folders, and this subsection will report them.
 \fi
 \input{tables/results_breakdown}
 \input{tables/results_per_task}
+
+\subsection{Shortcuts and evasion (RQ5)}
+\label{sec:cues}
+The study's traces show that the agent does read label cues. Of the \TrAllSubmissions{} submissions,
+\TrAllSourceCue{} (\TrAllSourceCuePct\%) justify the verdict partly by the source recording, calling the
+activity a simulation or naming the attack dataset from the alert's source field. Most of these are correct
+malicious verdicts (\TrAllSourceCueRight{}). The other \TrAllSourceCueWrong{} are every wrong verdict of the
+study (the seven cleared \texttt{linux-service-stopped} runs and the cleared \texttt{firewall-rule-added} run).
+In these the agent named the source only as a caveat (``the alert source is a Splunk attack-simulation
+dataset, so the label is a judgement call'') and decided from the graph, where it saw no lasting effect. The
+cue therefore did not override the evidence when the two disagreed; whether it helped where they agreed is what
+the cue-controlled variants test.
+\ifnum\ResCueAvailable=1
+\input{tables/results_cues}
+% Interpretation of the variant results goes here.
+\else
+The runs on the \emph{blind} and \emph{mimicry} variants (\S\ref{sec:variants}) are specified in
+\S\ref{sec:experiments}; their results will be added to this subsection.
+\fi
 
 \subsection{Engineering observations}
 \label{sec:engineering}

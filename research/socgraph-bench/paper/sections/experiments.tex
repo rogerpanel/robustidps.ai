@@ -30,6 +30,14 @@ number of calls, rescoring from the stored traces is exact. One run is excluded:
 \emph{no validation}, a malformed argument crashed the v1.0 runtime and aborted a task, which a schema-checking
 runtime would have rejected instead; that configuration therefore has two repeats.
 
+\subsection{Cue-controlled evaluation (RQ5)}
+The full agent runs three times on each variant of \S\ref{sec:variants} (\emph{blind}, \emph{mimicry}), with
+everything else as in the study. Because graphs, identifiers and answers are shared, results are compared with
+the study's full-configuration repeats task by task, with the same paired statistics. A drop from v1.1 to
+\emph{blind} measures reliance on label cues in the recordings; a further drop to \emph{mimicry} measures
+reliance on attacker-chosen names. In addition, the traces of the study record when a submission's
+justification refers to the source recording.
+
 \subsection{Metrics}
 Per task we record quality $Q$, efficiency $E$, reward $R$, tool calls spent, calls answered by the cache,
 calls refused locally, wall-clock time and tokens (input, output, cache reads). Aggregates per configuration:

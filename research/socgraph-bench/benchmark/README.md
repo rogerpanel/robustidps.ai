@@ -9,6 +9,12 @@ process access, ...).
 - File: `socgraph-21-v1.1.zip` (sha256 in `SHA256SUMS`), 0.55 MB. Use this
   version. `socgraph-21-v1.0.zip` is kept only to reproduce runs scored with
   it (see *Versions* below).
+- Cue-controlled variants with the same graphs, identifiers and answers:
+  `socgraph-21-v1.1-blind.zip` (no source field in the alert, neutral lab
+  host and domain names) and `socgraph-21-v1.1-mimicry.zip` (also renames
+  operator-chosen names such as `rootkit.ko`, `evil_user`, `atomic_user1`
+  without changing behaviour). Built by `scripts/make_variants.py`; each
+  manifest lists its substitutions. See *Cue-controlled variants* below.
 - 21 tasks: Windows 8 malicious + 3 benign;
   Linux 7 malicious + 3 benign;
   15 distinct ATT&CK techniques
@@ -102,3 +108,26 @@ uv run --with anthropic --with jsonschema python -m bluesec1_agent.robust.locald
 Because the graphs did not change, a run made on 1.0 is rescored exactly on
 1.1 from its traces, with no model calls:
 `python -m bluesec1_agent.robust.cli --rescore traces/<run>... --pack socgraph-21-v1.1.zip`.
+
+## Cue-controlled variants
+
+Public attack recordings announce themselves: the v1.1 alert names its source
+recording (dataset and ATT&CK technique), the Linux hosts are called
+`*-attack-range-*`, the Windows domain is `mordor.local`, and the operators
+named their artefacts `rootkit.ko`, `evil_user`, `atomic_user1`,
+`T1218.005.hta`. In the study, 15% of the agent's submissions cited the
+source recording. The variants remove these cues so that reliance on them can
+be measured:
+
+| Variant | Change | Measures |
+|---|---|---|
+| `blind` | alert `source` field removed; lab host and domain names replaced (`web-01`, `app-01`, `corp.local`) | reliance on label cues of the recordings |
+| `mimicry` | blind, plus operator-chosen names renamed (`rootkit.ko` to `hidmon.ko`, `evil_user` to `deploy`, Atomic Red Team URL and rule names, ATT&CK ids in file names and strings) | reliance on attacker-chosen names (lexical evasion) |
+
+Renamings are consistent substitutions over attribute values, never
+identifiers; answers are byte-identical to v1.1, so scores are directly
+comparable. The build fails if a cue survives.
+
+```bash
+python scripts/make_variants.py --pack benchmark/socgraph-21-v1.1.zip --out benchmark
+```

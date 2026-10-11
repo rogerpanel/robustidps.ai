@@ -82,6 +82,25 @@ an intermediate shell lowered precision. Version~1.1 adds the neutral set and pu
 accounts in $A^\star$ on both platforms. Graphs and alerts are byte-identical between the versions; the Windows
 malicious answers are unchanged. All results in \S\ref{sec:results} use v1.1, and both versions are released.
 
+\subsection{Cue-controlled variants}
+\label{sec:variants}
+Public attack recordings carry traces of how they were made. In \bench v1.1, the alert names its source
+recording (for example ``Splunk attack\_data T1489/\allowbreak linux\_service\_stop\_disable''), the Linux hosts
+are named \texttt{*-attack-range-*}, the Windows domain is \texttt{mordor.local}, and the operators chose names
+such as \texttt{rootkit.ko}, \texttt{evil\_user}, \texttt{atomic\_user1}, a firewall rule called
+``atomic testing'', and files named after ATT\&CK identifiers. A real intruder would not leave these, and an
+agent that reads them is answering a different question. We therefore release two variants with the same
+graphs, identifiers and answers, so that every score is directly comparable:
+\emph{blind} removes the alert's source field and replaces the lab host and domain names with neutral ones
+(\texttt{web-01}, \texttt{app-01}, \texttt{corp.local}); \emph{mimicry} additionally renames the
+operator-chosen names (\texttt{rootkit.ko}$\to$\texttt{hidmon.ko}, \texttt{evil\_user}$\to$\texttt{deploy},
+the Atomic Red Team download URL to a neutral one, and so on). Every renaming is a consistent string
+substitution over all attribute values, never identifiers, so the behaviour is unchanged: the same module is
+loaded, the same sudoers rule written, the same account created. The substitution tables are part of each
+variant's manifest, and the build script refuses to emit a variant in which a cue survives. In the sense of
+problem-space attacks~\cite{pierazzi2020problemspace}, mimicry is a semantics-preserving evasion of the agent's
+lexical cues, not of its reasoning about provenance.
+
 \subsection{Statistics and format}
 Graphs have \BenchEntMin{}--\BenchEntMax{} entities (median \BenchEntMedian{}) and
 \BenchRelMin{}--\BenchRelMax{} relations (median \BenchRelMedian{}), with \BenchEntTypes{} entity types and

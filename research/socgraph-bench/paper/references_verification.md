@@ -133,3 +133,17 @@ Left out because an essential field could not be confirmed, or because the only 
 3. ExCyTIn-Bench: the ICML 2026 camera-ready author list and PMLR volume.
 4. Xu et al. TOSEM: final volume, issue and year.
 5. If DOIs are required by the venue style, add them for the IEEE S&P, NDSS and CCS 2019 entries from the publisher pages; they were left out here only because they could not be confirmed from this environment.
+
+## Added with the v1.1 study (adversarial robustness, evasion, shortcuts)
+
+Verified from search results restricted to publisher and DBLP domains, cross-checked against
+institutional repositories (direct publisher pages were not reachable from the build environment).
+
+| Key | Source | Check by hand |
+|---|---|---|
+| `wagner2002mimicry` | dl.acm.org/doi/10.1145/586110.586145 | — |
+| `geirhos2020shortcut` | nature.com/articles/s42256-020-00257-z | — |
+| `greshake2023indirect` | dl.acm.org/doi/10.1145/3605764.3623985; DBLP conf/ccs/AbdelnabiGMEHF23 | **Author order** (DBLP lists Abdelnabi first, arXiv 2302.12173 lists Greshake first) and pages 79–90 |
+| `goyal2023mimicry` | ndss-symposium.org paper page; DOI from the Illinois Experts record | DOI `10.14722/ndss.2023.24207` |
+| `debenedetti2024agentdojo` | proceedings.neurips.cc (Datasets and Benchmarks Track) | pages omitted |
+| `pierazzi2020problemspace` | IEEE Xplore document 9152781; UCL Discovery | pages 1332–1349 |

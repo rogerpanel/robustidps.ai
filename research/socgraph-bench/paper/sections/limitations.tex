@@ -22,19 +22,25 @@ are ours. Different weights change absolute numbers; comparisons between configu
 remain meaningful.
 
 \paragraph{Models and variance} The pilot is a single run with one model. LLM outputs vary between runs, and
-the study therefore uses three repeats per configuration, two of them with per-task results; with these, paired
-task-level intervals resolve reward differences of about $\pm0.02$. Smaller component effects would need more
+the study therefore uses three repeats per configuration; paired task-level intervals resolve reward
+differences of about $\pm0.02$ (excluding the unstable task, about $\pm0.01$). Smaller component effects would need more
 repeats or more tasks. All results are for one model at one effort level; the conclusion that the safeguards
 do not matter may not hold for weaker models, which is the next experiment the OpenAI-compatible driver
 enables.
 
-\paragraph{Training-data contamination} OTRF Security-Datasets and Splunk attack\_data are public, so models
-may have seen the raw recordings during training~\cite{sainz2023contamination}. The tasks restructure them
-into graphs with opaque identifiers and new alerts, which limits but does not exclude memorisation effects.
+\paragraph{Training-data contamination and label cues} OTRF Security-Datasets and Splunk attack\_data are
+public, so models may have seen the raw recordings during training~\cite{sainz2023contamination}. The tasks
+restructure them into graphs with opaque identifiers and new alerts, which limits but does not exclude
+memorisation effects. Independently of memorisation, v1.1 exposes label cues: the alert's source field names
+the attack dataset, and \TrAllSourceCuePct\% of the study's submissions refer to it. The reported results
+are therefore an upper bound for an agent facing an intruder who leaves no such traces; the \emph{blind} and
+\emph{mimicry} variants (\S\ref{sec:variants}) measure the difference.
 
 \paragraph{Prompt injection through telemetry} Command lines, file paths and other fields can contain
-attacker-controlled text that an LLM agent reads. \bench does not include adversarial content of this kind;
-evaluating agents against injected instructions in telemetry is important future work.
+attacker-controlled text that an LLM agent reads, a channel for indirect prompt
+injection~\cite{greshake2023indirect,debenedetti2024agentdojo}. The mimicry variant changes such text only to
+remove announcing names; \bench does not yet include instructions planted in telemetry, and evaluating
+investigation agents against them is the most important next step.
 
 \paragraph{No official competition results} We built the agent for the BlueSec1 runtime, but did not obtain
 results on the official competition tasks; all results here are on \bench with our scorer.

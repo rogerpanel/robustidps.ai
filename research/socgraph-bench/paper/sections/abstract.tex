@@ -1,37 +1,28 @@
 \begin{abstract}
-Security operations centres (SOCs) receive far more alerts than analysts can investigate, and most of them
-turn out to be benign. Investigating an alert means walking the evidence behind it: which process started
-which, what it wrote, where it connected and under which account. Large language model (LLM) agents can
-perform this walk through tools, but every lookup costs time and money, and an agent may overspend, issue
-malformed calls or cite evidence it never saw. We present a grounded, budget-aware LLM agent for
-provenance-graph alert investigation and \bench, a cross-platform benchmark built from public attack
-telemetry. The agent derives its tools from the runtime's advertised catalog and routes every call through
-local safeguards (a response cache, schema validation, a grounding check that flags submitted entities never
-observed in the evidence, and soft and hard call budgets with deadline control), so that avoidable calls are
-never spent. It runs tasks in parallel under a learned runtime limit and keeps free-text rationale fields
-compatible with model-side policies that decline requests to externalise internal reasoning.
-\bench converts Windows Sysmon recordings (OTRF Security-Datasets) and Sysmon-for-Linux recordings
-(Splunk attack\_data) into 21 evidence-graph tasks: 15 executions of distinct ATT\&CK techniques and
-6 benign look-alikes recorded on the same hosts, including twins that share their alert with an attack,
-each with selector-defined ground truth and a quality and efficiency score. In a pilot on the
-\ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent reached the correct verdict on every task
-(8 malicious, 3 benign) with mean quality \ResPilotQuality{} and mean efficiency \ResPilotEfficiency{}
-(\ResPilotCalls{} tool calls per task).%
+LLM agents are being built to investigate security alerts by walking provenance evidence through tools:
+which process started which, what it wrote, where it connected. In this adversarial setting an agent must be
+right for the right reasons, at bounded cost, on telemetry an attacker partly controls. We present an
+investigation agent that routes every tool call through local safeguards (response cache, schema validation, a
+grounding check on submitted identifiers, and call budgets), and \bench, a benchmark of 21 provenance-graph tasks
+built from public Windows Sysmon and Sysmon-for-Linux attack recordings: 15 ATT\&CK technique executions and 6
+benign look-alikes from the same hosts, including twins that share an alert with an attack.%
 \ifnum\ResStudyAvailable=1
-\ On all of \bench, over \ResStudyRepeats{} repeats, the full agent reached reward \ResFullReward{}, quality
-\ResFullQuality{} and verdict accuracy \ResFullAccuracy{} with no false positives, at \ResFullCalls{} tool
-calls per task; its only errors cleared an operator's service stop that shares its alert with a benign twin.
-An ablation over \ResStudyConfigs{} configurations shows that the investigation-method prompt is the component
-that matters: without it the agent spent \ResNoMethodCalls{} instead of \ResFullCalls{} calls per task,
-more on \ResNoMethodMoreCalls{} of \ResNoMethodCallsDiffer{} tasks, at unchanged quality. The local
-safeguards had no measurable effect on reward with this model; we discuss them as insurance against failure
-modes the study rarely provoked.
+\ Over \ResStudyRepeats{} repeats with Claude Opus 5.5 the agent reached reward \ResFullReward{}, verdict
+accuracy \ResFullAccuracy{} and no false positives, at \ResFullCalls{} tool calls per task. A paired ablation
+shows that the investigation method in the prompt drives efficiency (\ResNoMethodCalls{} calls per task
+without it, more on \ResNoMethodMoreCalls{} of \ResNoMethodCallsDiffer{} tasks), while the safeguards had no
+measurable effect: per-call traces show they fired on fewer than one call in ten tasks. The traces instead
+expose what aggregate scores hide: identifiers of the wrong type that a substring
+grounding check accepts, an efficiency instruction that withheld the identifier the response needed, and label
+cues that public attack recordings leak into the alert, which \TrAllSourceCuePct\% of submissions cite. We
+release \emph{blind} and \emph{mimicry} variants of \bench that remove these cues and rename attacker-chosen
+artefacts without changing behaviour, so that shortcut reliance and lexical evasion become measurable.
 \else
-\ We further define an ablation protocol that isolates each safeguard's contribution.
+\ We define an ablation protocol that isolates each safeguard's contribution.
 \fi
-We release the agent, the benchmark, run traces and the tooling that regenerates every table in this paper.
+Agent, benchmark, traces of every tool call and the scripts that regenerate every table are released.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Security operations, alert triage, provenance graphs, large language model agents, tool use, benchmark, ablation study.
+Security operations, provenance graphs, LLM agents, tool use, robustness, shortcut learning, mimicry, benchmark, ablation study.
 \end{IEEEkeywords}

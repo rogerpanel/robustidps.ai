@@ -83,15 +83,31 @@ Table~\ref{tab:positioning} summarises the positioning against the main lines of
 \caption{Positioning against related lines of work.}
 \label{tab:positioning}
 \resizebox{\columnwidth}{!}{%
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}lccccc@{}}
 \toprule
- & Graph & Agent & Benign & Cost \\
- & evidence & investigates & tasks & scored \\
+ & Graph & Agent & Benign & Cost & Cue / evasion \\
+ & evidence & investigates & tasks & scored & controls \\
 \midrule
-Provenance detection~\cite{hossain2017sleuth,cheng2024kairos,jiang2025orthrus} & \checkmark & -- & \checkmark & -- \\
-Agent benchmarks~\cite{liu2024agentbench,jimenez2024swebench} & -- & \checkmark & -- & -- \\
-LLM security benchmarks~\cite{bhatt2023cyberseceval,zhang2025cybench} & -- & partly & -- & -- \\
-\textbf{This work} & \checkmark & \checkmark & \checkmark & \checkmark \\
+Provenance detection~\cite{hossain2017sleuth,cheng2024kairos,jiang2025orthrus} & \checkmark & -- & \checkmark & -- & partly~\cite{goyal2023mimicry} \\
+Agent benchmarks~\cite{liu2024agentbench,jimenez2024swebench} & -- & \checkmark & -- & -- & -- \\
+Agent security~\cite{debenedetti2024agentdojo} & -- & \checkmark & \checkmark & -- & \checkmark \\
+LLM security benchmarks~\cite{bhatt2023cyberseceval,zhang2025cybench} & -- & partly & -- & -- & -- \\
+\textbf{This work} & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
 \bottomrule
 \end{tabular}}
 \end{table}
+
+\subsection{Adversarial robustness, evasion and shortcuts}
+Learned security systems face adaptive adversaries and spurious signals. Mimicry attacks hide malicious
+behaviour inside sequences that look normal to host-based detectors~\cite{wagner2002mimicry}, and the same
+idea defeats provenance-graph detectors by making attack subgraphs resemble benign ones~\cite{goyal2023mimicry}.
+Problem-space attacks constrain such perturbations to transformations that preserve the program's
+semantics~\cite{pierazzi2020problemspace}. On the data side, models can succeed by exploiting shortcuts,
+features that correlate with the label in a benchmark but not in deployment~\cite{geirhos2020shortcut};
+spurious correlations are one of the common pitfalls of machine learning in security~\cite{arp2022dosdonts}.
+LLM agents add a further attack surface: text they read through tools can carry instructions
+(indirect prompt injection~\cite{greshake2023indirect}), which AgentDojo~\cite{debenedetti2024agentdojo}
+evaluates for tool-using agents. Telemetry is such a channel, since command lines and file names are chosen by
+the attacker. We measure two of these risks for investigation agents: label cues left in public attack
+recordings, and attacker-chosen names that announce an attack, through cue-controlled variants of \bench
+whose renamings preserve the recorded behaviour.

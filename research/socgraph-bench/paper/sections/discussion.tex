@@ -9,8 +9,9 @@ in the benchmark.
 \paragraph{Prompted method beats mechanical guards, for a strong model} The cache, validation, grounding
 check and budgets need no model change, run in constant time per call and apply unchanged to any model behind
 the driver interface. We expected the grounding check to matter for quality and the budget and cache for
-efficiency. With Claude Opus 5.5 none of them moved reward measurably: the model seldom repeated calls, sent
-malformed arguments or ran into the budget, so the guards had little to act on. What did move efficiency was
+efficiency. With Claude Opus 5.5 none of them moved reward measurably, and the traces show why: in 63 tasks
+the full agent repeated no call, sent five malformed ones and invented one identifier, and never reached the
+hard cap. The guards had little to act on. What did move efficiency was
 the investigation method in the prompt (start from the trigger, keep competing hypotheses, stop when they are
 settled), which cut calls by about 30\% at unchanged quality. For practitioners the order of work is
 therefore: write down the analyst's method first, then add guards as insurance. The guards remain worth
@@ -25,6 +26,24 @@ might attribute to a component. Ablations of LLM agents therefore need repeats, 
 a check of which tasks carry a difference; mean-reward tables alone would have credited three safeguards with
 harm they did not do.
 
+\paragraph{Guards must check the failure that actually occurs} The most frequent identifier error in the study
+was not an invented id but a real value of the wrong type: a hostname where the host's entity id belonged. A
+grounding check that accepts any string seen in the evidence cannot catch it; one that accepts only values
+seen in identifier fields would have caught all of them, at no cost. More generally, a guard should be derived
+from the interface's types, not from a list of anticipated mistakes, and its effect measured on traces.
+
+\paragraph{Prompts trade quality and cost through the interface} The method prompt's instruction not to look
+up the host named in the alert saved calls and, by the same token, withheld the identifier the response had
+to name. Efficiency instructions are not free: they interact with what the tool interface returns, and their
+cost appears only in per-call traces, not in aggregate scores.
+
+\paragraph{Benchmarks built from attack recordings need cue control} Public recordings are made to be found:
+they carry dataset names, lab host names and operator-chosen file names that announce an attack. An agent
+that reads them can be right for the wrong reason, which is the shortcut-learning failure known from
+supervised models~\cite{geirhos2020shortcut,arp2022dosdonts}, now in an agent that reads text. Cue-controlled
+variants with shared answers turn this from a threat to validity into a measurement, and mimicry renamings
+connect it to evasion: an intruder who avoids announcing names is the realistic case.
+
 \paragraph{Benign tasks deserve equal weight} Clearing benign activity is most of the work in real SOCs. A
 third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An
 agent that over-reports would show a high false-positive rate on exactly the tasks where analysts most need help.
@@ -35,6 +54,6 @@ enough to have every request declined. Agent builders should treat rationale fie
 (what a call checks) and read model reasoning from the channels the provider offers for it.
 
 \paragraph{Towards deployment} The same agent and safeguards run against the competition runtime, the local
-benchmark and, through the BlueSec Runs view of the RobustIDPS platform, a human reviewer who can inspect every
+benchmark and, through \ReviewUI, a human reviewer who can inspect every
 call, its stated purpose and the submission. That reviewability is a prerequisite for using such an agent to
 assist, rather than replace, an analyst.

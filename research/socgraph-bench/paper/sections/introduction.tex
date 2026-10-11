@@ -28,7 +28,11 @@ any tool result, which is unacceptable for incident response. Third, \emph{robus
 same can mean opposite things (an operator stopping a web service versus a package manager starting it), so
 an agent must clear benign activity as reliably as it confirms attacks. Fourth, \emph{evaluation}: public
 provenance datasets either lack entity-level ground truth or are hundreds of gigabytes in size, and none
-packages alert-investigation tasks with benign look-alikes across operating systems.
+packages alert-investigation tasks with benign look-alikes across operating systems. Fifth,
+\emph{shortcuts}: public attack recordings are labelled by how they were made, and the labels leak into dataset
+names, lab host names and the names operators chose for their tools. An agent can then be right for the wrong
+reason, and an intruder who avoids such names would not be caught the same way, the evasion problem known from
+mimicry attacks on host-based detection~\cite{wagner2002mimicry,goyal2023mimicry}.
 
 This paper makes four contributions.
 
@@ -45,7 +49,9 @@ builder converts Windows Sysmon and Sysmon-for-Linux recordings from OTRF Securi
 and Splunk attack\_data~\cite{splunk_attackdata} into 21 evidence-graph tasks: 15 ATT\&CK technique
 executions and 6 benign look-alikes from the same hosts, with ground truth defined as selectors over the
 graph and a scorer for verdict, response artifacts, legitimacy evidence and efficiency. The benchmark is a
-0.55\,MB file and can be rebuilt from the original recordings.
+0.55\,MB file and can be rebuilt from the original recordings. Two cue-controlled variants share its graphs
+and answers: \emph{blind} removes label cues of the recordings, and \emph{mimicry} also renames
+attacker-chosen artefacts without changing behaviour.
 \item \textbf{An empirical evaluation and ablation protocol} (\S\ref{sec:experiments}--\S\ref{sec:results}).
 In a pilot on the \ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent reached the correct verdict on
 all of them, including all three benign tasks, with mean quality \ResPilotQuality{} and mean efficiency
@@ -57,7 +63,9 @@ On all 21 tasks the full agent reached reward \ResFullReward{} with no false pos
 investigation-method prompt is what makes it efficient (\ResNoMethodCalls{} instead of \ResFullCalls{} calls
 per task without it);
 the safeguards did not change reward measurably with this model, a negative result we report with its
-statistics.
+statistics. Per-call traces explain it and expose the actual sources of error: identifiers of the wrong type
+that a substring grounding check accepts, an efficiency instruction that withheld a needed identifier, and label
+cues cited in \TrAllSourceCuePct\% of submissions.
 \fi
 \item \textbf{An open, reproducible release.} Agent, benchmark, traces of every tool call, and the script that
 regenerates all tables and plots from run folders.

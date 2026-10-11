@@ -13,9 +13,12 @@ On the full benchmark, over \ResStudyRepeats{} repeats, the agent reached reward
 \ResFullQuality{} and verdict accuracy \ResFullAccuracy{} with no false positives at \ResFullCalls{} calls per
 task. The ablation identifies the investigation-method prompt as the component that makes the agent efficient,
 and finds no measurable effect of the local safeguards with this model; its only verdict errors fell on an
-ambiguous task whose twin shares its alert. Building the benchmark also showed how easily ground truth can
-penalise reasonable evidence: two Linux defects surfaced only from scores that did not vary across
-configurations.
+ambiguous task whose twin shares its alert. Per-call traces were the decisive instrument: they showed that
+the safeguards seldom fired, that most lost quality came from identifier types and from the prompt's own
+efficiency advice, and that public attack recordings leak label cues the agent reads. Building the benchmark
+also showed how easily ground truth can penalise reasonable evidence: two Linux defects surfaced only from
+scores that did not vary across configurations.
 \fi
-Future work includes larger, multi-host scenarios, adversarial telemetry, more models, and human-in-the-loop
-studies with SOC analysts.
+The released \emph{blind} and \emph{mimicry} variants measure shortcut reliance and lexical evasion
+directly. Future work includes instructions planted in telemetry, type-checked grounding, weaker and open
+models, multi-host scenarios, and studies with SOC analysts.

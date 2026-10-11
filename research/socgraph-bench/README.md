@@ -2,8 +2,7 @@
 
 Code, benchmark, results and manuscript for:
 
-> **Grounded, Budget-Aware LLM Agents for Provenance-Graph Alert Investigation:
-> Design, Ablation, and a Cross-Platform Benchmark from Public Attack Telemetry**
+> **Robust LLM Agents for Provenance-Graph Alert Triage: Grounding, Budgets, and Shortcut Cues**
 > Roger Nick Anaedevha, 2026 (manuscript in `paper/`).
 
 A security operations centre (SOC) analyst who receives an alert walks the
@@ -15,7 +14,7 @@ response. This repository contains:
 |---|---|
 | [`agent/`](agent/) | An LLM investigation agent that walks an evidence graph through a small tool interface (`search`, `get_entity`, `get_relation`, `finish_investigation`) under a tool-call budget. Local safeguards (response cache, schema validation, grounding check, budgets, deadline) avoid spending calls on mistakes; each can be switched off for ablation. |
 | [`benchmark/`](benchmark/) | **SOCGraph-21**: 21 investigation tasks built from public attack telemetry: 11 Windows tasks from OTRF Security-Datasets and 10 Linux tasks from Splunk attack_data (Sysmon for Linux). 15 real attacks and 6 real benign look-alikes recorded on the same machines, with ground truth. One 0.55 MB zip. |
-| [`results/`](results/) | The pilot run (11 Windows tasks) and the study: three repeats of the ablation suite on all 21 tasks (17 runs). |
+| [`results/`](results/) | The pilot run (11 Windows tasks), the study (three repeats of the ablation suite on all 21 tasks, 17 runs) and the per-call traces of every run. |
 | [`scripts/`](scripts/) | `results_to_tex.py` turns run folders into the paper's tables, figure data and macros (with paired bootstrap intervals); `console_to_runs.py` builds run folders from console output; `benchmark_to_tex.py` the benchmark tables. |
 | [`paper/`](paper/) | The manuscript as an Overleaf-ready LaTeX project (IEEEtran). |
 
@@ -30,12 +29,19 @@ Claude Opus 5.5, effort high, SOCGraph-21 v1.1, three repeats (`results/`, paper
 
 - The investigation-method prompt is what makes the agent efficient: without
   it, more calls on 20 of the 20 tasks where the count differed (sign test
-  p < 0.001), at unchanged quality.
+  p < 0.001) and reward −0.038 (95% CI −0.077 to −0.004), at unchanged
+  quality.
 - Turning off the cache, validation, grounding check or budget had no
   measurable effect with this model (paired differences within ±0.005
   excluding one unstable task, all 95% intervals containing zero).
 - All verdict errors of the full agent were on one ambiguous task: an
   operator's service stop that shares its alert with a benign twin.
+- Per-call traces (`results/traces/`) show why the safeguards did not matter
+  (they fired on 6 calls in 63 tasks) and what did cost quality: hosts named
+  by hostname instead of entity id (144 of 247 correct malicious reports), an
+  efficiency instruction in the prompt, and label cues in the public
+  recordings, cited in 15% of submissions. The cue-controlled `blind` and
+  `mimicry` variants in `benchmark/` measure that last effect.
 
 ## Quick start
 
