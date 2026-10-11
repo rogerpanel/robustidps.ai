@@ -148,6 +148,56 @@ cite the legitimate anchors with a decisive property (for example
 `min(1, (optimal + 1) / calls)`. Each task's trace records the score breakdown,
 including any missed core items.
 
+### Linux scenarios (Splunk attack_data, Sysmon for Linux)
+
+| Scenario | Verdict | ATT&CK | What happened |
+|---|---|---|---|
+| linux-shadow-read | malicious | T1003.008 | sudo'd script reads /etc/shadow, /etc/passwd, /etc/sudoers |
+| linux-wiper-shred | malicious | T1485 | shred of /boot and systemd units, rm -rf /home |
+| linux-kernel-module | malicious | T1547.006 | module copied into /lib/modules and loaded with insmod |
+| linux-account-created | malicious | T1136.001 | useradd / adduser of new local accounts |
+| linux-sudoers-nopasswd | malicious | T1548.003 | NOPASSWD sudo rules written |
+| linux-ld-preload-hijack | malicious | T1574.006 | freshly compiled binary run as root through hook scripts |
+| linux-service-stopped | malicious | T1489 | operator stops and disables apache2 |
+| linux-dpkg-service-start | benign | – | dpkg postinst starts apache2 (same alert as the line above) |
+| linux-motd-discovery | benign | – | MOTD scripts run uname/who as root at SSH login |
+| linux-motd-tmp-cleanup | benign | – | MOTD scripts delete their temp files as root |
+
+The forwarder's own checkpoint-file writes under /opt/splunkforwarder are
+dropped as collector self-telemetry; its processes and connections stay as
+benign background.
+
+### The practice pack (no downloads needed)
+
+All 21 tasks in one zip (0.55 MB): `tasks/` (alert + graph, no answers),
+`answers/`, `manifest.json`, README and upstream licences. Download it from
+robustidps.ai at `/downloads/robustidps-bluesec-pack.zip`, or rebuild it:
+
+```bash
+uv run --with anthropic --with jsonschema python -m bluesec1_agent.robust.localdata.pack --out pack.zip
+uv run --with anthropic --with jsonschema --env-file .env \
+    python -m bluesec1_agent.robust.cli --pack pack.zip --concurrency 4
+```
+
+### Ablation study
+
+`--ablate` turns components off to measure what each contributes:
+`cache`, `validation`, `grounding`, `budget`, `method` (a minimal prompt like
+the reference agent's). `--ablation-suite` runs the full agent and each
+single-component ablation on the same tasks (6 runs, so 6x the cost of one
+run) and writes `traces/ablation-*.md` and `.csv`:
+
+```bash
+uv run --with anthropic --with jsonschema --env-file .env \
+    python -m bluesec1_agent.robust.cli --pack pack.zip --concurrency 4 --ablation-suite
+```
+
+Every `summary.json` records the configuration and these metrics, overall,
+per platform and per expected verdict: quality, efficiency, reward, verdict
+accuracy, false-positive rate (benign judged malicious), false-negative rate
+(malicious judged benign), calls and seconds per task, cache savings, local
+refusals and tokens.
+
 ## Reviewing runs on robustidps.ai
 
 The **BlueSec Runs** page (SOC Intelligence → BlueSec Runs, `/bluesec-runs`)
@@ -163,6 +213,16 @@ scores and a trend across runs. Two ways to add a run:
   ```
 
   New run folders then appear on the page with an Import button.
+
+**Comparison and ablation.** Tick two or more runs in Saved runs: the page
+shows the ablation table (Δ against a chosen baseline, best values in bold),
+a quality/efficiency chart, a Windows/Linux and malicious/benign breakdown,
+and a per-task matrix with verdict marks. Each table exports to CSV, and the
+page exports to PDF/PNG.
+
+**Practice pack.** Download the pack, or browse it on the page: task list,
+each task's alert and graph composition, a searchable entity explorer, and
+the ground truth behind a "Show answers" toggle.
 
 ## Improving between runs
 

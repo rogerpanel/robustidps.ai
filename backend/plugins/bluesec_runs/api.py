@@ -53,6 +53,7 @@ class ImportBody(BaseModel):
 class UpdateBody(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=255)
     notes: str | None = Field(None, max_length=5000)
+    label: str | None = Field(None, max_length=255)
 
 
 def _meta(run: BlueSecRun) -> dict[str, Any]:
@@ -64,6 +65,7 @@ def _meta(run: BlueSecRun) -> dict[str, Any]:
         "n_tasks": run.n_tasks, "n_completed": run.n_completed,
         "mean_quality": run.mean_quality, "mean_efficiency": run.mean_efficiency,
         "mean_reward": run.mean_reward, "mean_tool_calls": run.mean_tool_calls,
+        "label": run.label or "", "config": run.config or {}, "metrics": run.metrics or {},
     }
 
 
@@ -82,6 +84,8 @@ def _save(db: Session, user: User, built: dict[str, Any], *, name: str, notes: s
         n_tasks=agg["n_tasks"], n_completed=agg["n_completed"],
         mean_quality=agg["mean_quality"], mean_efficiency=agg["mean_efficiency"],
         mean_reward=agg["mean_reward"], mean_tool_calls=agg["mean_tool_calls"],
+        label=built.get("label", "")[:255], config=built.get("config") or {},
+        metrics=built.get("metrics") or {},
         payload=payload,
     )
     db.add(run)
@@ -168,6 +172,33 @@ def server_import(request: Request, body: ImportBody,
     return {**_meta(run), "ignored_files": built["ignored_files"]}
 
 
+@router.get("/compare")
+def compare_runs(ids: str, user: User = Depends(require_auth), db: Session = Depends(get_db)):
+    """Metrics and per-task scores for up to 12 of the user's runs, side by side."""
+    wanted = [i for i in ids.split(",") if i][:12]
+    runs = (db.query(BlueSecRun)
+            .filter(BlueSecRun.user_id == user.id, BlueSecRun.id.in_(wanted)).all())
+    by_id = {r.id: r for r in runs}
+    out = []
+    for rid in wanted:
+        run = by_id.get(rid)
+        if run is None:
+            continue
+        tasks = {}
+        for t in run.payload.get("tasks", []):
+            res, sub = t.get("result", {}), t.get("submission") or {}
+            meta = t.get("task_meta") or {}
+            tasks[t["task_id"]] = {
+                "quality": res.get("quality_score"), "efficiency": res.get("efficiency_score"),
+                "reward": res.get("total_reward"), "calls": res.get("tool_calls"),
+                "completion": res.get("completion_reason"),
+                "verdict": sub.get("verdict") if isinstance(sub, dict) else None,
+                "expected_verdict": meta.get("expected_verdict"), "platform": meta.get("platform"),
+            }
+        out.append({**_meta(run), "tasks": tasks})
+    return {"runs": out}
+
+
 @router.get("/{run_id}")
 def get_run(run_id: str, user: User = Depends(require_auth), db: Session = Depends(get_db)):
     run = _owned(db, user, run_id)
@@ -182,6 +213,8 @@ def update_run(run_id: str, body: UpdateBody, user: User = Depends(require_auth)
         run.name = body.name
     if body.notes is not None:
         run.notes = body.notes
+    if body.label is not None:
+        run.label = body.label
     db.commit()
     return _meta(run)
 

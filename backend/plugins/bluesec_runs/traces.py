@@ -51,13 +51,28 @@ def build_run(documents: list[Any]) -> dict[str, Any]:
     if len(tasks) > MAX_TASKS:
         raise TraceError(f"Too many tasks ({len(tasks)}); the limit is {MAX_TASKS}.")
 
+    # Rows from summary.json fill in task metadata a trace may lack (summary-only uploads).
+    if summary and isinstance(summary.get("task_rows"), list):
+        for row in summary["task_rows"][:MAX_TASKS]:
+            t = tasks.get(row.get("task_id")) if isinstance(row, dict) else None
+            if t is not None:
+                t.setdefault("task_meta", _meta(row))
+                if not t.get("submission") and row.get("verdict") in ("malicious", "benign"):
+                    t["submission"] = {"verdict": row["verdict"]}
+                if not t.get("usage"):
+                    t["usage"] = _usage(row.get("usage"))
+
     ordered = sorted(tasks.values(), key=lambda t: t["task_id"])
     models = sorted({t.get("model") for t in ordered if t.get("model")})
+    config = _config(summary.get("config")) if summary else {}
     return {
         "pt_run_id": _s(summary.get("run_id"), 255) if summary else "",
         "agent_model": ", ".join(models)[:255],
+        "label": config.get("label", ""),
+        "config": config,
         "tasks": ordered,
         "aggregates": aggregates(ordered),
+        "metrics": metrics(ordered),
         "ignored_files": ignored,
     }
 
@@ -106,7 +121,83 @@ def _task(doc: dict[str, Any]) -> dict[str, Any]:
         "wall_seconds": _num(doc.get("wall_seconds")),
         "error": _s(doc.get("error"), 2000) or None,
         "result": _result(doc.get("result") if isinstance(doc.get("result"), dict) else {}),
+        **({"task_meta": _meta(doc["task_meta"])} if isinstance(doc.get("task_meta"), dict) else {}),
+        "usage": _usage(doc.get("usage")),
+        "ablations": [_s(a, 40) for a in doc.get("ablations", []) if isinstance(a, str)][:10],
     }
+
+
+def _meta(m: dict[str, Any]) -> dict[str, Any]:
+    out = {k: _s(m.get(k), 120) for k in ("platform", "expected_verdict", "attack", "source")}
+    return {k: v for k, v in out.items() if v}
+
+
+def _usage(u: Any) -> dict[str, int]:
+    u = u if isinstance(u, dict) else {}
+    return {k: _int(u.get(k)) for k in ("input", "output", "cache_read", "cache_write",
+                                        "llm_calls")}
+
+
+CONFIG_STR = ("label", "provider", "model", "effort", "runtime")
+CONFIG_INT = ("concurrency", "soft_budget", "max_tool_calls")
+
+
+def _config(c: Any) -> dict[str, Any]:
+    if not isinstance(c, dict):
+        return {}
+    out: dict[str, Any] = {k: _s(c.get(k), 120) for k in CONFIG_STR if isinstance(c.get(k), str)}
+    out.update({k: _int(c.get(k)) for k in CONFIG_INT if c.get(k) is not None})
+    out["ablations"] = [_s(a, 40) for a in c.get("ablations", []) if isinstance(a, str)][:10]
+    return out
+
+
+def _mean(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 4) if values else None
+
+
+def _group(tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    """Same definitions as the agent's own summary (bluesec/robust/metrics.py)."""
+    rows = []
+    for t in tasks:
+        sub = t.get("submission") if isinstance(t.get("submission"), dict) else {}
+        r = t["result"]
+        rows.append({
+            "expected": (t.get("task_meta") or {}).get("expected_verdict"),
+            "verdict": sub.get("verdict") if r["completion_reason"] == "terminated" else None,
+            "quality": r["quality_score"], "efficiency": r["efficiency_score"],
+            "reward": r["total_reward"], "calls": r["tool_calls"],
+            "wall": t.get("wall_seconds") or 0.0, "usage": t.get("usage") or {},
+            "completed": r["completion_reason"] in ("terminated", "truncated"),
+        })
+    judged = [r for r in rows if r["expected"] in ("malicious", "benign")]
+    benign = [r for r in judged if r["expected"] == "benign"]
+    malicious = [r for r in judged if r["expected"] == "malicious"]
+    return {
+        "tasks": len(rows),
+        "completed": sum(r["completed"] for r in rows),
+        "mean_quality": _mean([r["quality"] for r in rows]),
+        "mean_efficiency": _mean([r["efficiency"] for r in rows]),
+        "mean_reward": _mean([r["reward"] for r in rows]),
+        "mean_tool_calls": _mean([r["calls"] for r in rows]),
+        "verdict_accuracy": _mean([float(r["verdict"] == r["expected"]) for r in judged]),
+        "false_positive_rate": _mean([float(r["verdict"] == "malicious") for r in benign]),
+        "false_negative_rate": _mean([float(r["verdict"] == "benign") for r in malicious]),
+        "mean_wall_seconds": _mean([r["wall"] for r in rows if r["wall"]]),
+        "tokens_input": sum(r["usage"].get("input", 0) for r in rows),
+        "tokens_output": sum(r["usage"].get("output", 0) for r in rows),
+        "llm_calls": sum(r["usage"].get("llm_calls", 0) for r in rows),
+    }
+
+
+def metrics(tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {"overall": _group(tasks)}
+    for key in ("platform", "expected_verdict"):
+        values = sorted({(t.get("task_meta") or {}).get(key) for t in tasks} - {None, ""})
+        out[f"by_{key}"] = {
+            v: _group([t for t in tasks if (t.get("task_meta") or {}).get(key) == v])
+            for v in values
+        }
+    return out
 
 
 def _step(step: Any) -> dict[str, Any] | None:

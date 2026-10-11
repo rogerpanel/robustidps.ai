@@ -26,4 +26,7 @@ class BlueSecRun(Base):
     mean_efficiency = Column(Float, default=0.0)
     mean_reward = Column(Float, default=0.0)
     mean_tool_calls = Column(Float, default=0.0)
+    label = Column(String(255), nullable=True)              # configuration name (ablation row)
+    config = Column(JSON, nullable=True)                    # agent settings recorded by the run
+    metrics = Column(JSON, nullable=True)                   # overall / by_platform / by_expected_verdict
     payload = Column(JSON, nullable=False)                  # {"tasks": [...], "aggregates": {...}}

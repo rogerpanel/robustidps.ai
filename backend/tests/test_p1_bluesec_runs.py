@@ -127,3 +127,59 @@ def test_server_import_is_admin_only_and_confined(mini, admin_token, analyst_tok
         r = mini.post("/api/bluesec-runs/server/import", json={"folder": bad},
                       headers=_auth(admin_token))
         assert r.status_code == 404
+
+
+def _task_with_meta(task_id, platform, expected, verdict, quality):
+    t = _task(task_id, quality, 0.5, 6, verdict=verdict)
+    t["task_meta"] = {"platform": platform, "expected_verdict": expected, "attack": "T1"}
+    t["usage"] = {"input": 1000, "output": 200, "llm_calls": 3}
+    return t
+
+
+def test_metrics_config_and_compare(mini, analyst_token):
+    summary = {**SUMMARY, "config": {"label": "no cache", "ablations": ["cache"],
+                                     "model": "claude-opus-5-5", "concurrency": 4}}
+    docs = [
+        _task_with_meta("w-mal", "windows", "malicious", "malicious", 1.0),
+        _task_with_meta("w-ben", "windows", "benign", "malicious", 0.0),   # false positive
+        _task_with_meta("l-mal", "linux", "malicious", "malicious", 0.9),
+        summary,
+    ]
+    r = mini.post("/api/bluesec-runs", json={"documents": docs}, headers=_auth(analyst_token))
+    assert r.status_code == 200, r.text
+    run = r.json()
+    assert run["label"] == "no cache" and run["config"]["ablations"] == ["cache"]
+    m = run["metrics"]
+    assert m["overall"]["verdict_accuracy"] == round(2 / 3, 4)
+    assert m["overall"]["false_positive_rate"] == 1.0 and m["overall"]["false_negative_rate"] == 0.0
+    assert set(m["by_platform"]) == {"windows", "linux"}
+    assert m["by_expected_verdict"]["malicious"]["tasks"] == 2
+    assert m["overall"]["tokens_input"] == 3000
+
+    other = mini.post("/api/bluesec-runs", json={"documents": docs[:1]},
+                      headers=_auth(analyst_token)).json()
+    cmp = mini.get(f"/api/bluesec-runs/compare?ids={run['id']},{other['id']},nope",
+                   headers=_auth(analyst_token)).json()["runs"]
+    assert [c["id"] for c in cmp] == [run["id"], other["id"]]
+    assert cmp[0]["tasks"]["w-ben"]["verdict"] == "malicious"
+    assert cmp[0]["tasks"]["w-ben"]["expected_verdict"] == "benign"
+
+    r = mini.patch(f"/api/bluesec-runs/{other['id']}", json={"label": "full"},
+                   headers=_auth(analyst_token))
+    assert r.json()["label"] == "full"
+
+
+def test_new_columns_are_added_to_an_existing_table(tmp_path, monkeypatch):
+    import sqlalchemy as sa
+
+    import database
+
+    engine = sa.create_engine(f"sqlite:///{tmp_path}/old.db")
+    with engine.begin() as conn:   # the table as first deployed, without label/config/metrics
+        conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR(255))"))
+        conn.execute(sa.text("CREATE TABLE bluesec_runs (id VARCHAR(32) PRIMARY KEY, "
+                             "user_id INTEGER, name VARCHAR(255), payload JSON)"))
+    monkeypatch.setattr(database, "engine", engine)
+    database._migrate_columns()
+    cols = {c["name"] for c in sa.inspect(engine).get_columns("bluesec_runs")}
+    assert {"label", "config", "metrics"} <= cols

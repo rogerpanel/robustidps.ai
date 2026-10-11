@@ -226,11 +226,17 @@ def _migrate_columns():
     """Add any columns that are in the models but missing from the DB."""
     import sqlalchemy as sa
     inspector = sa.inspect(engine)
-    for table_name, model_cls in [("users", User)]:
+    # Tables whose new, nullable columns are added in place. bluesec_runs is
+    # registered by plugins.bluesec_runs (imported by main.py before startup).
+    tables = [User.__table__] + [
+        Base.metadata.tables[name] for name in ("bluesec_runs",) if name in Base.metadata.tables
+    ]
+    for table in tables:
+        table_name = table.name
         if not inspector.has_table(table_name):
             continue
         existing = {c["name"] for c in inspector.get_columns(table_name)}
-        for col in model_cls.__table__.columns:
+        for col in table.columns:
             if col.name not in existing:
                 col_type = col.type.compile(engine.dialect)
                 default = "''" if isinstance(col.type, sa.String) else "NULL"

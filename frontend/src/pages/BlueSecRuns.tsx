@@ -9,6 +9,8 @@ import {
 } from 'recharts'
 import { authHeaders, getUser } from '../utils/auth'
 import ExportMenu from '../components/ExportMenu'
+import PackBrowser from '../components/bluesec/PackBrowser'
+import RunComparison, { type CompareRun } from '../components/bluesec/RunComparison'
 
 const API = import.meta.env.VITE_API_URL || ''
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -17,6 +19,8 @@ interface RunMeta {
   id: string; name: string; notes: string; source: string; pt_run_id: string; agent_model: string
   started_at: string | null; created_at: string; n_tasks: number; n_completed: number
   mean_quality: number; mean_efficiency: number; mean_reward: number; mean_tool_calls: number
+  label?: string; config?: { ablations?: string[] }
+  metrics?: { overall?: { verdict_accuracy?: number | null } }
 }
 interface TaskResult {
   completion_reason: string; quality_score: number; efficiency_score: number; total_reward: number
@@ -267,6 +271,7 @@ export default function BlueSecRuns() {
   const [openTask, setOpenTask] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('task_id')
   const [sortDesc, setSortDesc] = useState(false)
+  const [compareIds, setCompareIds] = useState<string[]>([])
   const folderInput = useRef<HTMLInputElement>(null)
   const filesInput = useRef<HTMLInputElement>(null)
 
@@ -275,6 +280,10 @@ export default function BlueSecRuns() {
       setRuns((await call<{ runs: RunMeta[] }>('/api/bluesec-runs')).runs)
     } catch (e) { setError((e as Error).message) } finally { setLoading(false) }
   }, [])
+  const fetchCompare = useCallback(async (ids: string[]) =>
+    (await call<{ runs: CompareRun[] }>(`/api/bluesec-runs/compare?ids=${ids.map(encodeURIComponent).join(',')}`)).runs, [])
+  const toggleCompare = (id: string) =>
+    setCompareIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : prev.length >= 12 ? prev : [...prev, id]))
   const loadServer = useCallback(async () => {
     if (!isAdmin) return
     try { setServer(await call('/api/bluesec-runs/server')) } catch { setServer(null) }
@@ -331,6 +340,7 @@ export default function BlueSecRuns() {
     try {
       await call(`/api/bluesec-runs/${r.id}`, { method: 'DELETE' })
       if (selected?.id === r.id) setSelected(null)
+      setCompareIds(prev => prev.filter(x => x !== r.id))
       await Promise.all([loadRuns(), loadServer()])
     } catch (e) { setError((e as Error).message) }
   }
@@ -341,9 +351,12 @@ export default function BlueSecRuns() {
     if (newName === null) return
     const newNotes = window.prompt('Notes (what changed in the agent for this run?)', selected.notes)
     if (newNotes === null) return
+    const newLabel = window.prompt('Configuration label (row name in the ablation table)', selected.label || '')
+    if (newLabel === null) return
     try {
       const meta = await call<RunMeta>(`/api/bluesec-runs/${selected.id}`, {
-        method: 'PATCH', body: JSON.stringify({ name: newName.trim() || selected.name, notes: newNotes }),
+        method: 'PATCH',
+        body: JSON.stringify({ name: newName.trim() || selected.name, notes: newNotes, label: newLabel.trim() }),
       })
       setSelected({ ...selected, ...meta }); loadRuns()
     } catch (e) { setError((e as Error).message) }
@@ -468,13 +481,19 @@ export default function BlueSecRuns() {
             <h2 className="font-semibold text-sm text-text-primary flex items-center gap-2"><Info className="w-4 h-4" /> Where traces come from</h2>
             <p>Each agent run writes a folder <span className="font-mono">traces/&lt;date-time&gt;-&lt;run&gt;/</span> with one JSON file per task and a <span className="font-mono">summary.json</span>.</p>
             <p>Run the agent from <span className="font-mono">~/bluesec1-agent</span>:</p>
-            <pre className="bg-bg-primary rounded p-2 overflow-auto text-[11px]">uv run --with anthropic --with jsonschema --env-file .env \{'\n'}  python -m bluesec1_agent.robust.cli --arena practice</pre>
+            <pre className="bg-bg-primary rounded p-2 overflow-auto text-[11px]">uv run --with anthropic --with jsonschema --env-file .env \{'\n'}  python -m bluesec1_agent.robust.cli --pack robustidps-bluesec-pack.zip</pre>
+            <p>For an ablation study, add <span className="font-mono">--ablation-suite</span>: it runs the full agent and each component turned off in turn (6 runs). Import all six folders, tick them in Saved runs and the comparison appears below.</p>
           </div>
         </div>
 
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
-            <h2 className="font-semibold mb-3">Saved runs</h2>
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="font-semibold mr-auto">Saved runs</h2>
+              <span className="text-xs text-text-secondary">
+                {compareIds.length === 0 ? 'Tick two or more runs to compare them' : `${compareIds.length} selected for comparison`}
+              </span>
+            </div>
             {loading ? <Loader2 className="w-5 h-5 animate-spin text-text-secondary" />
               : runs.length === 0 ? <p className="text-sm text-text-secondary">No runs saved yet. Add one on the left.</p>
               : (
@@ -482,9 +501,10 @@ export default function BlueSecRuns() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-xs text-text-secondary">
-                        <th className="font-normal py-1.5">Run</th><th className="font-normal">When</th>
+                        <th className="w-6" /><th className="font-normal py-1.5">Run</th><th className="font-normal">When</th>
                         <th className="font-normal">Tasks</th><th className="font-normal">Quality</th>
                         <th className="font-normal">Efficiency</th><th className="font-normal text-right">Calls/task</th>
+                        <th className="font-normal text-right">Verdict acc.</th>
                         <th className="font-normal text-right">Reward</th><th />
                       </tr>
                     </thead>
@@ -492,8 +512,13 @@ export default function BlueSecRuns() {
                       {runs.map(r => (
                         <tr key={r.id} onClick={() => open(r.id)}
                           className={`border-t border-bg-card cursor-pointer hover:bg-bg-primary/50 ${selected?.id === r.id ? 'bg-bg-primary/70' : ''}`}>
+                          <td className="pr-1" onClick={e => e.stopPropagation()}>
+                            <input type="checkbox" aria-label={`Compare ${r.name}`} checked={compareIds.includes(r.id)}
+                              onChange={() => toggleCompare(r.id)} className="accent-[rgb(var(--color-accent-blue))]" />
+                          </td>
                           <td className="py-2 pr-2 min-w-[180px]">
                             <div className="font-medium break-words">{r.name}</div>
+                            {r.label && <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-bg-primary text-[10px] text-text-secondary">{r.label}</span>}
                             <div className="text-[11px] text-text-secondary">{r.agent_model || '–'}{r.source.startsWith('server:') ? ' · from server' : ''}</div>
                           </td>
                           <td className="text-xs text-text-secondary whitespace-nowrap pr-2">{when(r).toLocaleString()}</td>
@@ -501,6 +526,9 @@ export default function BlueSecRuns() {
                           <td className="pr-2"><Bar value={r.mean_quality} label="mean quality" /></td>
                           <td className="pr-2"><Bar value={r.mean_efficiency} label="mean efficiency" /></td>
                           <td className="text-right tabular-nums text-xs">{fmt(r.mean_tool_calls, 1)}</td>
+                          <td className="text-right tabular-nums text-xs">
+                            {typeof r.metrics?.overall?.verdict_accuracy === 'number' ? `${(r.metrics.overall.verdict_accuracy * 100).toFixed(0)}%` : '–'}
+                          </td>
                           <td className="text-right tabular-nums text-xs">{fmt(r.mean_reward, 3)}</td>
                           <td className="text-right pl-2">
                             <button onClick={e => { e.stopPropagation(); remove(r) }} title="Delete run"
@@ -541,6 +569,12 @@ export default function BlueSecRuns() {
           )}
         </div>
       </div>
+
+      {compareIds.length >= 2 && (
+        <RunComparison ids={compareIds} fetchRuns={fetchCompare} onClear={() => setCompareIds([])} />
+      )}
+
+      <PackBrowser />
 
       {selected && (
         <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card space-y-4">
