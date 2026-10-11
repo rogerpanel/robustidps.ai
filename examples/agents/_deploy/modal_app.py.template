@@ -1,0 +1,41 @@
+"""Modal recipe — copy to `<agent>/modal_app.py`, then:
+
+    modal secret create rids-aegis ROBUSTIDPS_API_KEY=rids_live_...
+    modal deploy modal_app.py
+
+Replace <agent> with the starter folder name.
+"""
+import modal
+
+app = modal.App("<agent>-rids-aegis")
+
+image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install_from_requirements("requirements.txt")
+    .add_local_file("main.py", remote_path="/app/main.py")
+)
+
+
+@app.function(
+    image=image,
+    secrets=[modal.Secret.from_name("rids-aegis")],
+    timeout=120,
+    cpu=1, memory=1024,
+)
+@modal.fastapi_endpoint(method="POST")
+def invoke(payload: dict) -> dict:
+    """HTTPS endpoint. Modal injects ROBUSTIDPS_API_KEY at runtime."""
+    import os, sys
+    os.environ.setdefault("ROBUSTIDPS_API_BASE", "https://robustidps.ai")
+    os.environ.setdefault("RUNTIME_AGENT_ID", "<agent>-prod-modal-1")
+    sys.path.insert(0, "/app")
+    import main      # noqa: E402  the starter's main.py
+    if hasattr(main, "build_graph"):
+        graph = main.build_graph()
+        return {"result": graph.invoke(payload)}
+    main.main()
+    return {"ok": True}
+
+
+# Local debug:
+#   modal run modal_app.py::invoke --payload '{"alert":"test"}'

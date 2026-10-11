@@ -1,0 +1,44 @@
+{
+  "id": "m01-svc-backup-lockouts",
+  "title": "Brute-force alert on a service account",
+  "difficulty": "simple",
+  "brief": {
+    "alert_id": "ALR-20261001-0412",
+    "rule": "Possible brute force: repeated failed logons for one account",
+    "severity": "medium",
+    "detected_at": "2026-10-01T05:02:00Z",
+    "summary": "36 failed logons for account svc_backup against host FS-01 between 02:05 and 05:00 UTC.",
+    "entities": {"account": "svc_backup", "target_host": "FS-01"}
+  },
+  "hosts": {
+    "FS-01": {"host": "FS-01", "role": "File server", "os": "Windows Server 2022", "owner": "IT Infrastructure", "criticality": "high", "ip": "10.20.0.30"},
+    "BACKUP-01": {"host": "BACKUP-01", "role": "Backup server", "os": "Windows Server 2022", "owner": "IT Infrastructure", "criticality": "high", "ip": "10.20.0.15", "notes": "Runs the nightly file-share backup job as svc_backup, every 5 minutes during the 02:00-06:00 backup window."},
+    "DC-01": {"host": "DC-01", "role": "Domain controller", "os": "Windows Server 2022", "owner": "IT Infrastructure", "criticality": "critical", "ip": "10.20.0.5"}
+  },
+  "intel": {},
+  "events": [
+    {"id": "e-b41f07", "ts": "2026-09-30T02:05:12Z", "host": "FS-01", "user": "svc_backup", "source": "windows_security", "event_type": "logon", "details": {"logon_type": "network", "src_host": "BACKUP-01", "src_ip": "10.20.0.15", "result": "success"}},
+    {"id": "e-0c93ad", "ts": "2026-09-30T08:31:40Z", "host": "WS-HR-04", "user": "o.smirnova", "source": "windows_security", "event_type": "logon", "details": {"logon_type": "interactive", "result": "success"}},
+    {"id": "e-7d2e18", "ts": "2026-09-30T09:14:02Z", "host": "FS-01", "user": "o.smirnova", "source": "windows_security", "event_type": "logon", "details": {"logon_type": "network", "src_host": "WS-HR-04", "src_ip": "10.20.4.21", "result": "success"}},
+    {"id": "e-5a6c91", "ts": "2026-10-01T01:55:47Z", "host": "DC-01", "user": "it.admin", "source": "windows_security", "event_type": "account_change", "details": {"action": "password_reset", "target_account": "svc_backup", "comment": "Scheduled 90-day credential rotation, change CHG-4471"}},
+    {"id": "e-e2903b", "ts": "2026-10-01T02:05:09Z", "host": "FS-01", "user": "svc_backup", "source": "windows_security", "event_type": "logon_failed", "details": {"logon_type": "network", "src_host": "BACKUP-01", "src_ip": "10.20.0.15", "reason": "bad password"}},
+    {"id": "e-91f4c2", "ts": "2026-10-01T02:10:11Z", "host": "FS-01", "user": "svc_backup", "source": "windows_security", "event_type": "logon_failed", "details": {"logon_type": "network", "src_host": "BACKUP-01", "src_ip": "10.20.0.15", "reason": "bad password"}},
+    {"id": "e-3b77e0", "ts": "2026-10-01T02:15:08Z", "host": "FS-01", "user": "svc_backup", "source": "windows_security", "event_type": "logon_failed", "details": {"logon_type": "network", "src_host": "BACKUP-01", "src_ip": "10.20.0.15", "reason": "bad password"}},
+    {"id": "e-c5d812", "ts": "2026-10-01T03:30:10Z", "host": "FS-01", "user": "svc_backup", "source": "windows_security", "event_type": "logon_failed", "details": {"logon_type": "network", "src_host": "BACKUP-01", "src_ip": "10.20.0.15", "reason": "bad password"}},
+    {"id": "e-48ae5f", "ts": "2026-10-01T04:55:12Z", "host": "FS-01", "user": "svc_backup", "source": "windows_security", "event_type": "logon_failed", "details": {"logon_type": "network", "src_host": "BACKUP-01", "src_ip": "10.20.0.15", "reason": "bad password"}},
+    {"id": "e-a0b36d", "ts": "2026-10-01T05:00:07Z", "host": "FS-01", "user": "svc_backup", "source": "windows_security", "event_type": "logon_failed", "details": {"logon_type": "network", "src_host": "BACKUP-01", "src_ip": "10.20.0.15", "reason": "bad password"}},
+    {"id": "e-6f1d24", "ts": "2026-10-01T05:00:31Z", "host": "BACKUP-01", "user": "svc_backup", "source": "application", "event_type": "job_status", "details": {"job": "Nightly file-share backup", "status": "failed", "error": "Access denied to \\\\FS-01\\shares (authentication failure)"}},
+    {"id": "e-d8c03a", "ts": "2026-10-01T07:48:19Z", "host": "WS-HR-04", "user": "o.smirnova", "source": "windows_security", "event_type": "logon", "details": {"logon_type": "interactive", "result": "success"}},
+    {"id": "e-2e95b7", "ts": "2026-10-01T08:02:55Z", "host": "FS-01", "user": "o.smirnova", "source": "windows_security", "event_type": "logon", "details": {"logon_type": "network", "src_host": "WS-HR-04", "src_ip": "10.20.4.21", "result": "success"}}
+  ],
+  "answer": {
+    "verdict": "false_positive",
+    "attack_techniques": [],
+    "affected_hosts": [],
+    "affected_accounts": [],
+    "indicators": [],
+    "key_events": ["e-5a6c91", "e-e2903b"],
+    "explanation": "A scheduled password rotation at 01:55 left the backup job on BACKUP-01 using the old credential. Every failure comes from the backup server inside its backup window, the job log shows the authentication failure, and there are no failures from any other source. Fix: update the stored credential for the backup job."
+  },
+  "optimal_tool_calls": 3
+}

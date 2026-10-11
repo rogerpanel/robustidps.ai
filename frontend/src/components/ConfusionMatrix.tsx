@@ -1,14 +1,24 @@
 interface Props {
   matrix: number[][] | null
   labels?: string[]
+  source?: 'upload' | 'live-monitor' | null
 }
 
-export default function ConfusionMatrix({ matrix, labels }: Props) {
+export default function ConfusionMatrix({ matrix, labels, source }: Props) {
   if (!matrix || matrix.length === 0) {
     return (
       <div className="bg-bg-secondary rounded-xl p-5 border border-bg-card">
         <h3 className="text-sm font-medium text-text-secondary mb-4">Confusion Matrix</h3>
-        <p className="text-text-secondary text-sm">No ground-truth labels available</p>
+        {source === 'live-monitor' ? (
+          <div className="text-text-secondary text-sm space-y-2">
+            <p>Not available for Live Monitor data.</p>
+            <p className="text-xs text-text-secondary/70">
+              Confusion matrices require ground-truth labels for comparison. Live monitoring classifies traffic in real time without reference labels. Upload a labelled benchmark dataset (e.g. CIC-IoT-2023, UNSW-NB15) for confusion matrix analysis.
+            </p>
+          </div>
+        ) : (
+          <p className="text-text-secondary text-sm">No ground-truth labels available</p>
+        )}
       </div>
     )
   }

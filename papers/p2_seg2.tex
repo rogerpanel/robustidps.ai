@@ -1,0 +1,450 @@
+% === START SEGMENT 2 ===
+% -----------------------------------------------------------------------
+%  SECTION III: THREAT MODEL AND ATTACK TAXONOMY
+% -----------------------------------------------------------------------
+\section{Threat Model and Attack Taxonomy}
+\label{sec:threat}
+
+We formalize the adversarial landscape confronting LLM-augmented SOC
+Copilots by defining the adversary model, enumerating prompt injection
+categories, characterizing RAG poisoning vectors, and cataloguing
+multi-agent chain attack patterns.
+
+% ------- III-A -------
+\subsection{Threat Model}
+\label{sec:threat:model}
+
+\textbf{Adversary model.}
+We consider an adversary~$\mathcal{A}$ who possesses \emph{black-box}
+access to a deployed SOC Copilot through its standard chat interface.
+$\mathcal{A}$ cannot inspect model weights, system prompts, or internal
+retrieval indices directly but may interact with the system over an
+unbounded number of conversational turns.  Formally, $\mathcal{A}$
+is characterised by a capability tuple
+\begin{equation}
+  \mathcal{C} = \bigl\{\textsc{Query},\;\textsc{Inject},\;\textsc{Chain}\bigr\},
+  \label{eq:cap}
+\end{equation}
+where \textsc{Query} denotes the ability to submit arbitrary natural-language
+prompts, \textsc{Inject} denotes the ability to embed adversarial content
+into data streams monitored by the Copilot (e.g., crafted DNS labels,
+HTTP headers, or alert metadata), and \textsc{Chain} denotes the ability to
+compose sequences of queries and injections across turns or agents.
+
+\textbf{Adversary goals.}
+$\mathcal{A}$ pursues one or more of the following objectives:
+\begin{enumerate}[label=\textbf{G\arabic*},leftmargin=2em]
+  \item \emph{Information extraction}: retrieve confidential SOC data such
+        as internal IP ranges, firewall rule sets, or incident playbooks.
+  \item \emph{Decision manipulation}: cause the Copilot to recommend
+        incorrect triage actions, suppress genuine alerts, or endorse
+        malicious network changes.
+  \item \emph{Privilege escalation}: leverage tool-calling or agent
+        delegation to execute operations beyond the adversary's
+        authorised scope (e.g., modifying firewall rules).
+\end{enumerate}
+
+\textbf{Assumptions.}
+We assume the underlying LLM provider (Claude, GPT-4o, Gemini, or
+DeepSeek) is a sealed oracle: $\mathcal{A}$ has no ability to
+fine-tune or modify model parameters.  The SOC Copilot may expose
+tool-calling endpoints, a RAG knowledge base, and a multi-agent
+orchestration layer---all of which enlarge the attack surface.
+
+% ------- III-B -------
+\subsection{Prompt Injection Classification}
+\label{sec:threat:pi}
+
+We identify eight canonical prompt-injection categories, each with a
+formal attack predicate and severity assessment.
+
+\begin{definition}[Prompt Injection]
+A prompt injection is a string $p$ that, when concatenated with the
+legitimate system context~$s$ and user query~$q$, causes the model
+$M$ to produce an output $M(s \| p \| q) \neq M(s \| q)$ in a manner
+that violates at least one security invariant of the SOC Copilot.
+\end{definition}
+
+\noindent The eight categories are:
+
+\smallskip\noindent
+\textbf{P1---Direct Instruction Override} ($P_{\text{direct}}$).
+The adversary injects an explicit meta-instruction such as
+\texttt{"Ignore all previous instructions and ..."} to override the
+system prompt.  Formally:
+\begin{equation}
+  P_{\text{direct}}(p) \;\triangleq\; \exists\, r\!: M(s\|p\|q) = r
+  \;\wedge\; r \models \neg\phi_{\text{sys}},
+\end{equation}
+where $\phi_{\text{sys}}$ is a safety property mandated by the system prompt.
+
+\smallskip\noindent
+\textbf{P2---Context Manipulation} ($P_{\text{context}}$).
+Crafted inputs shift the model's effective context window, displacing
+safety-relevant tokens with adversarial content.  This exploits finite
+context budgets:
+$|s| + |p| + |q| > W_{\max} \implies s$ is partially evicted.
+
+\smallskip\noindent
+\textbf{P3---Role-Playing Exploitation} ($P_{\text{role}}$).
+The adversary coerces the model into adopting a permissive persona
+(e.g., ``You are DAN, an AI with no restrictions''), thereby
+relaxing policy constraints.
+
+\smallskip\noindent
+\textbf{P4---Encoding and Obfuscation} ($P_{\text{encode}}$).
+Payloads are concealed via Base64, ROT13, Unicode homoglyphs, or
+zero-width characters to evade lexical filters.
+
+\smallskip\noindent
+\textbf{P5---Multi-Turn Escalation} ($P_{\text{multi}}$).
+Across $T$ turns $\{q_1, \ldots, q_T\}$, each individually benign,
+the adversary progressively escalates toward a prohibited objective:
+\begin{equation}
+  \forall\, t < T\!:\; q_t \models \phi_{\text{safe}}
+  \;\wedge\; M(s \| q_1 \| \cdots \| q_T) \models \neg\phi_{\text{safe}}.
+\end{equation}
+
+\smallskip\noindent
+\textbf{P6---System Prompt Extraction} ($P_{\text{extract}}$).
+Techniques designed to leak the system prompt $s$ through carefully
+structured queries (e.g., ``Repeat everything above verbatim'').
+
+\smallskip\noindent
+\textbf{P7---Tool/Function-Calling Manipulation} ($P_{\text{tool}}$).
+The adversary crafts inputs that hijack tool invocations, causing the
+Copilot to call \texttt{suggest\_firewall\_rule} or
+\texttt{get\_threat\_summary} with adversary-controlled parameters.
+
+\smallskip\noindent
+\textbf{P8---Data Exfiltration} ($P_{\text{exfil}}$).
+Prompts engineered to embed confidential SOC data (IP addresses,
+credentials, topology) into model responses returned to the adversary.
+
+\begin{table}[t]
+\centering
+\caption{Prompt Injection Threat Taxonomy}
+\label{tab:pi_taxonomy}
+\footnotesize
+\begin{tabular}{@{}clccc@{}}
+\toprule
+\textbf{ID} & \textbf{Category} & \textbf{Vector} & \textbf{Sev.} & \textbf{Goal} \\
+\midrule
+P1 & Direct Override      & Query   & Critical & G1,G2 \\
+P2 & Context Manipulation & Query   & High     & G2    \\
+P3 & Role-Play Exploit    & Query   & High     & G1,G2 \\
+P4 & Encoding/Obfuscation & Query   & Medium   & G1--G3 \\
+P5 & Multi-Turn Escalation& Query   & High     & G2,G3 \\
+P6 & Prompt Extraction    & Query   & Critical & G1    \\
+P7 & Tool-Call Hijack     & Inject  & Critical & G3    \\
+P8 & Data Exfiltration    & Query   & Critical & G1    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ------- III-C -------
+\subsection{RAG Poisoning Attack Vectors}
+\label{sec:threat:rag}
+
+The Retrieval-Augmented Generation pipeline introduces a distinct
+attack surface.  Let the knowledge base be
+$\mathcal{K} = \{d_1, \ldots, d_N\}$ with embedding function
+$E\!: \mathcal{D} \to \mathbb{R}^{n}$ and retrieval via cosine
+similarity:
+\begin{equation}
+  \text{Ret}(q, \mathcal{K}) = \operatorname*{top\text{-}k}_{d \in \mathcal{K}}
+  \;\frac{E(q) \cdot E(d)}{\|E(q)\|\;\|E(d)\|}.
+  \label{eq:retrieval}
+\end{equation}
+
+\noindent We identify four poisoning vector types:
+
+\smallskip\noindent
+\textbf{R1---Document Injection.}
+$\mathcal{A}$ introduces a malicious document $d^{*}$ into
+$\mathcal{K}$ (e.g., via a compromised threat-intel feed or log
+ingestion pathway) such that $d^{*}$ ranks highly for
+security-critical queries:
+\begin{equation}
+  \cos\bigl(E(q_{\text{target}}),\, E(d^{*})\bigr) > \tau_{\text{ret}}
+  \;\Longrightarrow\; d^{*} \in \text{Ret}(q_{\text{target}}, \mathcal{K}).
+\end{equation}
+
+\smallskip\noindent
+\textbf{R2---Query Manipulation.}
+Rather than modifying~$\mathcal{K}$, the adversary crafts an input
+$q'$ whose embedding is adversarially close to a poisoned or
+misleading document $d_{\text{mis}}$:
+$\|E(q') - E(d_{\text{mis}})\|_2 < \epsilon$.
+
+\smallskip\noindent
+\textbf{R3---Embedding Space Attacks.}
+Adversarial perturbations $\delta$ are applied to document content
+so that $E(d + \delta) \approx E(d_{\text{target}})$ while
+$d + \delta$ remains semantically malicious.  This transfers
+retrieval rank from benign documents to poisoned ones:
+\begin{equation}
+  \min_{\delta}\; \|E(d + \delta) - E(d_{\text{target}})\|_2^{2}
+  \;\;\text{s.t.}\;\; \|\delta\|_{\infty} \le \epsilon_{\text{emb}}.
+  \label{eq:emb_attack}
+\end{equation}
+
+\smallskip\noindent
+\textbf{R4---Cross-Contamination.}
+Poisoned context retrieved for one sub-query bleeds into the
+generation context of a subsequent, unrelated sub-query within
+the same session.  This is exacerbated in agentic RAG pipelines
+where multiple retrieval calls share a conversation buffer.
+
+% ------- III-D -------
+\subsection{Multi-Agent Chain Attack Patterns}
+\label{sec:threat:chain}
+
+The SOC Copilot employs a four-agent architecture
+$\mathcal{G} = \{a_C, a_A, a_R, a_P\}$ corresponding to a
+\emph{Coordinator}, \emph{Analyst}, \emph{Responder}, and
+\emph{Reporter}, respectively.  Each agent $a_i$ maintains a
+trust score $T(a_i, a_j) \in [0,1]$ toward every peer $a_j$,
+initialised from a policy matrix and updated over the message
+history.  We catalogue five chain attack patterns:
+
+\smallskip\noindent
+\textbf{M1---Agent-to-Agent Prompt Injection Propagation.}
+A prompt injection accepted by~$a_C$ is forwarded verbatim to~$a_A$
+and~$a_R$, amplifying its effect across the agent graph.
+
+\smallskip\noindent
+\textbf{M2---Trust Boundary Violations.}
+$\mathcal{A}$ crafts messages that cause agent~$a_i$ to invoke
+capabilities reserved for a higher-trust agent~$a_j$ by spoofing
+the inter-agent message envelope.
+
+\smallskip\noindent
+\textbf{M3---Capability Escalation Through Chains.}
+A sequence of individually permitted inter-agent delegations
+composes into a capability exceeding any single agent's authority:
+$\text{cap}(a_C \to a_A \to a_R) \supsetneq
+ \text{cap}(a_C) \cup \text{cap}(a_A) \cup \text{cap}(a_R)$.
+
+\smallskip\noindent
+\textbf{M4---Information Leakage Across Agent Boundaries.}
+$a_P$ (Reporter) inadvertently includes classified incident details
+in an outward-facing summary because $a_A$ (Analyst) passed
+unredacted context through the chain.
+
+\smallskip\noindent
+\textbf{M5---Coordinated Multi-Agent Manipulation.}
+$\mathcal{A}$ simultaneously targets $a_C$ via the chat interface
+and $a_A$ via injected alert metadata, creating a pincer effect that
+circumvents single-point defenses.
+
+% -----------------------------------------------------------------------
+%  SECTION IV: DEFENSE FRAMEWORK
+% -----------------------------------------------------------------------
+\section{Defense Framework}
+\label{sec:defense}
+
+Building on the threat taxonomy of Section~\ref{sec:threat}, we
+present a layered defense framework comprising input sanitization
+(Sec.~\ref{sec:defense:input}), RAG pipeline hardening
+(Sec.~\ref{sec:defense:rag}), multi-agent trust verification
+(Sec.~\ref{sec:defense:trust}), and a provider-agnostic SOC
+integration layer (Sec.~\ref{sec:defense:soc}).
+
+% ------- IV-A -------
+\subsection{Input Sanitization and Boundary Enforcement}
+\label{sec:defense:input}
+
+We introduce a multi-layer input filtering pipeline that processes
+every user query $q$ before it reaches the LLM.  The pipeline consists
+of four sequential stages: lexical screening, structural boundary
+enforcement, semantic anomaly detection, and context-window budgeting.
+
+\begin{algorithm}[t]
+\caption{Input Sanitization Pipeline}\label{alg:sanitize}
+\KwIn{Raw user query $q$, system prompt $s$, boundary token set $\mathcal{B}$}
+\KwOut{Sanitized query $\hat{q}$ or $\bot$ (reject)}
+\BlankLine
+\tcp{Stage 1: Lexical screening}
+$q_1 \gets \textsc{NormalizeUnicode}(q)$\;
+\ForEach{pattern $r \in \mathcal{R}_{\text{block}}$}{
+  \lIf{$r \prec q_1$}{\Return $\bot$}
+}
+\tcp{Stage 2: Boundary enforcement}
+$q_2 \gets \textsc{StripTokens}(q_1, \mathcal{B})$\;
+$q_2 \gets \langle\texttt{USER\_START}\rangle \| q_2 \| \langle\texttt{USER\_END}\rangle$\;
+\tcp{Stage 3: Semantic anomaly detection}
+$\sigma \gets f_{\text{anomaly}}(E(q_2))$\;
+\lIf{$\sigma > \tau_{\text{anom}}$}{\Return $\bot$}
+\tcp{Stage 4: Context budget}
+\lIf{$|s| + |q_2| > W_{\max} - \Delta_{\text{reserve}}$}{%
+  $q_2 \gets \textsc{Truncate}(q_2, W_{\max} - |s| - \Delta_{\text{reserve}})$}
+$\hat{q} \gets q_2$\;
+\Return $\hat{q}$\;
+\end{algorithm}
+
+\textbf{Prompt boundary tokens.}
+We define a set of reserved delimiter tokens
+$\mathcal{B} = \{\langle\texttt{SYS}\rangle, \langle\texttt{/SYS}\rangle,
+\langle\texttt{CTX}\rangle, \langle\texttt{/CTX}\rangle\}$ that
+demarcate system, context, and user regions.  Any occurrence of these
+tokens within user input is stripped in Stage~2, preventing the
+adversary from forging privilege boundaries.
+
+\textbf{Semantic anomaly scoring.}
+The function $f_{\text{anomaly}}$ computes the Mahalanobis distance
+of $E(q)$ from the distribution of benign SOC queries observed during
+a calibration phase.  Queries exceeding~$\tau_{\text{anom}}$ (set to
+the 99.5th percentile of calibration scores) are flagged for human
+review.
+
+% ------- IV-B -------
+\subsection{RAG Pipeline Hardening}
+\label{sec:defense:rag}
+
+\textbf{Document provenance verification.}
+Every document $d_i$ ingested into $\mathcal{K}$ is assigned a
+provenance record
+$\rho_i = (\text{source}, \text{timestamp}, h_i, h_{i-1})$
+forming a hash chain:
+\begin{equation}
+  h_i = \textsc{SHA-256}\bigl(d_i \,\|\, h_{i-1}\bigr),
+  \label{eq:hashchain}
+\end{equation}
+with $h_0$ derived from a trusted root.  At retrieval time, the chain
+is verified; any broken link causes the document to be quarantined.
+
+\textbf{Embedding similarity thresholds.}
+Retrieved documents must satisfy a minimum cosine similarity
+$\cos(E(q), E(d)) > \tau_{\text{embed}}$.  We set
+$\tau_{\text{embed}} = 0.72$ based on ROC analysis over
+clean vs.\ poisoned retrieval pairs (see Section~\ref{sec:eval}).
+Documents below this threshold are excluded from the generation context.
+
+\textbf{Retrieval diversity enforcement.}
+To mitigate R4 cross-contamination, we enforce a diversity constraint
+on the top-$k$ retrieved set:
+\begin{equation}
+  \forall\, d_i, d_j \in \text{Ret}(q, \mathcal{K}),\;
+  i \neq j\!:\; \cos(E(d_i), E(d_j)) < \tau_{\text{div}},
+  \label{eq:diversity}
+\end{equation}
+with $\tau_{\text{div}} = 0.90$.  This prevents a cluster of
+near-duplicate poisoned documents from dominating the context.
+
+\textbf{Clean/poisoned separation score.}
+We train a lightweight binary classifier
+$g_{\theta}\!: \mathbb{R}^{n} \to [0,1]$ on labelled
+clean/poisoned document embeddings.  At retrieval time, each
+candidate~$d$ receives a poisoning score
+$\pi(d) = g_{\theta}(E(d))$; documents with
+$\pi(d) > \tau_{\text{poison}}$ are flagged and excluded:
+\begin{equation}
+  \mathcal{K}_{\text{safe}} = \{d \in \mathcal{K} \mid \pi(d) \le \tau_{\text{poison}}\}.
+\end{equation}
+
+% ------- IV-C -------
+\subsection{Multi-Agent Trust Architecture}
+\label{sec:defense:trust}
+
+We define a trust verification protocol that governs inter-agent
+communication within the four-agent SOC architecture
+$\mathcal{G} = \{a_C, a_A, a_R, a_P\}$.
+
+\textbf{Trust score computation.}
+The trust score from agent $a_i$ toward agent $a_j$ after $n$
+messages is computed as an exponentially weighted moving average:
+\begin{equation}
+  T_n(a_i, a_j) = \alpha\, v_n + (1 - \alpha)\, T_{n-1}(a_i, a_j),
+  \label{eq:trust}
+\end{equation}
+where $v_n \in [0,1]$ is the verification outcome of the $n$-th
+message (1 if the message passes all integrity checks, 0 otherwise)
+and $\alpha \in (0,1)$ is a decay parameter.  The initial trust
+$T_0(a_i, a_j)$ is drawn from a policy-defined matrix
+$\mathbf{T}_0 \in [0,1]^{|\mathcal{G}| \times |\mathcal{G}|}$.
+
+\textbf{Capability boundary enforcement.}
+Each agent $a_i$ is assigned a static capability set
+$\text{cap}(a_i) \subseteq \mathcal{F}$, where $\mathcal{F}$ is
+the full set of SOC tool functions.  A delegated request from $a_j$
+to $a_i$ is executed only if:
+\begin{equation}
+  T_n(a_i, a_j) \ge \tau_{\text{trust}} \;\wedge\;
+  f_{\text{req}} \in \text{cap}(a_i) \;\wedge\;
+  f_{\text{req}} \notin \text{cap}(a_j)^{\complement}_{\text{del}},
+  \label{eq:capcheck}
+\end{equation}
+where $\text{cap}(a_j)^{\complement}_{\text{del}}$ is the set of
+functions that $a_j$ is explicitly prohibited from delegating.
+
+\begin{algorithm}[t]
+\caption{Inter-Agent Trust Verification}\label{alg:trust}
+\KwIn{Message $m$ from agent $a_j$ to agent $a_i$, function request $f$}
+\KwOut{\textsc{Allow} or \textsc{Deny}}
+\BlankLine
+\tcp{Step 1: Message integrity}
+$v \gets \textsc{VerifyHMAC}(m, K_{ij})$\;
+\lIf{$v = 0$}{\Return \textsc{Deny}}
+\tcp{Step 2: Sanitize inter-agent payload}
+$\hat{m} \gets \textsc{Sanitize}(m)$ \tcp*{Alg.~\ref{alg:sanitize}}
+\lIf{$\hat{m} = \bot$}{\Return \textsc{Deny}}
+\tcp{Step 3: Trust threshold}
+$T_n \gets \alpha \cdot v + (1-\alpha) \cdot T_{n-1}(a_i, a_j)$\;
+\lIf{$T_n < \tau_{\emph{trust}}$}{\Return \textsc{Deny}}
+\tcp{Step 4: Capability check}
+\lIf{$f \notin \textup{cap}(a_i)$}{\Return \textsc{Deny}}
+\lIf{$f \in \textup{cap}(a_j)^{\complement}_{\textup{del}}$}{\Return \textsc{Deny}}
+\tcp{Step 5: Update trust and allow}
+$T_n(a_i, a_j) \gets T_n$\;
+\Return \textsc{Allow}\;
+\end{algorithm}
+
+% ------- IV-D -------
+\subsection{SOC Copilot Integration Layer}
+\label{sec:defense:soc}
+
+\textbf{Provider-agnostic defense wrapper.}
+The defense framework is implemented as middleware that wraps any
+supported LLM backend (Claude, GPT-4o, Gemini~1.5, DeepSeek-V3).
+A unified \textsc{DefenseContext} object encapsulates the sanitized
+prompt, trust state, and RAG provenance metadata, exposing a single
+\texttt{invoke(query, tools, rag\_context)} interface regardless of
+the underlying provider.
+
+\textbf{Tool-use sandboxing.}
+Every tool call emitted by the LLM---including
+\texttt{get\_threat\_summary},
+\texttt{suggest\_firewall\_rule},
+\texttt{query\_siem\_logs}, and
+\texttt{correlate\_iocs}---is
+intercepted by a sandbox layer that (i)~validates parameters against
+a schema allowlist, (ii)~enforces rate limits per tool per session,
+and (iii)~executes the call in an isolated subprocess with
+least-privilege credentials.  Tool outputs are truncated to a
+maximum token budget before being returned to the model.
+
+\textbf{Output filtering and response validation.}
+Model responses pass through a three-stage output filter:
+\begin{enumerate}
+  \item \emph{PII and secret detection}: regex and NER-based scanning for
+        IP addresses, credentials, API keys, and classified markings.
+  \item \emph{Policy compliance check}: a lightweight classifier
+        verifies that the response does not contain instructions to
+        disable security controls or exfiltrate data.
+  \item \emph{Citation verification}: every factual claim attributed to
+        a retrieved document is cross-checked against the provenance
+        chain established in Section~\ref{sec:defense:rag}.
+\end{enumerate}
+
+\textbf{Real-time attack persistence and analyst alerting.}
+All detected attack attempts---rejected queries, quarantined
+documents, denied inter-agent delegations---are persisted to a
+structured event store with fields
+$(\text{timestamp}, \text{attack\_type}, \text{severity},
+  \text{payload\_hash}, \text{session\_id})$.
+When the number of events within a sliding window exceeds a
+configurable threshold, an alert is escalated to the SOC analyst
+dashboard with full provenance, enabling rapid forensic review and
+adaptive policy tuning.
+% === END SEGMENT 2 ===

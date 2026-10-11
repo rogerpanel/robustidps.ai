@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0F172A"/>
+  <g transform="translate(256,256)">
+    <!-- Shield outline -->
+    <path d="M0-160 L130-110 L130 40 Q130 120 0 170 Q-130 120 -130 40 L-130-110 Z"
+          fill="none" stroke="#3B82F6" stroke-width="14" stroke-linejoin="round"/>
+    <!-- Inner shield fill -->
+    <path d="M0-140 L110-95 L110 35 Q110 105 0 150 Q-110 105 -110 35 L-110-95 Z"
+          fill="#3B82F6" fill-opacity="0.15"/>
+    <!-- Check mark -->
+    <path d="M-45 10 L-15 45 L55-35"
+          fill="none" stroke="#F97316" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- AI dots -->
+    <circle cx="-60" cy="-60" r="8" fill="#3B82F6"/>
+    <circle cx="0" cy="-80" r="8" fill="#3B82F6"/>
+    <circle cx="60" cy="-60" r="8" fill="#3B82F6"/>
+    <line x1="-60" y1="-60" x2="0" y2="-80" stroke="#3B82F6" stroke-width="3" opacity="0.5"/>
+    <line x1="0" y1="-80" x2="60" y2="-60" stroke="#3B82F6" stroke-width="3" opacity="0.5"/>
+  </g>
+</svg>

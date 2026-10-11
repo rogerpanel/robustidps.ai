@@ -1,0 +1,32 @@
+# Fly.io recipe — copy to `<agent>/fly.toml`, replace tokens, run:
+#   fly launch --copy-config --no-deploy
+#   fly secrets set ROBUSTIDPS_API_KEY=rids_live_...
+#   fly deploy
+#
+# The Dockerfile already at the agent root is used as-is.
+
+app = "<agent>-rids-aegis"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ROBUSTIDPS_API_BASE = "https://robustidps.ai"
+  RUNTIME_AGENT_ID = "<agent>-prod-fly-1"
+  # ROBUSTIDPS_API_KEY MUST be set via `fly secrets set` — never here.
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

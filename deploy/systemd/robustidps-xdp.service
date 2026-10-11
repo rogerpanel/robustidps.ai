@@ -1,0 +1,76 @@
+[Unit]
+Description=RobustIDPS.ai XDP Fast-Path (kernel-level packet drop on blocked source IPs)
+Documentation=https://github.com/rogerpanel/robustidps.ai/tree/main/agent/agent-xdp
+After=network-online.target
+Wants=network-online.target
+
+# We deliberately do NOT bind to robustidps-edge here — XDP runs
+# independently. If you want them to start/stop together, add
+# `Requires=robustidps-edge.service` here OR `Wants=robustidps-xdp.service`
+# on the edge unit. Keeping them independent means an OnnxClassifier
+# crash can never take down the kernel block path.
+
+[Service]
+Type=simple
+User=robustidps
+Group=robustidps
+WorkingDirectory=/home/robustidps/robustidps.ai/agent
+
+# Read the comma-separated block list from /etc/robustidps/xdp-blocks.txt
+# at start time (one entry per line; blank lines / lines starting with '#'
+# are ignored). To update the live block list, edit the file then
+# `systemctl reload-or-restart robustidps-xdp`.
+#
+# We use ExecStartPre to slurp the file into a runtime env var, then a
+# shell-form ExecStart that substitutes it into --blocks. systemd's exec
+# specifiers don't directly support command substitution, hence the
+# sh -c wrapper.
+ExecStartPre=/bin/sh -c "test -f /etc/robustidps/xdp-blocks.txt || install -m 0644 /dev/null /etc/robustidps/xdp-blocks.txt"
+
+# --mode auto: try native first, fall back to skb. virtio_net supports
+# native XDP since kernel 5.4.
+ExecStart=/bin/sh -c '\
+  BLOCKS=$(grep -v "^[[:space:]]*#" /etc/robustidps/xdp-blocks.txt | grep -v "^[[:space:]]*$" | tr "\n" "," | sed "s/,$//"); \
+  exec /home/robustidps/robustidps.ai/agent/target/release/robustidps-xdp \
+    --interface ${ROBUSTIDPS_XDP_IFACE:-eth0} \
+    --mode ${ROBUSTIDPS_XDP_MODE:-auto} \
+    --blocks "$BLOCKS" \
+    --stats-interval ${ROBUSTIDPS_XDP_STATS:-60}'
+
+# Required capabilities. CAP_BPF + CAP_PERFMON are split off CAP_SYS_ADMIN
+# from kernel 5.8+; older kernels would need CAP_SYS_ADMIN instead. The
+# 6.8 kernel on the production CCX23 supports the split capabilities, so
+# we run with the minimum needed.
+AmbientCapabilities=CAP_NET_ADMIN CAP_BPF CAP_PERFMON
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_BPF CAP_PERFMON
+NoNewPrivileges=yes
+
+# Restart policy.
+Restart=on-failure
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Hardening.
+ProtectSystem=full
+ProtectHome=read-only
+ReadOnlyPaths=/etc/robustidps
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=no
+# ProtectKernelModules=no because XDP attach loads the program into the
+# kernel's BPF JIT, which technically needs module-load-like privileges.
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+# Logging.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=robustidps-xdp
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target

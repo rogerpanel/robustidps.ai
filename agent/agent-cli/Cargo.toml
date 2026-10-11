@@ -1,0 +1,20 @@
+[package]
+name = "agent-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Command-line driver for the RobustIDPS.ai Rust feature-extraction agent"
+
+[[bin]]
+name = "robustidps-agent"
+path = "src/main.rs"
+
+[dependencies]
+agent-features = { path = "../agent-features" }
+clap.workspace = true
+csv.workspace = true
+anyhow.workspace = true
+log.workspace = true
+env_logger.workspace = true
