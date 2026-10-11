@@ -50,6 +50,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="with --mock: repeat the mock scenarios N times (2*N tasks)")
     p.add_argument("--mock-limit", type=int, metavar="N",
                    help="with --mock: imitate a runtime that holds at most N tasks at once")
+    p.add_argument("--ablate", metavar="LIST",
+                   help="turn components off to measure them: cache, validation, grounding, "
+                        "budget, method (comma-separated)")
+    p.add_argument("--label", help="name for this configuration in summaries (ROBUST_LABEL)")
+    p.add_argument("--ablation-suite", action="store_true",
+                   help="with --pack or --local: run the full agent, then each component "
+                        "turned off in turn, and write an ablation table (md + csv)")
     p.add_argument("--concurrency", type=int,
                    help="tasks investigated in parallel (override ROBUST_CONCURRENCY)")
     p.add_argument("--deadline", type=parse_deadline,
@@ -101,6 +108,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         overrides["scenario_runtime_arena"] = args.arena
     if args.concurrency:
         overrides["concurrency"] = args.concurrency
+    if args.ablate is not None:
+        overrides["ablate"] = args.ablate
+    if args.label:
+        overrides["run_label"] = args.label
     if args.deadline:
         overrides["deadline"] = args.deadline
     if overrides:
@@ -109,6 +120,11 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         key = "anthropic_model" if s.provider == "anthropic" else "llm_default_model"
         s = s.model_copy(update={key: args.model})
 
+    try:
+        s.ablations()
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        raise SystemExit(2) from exc
     missing = s.missing(need_runtime=not (args.mock or args.local or args.pack))
     if missing:
         print("Missing configuration in .env: " + ", ".join(missing), file=sys.stderr)
@@ -155,10 +171,33 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         await llm.close()
 
 
+async def run_suite(args: argparse.Namespace) -> dict[str, Any]:
+    """Full configuration plus one run per ablated component, on the same tasks."""
+    from pathlib import Path
+
+    from .settings import ABLATIONS
+    from .table import ablation_table
+
+    if not (args.pack or args.local):
+        raise SystemExit("--ablation-suite needs --pack or --local (practice tasks with answers)")
+    summaries = []
+    for ablate in [""] + list(ABLATIONS):
+        args.ablate, args.label = ablate, None
+        print(f"== ablation suite: {'full' if not ablate else 'no ' + ablate}", file=sys.stderr)
+        summaries.append(await run(args))
+    md, csv_text = ablation_table(summaries)
+    out = Path(RobustSettings().trace_dir) / f"ablation-{summaries[0]['run_id']}-{len(summaries)}"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    Path(f"{out}.md").write_text(md)
+    Path(f"{out}.csv").write_text(csv_text)
+    print(md)
+    return {"ablation_table": f"{out}.md", "csv": f"{out}.csv", "runs": len(summaries)}
+
+
 def main() -> None:
     args = build_parser().parse_args()
     try:
-        summary = asyncio.run(run(args))
+        summary = asyncio.run(run_suite(args) if args.ablation_suite else run(args))
     except RunCapacityExceededError as error:
         from bluesec1_agent.cli import _run_capacity_message
 
@@ -178,7 +217,8 @@ def main() -> None:
         print("Cannot reach the runtime. Check SCENARIO_RUNTIME_ENDPOINT and network access.",
               file=sys.stderr)
         raise SystemExit(1) from error
-    print(json.dumps({k: v for k, v in summary.items() if k != "task_results"}, indent=2))
+    brief = {k: v for k, v in summary.items() if k not in ("task_results", "task_rows")}
+    print(json.dumps(brief, indent=2))
 
 
 if __name__ == "__main__":

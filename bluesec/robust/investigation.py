@@ -53,8 +53,18 @@ class Investigation:
         hard_budget: int,
         max_result_chars: int,
         finish_by: float | None = None,
+        use_cache: bool = True,
+        use_validation: bool = True,
+        use_grounding: bool = True,
+        use_budget: bool = True,
     ) -> None:
         self.session = session
+        # Ablation switches: each local safeguard can be turned off to measure it.
+        self.use_cache = use_cache
+        self.use_validation = use_validation
+        self.use_grounding = use_grounding
+        self.use_budget = use_budget
+        self.usage = {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "llm_calls": 0}
         self.finish_by = finish_by          # wall-clock time after which only submitting is allowed
         self.catalog = catalog
         self.soft_budget = soft_budget
@@ -83,23 +93,23 @@ class Investigation:
         key = _key(name, arguments)
         is_finish = name == FINISH_TOOL
 
-        if not is_finish and key in self._cache:
+        if self.use_cache and not is_finish and key in self._cache:
             self.saved += 1
             self._record(name, arguments, "cached", self._cache[key])
             return Outcome("[Duplicate call: answered from cache, no call spent]\n"
                            + self._cache[key])
-        if not is_finish and self.spent >= self.hard_budget:
+        if self.use_budget and not is_finish and self.spent >= self.hard_budget:
             return self._local(name, arguments, budget_note(self.spent, self.soft_budget,
                                                             self.hard_budget), soft=True)
         if not is_finish and self.out_of_time():
             return self._local(name, arguments, TIME_UP, soft=True)
         if key not in self._rejected:
-            problems = self.catalog.specs[name].validate(arguments)
+            problems = self.catalog.specs[name].validate(arguments) if self.use_validation else []
             if problems:
                 self._rejected.add(key)
                 return self._local(name, arguments,
                                    "Arguments do not match the tool schema: " + "; ".join(problems))
-            if is_finish:
+            if is_finish and self.use_grounding:
                 missing = self._ungrounded(arguments)
                 if missing:
                     self._rejected.add(key)
@@ -134,7 +144,17 @@ class Investigation:
     def note(self) -> str:
         if self.out_of_time():
             return TIME_UP
+        if not self.use_budget:
+            return ""
         return budget_note(self.spent, self.soft_budget, self.hard_budget)
+
+    def add_usage(self, *, input: int = 0, output: int = 0, cache_read: int = 0,  # noqa: A002
+                  cache_write: int = 0) -> None:
+        self.usage["input"] += int(input or 0)
+        self.usage["output"] += int(output or 0)
+        self.usage["cache_read"] += int(cache_read or 0)
+        self.usage["cache_write"] += int(cache_write or 0)
+        self.usage["llm_calls"] += 1
 
     def out_of_time(self) -> bool:
         return self.finish_by is not None and time.time() >= self.finish_by

@@ -21,7 +21,8 @@ class AgentStop(RuntimeError):
 
 
 async def run_claude(inv: Investigation, client: Any, *, model: str, effort: str,
-                     max_turns: int, max_tokens: int = 32000) -> TaskResult:
+                     max_turns: int, max_tokens: int = 32000,
+                     system: str = SYSTEM_PROMPT) -> TaskResult:
     observation = inv.session.task.observation
     tools = inv.catalog.anthropic_tools()
     messages: list[dict[str, Any]] = [
@@ -32,7 +33,7 @@ async def run_claude(inv: Investigation, client: Any, *, model: str, effort: str
         async with client.beta.messages.stream(
             model=model,
             max_tokens=max_tokens,
-            system=SYSTEM_PROMPT,
+            system=system,
             tools=tools,
             messages=messages,
             thinking={"type": "adaptive", "display": "summarized"},
@@ -42,6 +43,13 @@ async def run_claude(inv: Investigation, client: Any, *, model: str, effort: str
             fallbacks="default",
         ) as stream:
             resp = await stream.get_final_message()
+        usage = getattr(resp, "usage", None)
+        inv.add_usage(
+            input=getattr(usage, "input_tokens", 0) or 0,
+            output=getattr(usage, "output_tokens", 0) or 0,
+            cache_read=getattr(usage, "cache_read_input_tokens", 0) or 0,
+            cache_write=getattr(usage, "cache_creation_input_tokens", 0) or 0,
+        )
         # Append the content unchanged: thinking blocks must be passed back as-is.
         messages.append({"role": "assistant", "content": resp.content})
         for block in resp.content:
@@ -76,17 +84,19 @@ async def run_claude(inv: Investigation, client: Any, *, model: str, effort: str
                                     "content": "Not executed: fix the submission first.",
                                     "is_error": True})
                 break
-        results.append({"type": "text", "text": inv.note()})
+        note = inv.note()
+        if note:
+            results.append({"type": "text", "text": note})
         messages.append({"role": "user", "content": results})
     raise AgentStop(f"no submission after {max_turns} model turns")
 
 
 async def run_openai(inv: Investigation, client: Any, *, model: str, max_turns: int,
-                     max_completion_tokens: int) -> TaskResult:
+                     max_completion_tokens: int, system: str = SYSTEM_PROMPT) -> TaskResult:
     observation = inv.session.task.observation
     tools = inv.catalog.openai_tools()
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system},
         {"role": "user", "content": initial_message(observation, inv.catalog.names())},
     ]
     nudges = 0
@@ -100,6 +110,9 @@ async def run_openai(inv: Investigation, client: Any, *, model: str, max_turns: 
         )
         if not resp.choices:
             raise AgentStop("provider returned no choices")
+        usage = getattr(resp, "usage", None)
+        inv.add_usage(input=getattr(usage, "prompt_tokens", 0) or 0,
+                      output=getattr(usage, "completion_tokens", 0) or 0)
         msg = resp.choices[0].message
         if getattr(msg, "refusal", None):
             raise AgentStop(f"model refused: {msg.refusal}")
@@ -137,5 +150,7 @@ async def run_openai(inv: Investigation, client: Any, *, model: str, max_turns: 
                     text = out.text
                     skip = c.function.name == "finish_investigation"
             messages.append({"role": "tool", "tool_call_id": c.id, "content": text})
-        messages[-1]["content"] += "\n" + inv.note()
+        note = inv.note()
+        if note:
+            messages[-1]["content"] += "\n" + note
     raise AgentStop(f"no submission after {max_turns} model turns")

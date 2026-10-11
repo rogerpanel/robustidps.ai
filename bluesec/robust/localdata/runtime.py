@@ -58,6 +58,12 @@ class LocalSession:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.result: TaskResult | None = None
         self.started = time.monotonic()
+        # For the trace only (never shown to the model): lets results be broken
+        # down by platform and expected verdict.
+        self.meta = {"platform": task.scenario.platform,
+                     "expected_verdict": task.scenario.verdict,
+                     "attack": task.scenario.attack,
+                     "source": task.alert.get("source")}
 
     @property
     def task_id(self) -> str:

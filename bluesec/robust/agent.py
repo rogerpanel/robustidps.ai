@@ -24,7 +24,9 @@ from bluesec1_client import TaskCapacityExceededError, TaskResult
 from .catalog import ToolCatalog
 from .drivers import run_claude, run_openai
 from .investigation import Investigation
-from .settings import RobustSettings
+from .metrics import compute
+from .prompt import MINIMAL_PROMPT, SYSTEM_PROMPT
+from .settings import ABLATIONS, RobustSettings
 
 CAPACITY_WAIT_SECONDS = 5.0
 CAPACITY_MAX_IDLE_RETRIES = 24      # ~2 minutes refused with nothing of ours running
@@ -84,7 +86,11 @@ class RobustAgent:
         trace_dir = Path(self.s.trace_dir) / f"{time.strftime('%Y%m%d-%H%M%S')}-{run_id[:12]}"
         trace_dir.mkdir(parents=True, exist_ok=True)
         results: list[TaskResult] = []
+        rows: list[dict[str, Any]] = []
         pool = _Pool(max(1, self.s.concurrency))
+        ablations = self.s.ablations()
+        if ablations:
+            logger.info("Ablation run: off = {}", ", ".join(ablations))
         running = {"now": 0, "peak": 0}
         lease_stop, finish_by = self._cutoffs()
         if lease_stop:
@@ -108,10 +114,11 @@ class RobustAgent:
                     running["now"] += 1
                     running["peak"] = max(running["peak"], running["now"])
                     try:
-                        result = await self._one(session, trace_dir, finish_by)
+                        result, row = await self._one(session, trace_dir, finish_by, ablations)
                     finally:
                         running["now"] -= 1
                     results.append(result)
+                    rows.append(row)
                     logger.info(
                         "Task {} {}: quality={:.3f} efficiency={:.3f} reward={:.3f} calls={} "
                         "[{} done]",
@@ -132,6 +139,20 @@ class RobustAgent:
         await asyncio.gather(*(worker(i + 1) for i in range(pool.limit)))
         summary = summarise(run_id, results)
         summary["peak_parallel_tasks"] = running["peak"]
+        summary["config"] = {
+            "label": self.s.config_label(),
+            "ablations": ablations,
+            "ablation_meaning": {a: ABLATIONS[a] for a in ablations},
+            "provider": self.s.provider,
+            "model": self.s.model_label(),
+            "effort": self.s.anthropic_effort if self.s.provider == "anthropic" else None,
+            "concurrency": self.s.concurrency,
+            "soft_budget": self.s.soft_budget,
+            "max_tool_calls": self.s.max_tool_calls,
+            "runtime": type(client).__name__,
+        }
+        summary["metrics"] = compute(rows)
+        summary["task_rows"] = rows
         (trace_dir / "summary.json").write_text(json.dumps(summary, indent=2))
         logger.info("Traces written to {}", trace_dir)
         return summary
@@ -158,7 +179,9 @@ class RobustAgent:
         end = self.s.deadline.timestamp()
         return end - 60 * self.s.lease_stop_minutes, end - 60 * self.s.finish_minutes
 
-    async def _one(self, session: Any, trace_dir: Path, finish_by: float | None) -> TaskResult:
+    async def _one(self, session: Any, trace_dir: Path, finish_by: float | None,
+                   ablations: list[str] | None = None) -> tuple[TaskResult, dict[str, Any]]:
+        ablations = ablations or []
         trace: dict[str, Any] = {
             "task_id": session.task_id,
             "model": self.s.model_label(),
@@ -174,15 +197,21 @@ class RobustAgent:
                 hard_budget=self.s.max_tool_calls,
                 max_result_chars=self.s.max_result_chars,
                 finish_by=finish_by,
+                use_cache="cache" not in ablations,
+                use_validation="validation" not in ablations,
+                use_grounding="grounding" not in ablations,
+                use_budget="budget" not in ablations,
             )
+            system = MINIMAL_PROMPT if "method" in ablations else SYSTEM_PROMPT
             if self.s.provider == "anthropic":
                 result = await run_claude(inv, self.llm, model=self.s.anthropic_model,
                                           effort=self.s.anthropic_effort,
-                                          max_turns=self.s.max_turns)
+                                          max_turns=self.s.max_turns, system=system)
             else:
                 result = await run_openai(inv, self.llm, model=self.s.llm_default_model or "",
                                           max_turns=self.s.max_turns,
-                                          max_completion_tokens=self.s.llm_max_completion_tokens)
+                                          max_completion_tokens=self.s.llm_max_completion_tokens,
+                                          system=system)
         except Exception as exc:
             logger.error("Task {} failed in the agent: {}", session.task_id, exc)
             trace["error"] = f"{type(exc).__name__}: {exc}"[:2000]
@@ -191,14 +220,35 @@ class RobustAgent:
             )
         if inv is not None:
             trace.update(steps=inv.steps, submission=inv.submission, calls_spent=inv.spent,
-                         calls_saved_by_cache=inv.saved,
+                         calls_saved_by_cache=inv.saved, usage=inv.usage,
                          wall_seconds=round(time.monotonic() - inv.started, 1))
+        meta = getattr(session, "meta", None)
+        if isinstance(meta, dict):
+            trace["task_meta"] = meta
+        trace["ablations"] = ablations
         trace["result"] = result.model_dump(mode="json")
         safe = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in session.task_id)
         (trace_dir / f"{safe}.json").write_text(
             json.dumps(trace, indent=2, ensure_ascii=False, default=str)
         )
-        return result
+        sub = trace.get("submission") if isinstance(trace.get("submission"), dict) else {}
+        row = {
+            "task_id": session.task_id,
+            "platform": (meta or {}).get("platform"),
+            "expected_verdict": (meta or {}).get("expected_verdict"),
+            "verdict": sub.get("verdict") if result.completion_reason == "terminated" else None,
+            "completion": result.completion_reason,
+            "quality": result.quality_score,
+            "efficiency": result.efficiency_score,
+            "reward": result.total_reward,
+            "calls": result.tool_calls,
+            "saved": inv.saved if inv else 0,
+            "refused_locally": sum(1 for st in (inv.steps if inv else [])
+                                   if st.get("status") == "refused_locally"),
+            "wall_seconds": round(time.monotonic() - inv.started, 1) if inv else None,
+            "usage": dict(inv.usage) if inv else {},
+        }
+        return result, row
 
 
 def summarise(run_id: str, results: list[TaskResult]) -> dict[str, Any]:

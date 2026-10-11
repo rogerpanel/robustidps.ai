@@ -277,9 +277,11 @@ class ScriptedByTask:
         self.scripts = scripts
         self.inflight = 0
         self.max_inflight = 0
+        self.systems: list[Any] = []
         self.beta = NS(messages=NS(stream=self._stream))
 
     def _stream(self, **kw: Any) -> Any:
+        self.systems.append(kw.get("system"))
         first = kw["messages"][0]["content"]
         key = next(k for k in self.scripts if k in first)
         turn = sum(1 for m in kw["messages"] if m["role"] == "assistant")
@@ -414,3 +416,66 @@ def test_parallel_run_through_the_real_remote_client(tmp_path: Path) -> None:
     summary = asyncio.run(go())
     assert summary["completed"] == 2 and summary["peak_parallel_tasks"] == 2
     assert transport.closed[0].reason == "client_requested"
+
+
+# --------------------------------------------------------------- ablations
+def test_ablation_switches_change_behaviour() -> None:
+    # cache off: the repeated call is sent again
+    session = malicious_session()
+    inv = Investigation(session, ToolCatalog.from_observation(session.task.observation),
+                        soft_budget=8, hard_budget=30, max_result_chars=20_000, use_cache=False)
+    for _ in range(2):
+        asyncio.run(inv.execute("get_entity", {"entity_id": "proc-c33", "purpose": "x"}))
+    assert inv.spent == 2 and len(session.calls) == 2
+
+    # validation off: a call missing a required argument reaches the runtime
+    session = malicious_session()
+    inv = Investigation(session, ToolCatalog.from_observation(session.task.observation),
+                        soft_budget=8, hard_budget=30, max_result_chars=20_000,
+                        use_validation=False)
+    asyncio.run(inv.execute("get_entity", {"purpose": "no id"}))
+    assert len(session.calls) == 1
+
+    # grounding off: an unseen id is submitted at once
+    session = malicious_session()
+    inv = Investigation(session, ToolCatalog.from_observation(session.task.observation),
+                        soft_budget=8, hard_budget=30, max_result_chars=20_000,
+                        use_grounding=False)
+    out = asyncio.run(inv.execute("finish_investigation", {"submission": {
+        **MALICIOUS, "ir_artifacts": [{"entity_id": "conn-99", "kind": "network_block"}]}}))
+    assert out.terminal is not None
+
+    # budget off: no notes and no hard cap
+    session = malicious_session()
+    inv = Investigation(session, ToolCatalog.from_observation(session.task.observation),
+                        soft_budget=1, hard_budget=1, max_result_chars=20_000, use_budget=False)
+    asyncio.run(inv.execute("get_entity", {"entity_id": "proc-c33", "purpose": "x"}))
+    asyncio.run(inv.execute("get_entity", {"entity_id": "conn-44", "purpose": "y"}))
+    assert inv.spent == 2 and inv.note() == ""
+
+
+def test_run_records_config_metrics_and_minimal_prompt(tmp_path: Path) -> None:
+    from bluesec1_agent.robust.prompt import MINIMAL_PROMPT
+    from bluesec1_agent.robust.table import ablation_table
+
+    def go(ablate: str) -> tuple[dict[str, Any], ScriptedByTask]:
+        settings = RobustSettings(ROBUST_TRACE_DIR=tmp_path, ANTHROPIC_API_KEY="k",
+                                  ROBUST_CONCURRENCY=2, ROBUST_ABLATE=ablate)
+        claude = ScriptedByTask(SCRIPTS)
+        return asyncio.run(RobustAgent(settings, claude).run(MockClient())), claude
+
+    full, _ = go("")
+    assert full["config"]["label"] == "full" and full["config"]["ablations"] == []
+    assert full["metrics"]["overall"]["tasks"] == 2
+    assert len(full["task_rows"]) == 2 and full["task_rows"][0]["usage"]["llm_calls"] >= 1
+    minimal, claude = go("method")
+    assert minimal["config"]["label"] == "no method"
+    md, csv_text = ablation_table([full, minimal])
+    assert "| full |" in md and "| no method |" in md and "delta_reward" in csv_text
+    assert _ScriptedSystem.last(claude) == MINIMAL_PROMPT
+
+
+class _ScriptedSystem:
+    @staticmethod
+    def last(claude: Any) -> str:
+        return claude.systems[-1]

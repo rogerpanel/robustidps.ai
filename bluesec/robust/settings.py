@@ -10,6 +10,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
 
+# Components that --ablate can turn off, to measure what each contributes.
+ABLATIONS = {
+    "cache": "repeated calls are sent to the runtime again",
+    "validation": "no local schema validation before sending",
+    "grounding": "no warning for submitted ids never seen in evidence",
+    "budget": "no call-count notes and no hard cap on tool calls",
+    "method": "minimal system prompt instead of the investigation method",
+}
+
 
 class RobustSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -48,8 +57,25 @@ class RobustSettings(BaseSettings):
     concurrency: int = Field(1, alias="ROBUST_CONCURRENCY", ge=1, le=16)
     # Hard submission deadline (ISO 8601 with timezone, or --deadline HH:MM Moscow time).
     deadline: datetime.datetime | None = Field(None, alias="ROBUST_DEADLINE")
+    # Ablation: comma-separated components to turn off (see ABLATIONS); label names the run.
+    ablate: str = Field("", alias="ROBUST_ABLATE")
+    run_label: str | None = Field(None, alias="ROBUST_LABEL", max_length=120)
     lease_stop_minutes: float = Field(6.0, alias="ROBUST_LEASE_STOP_MINUTES", ge=0)
     finish_minutes: float = Field(2.0, alias="ROBUST_FINISH_MINUTES", ge=0)
+
+    def ablations(self) -> list[str]:
+        items = sorted({x.strip().lower() for x in self.ablate.split(",") if x.strip()})
+        unknown = set(items) - set(ABLATIONS)
+        if unknown:
+            raise ValueError(
+                f"unknown ablation(s) {sorted(unknown)}; choose from {list(ABLATIONS)}"
+            )
+        return items
+
+    def config_label(self) -> str:
+        if self.run_label:
+            return self.run_label
+        return "full" if not self.ablations() else "no " + "+".join(self.ablations())
 
     def model_label(self) -> str:
         if self.provider == "anthropic":

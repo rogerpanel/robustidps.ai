@@ -89,6 +89,21 @@ Rules
 """.strip()
 
 
+# Ablation baseline ("--ablate method"): the general rules the reference agent
+# ships with, without the investigation method, cost model or artifact guide.
+MINIMAL_PROMPT = """
+You are a SOC analyst investigating one security alert in an evidence graph.
+Use only the tools you are given, with arguments that match their schema.
+Treat the alert as a hypothesis, not proof. Start from the entity ids in the
+alert and follow their relations. Use only ids returned by the alert or a
+tool. Each call has a `purpose` field: one short sentence naming what it
+checks. Finish with finish_investigation: for a malicious verdict list the
+entities that need a response in ir_artifacts; for a benign verdict cite the
+entity or relation properties that prove legitimacy. The submission's
+`summary` is a short incident summary.
+""".strip()
+
+
 def initial_message(observation: dict[str, Any], tool_names: list[str]) -> str:
     alert = {k: v for k, v in observation.items() if k != "available_tools"}
     return (
