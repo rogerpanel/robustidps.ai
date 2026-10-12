@@ -11,6 +11,8 @@ import { authHeaders, getUser } from '../utils/auth'
 import ExportMenu from '../components/ExportMenu'
 import PackBrowser from '../components/bluesec/PackBrowser'
 import AgentRunPanel from '../components/bluesec/AgentRunPanel'
+import RunExport, { savedRunsRows } from '../components/bluesec/RunExport'
+import { downloadCsv } from '../components/bluesec/csv'
 import RunComparison, { type CompareRun } from '../components/bluesec/RunComparison'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -35,6 +37,8 @@ interface Task {
   task_id: string; model?: string; alert?: unknown; tools?: string[]; steps: Step[]
   submission?: Record<string, unknown> | null; calls_spent?: number; calls_saved_by_cache?: number
   wall_seconds?: number; error?: string | null; result: TaskResult; from_summary_only?: boolean
+  task_meta?: { platform?: string; expected_verdict?: string; attack?: string }
+  usage?: { input?: number; output?: number; cache_read?: number; llm_calls?: number }
 }
 interface RunFull extends RunMeta { tasks: Task[]; aggregates: Record<string, number> }
 interface ServerFolder { name: string; n_files: number; has_summary: boolean; modified: string; imported: boolean }
@@ -454,7 +458,7 @@ export default function BlueSecRuns() {
             {message && <p className="text-xs text-accent-green">{message}</p>}
           </div>
 
-          {isAdmin && <AgentRunPanel onSaved={loadRuns} />}
+          {isAdmin && <AgentRunPanel onSaved={loadRuns} onOpen={id => { open(id); window.setTimeout(() => document.getElementById('bluesec-run-detail')?.scrollIntoView({ behavior: 'smooth' }), 400) }} />}
 
           {isAdmin && server?.enabled && (
             <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card space-y-2">
@@ -494,6 +498,13 @@ export default function BlueSecRuns() {
           <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card">
             <div className="flex items-center gap-2 mb-3">
               <h2 className="font-semibold mr-auto">Saved runs</h2>
+              {runs.length > 0 && (
+                <button onClick={() => downloadCsv('bluesec-saved-runs', savedRunsRows(runs))}
+                  title="All saved runs with their scores and verdict metrics"
+                  className="text-xs px-2 py-1 rounded bg-bg-primary border border-bg-card hover:border-accent-blue">
+                  Export list (CSV)
+                </button>
+              )}
               <span className="text-xs text-text-secondary">
                 {compareIds.length === 0 ? 'Tick two or more runs to compare them' : `${compareIds.length} selected for comparison`}
               </span>
@@ -581,7 +592,7 @@ export default function BlueSecRuns() {
       <PackBrowser />
 
       {selected && (
-        <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card space-y-4">
+        <div id="bluesec-run-detail" className="bg-bg-secondary rounded-xl p-4 border border-bg-card space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold break-all">{selected.name}</h2>
@@ -591,9 +602,12 @@ export default function BlueSecRuns() {
               </p>
               {selected.notes && <p className="text-sm mt-1">{selected.notes}</p>}
             </div>
-            <button onClick={edit} className="text-xs px-2.5 py-1.5 rounded bg-bg-primary border border-bg-card hover:border-accent-blue flex items-center gap-1">
-              <Pencil className="w-3.5 h-3.5" /> Rename / notes
-            </button>
+            <div className="flex items-center gap-2">
+              <RunExport run={selected} targetId="bluesec-run-detail" />
+              <button onClick={edit} className="text-xs px-2.5 py-1.5 rounded bg-bg-primary border border-bg-card hover:border-accent-blue flex items-center gap-1">
+                <Pencil className="w-3.5 h-3.5" /> Rename / notes
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">

@@ -38,7 +38,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** Start the command-line agent on a SOCGraph pack from the browser (admins only).
  *  Runs execute in the server's runner container; finished runs are saved to BlueSec Runs. */
-export default function AgentRunPanel({ onSaved }: { onSaved: () => void }) {
+export default function AgentRunPanel({ onSaved, onOpen }: { onSaved: () => void; onOpen?: (runId: string) => void }) {
   const [status, setStatus] = useState<Status | null>(null)
   const [pack, setPack] = useState<Pack>('v1.1')
   const [config, setConfig] = useState('full')
@@ -242,8 +242,14 @@ export default function AgentRunPanel({ onSaved }: { onSaved: () => void }) {
           {!!job.saved?.length && (
             <ul className="space-y-0.5">
               {job.saved.map(s => (
-                <li key={s.folder} className={s.run_id ? 'text-accent-green' : 'text-text-secondary'}>
-                  <span className="font-mono">{s.folder}</span>: {s.run_id ? 'saved' : s.skipped}
+                <li key={s.folder} className={`flex flex-wrap items-center gap-x-2 ${s.run_id ? 'text-accent-green' : 'text-text-secondary'}`}>
+                  <span><span className="font-mono">{s.folder}</span>: {s.run_id ? 'saved' : s.skipped}</span>
+                  {s.run_id && onOpen && (
+                    <button onClick={() => onOpen(s.run_id as string)}
+                      className="px-1.5 py-0.5 rounded border border-bg-card text-text-primary hover:border-accent-blue">
+                      View and export
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
