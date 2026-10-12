@@ -224,6 +224,34 @@ page exports to PDF/PNG.
 each task's alert and graph composition, a searchable entity explorer, and
 the ground truth behind a "Show answers" toggle.
 
+## Running the agent from the website (Run agent)
+
+BlueSec Runs has a **Run agent** panel for admins: pick a pack (v1.1, blind,
+mimicry), a configuration (full or one component off) or the whole ablation
+suite, a provider (Anthropic or any OpenAI-compatible endpoint, including a
+self-hosted model) and paste an API key. The run executes on the server in the
+`bluesec-runner` container (`bluesec/runner/`), which installs the reference
+client from its public repository at a pinned commit and runs exactly the
+command-line agent above. When it finishes, its trace folders are saved to
+BlueSec Runs automatically (runs in which no task completed, e.g. after an
+invalid key, are reported instead of saved). The key is used for that run only:
+it is not stored, logged or written to traces. One run at a time; "Quick test"
+runs 2 tasks to check a key or an endpoint cheaply.
+
+The paper's results are produced with the command line; web runs are for
+testing and demonstration.
+
+Deploy (from `~/robustidps.ai`, after `git pull`):
+
+```bash
+# optional: a shared token between backend and runner
+sudo grep -q '^BLUESEC_RUNNER_TOKEN=' .env || echo "BLUESEC_RUNNER_TOKEN=$(openssl rand -hex 24)" | sudo tee -a .env >/dev/null
+sudo docker compose -f docker-compose.prod.yml up -d --build bluesec-runner backend frontend
+```
+
+The runner has no published port; only the backend reaches it on the internal
+network. Its tests: `python -m pytest bluesec/runner/test_server.py`.
+
 ## Improving between runs
 
 The leaderboard keeps your current result, so iterate on the practice arena:

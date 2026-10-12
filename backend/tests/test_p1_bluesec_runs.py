@@ -183,3 +183,92 @@ def test_new_columns_are_added_to_an_existing_table(tmp_path, monkeypatch):
     database._migrate_columns()
     cols = {c["name"] for c in sa.inspect(engine).get_columns("bluesec_runs")}
     assert {"label", "config", "metrics"} <= cols
+
+
+# ── "Run agent": forwarding to the runner and importing finished runs ──────
+@pytest.fixture
+def agent_client(db_session, tmp_path, monkeypatch):
+    from plugins.bluesec_runs import agent_runs
+
+    folder = tmp_path / "traces" / "20261012-101500-local-run"
+    folder.mkdir(parents=True)
+    (folder / "t1.json").write_text(json.dumps(_task("t1", 1.0, 1.0, 4)))
+    (folder / "summary.json").write_text(json.dumps(
+        {**SUMMARY, "config": {"label": "full", "ablations": []}}))
+    aborted = tmp_path / "traces" / "20261012-101600-local-run"     # every task aborted
+    aborted.mkdir()
+    bad = _task("t1", 0.0, 0.0, 0)
+    bad["result"]["completion_reason"] = "aborted"
+    (aborted / "t1.json").write_text(json.dumps(bad))
+    calls = []
+    job = {"id": "abc123", "status": "running", "folders": [], "params": {"pack": "v1.1"},
+           "done_tasks": 0, "total_tasks": 21, "log": []}
+
+    def fake_runner(method, path, body=None):
+        calls.append((method, path, body))
+        if path == "/health":
+            return {"ok": True, "busy": False, "packs": {"v1.1": 21}}
+        if path == "/runs" and method == "POST":
+            return dict(job)
+        if path.startswith("/runs/abc123"):
+            return dict(job)
+        raise api.HTTPException(404, "unknown run")
+
+    monkeypatch.setattr(agent_runs, "_runner", fake_runner)
+    monkeypatch.setattr(agent_runs, "WEB_RUNS_DIR", tmp_path)
+    agent_runs._owners.clear()
+    app = FastAPI()
+    app.state.limiter = api.limiter
+    app.include_router(api.router)
+    app.include_router(agent_runs.router)
+    app.dependency_overrides[get_db] = lambda: db_session
+    return TestClient(app), calls, job
+
+
+def test_agent_runs_admin_only_and_key_forwarded(agent_client, admin_token, analyst_token):
+    client, calls, _ = agent_client
+    assert client.get("/api/bluesec-runs/agent/status", headers=_auth(analyst_token)).status_code == 403
+    assert client.post("/api/bluesec-runs/agent/runs", json={"api_key": "sk-1"},
+                       headers=_auth(analyst_token)).status_code == 403
+    assert client.get("/api/bluesec-runs/agent/status", headers=_auth(admin_token)).json()["available"]
+    r = client.post("/api/bluesec-runs/agent/runs", json={"api_key": "sk-secret-123", "ablate": ["cache"]},
+                    headers=_auth(admin_token))
+    assert r.status_code == 200 and r.json()["id"] == "abc123"
+    sent = calls[-1][2]
+    assert sent["api_key"] == "sk-secret-123" and sent["ablate"] == ["cache"]
+    assert client.post("/api/bluesec-runs/agent/runs", json={"api_key": "k", "pack": "other"},
+                       headers=_auth(admin_token)).status_code == 422
+
+
+def test_finished_agent_run_is_imported_once(agent_client, admin_token):
+    client, _, job = agent_client
+    client.post("/api/bluesec-runs/agent/runs", json={"api_key": "k"}, headers=_auth(admin_token))
+    r = client.get("/api/bluesec-runs/agent/runs/abc123", headers=_auth(admin_token)).json()
+    assert r["saved"] == []                       # still running: nothing imported
+    job.update(status="done", folders=["20261012-101500-local-run", "../escape", "missing-folder",
+                                       "20261012-101600-local-run"])
+    r = client.get("/api/bluesec-runs/agent/runs/abc123", headers=_auth(admin_token)).json()
+    assert [s["folder"] for s in r["saved"]] == ["20261012-101500-local-run", "20261012-101600-local-run"]
+    assert r["saved"][1]["run_id"] is None and "no task completed" in r["saved"][1]["skipped"]
+    run_id = r["saved"][0]["run_id"]
+    again = client.get("/api/bluesec-runs/agent/runs/abc123", headers=_auth(admin_token)).json()
+    assert again["saved"][0]["run_id"] == run_id    # not imported twice
+    runs = client.get("/api/bluesec-runs", headers=_auth(admin_token)).json()["runs"]
+    assert len(runs) == 1 and runs[0]["source"] == "web:20261012-101500-local-run"
+    assert runs[0]["label"] == "full" and "pack v1.1" in runs[0]["notes"]
+    assert client.get("/api/bluesec-runs/agent/runs/zz!", headers=_auth(admin_token)).status_code == 404
+
+
+def test_runner_not_configured(db_session, admin_token, monkeypatch):
+    from plugins.bluesec_runs import agent_runs
+
+    monkeypatch.setattr(agent_runs, "RUNNER_URL", "")
+    app = FastAPI()
+    app.state.limiter = api.limiter
+    app.include_router(agent_runs.router)
+    app.dependency_overrides[get_db] = lambda: db_session
+    client = TestClient(app)
+    status = client.get("/api/bluesec-runs/agent/status", headers=_auth(admin_token)).json()
+    assert status == {"available": False, "reason": "The agent runner is not configured on this server."}
+    r = client.post("/api/bluesec-runs/agent/runs", json={"api_key": "k"}, headers=_auth(admin_token))
+    assert r.status_code == 503

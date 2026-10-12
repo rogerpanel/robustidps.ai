@@ -10,6 +10,7 @@ import {
 import { authHeaders, getUser } from '../utils/auth'
 import ExportMenu from '../components/ExportMenu'
 import PackBrowser from '../components/bluesec/PackBrowser'
+import AgentRunPanel from '../components/bluesec/AgentRunPanel'
 import RunComparison, { type CompareRun } from '../components/bluesec/RunComparison'
 
 const API = import.meta.env.VITE_API_URL || ''
@@ -453,6 +454,8 @@ export default function BlueSecRuns() {
             {message && <p className="text-xs text-accent-green">{message}</p>}
           </div>
 
+          {isAdmin && <AgentRunPanel onSaved={loadRuns} />}
+
           {isAdmin && server?.enabled && (
             <div className="bg-bg-secondary rounded-xl p-4 border border-bg-card space-y-2">
               <h2 className="font-semibold flex items-center gap-2"><Server className="w-4 h-4" /> Import from server</h2>
@@ -483,6 +486,7 @@ export default function BlueSecRuns() {
             <p>Run the agent from <span className="font-mono">~/bluesec1-agent</span>:</p>
             <pre className="bg-bg-primary rounded p-2 overflow-auto text-[11px]">uv run --with anthropic --with jsonschema --env-file .env \{'\n'}  python -m bluesec1_agent.robust.cli --pack robustidps-bluesec-pack.zip</pre>
             <p>For an ablation study, add <span className="font-mono">--ablation-suite</span>: it runs the full agent and each component turned off in turn (6 runs). Import all six folders, tick them in Saved runs and the comparison appears below.</p>
+            {isAdmin && <p>For quick tests from the browser, use <span className="font-medium">Run agent</span> above: it runs the same command on this server and saves the result here.</p>}
           </div>
         </div>
 
@@ -519,7 +523,7 @@ export default function BlueSecRuns() {
                           <td className="py-2 pr-2 min-w-[180px]">
                             <div className="font-medium break-words">{r.name}</div>
                             {r.label && <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-bg-primary text-[10px] text-text-secondary">{r.label}</span>}
-                            <div className="text-[11px] text-text-secondary">{r.agent_model || '–'}{r.source.startsWith('server:') ? ' · from server' : ''}</div>
+                            <div className="text-[11px] text-text-secondary">{r.agent_model || '–'}{r.source.startsWith('server:') ? ' · from server' : r.source.startsWith('web:') ? ' · run here' : ''}</div>
                           </td>
                           <td className="text-xs text-text-secondary whitespace-nowrap pr-2">{when(r).toLocaleString()}</td>
                           <td className="text-xs whitespace-nowrap pr-2">{r.n_completed}/{r.n_tasks}</td>

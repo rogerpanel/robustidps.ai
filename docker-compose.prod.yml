@@ -43,11 +43,14 @@ services:
       # BlueSec agent traces, read-only, for "Import from server" on BlueSec Runs.
       # Set BLUESEC_TRACES_DIR in .env to the agent's traces folder.
       - ${BLUESEC_TRACES_DIR:-./bluesec_traces}:/app/bluesec_traces:ro
+      # Runs started from BlueSec Runs ("Run agent"), written by bluesec-runner.
+      - bluesec_web_runs:/app/bluesec_web_runs:ro
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-robustidps}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-robustidps}
       - REDIS_URL=redis://redis:6379/0
+      - BLUESEC_RUNNER_URL=http://bluesec-runner:8100
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,11 +103,14 @@ services:
       # BlueSec agent traces, read-only, for "Import from server" on BlueSec Runs.
       # Set BLUESEC_TRACES_DIR in .env to the agent's traces folder.
       - ${BLUESEC_TRACES_DIR:-./bluesec_traces}:/app/bluesec_traces:ro
+      # Runs started from BlueSec Runs ("Run agent"), written by bluesec-runner.
+      - bluesec_web_runs:/app/bluesec_web_runs:ro
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-robustidps}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-robustidps}
       - REDIS_URL=redis://redis:6379/0
+      - BLUESEC_RUNNER_URL=http://bluesec-runner:8100
       - DEVICE=cuda
       - BATCH_SIZE=8192
       - MC_PASSES=30
@@ -119,6 +125,24 @@ services:
       timeout: 10s
       retries: 5
       start_period: 45s
+    networks:
+      - app
+
+  # Agent runner for BlueSec Runs ("Run agent"): runs the command-line agent on
+  # the SOCGraph packs in its own container. Internal only: no published port.
+  # Optional: set BLUESEC_RUNNER_TOKEN in .env to require a shared token.
+  bluesec-runner:
+    build:
+      context: ./bluesec
+      dockerfile: runner/Dockerfile
+    restart: unless-stopped
+    environment:
+      - RUNNER_TOKEN=${BLUESEC_RUNNER_TOKEN:-}
+      - RUNNER_PACKS_DIR=/packs
+      - RUNNER_WORK_DIR=/runs
+    volumes:
+      - ./research/socgraph-bench/benchmark:/packs:ro
+      - bluesec_web_runs:/runs
     networks:
       - app
 
@@ -188,6 +212,7 @@ networks:
     driver: bridge
 
 volumes:
+  bluesec_web_runs:
   pgdata:
   redisdata:
   prometheusdata:

@@ -250,6 +250,8 @@ from plugins.investigator.api import router as investigator_router  # noqa: E402
 app.include_router(investigator_router)
 from plugins.bluesec_runs.api import router as bluesec_runs_router  # noqa: E402
 app.include_router(bluesec_runs_router)
+from plugins.bluesec_runs.agent_runs import router as bluesec_agent_router  # noqa: E402
+app.include_router(bluesec_agent_router)
 
 # ── Model loading ─────────────────────────────────────────────────────────
 
