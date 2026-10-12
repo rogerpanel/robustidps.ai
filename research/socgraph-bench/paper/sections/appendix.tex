@@ -1,5 +1,12 @@
 \section{Prompts}
 \label{app:prompts}
+\ifconf
+Fig.~\ref{fig:minprompt} gives the minimal prompt used by the \emph{no method} ablation. The investigation-method
+prompt of the full configuration (81 lines) is in the artifact (\texttt{agent/robust/prompt.py}); its parts are
+summarised in \S\ref{sec:method}, and the instruction discussed in \S\ref{sec:study} reads ``Do not look up
+what you already know: the host and user named in the alert, the relation that only says a process runs on
+that host''. Field names refer to the aliases presented to the model (\S\ref{sec:alias}).
+\else
 Fig.~\ref{fig:prompt} reproduces the investigation-method system prompt used by the full configuration, and
 Fig.~\ref{fig:minprompt} the minimal prompt used by the \emph{no method} ablation. Both are taken verbatim from
 the released code (\texttt{agent/robust/prompt.py}). Field names refer to the aliases presented to the model
@@ -13,6 +20,7 @@ the released code (\texttt{agent/robust/prompt.py}). Field names refer to the al
 \caption{Investigation-method system prompt (full configuration).}
 \label{fig:prompt}
 \end{figure*}
+\fi
 
 \begin{figure*}[!t]
 \centering
@@ -23,6 +31,12 @@ the released code (\texttt{agent/robust/prompt.py}). Field names refer to the al
 \label{fig:minprompt}
 \end{figure*}
 
+\ifconf
+\section{Artifact}
+\label{app:repro}
+The anonymised artifact contains the agent, the benchmark and its variants, the traces of every run, and
+the scripts that regenerate every table, figure and number in this paper; its README gives the commands.
+\else
 \section{Reproducing the tables}
 \label{app:repro}
 Every table and plot in \S\ref{sec:benchmark} and \S\ref{sec:results} is generated from the released files:
@@ -32,3 +46,17 @@ the benchmark zip;
 \item \texttt{scripts/results\_to\_tex.py} writes the pilot, ablation, breakdown and per-task tables, the
 figure data and the numbers quoted in the text from the run folders.
 \end{itemize}
+\fi
+
+\ifconf
+\input{sections/ethics}
+
+\section{Pilot on the Windows tasks}
+\label{sec:pilot}
+\input{sections/pilot}
+
+
+\section{Engineering observations}
+\label{sec:engineering}
+\input{sections/engineering}
+\fi

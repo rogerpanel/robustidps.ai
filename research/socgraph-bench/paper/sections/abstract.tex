@@ -11,12 +11,14 @@ benign look-alikes from the same hosts, including twins that share an alert with
 accuracy \ResFullAccuracy{} and no false positives, at \ResFullCalls{} tool calls per task. A paired ablation
 shows that the investigation method in the prompt drives efficiency (\ResNoMethodCalls{} calls per task
 without it, more on \ResNoMethodMoreCalls{} of \ResNoMethodCallsDiffer{} tasks), while the safeguards had no
-measurable effect: per-call traces show they fired on fewer than one call in ten tasks. The traces instead
-expose what aggregate scores hide: identifiers of the wrong type that a substring
-grounding check accepts, an efficiency instruction that withheld the identifier the response needed, and label
-cues that public attack recordings leak into the alert, which \TrAllSourceCuePct\% of submissions cite. We
-release \emph{blind} and \emph{mimicry} variants of \bench that remove these cues and rename attacker-chosen
-artefacts without changing behaviour, so that shortcut reliance and lexical evasion become measurable.
+measurable effect: per-call traces show they fired on fewer than one call in ten tasks. To test whether the
+agent is right for the right reasons, we build cue-controlled variants of \bench with identical graphs and
+answers. Removing label cues of the recordings changed nothing measurable, but renaming attacker-chosen
+artefacts without changing behaviour (\texttt{rootkit.ko} to \texttt{hidmon.ko}, \texttt{atomic\_user1} to
+\texttt{jsmith}) cut reward by \ResMimicryPairedReward{} and raised missed attacks from \ResCueBaseMissed{} to
+\ResMimicryMissed{}: on dual-use Linux behaviour the verdict rested on names the attacker chose. Traces also
+show a grounding check accepting identifiers of the wrong type and an efficiency instruction withholding an
+identifier the response needed.
 \else
 \ We define an ablation protocol that isolates each safeguard's contribution.
 \fi

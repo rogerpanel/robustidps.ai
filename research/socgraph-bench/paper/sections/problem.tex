@@ -64,10 +64,28 @@ legitimacy with decisive evidence), and do so with few calls. Calls refused by t
 and calls past the budget all count against efficiency or quality, which motivates resolving avoidable mistakes
 \emph{before} they reach the runtime.
 
-\paragraph{Assumptions} Telemetry is trustworthy (we do not model an adversary tampering with sensors), the
-agent sees only tool results, and ground truth is hidden from it. Telemetry fields that contain
-attacker-controlled text, such as command lines, are a potential prompt-injection channel; we discuss this in
-\S\ref{sec:limitations}.
+\subsection{Threat model}
+\label{sec:threat}
+A defender runs an investigation agent over endpoint provenance telemetry. For each alert the agent queries the
+evidence graph through the runtime's tools and returns a verdict with the entities that need a response, or
+the evidence that clears the alert.
+
+\paragraph{Adversary} An intruder with code execution on a monitored host, whose activity is under
+investigation. The intruder chooses what to run and how to name it: process and file names, command-line
+arguments, paths, account names and rule names are attacker-controlled strings in the telemetry. The intruder
+does not control the sensor, the graph builder, the runtime, the agent or the model, and cannot suppress
+recorded events. The goal is to be cleared (a false negative) or, failing that, to keep artefacts out of the
+response.
+
+\paragraph{Capabilities studied} We study the weakest useful adversary: one who renames attacker-chosen
+artefacts without changing behaviour (\S\ref{sec:variants}). This costs the intruder nothing and is common
+tradecraft. Changing the graph's structure to resemble benign activity~\cite{goyal2023mimicry}, planting
+instructions in telemetry for the agent to follow~\cite{greshake2023indirect}, and tampering with sensors are
+stronger adversaries and out of scope; renaming bounds what they would achieve from below.
+
+\paragraph{Evaluation confounders} Separately from the adversary, the recordings themselves carry label cues
+(dataset names, lab host names) that no real intrusion would. They threaten the validity of measured accuracy,
+not the defender, and are controlled for in the same way.
 
 \subsection{Research questions}
 \begin{itemize}

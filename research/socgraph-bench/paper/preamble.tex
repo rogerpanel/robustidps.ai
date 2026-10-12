@@ -1,4 +1,8 @@
 % Shared preamble of main.tex (journal) and main-conference.tex (SaTML / IEEE S&P).
+% \ifconf is true in the conference build (main-conference.tex defines \SubmissionConf),
+% which moves secondary material to the appendix to meet the page limit.
+\newif\ifconf
+\ifdefined\SubmissionConf\conftrue\fi
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs,multirow,tabularx}
@@ -34,4 +38,5 @@
 \input{results_macros}
 \input{benchmark_macros}
 \input{trace_macros}
+\input{cue_trace_macros}
 \input{sensitivity_macros}

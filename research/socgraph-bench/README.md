@@ -26,6 +26,8 @@ Claude Opus 5.5, effort high, SOCGraph-21 v1.1, three repeats (`results/`, paper
 |---|---|---|---|---|---|---|
 | Full agent | 0.775 ± 0.012 | 0.836 | 0.626 | 97% (61/63) | 0 | 8.22 |
 | No investigation-method prompt | 0.737 ± 0.022 | 0.830 | 0.432 | 94% (59/63) | 0 | 11.70 |
+| Full agent, `blind` variant (label cues removed) | 0.769 ± 0.007 | 0.836 | 0.586 | 95% | 0 | 9.00 |
+| Full agent, `mimicry` variant (attacker names renamed) | 0.694 ± 0.038 | 0.754 | 0.572 | 86% | 0 | 9.22 |
 
 - The investigation-method prompt is what makes the agent efficient: without
   it, more calls on 20 of the 20 tasks where the count differed (sign test
@@ -40,8 +42,12 @@ Claude Opus 5.5, effort high, SOCGraph-21 v1.1, three repeats (`results/`, paper
   (they fired on 6 calls in 63 tasks) and what did cost quality: hosts named
   by hostname instead of entity id (144 of 247 correct malicious reports), an
   efficiency instruction in the prompt, and label cues in the public
-  recordings, cited in 15% of submissions. The cue-controlled `blind` and
-  `mimicry` variants in `benchmark/` measure that last effect.
+  recordings, cited in 15% of submissions.
+- Removing those label cues changed nothing (`blind`), but renaming
+  attacker-chosen artefacts without changing behaviour (`rootkit.ko` to
+  `hidmon.ko`, `atomic_user1` to `jsmith`) raised missed attacks from 2/45 to
+  9/45 and cut reward by 0.081 (95% CI −0.179 to −0.007): on dual-use Linux
+  behaviour the verdict rested on names the attacker chose (`mimicry`).
 
 ## Quick start
 

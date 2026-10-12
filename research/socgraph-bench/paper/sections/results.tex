@@ -1,42 +1,20 @@
 \section{Results and Analysis}
 \label{sec:results}
 
+\ifconf\else
 \subsection{Pilot: Windows tasks}
 \label{sec:pilot}
-Table~\ref{tab:pilot} reports the pilot on the \ResPilotTasks{} Windows tasks. All tasks completed and every
-verdict was correct (accuracy \ResPilotAccuracy{}): the eight attacks were judged malicious and the three
-benign look-alikes benign, so the false-positive and false-negative rates were both zero. Mean quality was
-\ResPilotQuality{}, mean efficiency \ResPilotEfficiency{} and mean reward \ResPilotReward{}, with
-\ResPilotCalls{} tool calls per task (range \ResPilotMinCalls{}--\ResPilotMaxCalls{}). The whole run took
-\ResPilotWall\,s of wall-clock time with four tasks in parallel.
-
-\input{tables/results_pilot}
-
-\paragraph{Where reward is lost (RQ2)} Since $R=Q(0.8+0.2E)$, the gap between the mean reward and its maximum
-of 1 decomposes into a quality part, $\overline{1-Q}=0.068$, and an efficiency part,
-$\overline{0.2\,Q(1-E)}=0.063$. Efficiency therefore costs almost as much as imperfect artifacts.
-Fig.~\ref{fig:pilotcalls} shows why: the agent used 80 tool calls against a target of 49 (the sum of
-$n^\star+1$), and 10 of 11 tasks exceeded their target. The largest overruns were the HTA execution (12 calls
-against a target of 6), the Python HTTP server (11 against 5) and the service-configuration change (10 against
-6), all multi-step chains in which the agent fetched relations one at a time. Benign tasks were cheaper
-(4.7 calls on average, efficiency 0.73) than malicious ones (8.3 calls, efficiency 0.63), except the Group
-Policy service host (7 calls against a target of 3), where the agent kept collecting evidence after the parent
-process alone settled the question.
-
-\paragraph{Quality} Quality was 1.0 on three tasks and at least 0.85 on all. With a correct verdict, the
-score leaves only two ways to lose quality: for malicious tasks, missing core entities or naming entities
-outside the acceptable set; for benign tasks, citing only some anchors or non-decisive fields. The per-call
-traces of the study runs attribute these losses per task.
-
-\input{figures/pilot_calls}
+\input{sections/pilot}
+\fi
 
 \subsection{Full study and ablation (RQ1, RQ3, RQ4)}
 \label{sec:study}
 \ifnum\ResStudyAvailable=1
 Table~\ref{tab:ablation} reports the full configuration and the five ablations over \ResStudyTasks{} tasks
 with \ResStudyRepeats{} repeats per configuration; Table~\ref{tab:effects} gives paired task-level effects,
+\ifconf the artifact a breakdown by operating system and expected verdict and the per-task matrix,\else
 Table~\ref{tab:breakdown} a breakdown by operating system and expected verdict, Table~\ref{tab:pertask} the
-per-task matrix and Table~\ref{tab:safeguards} what happened at the tool interface. Repeat~1 was rescored from
+per-task matrix\fi{} and Table~\ref{tab:safeguards} what happened at the tool interface. Repeat~1 was rescored from
 v1.0 (\S\ref{sec:experiments}); all \ResPairedRepeats{} repeats have per-task results and traces.
 
 \input{tables/results_ablation}
@@ -130,8 +108,10 @@ script from the run folders, and this subsection will report them.
 \input{tables/results_ablation}
 \input{tables/results_effects}
 \fi
+\ifconf\else
 \input{tables/results_breakdown}
 \input{tables/results_per_task}
+\fi
 
 \subsection{Shortcuts and evasion (RQ5)}
 \label{sec:cues}
@@ -146,30 +126,47 @@ cue therefore did not override the evidence when the two disagreed; whether it h
 the cue-controlled variants test.
 \ifnum\ResCueAvailable=1
 \input{tables/results_cues}
-% Interpretation of the variant results goes here.
+
+Table~\ref{tab:cues} reports the full agent on the two cue-controlled variants, \ResMimicryRepeats{} repeats each.
+
+\paragraph{Label cues do not carry the verdicts} Removing the source field and the lab host and domain names
+(\emph{blind}) changed nothing measurable: reward \ResBlindReward{} against \ResCueBaseReward{} (paired
+difference \ResBlindPairedReward{}, 95\% CI \ResBlindPairedRewardCI{}) and \ResBlindMissed{} missed attacks
+against \ResCueBaseMissed{}, all of them on the twin task. References to the source recording fell from
+\TrAllSourceCuePct\% of submissions to \TrCueAllSourceCuePct\%. Although the agent quoted the source field, it
+did not depend on it.
+
+\paragraph{Attacker-chosen names do} Renaming the operator's artefacts (\emph{mimicry}) lowered reward to
+\ResMimicryReward{} (paired difference \ResMimicryPairedReward{}, 95\% CI \ResMimicryPairedRewardCI{}) and
+verdict accuracy to \ResMimicryAccuracy{}; missed attacks rose from \ResCueBaseMissed{} to \ResMimicryMissed{}
+(Fisher exact test \ResMimicryMissedP{}), while no benign task was flagged. The misses fall on three Linux tasks:
+\texttt{linux-account-created} was cleared in all three runs, \texttt{linux-ld-preload-hijack} in two and
+\texttt{linux-kernel-module} in one. The traces show the mechanism. On v1.1 and \emph{blind},
+\TrFullNameCue{} of \TrFullMalTaskSubs{} reports on malicious tasks name an operator-chosen artefact as
+evidence (for the account task: ``the account name matches Atomic Red Team test tooling''); under
+\emph{mimicry}, \TrCueFullMimicryNameCue{} do. Facing the same \texttt{sudo useradd}, now of an account called
+\texttt{jsmith}, the agent concluded ``routine account administration''; facing the same module built in a home
+directory, loaded with \texttt{insmod} and installed under \texttt{/lib/modules}, now called
+\texttt{hidmon.ko}, it saw a user ``testing a home-built kernel module''. The Windows tasks were not
+affected: their decisive behaviour (a full-access handle to LSASS, an autostart value, a rewritten service
+binary path) is suspicious whatever it is called. The agent also spent more calls on both variants
+(\ResBlindCalls{} and \ResMimicryCalls{} per task, against \ResCueBaseCalls{}).
+
+\paragraph{Two readings, one consequence} Read as a shortcut, the agent's verdicts on these tasks rested on
+words the attacker chose, and renaming a tool is the cheapest evasion there is. Read as ambiguity, creating an
+account, loading a self-built module and preloading a library are also what administrators and developers do,
+and the provenance graph alone may not settle intent; the agent would need context the graph lacks, such as
+change records or a baseline of who does this on the host. Both readings have the same consequence for
+evaluation: scores on public attack recordings overstate how an agent fares against an intruder who names
+things innocuously, here by \ResMimicryPairedReward{} in reward and a rise in missed attacks from
+\ResCueBaseMissed{} to \ResMimicryMissed{}.
 \else
 The runs on the \emph{blind} and \emph{mimicry} variants (\S\ref{sec:variants}) are specified in
 \S\ref{sec:experiments}; their results will be added to this subsection.
 \fi
 
+\ifconf\else
 \subsection{Engineering observations}
 \label{sec:engineering}
-
-\paragraph{Policy-compatible rationale fields} With the runtime's field names exposed as they were, every task
-of an initial mock run was declined at its first request with the refusal category
-\texttt{reasoning\_extraction}. After presenting the fields as \texttt{purpose} and \texttt{summary} and removing the instruction to
-state hypotheses from the first message (\S\ref{sec:alias}), all tasks completed, and the runtime still
-received its required \texttt{reasoning} fields.
-
-\paragraph{Parallel execution} On a simulated runtime that allowed two tasks in flight, the agent was started
-with four workers. It learned the limit from the first refused leases (the log shows the limit lowered first
-to three, then to two, as refusals arrived), never ran more than two tasks at once afterwards, and completed
-all 16 tasks of that run in 112\,s with the real model, without a failed task.
-
-\paragraph{Benign twins} The two Linux service tasks share an identical alert (``Service state changed by
-systemctl as root'') and graph, and differ only in the lineage of the triggering process: an operator's login
-shell through \texttt{sudo} versus the package manager's post-installation script. They test whether an agent
-reads provenance rather than the alert text. The agent never called the package manager's activity malicious,
-but it cleared the operator's service stop in 7 of 17 runs: an interactive administrator stopping a web server
-is an ordinary event in isolation, and only the lab context makes it an attack. Twin pairs thus expose the
-direction in which an agent errs when provenance alone is ambiguous.
+\input{sections/engineering}
+\fi

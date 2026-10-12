@@ -20,7 +20,7 @@ covering \BenchTechniques{} distinct ATT\&CK techniques, and \BenchWinBen{}+\Ben
 
 \subsection{Graph construction}
 A graph builder maps events to entities and relations using the runtime's type vocabulary
-(Table~\ref{tab:types}). Sysmon process-creation events create a process entity keyed by its process GUID, a
+(\ifconf listed in the artifact\else Table~\ref{tab:types}\fi). Sysmon process-creation events create a process entity keyed by its process GUID, a
 parent entity from the parent fields, a process-creation relation and an executed-file relation; network,
 image-load, process-access, file-create, file-delete, registry, pipe, DNS and WMI events add the corresponding
 relations. Windows Security events add scheduled tasks and logons, and service-installation events add
@@ -37,7 +37,9 @@ processes and network connections are kept as benign background. For the five re
 dominated, it reduced graphs from roughly 11{,}000--33{,}500 entities to 50--150, leaving the real host
 activity.
 
+\ifconf\else
 \input{tables/types}
+\fi
 
 \subsection{Scenario design}
 \paragraph{Malicious tasks} Each technique recording contains an operator's shell session (a Windows

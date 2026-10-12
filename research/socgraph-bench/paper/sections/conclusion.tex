@@ -19,6 +19,12 @@ efficiency advice, and that public attack recordings leak label cues the agent r
 also showed how easily ground truth can penalise reasonable evidence: two Linux defects surfaced only from
 scores that did not vary across configurations.
 \fi
+\ifnum\ResCueAvailable=1
+Cue-controlled variants showed that the agent did not need the recordings' label cues but did need the
+attacker's names: renaming artefacts without changing behaviour raised missed attacks from \ResCueBaseMissed{}
+to \ResMimicryMissed{}, a cheap evasion that evaluations on public attack recordings do not see.
+\else
 The released \emph{blind} and \emph{mimicry} variants measure shortcut reliance and lexical evasion
-directly. Future work includes instructions planted in telemetry, type-checked grounding, weaker and open
+directly.
+\fi Future work includes instructions planted in telemetry, type-checked grounding, weaker and open
 models, multi-host scenarios, and studies with SOC analysts.

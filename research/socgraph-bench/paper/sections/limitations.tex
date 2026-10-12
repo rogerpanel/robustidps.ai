@@ -32,9 +32,15 @@ enables.
 public, so models may have seen the raw recordings during training~\cite{sainz2023contamination}. The tasks
 restructure them into graphs with opaque identifiers and new alerts, which limits but does not exclude
 memorisation effects. Independently of memorisation, v1.1 exposes label cues: the alert's source field names
-the attack dataset, and \TrAllSourceCuePct\% of the study's submissions refer to it. The reported results
-are therefore an upper bound for an agent facing an intruder who leaves no such traces; the \emph{blind} and
-\emph{mimicry} variants (\S\ref{sec:variants}) measure the difference.
+the attack dataset, and \TrAllSourceCuePct\% of the study's submissions refer to it. The \emph{blind} variant
+shows that this did not change results; the \emph{mimicry} variant shows that operator-chosen names did, so the
+v1.1 numbers are an upper bound for an intruder who names things innocuously.
+
+\paragraph{Adversary strength and label ambiguity} Mimicry renames strings only; structural mimicry and
+injected instructions are stronger and untested. Conversely, some renamed tasks become hard to call from
+provenance alone, so part of the mimicry drop may reflect genuine ambiguity of dual-use behaviour rather than a
+shortcut; we keep the recordings' labels, which follow the operator's intent, and report the agent's stated
+reasons from the traces so that readers can judge each case.
 
 \paragraph{Prompt injection through telemetry} Command lines, file paths and other fields can contain
 attacker-controlled text that an LLM agent reads, a channel for indirect prompt
@@ -49,10 +55,6 @@ results on the official competition tasks; all results here are on \bench with o
 tuning on the evaluation tasks during the study (the prompt and safeguards were fixed before the study runs),
 report the class balance, and break results down per class and platform.
 
-\section{Ethics and Availability}
-\label{sec:ethics}
-\bench is derived solely from public, permissively licensed recordings made by their publishers in lab
-environments; it contains lab host and account names, not personal data. The agent is defensive: it reads
-telemetry and recommends responses, and takes no action on systems. Code (MIT), the benchmark (with the
-upstream MIT and Apache-2.0 licences), run traces and the scripts that regenerate every table are released
-with the paper.
+\ifconf\else
+\input{sections/ethics}
+\fi

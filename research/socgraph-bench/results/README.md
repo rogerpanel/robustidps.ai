@@ -5,7 +5,8 @@
 | `pilot-2026-10-10/` | first real-model run, 11 Windows tasks (see its README) |
 | `run1-2026-10-11-v1.0/` | study run 1 as scored on v1.0 (console output); superseded, kept for the record |
 | `study/` | the study runs scored on SOCGraph-21 v1.1: one folder per run (`r<repeat>-<configuration>`), each with the run's `summary.json` (repeat 1: the rescored summary) and `trace_folder` pointing into `traces/` |
-| `traces/` | per-call traces of every run: the 18 study runs, the six rescored run-1 folders, an extra full run made before the study (20:19, not part of the protocol) and the pilot; one JSON per task with every tool call, its stated purpose, the result, the submission and token use |
+| `cues/` | the full agent on the cue-controlled variants (`blind`, `mimicry`), three repeats each (RQ5) |
+| `traces/` | per-call traces of every run: the 18 study runs, the six rescored run-1 folders, an extra full run made before the study (20:19, not part of the protocol), the six cue-variant runs and the pilot; one JSON per task with every tool call, its stated purpose, the result, the submission and token use |
 
 ## Protocol
 
@@ -56,14 +57,16 @@ crash). Regenerate everything from the repository root:
 
 ```bash
 python scripts/results_to_tex.py --pilot results/pilot-2026-10-10 --runs "results/study/*/" \
-    --baseline full --sensitivity-exclude linux-service-stopped --out paper
+    --cue-runs "results/cues/*/" --baseline full --sensitivity-exclude linux-service-stopped --out paper
 python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
+python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/cues/*/" --out paper \
+    --prefix TrCue --table cue_interface.tex --macros cue_trace_macros.tex
 python scripts/sensitivity.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
 ```
 
-## Next experiment: cue-controlled variants (RQ5)
+## Cue-controlled variants (RQ5), done 2026-10-12
 
-Three repeats of the full agent on each variant (about 2.5 minutes per run):
+Three repeats of the full agent on each variant (about 2.5 minutes per run); results in `cues/`:
 
 ```bash
 B=~/robustidps.ai/research/socgraph-bench/benchmark

@@ -34,7 +34,7 @@ names, lab host names and the names operators chose for their tools. An agent ca
 reason, and an intruder who avoids such names would not be caught the same way, the evasion problem known from
 mimicry attacks on host-based detection~\cite{wagner2002mimicry,goyal2023mimicry}.
 
-This paper makes four contributions.
+This paper makes the following contributions.
 
 \begin{enumerate}
 \item \textbf{A grounded, budget-aware investigation agent} (\S\ref{sec:method}). Tools are derived from the
@@ -64,8 +64,15 @@ investigation-method prompt is what makes it efficient (\ResNoMethodCalls{} inst
 per task without it);
 the safeguards did not change reward measurably with this model, a negative result we report with its
 statistics. Per-call traces explain it and expose the actual sources of error: identifiers of the wrong type
-that a substring grounding check accepts, an efficiency instruction that withheld a needed identifier, and label
-cues cited in \TrAllSourceCuePct\% of submissions.
+that a substring grounding check accepts, and an efficiency instruction that withheld a needed identifier.
+\fi
+\ifnum\ResCueAvailable=1
+\item \textbf{A shortcut and evasion analysis} (\S\ref{sec:cues}). Removing label cues of the recordings
+left performance unchanged, but renaming attacker-chosen artefacts without changing behaviour raised missed
+attacks from \ResCueBaseMissed{} to \ResMimicryMissed{} and cut reward by \ResMimicryPairedReward{}
+(95\% CI \ResMimicryPairedRewardCI{}). On dual-use Linux behaviour (creating an account, loading a self-built
+kernel module, preloading a library) the agent's verdict rested on names; a renaming intruder, the cheapest
+evasion there is, was cleared.
 \fi
 \item \textbf{An open, reproducible release.} Agent, benchmark, traces of every tool call, and the script that
 regenerates all tables and plots from run folders.

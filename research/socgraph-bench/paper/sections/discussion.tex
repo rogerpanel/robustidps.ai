@@ -40,9 +40,20 @@ cost appears only in per-call traces, not in aggregate scores.
 \paragraph{Benchmarks built from attack recordings need cue control} Public recordings are made to be found:
 they carry dataset names, lab host names and operator-chosen file names that announce an attack. An agent
 that reads them can be right for the wrong reason, which is the shortcut-learning failure known from
-supervised models~\cite{geirhos2020shortcut,arp2022dosdonts}, now in an agent that reads text. Cue-controlled
-variants with shared answers turn this from a threat to validity into a measurement, and mimicry renamings
-connect it to evasion: an intruder who avoids announcing names is the realistic case.
+supervised models~\cite{geirhos2020shortcut,arp2022dosdonts}, now in an agent that reads text. Our variants
+separate two kinds of cue with opposite results. The agent quoted the dataset name but did not need it; it did
+need the operator's names: on the nine attack tasks whose reports had cited such names, it cleared 6 of
+27 runs once they were renamed. Evaluations of LLM
+investigation agents on public recordings should report a mimicry condition; ours costs a string substitution
+and leaves answers unchanged.
+
+\paragraph{Names are attacker-controlled input} The renamings that evaded the agent are those an intruder makes
+anyway, and the behaviour they hid is dual-use: creating an account, building and loading a kernel module,
+running a program with a preloaded library. A defender's agent should treat every name in telemetry as
+attacker-controlled, justify a benign verdict by behaviour and context (who normally does this on this host,
+whether a change record exists, whether the module is signed) rather than by the absence of alarming words, and
+be evaluated against renaming as a matter of course. The same channel carries a stronger threat that we did not
+test: text written for the agent itself~\cite{greshake2023indirect,debenedetti2024agentdojo}.
 
 \paragraph{Benign tasks deserve equal weight} Clearing benign activity is most of the work in real SOCs. A
 third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An

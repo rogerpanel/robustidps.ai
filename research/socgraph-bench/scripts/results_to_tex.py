@@ -175,6 +175,18 @@ def ci(d: dict[str, Any] | None, nd: int = 3) -> str:
     return f"{d['mean']:+.{nd}f} [{d['lo']:+.{nd}f}, {d['hi']:+.{nd}f}]"
 
 
+def fisher_exact(a: int, b: int, c: int, d: int) -> float:
+    """Two-sided Fisher exact test for the 2x2 table [[a, b], [c, d]]."""
+    n, r1, c1 = a + b + c + d, a + b, a + c
+
+    def prob(x: int) -> float:
+        return math.comb(r1, x) * math.comb(n - r1, c1 - x) / math.comb(n, c1)
+
+    p0 = prob(a)
+    return min(1.0, sum(prob(x) for x in range(max(0, c1 - (n - r1)), min(r1, c1) + 1)
+                        if prob(x) <= p0 * (1 + 1e-9)))
+
+
 def _pval(p: float) -> str:
     return "$p<0.001$" if p < 0.001 else f"$p={p:.3f}$"
 
@@ -434,12 +446,73 @@ def study_tables(runs: list[dict[str, Any]], baseline: str, out: Path,
         macros[f"Res{camel(lab)}VerdictErrors"] = f"{wrong}/{total}"
 
 
+def cue_tables(cue_runs: list[dict[str, Any]], base_runs: list[dict[str, Any]], baseline: str,
+               out: Path, macros: dict[str, str]) -> None:
+    """Full agent on v1.1 against its cue-controlled variants (blind, mimicry)."""
+    base = [r for r in base_runs if r["label"] == baseline]
+    groups: dict[str, list[dict[str, Any]]] = {"v1.1": base}
+    for r in cue_runs:
+        groups.setdefault(r["label"].split(", ")[-1], []).append(r)
+    names = {"v1.1": "SOCGraph-21 v1.1", "blind": "\\emph{blind}", "mimicry": "\\emph{mimicry}"}
+
+    def ov(group, key):
+        return [r["metrics"]["overall"].get(key) for r in group if r["metrics"]["overall"].get(key) is not None]
+
+    def errors(group):
+        wrong = mal_wrong = total = mal = 0
+        for r in group:
+            for row in r["rows"]:
+                total += 1
+                ok = row.get("verdict") == row.get("expected_verdict")
+                wrong += not ok
+                if row.get("expected_verdict") == "malicious":
+                    mal += 1
+                    mal_wrong += not ok
+        return wrong, total, mal_wrong, mal
+
+    lines = ["\\begin{table*}[t]\\centering\\footnotesize\\setlength{\\tabcolsep}{4pt}",
+             "\\caption{Shortcuts and evasion: the full agent on \\bench v1.1 and on its cue-controlled "
+             "variants (same graphs, identifiers and answers). Means $\\pm$ standard deviation over repeats; "
+             "$\\Delta$Reward is the paired per-task difference to v1.1 with a bootstrap 95\\% interval "
+             "over tasks; \\emph{Missed attacks}: malicious task runs judged benign.}",
+             "\\label{tab:cues}",
+             "\\begin{tabular}{@{}lrrrrrrrr@{}}\\toprule",
+             "Condition & $n$ & Quality & Efficiency & Reward & Verdict acc. & Calls/task & "
+             "$\\Delta$Reward [95\\% CI] & Missed attacks\\\\\\midrule"]
+    bw, bt, bmw, bm = errors(base)
+    for key in ("v1.1", "blind", "mimicry"):
+        g = groups.get(key)
+        if not g:
+            continue
+        w, t, mw, m = errors(g)
+        d = None if key == "v1.1" else paired_delta(g, base, "reward")
+        lines.append(" & ".join([names[key], str(len(g)), fmt_ms(ov(g, "mean_quality"), 3),
+                                 fmt_ms(ov(g, "mean_efficiency"), 3), fmt_ms(ov(g, "mean_reward"), 3),
+                                 fmt_ms(ov(g, "verdict_accuracy"), 3), fmt_ms(ov(g, "mean_tool_calls"), 2),
+                                 "--" if d is None else ci(d), f"{mw}/{m}"]) + "\\\\")
+        k = "CueBase" if key == "v1.1" else camel(key)
+        macros.update({f"Res{k}Reward": fmt(_mean(ov(g, "mean_reward")), 3),
+                       f"Res{k}Quality": fmt(_mean(ov(g, "mean_quality")), 3),
+                       f"Res{k}Accuracy": fmt(100 * (_mean(ov(g, "verdict_accuracy")) or 0), 0) + "\\%",
+                       f"Res{k}Calls": fmt(_mean(ov(g, "mean_tool_calls")), 2),
+                       f"Res{k}Missed": f"{mw}/{m}", f"Res{k}Repeats": str(len(g))})
+        if d:
+            macros.update({f"Res{k}PairedReward": f"{d['mean']:+.3f}",
+                           f"Res{k}PairedRewardCI": f"[{d['lo']:+.3f}, {d['hi']:+.3f}]",
+                           f"Res{k}MissedP": _pval(fisher_exact(mw, m - mw, bmw, bm - bmw))})
+    lines += ["\\bottomrule\\end{tabular}\\end{table*}"]
+    write(out / "tables" / "results_cues.tex", "\n".join(lines) + "\n")
+    macros["ResCueAvailable"] = "1"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--pilot", type=Path, help="pilot folder (per_task.csv + summary.json)")
     ap.add_argument("--runs", nargs="*", default=[], help="study run folders (globs allowed)")
     ap.add_argument("--baseline", default="full", help="configuration label used as baseline")
     ap.add_argument("--out", type=Path, default=Path("paper"))
+    ap.add_argument("--cue-runs", nargs="*", default=[],
+                    help="run folders of the full agent on cue-controlled variants (globs allowed)")
     ap.add_argument("--sensitivity-exclude", nargs="*", default=[], metavar="TASK",
                     help="tasks left out in the sensitivity column of the effects table")
     args = ap.parse_args()
@@ -452,8 +525,13 @@ def main() -> None:
     folders = sorted({Path(p) for pat in args.runs for p in glob.glob(pat)
                       if (Path(p) / "summary.json").is_file()})
     if folders:
-        study_tables([load_run(f) for f in folders], args.baseline, args.out, macros,
-                     tuple(args.sensitivity_exclude))
+        study_runs = [load_run(f) for f in folders]
+        study_tables(study_runs, args.baseline, args.out, macros, tuple(args.sensitivity_exclude))
+        cue_folders = sorted({Path(p) for pat in args.cue_runs for p in glob.glob(pat)
+                              if (Path(p) / "summary.json").is_file()})
+        if cue_folders:
+            cue_tables([load_run(f) for f in cue_folders], study_runs, args.baseline, args.out, macros)
+            print(f"cues: {len(cue_folders)} run folder(s)")
         print(f"study: {len(folders)} run folder(s)")
     else:
         for name, cap, lab in (("results_ablation", "Ablation study on SOCGraph-21.", "tab:ablation"),

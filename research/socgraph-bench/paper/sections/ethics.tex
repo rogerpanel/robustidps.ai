@@ -1,0 +1,45 @@
+% Ethics considerations and generative AI usage (IEEE S&P / SaTML requirements).
+% In the body of the journal build, in the appendix of the conference build.
+\section{Ethics Considerations}
+\label{sec:ethics}
+\paragraph{Data and human subjects} \bench is derived solely from public, permissively licensed recordings made
+by their publishers in lab environments (OTRF Security-Datasets, MIT; Splunk attack\_data, Apache-2.0). They
+contain lab host and account names and no personal data; no human subjects were involved and no new data was
+collected.
+
+\paragraph{Live systems} No live system was measured, tested or accessed. All investigations ran against a
+local runtime serving the recorded graphs; the only external service used was the model provider's API, under
+its terms of use.
+
+\paragraph{Tools and attacks} The agent is defensive: it reads telemetry and recommends responses, and takes no
+action on systems. The mimicry variant shows that renaming attacker-chosen artefacts can lead an LLM
+investigation agent to clear real attacks. Renaming tools and accounts is long-standing intruder tradecraft,
+so publishing the result gives attackers little they lack, while defenders learn not to trust names and how to
+measure that. Mitigations follow from the analysis: require behaviour-based justification for clearing an
+alert, check grounding against identifier types, and evaluate on cue-controlled data. The finding concerns how
+investigation agents weigh names, not a flaw in a specific deployed product, so no vulnerability disclosure
+process applied.
+
+\paragraph{Availability} Code (MIT), the benchmark and its variants (with the upstream licences), the traces of
+every tool call, and the scripts that regenerate every table are released with the paper.
+
+\section{Generative AI Usage}
+\label{sec:genai}
+\paragraph{As object of study} The agent under study is driven by Claude Opus 5.5 (\texttt{claude-opus-5-5})
+through the Anthropic API. The model is closed, and later versions may behave differently; we pin the model
+identifier, run three repeats per condition to measure variance, and release the trace of every call so that
+results can be inspected without re-running the model.
+
+\paragraph{Footprint} All experiments together (26 runs, 536 investigations) made 3{,}150 model calls, with
+0.86\,M output tokens and 19.6\,M prompt tokens read from the provider's cache (2.4\,M written; uncached input
+was negligible). Queries were kept low by prompt caching, a per-task call budget, a small benchmark, and offline
+rescoring: when the ground truth was revised, earlier runs were rescored from their traces instead of being
+repeated. A large model was used because the task requires multi-step tool use over long tool outputs; smaller
+models are the planned next comparison. Experiments ran on the provider's hosted infrastructure; local
+computation (graph building, scoring, the agent loop) ran on a 4-vCPU cloud server.
+
+\paragraph{In preparing this work} % TODO(author): confirm this statement reflects your actual use before submission.
+Generative AI (an LLM-based coding assistant) was used to help implement the software, run and check analyses,
+and draft and edit the manuscript. All outputs were inspected and validated by the author, who is responsible
+for the content, including the accuracy of every number (each is generated from the released traces) and the
+completeness of the literature review.
