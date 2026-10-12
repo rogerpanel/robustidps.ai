@@ -26,6 +26,11 @@ ROOT = Path(__file__).resolve().parent.parent
 SKIP = {"paper", "CITATION.cff", ".git", "__pycache__", "make_anonymous_artifact.py"}
 # Ordered: longer, more specific strings first.
 REPLACE = [
+    # The manuscript is submitted separately and is not part of the artifact.
+    ("| [`paper/`](paper/) | The manuscript as an Overleaf-ready LaTeX project (IEEEtran). |\n", ""),
+    ("Then upload `paper/` to Overleaf (or run `latexmk -pdf main.tex` in `paper/`).",
+     "These commands write every table, figure input and number quoted in the paper to `paper/` "
+     "(the manuscript itself is submitted separately)."),
     ("~/robustidps.ai/research/socgraph-bench", "~/socgraph-bench"),
     ("~/robustidps.ai/bluesec/install.sh", "~/socgraph-bench/agent/install.sh"),
     ("Then import the run folder on robustidps.ai > BlueSec Runs.",

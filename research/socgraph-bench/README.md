@@ -86,7 +86,12 @@ Copy the run folders from `bluesec1-agent/traces/` into `results/study/`
 
 ```bash
 python scripts/results_to_tex.py --pilot results/pilot-2026-10-10 \
-    --runs "results/study/*/" --baseline full --sensitivity-exclude linux-service-stopped --out paper
+    --runs "results/study/*/" --cue-runs "results/cues/*/" --baseline full \
+    --sensitivity-exclude linux-service-stopped --out paper
+python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
+python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/cues/*/" --out paper \
+    --prefix TrCue --table cue_interface.tex --macros cue_trace_macros.tex
+python scripts/sensitivity.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
 ```
 
 Then upload `paper/` to Overleaf (or run `latexmk -pdf main.tex` in `paper/`).
