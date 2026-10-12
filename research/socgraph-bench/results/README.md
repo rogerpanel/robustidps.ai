@@ -78,3 +78,36 @@ for v in blind mimicry; do
   done
 done
 ```
+
+## Second model (planned): any OpenAI-compatible endpoint
+
+The agent's `openai` provider talks to any OpenAI-compatible chat-completions
+endpoint that supports tool calling: a paid API (OpenAI, DeepSeek, ...) or an
+open-weight model served on your own GPU (vLLM, Ollama, or a company
+gateway). Add to `.env` in `~/bluesec1-agent`:
+
+```bash
+ROBUST_PROVIDER=openai
+LLM_BASE_URL=http://GPU-HOST:8000/v1     # or https://api.deepseek.com, etc.
+LLM_API_KEY=any-string-for-local-servers # a real key for paid APIs
+LLM_DEFAULT_MODEL=served-model-name
+```
+
+For vLLM, start the server with tool calling enabled, for example
+`vllm serve <model> --enable-auto-tool-choice --tool-call-parser hermes`
+(the parser depends on the model family; see the vLLM tool-calling docs).
+Then run the same conditions as for the main model, with a label:
+
+```bash
+B=~/socgraph-bench/benchmark   # or ~/robustidps.ai/research/socgraph-bench/benchmark
+for i in 1 2 3; do
+  uv run --env-file .env python -m bluesec1_agent.robust.cli --pack $B/socgraph-21-v1.1.zip \
+      --concurrency 2 --label "full, <model>"
+  uv run --env-file .env python -m bluesec1_agent.robust.cli --pack $B/socgraph-21-v1.1-mimicry.zip \
+      --concurrency 2 --label "full, mimicry, <model>"
+done
+```
+
+Use a low `--concurrency` on a single GPU. Investigations need a long context
+(tool results are capped at 24,000 characters each; a task can reach tens of
+thousands of tokens), so prefer models served with at least 32k context.
