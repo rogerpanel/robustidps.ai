@@ -14,6 +14,8 @@ Re-check the CFP before submitting; this list reflects it as of October 2026.
 | Acceptance notification | March 5, 2027 |
 
 Title, abstract and author list cannot change after November 10.
+Current title: "Right for the Wrong Names: Mimicry Evasion of LLM Agents in Provenance-Graph Alert
+Triage" (`\TitleText` in `preamble.tex`; also in `../README.md` and `../CITATION.cff`).
 
 ## Format (desk-reject risks)
 
@@ -56,14 +58,14 @@ The PC includes provenance-graph and ML-security researchers whose work the pape
 (e.g. authors of NoDoze/RapSheet, of the provenance mimicry attack, of the PIDS evaluation
 study, and of problem-space attacks). Expect scrutiny of:
 
-- **Single model.** All results use one closed model. Strongest single improvement before
-  submission: run the full agent on v1.1 and on `mimicry` with one other model (for example an
-  open-weight model through the OpenAI-compatible driver, `--provider openai --label ...`).
+- **Model generality.** Addressed: Claude Opus 5.5 (Anthropic API) and GPT-6 astra (OpenAI
+  Responses API) on v1.1 and `mimicry` (RQ6, Table 4, Fig. 3). The ablation itself is single-model;
+  an open-weight model would strengthen this further.
 - **Benchmark size.** 21 tasks, 15 attacks. The paper reports paired intervals and limits;
   more tasks would strengthen RQ5 in particular.
 - **Adversary strength.** Mimicry is lexical only; structural mimicry and prompt injection
   are stated as out of scope. Be ready to discuss in the rebuttal.
-- **Label ambiguity under mimicry.** Addressed in Limitations ("two readings"); the traces
+- **Label ambiguity under mimicry.** Addressed in §7.2 ("Two readings") and §9; the traces
   give the agent's reasons per case.
 
 Public meta-reviews list the PC's remaining concerns for accepted papers; addressing the

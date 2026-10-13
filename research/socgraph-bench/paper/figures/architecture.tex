@@ -1,44 +1,75 @@
-% Agent architecture (TikZ). Included by sections/method.tex.
+% Agent architecture (TikZ, vector). Included by sections/method.tex.
+% One call path, left to right: the model's tool call passes four local
+% safeguards before it may reach the runtime; each safeguard can answer the
+% model locally, without spending a runtime call.
 \begin{figure*}[t]
 \centering
 \begin{tikzpicture}[
   font=\footnotesize,
-  box/.style={draw, rounded corners=2pt, align=center, text width=#1, inner sep=3pt, fill=white, minimum height=9mm},
-  box/.default=30mm,
-  arr/.style={-{Latex[length=2mm]}, thick},
-  darr/.style={-{Latex[length=2mm]}, thick, dashed},
-  lab/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+  >={Latex[length=1.8mm,width=1.4mm]},
+  comp/.style={draw=cA!70!black, rounded corners=1.5pt, fill=cA!9, align=center,
+               minimum height=10mm, inner sep=2pt, line width=0.5pt},
+  gate/.style={comp, fill=cA!17, text width=20mm},
+  ext/.style={draw=black!65, rounded corners=1.5pt, fill=black!6, align=center,
+              minimum height=10mm, inner sep=2pt, line width=0.5pt},
+  outb/.style={draw=cB!75!black, rounded corners=1.5pt, fill=cB!9, align=center,
+               minimum height=6mm, inner sep=2pt, line width=0.5pt},
+  call/.style={->, line width=0.75pt, black!80},
+  local/.style={->, line width=0.6pt, cB!85!black, densely dashed},
+  ret/.style={->, line width=0.75pt, black!55},
+  note/.style={font=\scriptsize, inner sep=1pt, text=black!75}]
 
-% top row
-\node[box=32mm, fill=gray!10] (rt) at (0,0) {Investigation runtime\\{\scriptsize competition or local:}\\{\scriptsize task queue, evidence graph}};
-\node[box=32mm] (cat) at (5.6,0) {Tool catalog\\{\scriptsize advertised per task;}\\{\scriptsize normalised, aliased}};
-\node[box=34mm, fill=cA!8] (llm) at (11.2,0) {LLM driver\\{\scriptsize Claude (thinking, effort, cache)}\\{\scriptsize or OpenAI-compatible}};
+% ---- main call path (y = 0) ----------------------------------------------
+\node[comp, text width=24mm] (llm) at (1.45,0)
+  {\textbf{LLM driver}\\{\scriptsize Claude: Messages API}\\[-1pt]{\scriptsize GPT: Responses API}};
+\node[gate] (g1) at (4.75,0)  {\textbf{Cache}\\{\scriptsize repeated call}};
+\node[gate] (g2) at (7.45,0)  {\textbf{Schema check}\\{\scriptsize malformed call}};
+\node[gate] (g3) at (10.15,0) {\textbf{Grounding}\\{\scriptsize unseen identifier}};
+\node[gate] (g4) at (12.85,0) {\textbf{Budget}\\{\scriptsize over budget}};
+\node[ext, text width=24mm] (rt) at (16.45,0)
+  {\textbf{Runtime}\\{\scriptsize competition or local:}\\[-1pt]{\scriptsize alerts, evidence graph}};
 
-% middle row
-\node[box=26mm, fill=gray!10] (pool) at (0,-2.6) {Worker pool\\{\scriptsize learned task limit}};
-\node[box=58mm, fill=cA!8] (inv) at (5.6,-2.6) {Investigation core\\{\scriptsize \tool{execute}(tool, args) with local safeguards}};
-\node[box=26mm, fill=gray!10] (tr) at (11.6,-4.5) {Traces and metrics\\{\scriptsize per call, per run}};
+\begin{scope}[on background layer]
+  \node[draw=cA!55!black, fill=cA!4, rounded corners=3pt, densely dashed, inner xsep=4pt,
+        inner ysep=4pt, fit=(g1)(g4)] (core) {};
+  \node[draw=cA!55!black, fill=white, rounded corners=4pt, inner xsep=4pt, inner ysep=4pt,
+        fit=(llm)(core), yshift=3.5pt, minimum height=17.5mm] (agent) {};
+\end{scope}
+\node[note, anchor=north west] at ([xshift=3pt]agent.north west -| llm.east) {\textbf{Agent}: one per task, $W$ in parallel};
+\node[note, anchor=north east, text=cA!60!black] at ([yshift=-0.5pt]agent.north east)
+  {Investigation core: \tool{execute}(tool, args), local safeguards};
 
-% safeguards
-\node[box=19mm] (c1) at (2.45,-4.5) {Response cache};
-\node[box=19mm] (c2) at (4.55,-4.5) {Schema validation};
-\node[box=19mm] (c3) at (6.65,-4.5) {Grounding check};
-\node[box=19mm] (c4) at (8.75,-4.5) {Budget, deadline};
-\foreach \c in {c1,c2,c3,c4} \draw[thick, gray] (\c.north) -- (\c.north |- inv.south);
+\draw[call] (llm) -- (g1);
+\draw[call] (g1) -- (g2);
+\draw[call] (g2) -- (g3);
+\draw[call] (g3) -- (g4);
+\draw[call] (g4) -- (rt);
 
-% flows
-\draw[arr] (rt) -- node[lab, above=1pt]{alert, tool catalog} (cat);
-\draw[arr] (cat) -- node[lab, above=1pt]{tool schemas} (llm);
-\draw[arr] ([xshift=-6mm]llm.south) |- node[lab, pos=0.3, right=1pt]{tool call} ([yshift=2mm]inv.east);
-\draw[arr] ([yshift=-2mm]inv.east) -| node[lab, pos=0.75, right=1pt]{result or local feedback} ([xshift=6mm]llm.south);
-\draw[darr] ([xshift=-14mm]inv.north) |- node[lab, pos=0.35, left=1pt]{spent calls only} ([yshift=-2mm]rt.east);
-\draw[arr] (pool) -- (inv);
-\draw[arr] (c4.east) -- (tr.west);
+% ---- return path (y = -1.2): runtime result and local answers ------------
+\coordinate (bus) at (0,-1.2);
+\draw[ret] (rt.south) |- (llm.south |- bus) -- (llm.south);
+\node[note, fill=white, anchor=south west] at ([xshift=1pt]rt.south |- bus) {result};
+\foreach \g in {g1,g2,g3,g4}
+  \draw[local] (\g.south) -- (\g.south |- bus);
+\node[note, anchor=north west, text=cB!85!black] at ([xshift=4pt,yshift=-1pt]llm.south |- bus)
+  {local answer to the model, no runtime call spent};
+
+% ---- tool catalog (top) ---------------------------------------------------
+\node[ext, minimum height=6mm] (cat) at (9.6,1.75)
+  {\textbf{Tool catalog}\quad{\scriptsize advertised with each task; normalised, field aliases}};
+\draw[ret] (rt.north) |- (cat.east);
+\draw[ret] (cat.west) -| node[note, pos=0.25, above=0.5pt]{tool definitions} (llm.north);
+
+% ---- trace (bottom right) ---------------------------------------------------
+\node[outb] (tr) at (13.2,-1.95)
+  {\textbf{Trace}\quad{\scriptsize every call: tool, arguments, purpose, outcome, tokens} $\to$ {\scriptsize scorer, reviewer}};
+\coordinate (tap) at ($(g3.south)!0.5!(g4.south)$);
+\draw[ret, cB!85!black] (tap |- bus) -- (tap |- tr.north);
 \end{tikzpicture}
-\caption{Architecture. The runtime advertises a tool catalog with each task; the agent normalises it into
-model tool definitions. Every tool call passes through the investigation core, whose local safeguards answer
-repeated, malformed, ungrounded or over-budget calls without spending a runtime call; only the remaining calls
-reach the runtime (dashed). A worker pool runs tasks in parallel up to the runtime's learned limit, and every
-call and outcome is traced.}
+\caption{Agent architecture. The runtime advertises a tool catalog with each task, which the agent turns into
+model tool definitions. Every tool call passes four local safeguards in order; each can answer the model
+itself (dashed) without spending a runtime call, so only the remaining calls reach the runtime. The grounding
+check applies to submissions, the cache and budget to evidence calls. $W$ agents investigate tasks in parallel
+under a limit learned from the runtime's refusals, and every call and its outcome is traced.}
 \label{fig:arch}
 \end{figure*}

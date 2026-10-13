@@ -1,62 +1,31 @@
-\section{Limitations and Threats to Validity}
+\section{Scope and Threats to Validity}
 \label{sec:limitations}
 
-\paragraph{Benchmark scale and realism} \bench has 21 tasks recorded in lab environments, one technique per
-recording, with modest benign background. Real enterprise telemetry is larger, noisier and contains
-multi-stage campaigns across hosts; results here do not establish performance at that scale. The benchmark
-is designed to be extended: the selector-based ground truth and the graph builder apply to further OTRF and
-Splunk recordings, and to other corpora~\cite{darpa_tc,landauer2023maintainable,grimmer2023lidds}.
+\paragraph{Benchmark scale and ground truth} \bench has 21 lab-recorded tasks, one technique per recording, so
+results do not establish performance on enterprise-scale, multi-host campaigns; the graph builder and selectors
+apply unchanged to further recordings and corpora~\cite{darpa_tc,landauer2023maintainable,grimmer2023lidds}.
+Ground truth follows a stated rule applied through published selectors; other analysts could draw the core set
+differently~\cite{jiang2025orthrus,bilot2025simpler}. Both answer versions and the rescoring tool are released,
+so the rule can be changed and every run re-evaluated, as we did for v1.1. Scorer weights are ours; comparisons
+on the same scorer are unaffected by them.
 
-\paragraph{Ground-truth construction} Ground truth follows a stated rule (the operator session is the root of
-the activity, with explicit core artefacts) applied through selectors we wrote. Other analysts could reasonably
-draw the core set differently, for example including or excluding a tool binary. Ground truth for the DARPA
-datasets shows how much label granularity can vary~\cite{jiang2025orthrus,wang2022threatrace}, and evaluation
-choices can change conclusions about detectors~\cite{bilot2025simpler}. Our own first release had two
-ground-truth defects that only per-task inspection of a full run revealed (\S\ref{sec:benchmark},
-Revision~1.1); scores that are identical across configurations proved a useful signal of a scorer artefact
-rather than agent behaviour. We publish the selectors, the answer files of both versions and the rescoring
-tool so that the rule can be inspected and changed, and earlier runs re-evaluated.
+\paragraph{Models and variance} Each condition has three repeats; paired task-level intervals resolve reward
+differences of about $\pm0.02$, so smaller effects would need more repeats or tasks. The ablation uses one model
+at one effort level, and with GPT-6 astra the hard budget did act, so the null effect of the safeguards is
+model-specific. Both models are closed and may change; every call is traced. Verdicts carry no confidence
+value, so calibration error cannot be computed; we report verdict stability instead.
 
-\paragraph{Scoring} The scorer follows the published structure of the competition's scoring but its weights
-are ours. Different weights change absolute numbers; comparisons between configurations on the same scorer
-remain meaningful.
+\paragraph{Contamination and adversary strength} The recordings are public and may have been seen in
+training~\cite{sainz2023contamination}; the tasks re-express them as graphs with opaque identifiers and new
+alerts, and the \emph{blind} variant removes their label cues without changing results. Mimicry renames
+strings only, so its effect is a lower bound on what an adaptive attacker achieves; structural mimicry and
+instructions planted in telemetry~\cite{greshake2023indirect,debenedetti2024agentdojo} are stronger and are the
+next step. Some renamed tasks become genuinely ambiguous from provenance alone; we keep the recordings' labels,
+which follow the operator's intent, and release the agent's stated reasons for each case.
 
-\paragraph{Models and variance} The pilot is a single run with one model. LLM outputs vary between runs, and
-the study therefore uses three repeats per configuration; paired task-level intervals resolve reward
-differences of about $\pm0.02$ (excluding the unstable task, about $\pm0.01$). Smaller component effects would need more
-repeats or more tasks. The ablation uses one model at one effort level; a second model was run on \bench v1.1
-and \emph{mimicry} only, and in its runs the hard budget did act, so the conclusion that the safeguards do not
-matter is model-specific. Both models are closed and may change; the traces of every call are released.
-The verdicts carry no confidence value, so calibration metrics such as the expected calibration error cannot be
-computed; we report verdict stability across repeats instead, and eliciting calibrated confidence is future
-work.
-
-\paragraph{Training-data contamination and label cues} OTRF Security-Datasets and Splunk attack\_data are
-public, so models may have seen the raw recordings during training~\cite{sainz2023contamination}. The tasks
-restructure them into graphs with opaque identifiers and new alerts, which limits but does not exclude
-memorisation effects. Independently of memorisation, v1.1 exposes label cues: the alert's source field names
-the attack dataset, and \TrAllSourceCuePct\% of the study's submissions refer to it. The \emph{blind} variant
-shows that this did not change results; the \emph{mimicry} variant shows that operator-chosen names did, so the
-v1.1 numbers are an upper bound for an intruder who names things innocuously.
-
-\paragraph{Adversary strength and label ambiguity} Mimicry renames strings only; structural mimicry and
-injected instructions are stronger and untested. Conversely, some renamed tasks become hard to call from
-provenance alone, so part of the mimicry drop may reflect genuine ambiguity of dual-use behaviour rather than a
-shortcut; we keep the recordings' labels, which follow the operator's intent, and report the agent's stated
-reasons from the traces so that readers can judge each case.
-
-\paragraph{Prompt injection through telemetry} Command lines, file paths and other fields can contain
-attacker-controlled text that an LLM agent reads, a channel for indirect prompt
-injection~\cite{greshake2023indirect,debenedetti2024agentdojo}. The mimicry variant changes such text only to
-remove announcing names; \bench does not yet include instructions planted in telemetry, and evaluating
-investigation agents against them is the most important next step.
-
-\paragraph{No official competition results} We built the agent for the BlueSec1 runtime, but did not obtain
-results on the official competition tasks; all results here are on \bench with our scorer.
-
-\paragraph{Methodology} Following common pitfalls in security machine learning~\cite{arp2022dosdonts}, we avoid
-tuning on the evaluation tasks during the study (the prompt and safeguards were fixed before the study runs),
-report the class balance, and break results down per class and platform.
+\paragraph{Protocol} The prompt and safeguards were fixed before the study runs, class balance is reported and
+results are broken down per class and platform~\cite{arp2022dosdonts}. We did not obtain results on the
+official competition tasks; all results are on \bench with our scorer.
 
 \ifconf\else
 \input{sections/ethics}

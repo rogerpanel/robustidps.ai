@@ -53,9 +53,9 @@ graph and a scorer for verdict, response artifacts, legitimacy evidence and effi
 and answers: \emph{blind} removes label cues of the recordings, and \emph{mimicry} also renames
 attacker-chosen artefacts without changing behaviour.
 \item \textbf{An empirical evaluation and ablation protocol} (\S\ref{sec:experiments}--\S\ref{sec:results}).
-In a pilot on the \ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent reached the correct verdict on
+\ifconf\else In a pilot on the \ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent reached the correct verdict on
 all of them, including all three benign tasks, with mean quality \ResPilotQuality{} and mean efficiency
-\ResPilotEfficiency{}. The ablation protocol switches off one safeguard at a time and reports quality,
+\ResPilotEfficiency{}. \fi The ablation protocol switches off one safeguard at a time and reports quality,
 efficiency, verdict accuracy, false-positive and false-negative rates, and cost, per platform and per verdict
 class, with paired task-level confidence intervals.
 \ifnum\ResStudyAvailable=1
@@ -72,8 +72,8 @@ left performance unchanged, but renaming attacker-chosen artefacts without chang
 attacks from \ResCueBaseMissed{} to \ResMimicryMissed{} and cut reward by \ResMimicryPairedReward{}
 (95\% CI \ResMimicryPairedRewardCI{}). On dual-use Linux behaviour (creating an account, loading a self-built
 kernel module, preloading a library) the agent's verdict rested on names; a renaming intruder, the cheapest
-evasion there is, was cleared. A second model under the same agent missed more attacks on the original
-benchmark (\McGptBaseMissed{} against \McClaudeBaseMissed{}) and lost significantly more under renaming
+evasion there is, was cleared. GPT-6 astra, run through the OpenAI Responses API under the same agent, missed
+more attacks on the original benchmark (\McGptBaseMissed{} against \McClaudeBaseMissed{}) and lost significantly more under renaming
 (difference in differences \McDiD{}, 95\% CI \McDiDCI{}), and its traces show the same label cue read in the
 opposite direction.
 \fi
@@ -81,7 +81,19 @@ opposite direction.
 regenerates all tables and plots from run folders\ifconf{} (\ArtifactURL)\fi.
 \end{enumerate}
 
+\ifnum\ResCueAvailable=1
+\paragraph{Take-home} We ask whether an LLM agent's verdict on provenance evidence can be trusted when the
+attacker writes part of that evidence. With two frontier models it cannot be by default: neither raised a
+single false alarm, but renaming artefacts without changing behaviour raised missed attacks from
+\McClaudeBaseMissed{} to \McClaudeMimicryMissed{} and from \McGptBaseMissed{} to \McGptMimicryMissed{}. With
+Claude Opus 5.5 the call-level safeguards changed nothing measurable, while the prompted investigation method
+cut tool calls by about 30\%. For researchers, benchmarks built from public attack recordings need cue-controlled variants to
+measure investigation rather than name reading; for AI security engineers, the analyst's method and a rule that
+benign verdicts cite behaviour, not names, matter more than mechanical guards; for SOC analysts, a benign verdict
+justified by names alone should be reviewed as possible evasion.
+\fi
+
 The remainder of the paper reviews related work (\S\ref{sec:background}), defines the task
 (\S\ref{sec:problem}), presents the agent (\S\ref{sec:method}) and the benchmark (\S\ref{sec:benchmark}),
 describes the experimental setup (\S\ref{sec:experiments}), reports results (\S\ref{sec:results}), and
-discusses implications (\S\ref{sec:discussion}) and limitations (\S\ref{sec:limitations}).
+discusses implications (\S\ref{sec:discussion}) and threats to validity (\S\ref{sec:limitations}).

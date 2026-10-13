@@ -1,31 +1,23 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented an LLM agent that investigates security alerts by walking provenance evidence under a tool-call
-budget, and \bench, a cross-platform benchmark of 21 investigation tasks built from public Windows and Linux
-attack telemetry, with benign look-alikes and selector-defined ground truth. The agent's local safeguards (a
-response cache, schema validation, a grounding check and budgets) resolve avoidable mistakes before they cost a
-call; parallel workers learn the runtime's limit; and rationale fields are presented in a form compatible with
-model-side policies. In a pilot on the Windows tasks, every verdict was correct and wasted calls were the
-largest single source of lost reward, which motivates the ablation protocol we define and release.
+We presented a budget-aware LLM agent for provenance-graph alert investigation and \bench, a cross-platform
+benchmark of 21 tasks from public Windows and Linux attack telemetry with benign look-alikes, selector-defined
+ground truth and cue-controlled variants.
 \ifnum\ResStudyAvailable=1
-On the full benchmark, over \ResStudyRepeats{} repeats, the agent reached reward \ResFullReward{}, quality
-\ResFullQuality{} and verdict accuracy \ResFullAccuracy{} with no false positives at \ResFullCalls{} calls per
-task. The ablation identifies the investigation-method prompt as the component that makes the agent efficient,
-and finds no measurable effect of the local safeguards with this model; its only verdict errors fell on an
-ambiguous task whose twin shares its alert. Per-call traces were the decisive instrument: they showed that
-the safeguards seldom fired, that most lost quality came from identifier types and from the prompt's own
-efficiency advice, and that public attack recordings leak label cues the agent reads. Building the benchmark
-also showed how easily ground truth can penalise reasonable evidence: two Linux defects surfaced only from
-scores that did not vary across configurations.
+With Claude Opus 5.5 the agent reached reward \ResFullReward{} and verdict accuracy \ResFullAccuracy{} with no
+false positives; the investigation-method prompt, not the call-level safeguards, made it efficient, and per-call
+traces exposed what aggregate scores hid, including two ground-truth defects corrected in v1.1.
 \fi
 \ifnum\ResCueAvailable=1
-Cue-controlled variants showed that the agent did not need the recordings' label cues but did need the
-attacker's names: renaming artefacts without changing behaviour raised missed attacks from \ResCueBaseMissed{}
-to \ResMimicryMissed{}, a cheap evasion that evaluations on public attack recordings do not see. A second model reproduced the effect more strongly and read the
-recordings' test artefacts as authorisation rather than attack.
+Renaming artefacts without changing behaviour raised missed attacks from \ResCueBaseMissed{} to
+\ResMimicryMissed{}, and for GPT-6 astra from \McGptBaseMissed{} to \McGptMimicryMissed{}, without a single false
+alarm: the failure is silent and shows up as cleared alerts. The remedy is cheap: treat every name in telemetry
+as attacker-controlled, accept a benign verdict only when it cites behaviour, and evaluate agents on renamed
+variants before trusting them. Future work includes instructions planted in telemetry, type-checked grounding,
+open-weight models, multi-host scenarios and studies with SOC analysts.
 \else
 The released \emph{blind} and \emph{mimicry} variants measure shortcut reliance and lexical evasion
-directly.
-\fi Future work includes instructions planted in telemetry, type-checked grounding, weaker and open
-models, multi-host scenarios, and studies with SOC analysts.
+directly. Future work includes instructions planted in telemetry, type-checked grounding, open-weight models,
+multi-host scenarios and studies with SOC analysts.
+\fi

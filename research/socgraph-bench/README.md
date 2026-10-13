@@ -2,7 +2,7 @@
 
 Code, benchmark, results and manuscript for:
 
-> **Robust LLM Agents for Provenance-Graph Alert Triage: Grounding, Budgets, and Shortcut Cues**
+> **Right for the Wrong Names: Mimicry Evasion of LLM Agents in Provenance-Graph Alert Triage**
 > Roger Nick Anaedevha, 2026 (manuscript in `paper/`).
 
 A security operations centre (SOC) analyst who receives an alert walks the

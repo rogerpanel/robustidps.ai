@@ -47,9 +47,9 @@ need the operator's names: on the nine attack tasks whose reports had cited such
 investigation agents on public recordings should report a mimicry condition; ours costs a string substitution
 and leaves answers unchanged.
 
-\paragraph{Label cues cut both ways} The two models disagreed about what a recorded test means. One read
-Atomic Red Team artefacts as attack evidence, the other as proof of an authorised exercise, and each was
-consistent across repeats. Neither reading is supported by the telemetry alone, which records no
+\paragraph{Label cues cut both ways} The two models disagreed about what a recorded test means. Claude Opus
+5.5 read Atomic Red Team artefacts as attack evidence, GPT-6 astra as proof of an authorised exercise, and each
+was consistent across repeats. Neither reading is supported by the telemetry alone, which records no
 authorisation. Benchmarks built from technique tests therefore measure, in part, how a model resolves this
 ambiguity, and their cue-controlled variants are needed to separate that from investigation skill.
 
@@ -61,6 +61,8 @@ whether a change record exists, whether the module is signed) rather than by the
 be evaluated against renaming as a matter of course. The same channel carries a stronger threat that we did not
 test: text written for the agent itself~\cite{greshake2023indirect,debenedetti2024agentdojo}.
 
+% Shortened in the conference build (page limit); full text in the journal build.
+\ifconf\else
 \paragraph{Benign tasks deserve equal weight} Clearing benign activity is most of the work in real SOCs. A
 third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An
 agent that over-reports would show a high false-positive rate on exactly the tasks where analysts most need help.
@@ -74,3 +76,4 @@ enough to have every request declined. Agent builders should treat rationale fie
 benchmark and, through \ReviewUI, a human reviewer who can inspect every
 call, its stated purpose and the submission. That reviewability is a prerequisite for using such an agent to
 assist, rather than replace, an analyst.
+\fi

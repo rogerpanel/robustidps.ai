@@ -5,31 +5,30 @@ right for the right reasons, at bounded cost, on telemetry an attacker partly co
 investigation agent that routes every tool call through local safeguards (response cache, schema validation, a
 grounding check on submitted identifiers, and call budgets), and \bench, a benchmark of 21 provenance-graph tasks
 built from public Windows Sysmon and Sysmon-for-Linux attack recordings: 15 ATT\&CK technique executions and 6
-benign look-alikes from the same hosts, including twins that share an alert with an attack. The agent is
-model-agnostic: it runs against a hosted model API or any OpenAI-compatible endpoint, including self-hosted
-open-weight models.%
+benign look-alikes from the same hosts, including twins that share an alert with an attack.%
 \ifnum\ResStudyAvailable=1
-\ Evaluated with a commercial frontier model over \ResStudyRepeats{} repeats, it reached reward \ResFullReward{}, verdict
-accuracy \ResFullAccuracy{} and no false positives, at \ResFullCalls{} tool calls per task. A paired ablation
-shows that the investigation method in the prompt drives efficiency (\ResNoMethodCalls{} calls per task
-without it, more on \ResNoMethodMoreCalls{} of \ResNoMethodCallsDiffer{} tasks), while the safeguards had no
-measurable effect: per-call traces show they fired on fewer than one call in ten tasks. To test whether the
-agent is right for the right reasons, we build cue-controlled variants of \bench with identical graphs and
-answers. Removing label cues of the recordings changed nothing measurable, but renaming attacker-chosen
-artefacts without changing behaviour (\texttt{rootkit.ko} to \texttt{hidmon.ko}, \texttt{atomic\_user1} to
-\texttt{jsmith}) cut reward by \ResMimicryPairedReward{} and raised missed attacks from \ResCueBaseMissed{} to
-\ResMimicryMissed{}: on dual-use Linux behaviour the verdict rested on names the attacker chose. A second model
-from another provider reproduced the effect more strongly (\McGptBaseMissed{} attacks missed, then
-\McGptMimicryMissed{} under renaming) and read the recordings' test artefacts as evidence of authorised testing,
-the opposite of the first model. Traces also
-show a grounding check accepting identifiers of the wrong type and an efficiency instruction withholding an
-identifier the response needed.
+\ With Claude Opus 5.5 (Anthropic API) over \ResStudyRepeats{} repeats, the agent reached reward
+\ResFullReward{}, verdict accuracy \ResFullAccuracy{} and no false positives at \ResFullCalls{} tool calls per
+task. A paired ablation shows that the investigation method in the prompt drives efficiency
+(\ResNoMethodCalls{} calls per task without it), while the safeguards had no measurable effect: per-call traces
+show they fired on fewer than one call in ten tasks. To test whether the agent is right for the right reasons,
+we build cue-controlled variants of \bench with identical graphs and answers. Removing the recordings' label
+cues changed nothing measurable, but renaming attacker-chosen artefacts without changing behaviour
+(\texttt{rootkit.ko} to \texttt{hidmon.ko}, \texttt{atomic\_user1} to \texttt{jsmith}) raised missed attacks
+from \ResCueBaseMissed{} to \ResMimicryMissed{}: on dual-use Linux behaviour the verdict rested on names the
+attacker chose. GPT-6 astra (OpenAI Responses API) under the same agent missed \McGptBaseMissed{} attacks,
+mostly by reading the recordings' test artefacts as authorised testing, and \McGptMimicryMissed{} under
+renaming (difference in differences \McDiD{}, 95\% CI \McDiDCI{}). Neither model raised a false alarm; their
+errors were silent misses that renaming induces. LLM triage agents should therefore treat every name in
+telemetry as attacker-controlled, close an alert as benign only on cited behavioural evidence, and be evaluated
+on cue-controlled variants such as ours.
 \else
 \ We define an ablation protocol that isolates each safeguard's contribution.
 \fi
-Agent, benchmark, traces of every tool call and the scripts that regenerate every table are released.
+Agent, benchmark, variants, traces of every tool call and the scripts that regenerate every table are released.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Security operations, provenance graphs, LLM agents, tool use, robustness, shortcut learning, mimicry, benchmark, ablation study.
+Security operations, provenance graphs, LLM agents, adversarial robustness, mimicry evasion, shortcut learning,
+tool use, benchmark.
 \end{IEEEkeywords}
