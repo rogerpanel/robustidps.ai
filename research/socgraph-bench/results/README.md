@@ -93,6 +93,10 @@ LLM_API_KEY=any-string-for-local-servers # a real key for paid APIs
 LLM_DEFAULT_MODEL=served-model-name
 ```
 
+For OpenAI's newer reasoning models (e.g. the GPT-6 family), add `LLM_API=responses` and
+`LLM_REASONING_EFFORT=high` (the same effort as the study's main model): Chat Completions
+does not allow tool calls together with reasoning on these models, the Responses API does.
+
 For vLLM, start the server with tool calling enabled, for example
 `vllm serve <model> --enable-auto-tool-choice --tool-call-parser hermes`
 (the parser depends on the model family; see the vLLM tool-calling docs).

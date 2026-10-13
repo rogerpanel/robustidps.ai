@@ -45,6 +45,12 @@ class RobustSettings(BaseSettings):
     llm_default_model: str | None = Field(None, alias="LLM_DEFAULT_MODEL")
     llm_timeout_seconds: float = Field(180.0, alias="LLM_TIMEOUT_SECONDS", gt=0)
     llm_max_completion_tokens: int = Field(16_384, alias="LLM_MAX_COMPLETION_TOKENS", gt=0)
+    # Which OpenAI-compatible API to call: "chat" (Chat Completions, any compatible server)
+    # or "responses" (OpenAI's Responses API, needed for tool use with reasoning on newer
+    # OpenAI models). LLM_REASONING_EFFORT is sent only when set.
+    llm_api: Literal["chat", "responses"] = Field("chat", alias="LLM_API")
+    llm_reasoning_effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None = (
+        Field(None, alias="LLM_REASONING_EFFORT"))
 
     # Investigation limits.
     soft_budget: int = Field(12, alias="ROBUST_SOFT_BUDGET", ge=1)

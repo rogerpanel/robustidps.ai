@@ -5,9 +5,16 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 from typing import Any
 
+import pytest
+
 from bluesec1_agent.robust.agent import RobustAgent
 from bluesec1_agent.robust.catalog import ToolCatalog, prepare_schema
-from bluesec1_agent.robust.drivers import FALLBACK_BETA, run_claude, run_openai
+from bluesec1_agent.robust.drivers import (
+    FALLBACK_BETA,
+    run_claude,
+    run_openai,
+    run_openai_responses,
+)
 from bluesec1_agent.robust.investigation import Investigation
 from bluesec1_agent.robust.mock import SCENARIOS, MockClient, MockSession
 from bluesec1_agent.robust.settings import RobustSettings
@@ -190,6 +197,66 @@ def test_openai_loop_handles_bad_json_and_string_submission() -> None:
     tool_msgs = [m for m in oai.requests[1] if m["role"] == "tool"]
     assert "not valid JSON" in tool_msgs[0]["content"]
     assert "tool calls used: 1" in tool_msgs[-1]["content"]
+
+
+# --------------------------------------------------------------- fake Responses API
+def fcall(i: int, name: str, args: Any) -> NS:
+    raw = args if isinstance(args, str) else json.dumps(args)
+    return NS(type="function_call", call_id=f"fc{i}", name=name, arguments=raw)
+
+
+class FakeResponses:
+    def __init__(self, turns: list[list[NS]]) -> None:
+        self.turns = list(turns)
+        self.requests: list[dict[str, Any]] = []
+        self.responses = NS(create=self._create)
+
+    async def _create(self, **kw: Any) -> NS:
+        self.requests.append(json.loads(json.dumps(kw)))
+        n = len(self.requests)
+        usage = NS(input_tokens=1000, output_tokens=50, input_tokens_details=NS(cached_tokens=800))
+        return NS(id=f"resp_{n}", output=self.turns.pop(0), usage=usage)
+
+
+def test_responses_loop_chains_turns_with_reasoning() -> None:
+    session = MockSession(next(s for s in SCENARIOS if s["task_id"] == "mock-benign-updater"))
+    inv = mk_inv(session)
+    api = FakeResponses([
+        [NS(type="reasoning", summary=[NS(type="summary_text", text="Updater or implant?")]),
+         fcall(1, "get_entity", '{"entity_id": "proc-7a1", "purpose": '),     # truncated JSON
+         fcall(2, "get_entity", {"entity_id": "proc-7a1", "purpose": "trigger"})],
+        [NS(type="message", content=[NS(type="output_text", text="Checking the parent.")]),
+         fcall(3, "get_relation", {"relation_id": "rel-1", "purpose": "parent?"})],
+        [fcall(4, "finish_investigation", {"submission": json.dumps(BENIGN)})],
+    ])
+    result = asyncio.run(run_openai_responses(inv, api, model="gpt-x", max_turns=6,
+                                              max_output_tokens=1000, effort="high"))
+    assert result.completion_reason == "terminated" and result.quality_score > 0.9
+    assert [c[0] for c in session.calls] == ["get_entity", "get_relation", "finish_investigation"]
+    first, second, third = api.requests
+    assert first["reasoning"] == {"effort": "high", "summary": "auto"}
+    assert "previous_response_id" not in first and first["input"][0]["role"] == "user"
+    tool = first["tools"][0]
+    assert tool["type"] == "function" and tool["strict"] is False and "function" not in tool
+    assert second["previous_response_id"] == "resp_1" and third["previous_response_id"] == "resp_2"
+    outs = second["input"]
+    assert [o["call_id"] for o in outs] == ["fc1", "fc2"]
+    assert "not valid JSON" in outs[0]["output"] and "tool calls used: 1" in outs[-1]["output"]
+    assert inv.usage["input"] == 600 and inv.usage["cache_read"] == 2400 and inv.usage["llm_calls"] == 3
+    assert any(s.get("text") == "Updater or implant?" for s in inv.steps if s["type"] == "thinking")
+
+
+def test_responses_loop_stops_on_refusal_and_without_tools() -> None:
+    session = MockSession(next(s for s in SCENARIOS if s["task_id"] == "mock-benign-updater"))
+    api = FakeResponses([[NS(type="message", content=[NS(type="refusal", refusal="no")])]])
+    with pytest.raises(Exception, match="refused"):
+        asyncio.run(run_openai_responses(mk_inv(session), api, model="m", max_turns=3,
+                                         max_output_tokens=10))
+    api = FakeResponses([[], [], []])
+    with pytest.raises(Exception, match="stopped calling tools"):
+        asyncio.run(run_openai_responses(mk_inv(session), api, model="m", max_turns=5,
+                                         max_output_tokens=10))
+    assert "reasoning" not in api.requests[0]          # no effort configured: not sent
 
 
 # --------------------------------------------------------------- whole run

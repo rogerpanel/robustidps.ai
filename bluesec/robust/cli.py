@@ -44,7 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--provider", choices=["anthropic", "openai"], help="override ROBUST_PROVIDER")
     p.add_argument("--model", help="override ANTHROPIC_MODEL / LLM_DEFAULT_MODEL")
     p.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"],
-                   help="override ANTHROPIC_EFFORT")
+                   help="reasoning effort: ANTHROPIC_EFFORT, or LLM_REASONING_EFFORT for openai")
+    p.add_argument("--openai-api", choices=["chat", "responses"],
+                   help="with --provider openai: Chat Completions or the Responses API (LLM_API)")
     p.add_argument("--agent-name", help="override AGENT_NAME")
     p.add_argument("--mock-tasks", type=int, default=1, metavar="N",
                    help="with --mock: repeat the mock scenarios N times (2*N tasks)")
@@ -104,13 +106,17 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.provider:
         overrides["provider"] = args.provider
     if args.effort:
+        # --effort sets the reasoning effort of whichever provider runs.
         overrides["anthropic_effort"] = args.effort
+        overrides["llm_reasoning_effort"] = args.effort
     if args.agent_name:
         overrides["agent_name"] = args.agent_name
     if args.arena:
         overrides["scenario_runtime_arena"] = args.arena
     if args.concurrency:
         overrides["concurrency"] = args.concurrency
+    if args.openai_api:
+        overrides["llm_api"] = args.openai_api
     if args.ablate is not None:
         overrides["ablate"] = args.ablate
     if args.label:

@@ -1,4 +1,5 @@
-"""LLM loops: Claude (native tool use) and any OpenAI-compatible provider.
+"""LLM loops: Claude (native tool use), any OpenAI-compatible provider (Chat
+Completions), and OpenAI's Responses API (tool use with reasoning).
 
 Both loops hand every tool call to `Investigation.execute` and stop at the
 first terminal result from the runtime.
@@ -92,7 +93,8 @@ async def run_claude(inv: Investigation, client: Any, *, model: str, effort: str
 
 
 async def run_openai(inv: Investigation, client: Any, *, model: str, max_turns: int,
-                     max_completion_tokens: int, system: str = SYSTEM_PROMPT) -> TaskResult:
+                     max_completion_tokens: int, system: str = SYSTEM_PROMPT,
+                     reasoning_effort: str | None = None) -> TaskResult:
     observation = inv.session.task.observation
     tools = inv.catalog.openai_tools()
     messages: list[dict[str, Any]] = [
@@ -107,6 +109,7 @@ async def run_openai(inv: Investigation, client: Any, *, model: str, max_turns: 
             tools=tools,
             tool_choice="auto",
             max_completion_tokens=max_completion_tokens,
+            **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
         )
         if not resp.choices:
             raise AgentStop("provider returned no choices")
@@ -153,4 +156,81 @@ async def run_openai(inv: Investigation, client: Any, *, model: str, max_turns: 
         note = inv.note()
         if note:
             messages[-1]["content"] += "\n" + note
+    raise AgentStop(f"no submission after {max_turns} model turns")
+
+
+def responses_tools(chat_tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Chat Completions tool definitions in the Responses API's flat form."""
+    return [{"type": "function", "name": t["function"]["name"],
+             "description": t["function"].get("description") or "",
+             "parameters": t["function"]["parameters"], "strict": False}
+            for t in chat_tools]
+
+
+async def run_openai_responses(inv: Investigation, client: Any, *, model: str, max_turns: int,
+                               max_output_tokens: int, effort: str | None = None,
+                               system: str = SYSTEM_PROMPT) -> TaskResult:
+    """The same loop over OpenAI's Responses API, which allows tool calls together with
+    reasoning on newer models. Turns are chained with previous_response_id, so each
+    request carries only the new tool outputs."""
+    observation = inv.session.task.observation
+    tools = responses_tools(inv.catalog.openai_tools())
+    pending: list[dict[str, Any]] = [
+        {"role": "user", "content": initial_message(observation, inv.catalog.names())}]
+    previous: str | None = None
+    nudges = 0
+    for _ in range(max_turns):
+        kw: dict[str, Any] = {"model": model, "instructions": system, "input": pending,
+                              "tools": tools, "max_output_tokens": max_output_tokens}
+        if previous:
+            kw["previous_response_id"] = previous
+        if effort:
+            kw["reasoning"] = {"effort": effort, "summary": "auto"}
+        resp = await client.responses.create(**kw)
+        previous = resp.id
+        usage = getattr(resp, "usage", None)
+        cached = getattr(getattr(usage, "input_tokens_details", None), "cached_tokens", 0) or 0
+        inv.add_usage(input=max(0, (getattr(usage, "input_tokens", 0) or 0) - cached),
+                      output=getattr(usage, "output_tokens", 0) or 0, cache_read=cached)
+        calls = []
+        for item in getattr(resp, "output", None) or []:
+            kind = getattr(item, "type", "")
+            if kind == "reasoning":
+                summary = " ".join(getattr(s, "text", "") for s in getattr(item, "summary", None) or [])
+                inv.log_model("thinking", summary)
+            elif kind == "message":
+                for part in getattr(item, "content", None) or []:
+                    if getattr(part, "type", "") == "refusal":
+                        raise AgentStop(f"model refused: {part.refusal}")
+                    if getattr(part, "type", "") == "output_text":
+                        inv.log_model("text", part.text)
+            elif kind == "function_call":
+                calls.append(item)
+        if not calls:
+            nudges += 1
+            if nudges > 2:
+                raise AgentStop("model stopped calling tools without submitting")
+            pending = [{"role": "user", "content": NUDGE}]
+            continue
+
+        pending = []
+        skip = False
+        for c in calls:
+            if skip:
+                text = "Not executed: fix the submission first."
+            else:
+                try:
+                    args = json.loads(c.arguments or "{}")
+                except json.JSONDecodeError as exc:
+                    text = f"Arguments are not valid JSON ({exc.msg}); no call was spent."
+                else:
+                    out = await inv.execute(c.name, args)
+                    if out.terminal is not None:
+                        return out.terminal
+                    text = out.text
+                    skip = c.name == "finish_investigation"
+            pending.append({"type": "function_call_output", "call_id": c.call_id, "output": text})
+        note = inv.note()
+        if note:
+            pending[-1]["output"] += "\n" + note
     raise AgentStop(f"no submission after {max_turns} model turns")

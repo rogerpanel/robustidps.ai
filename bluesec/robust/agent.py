@@ -22,7 +22,7 @@ from loguru import logger
 from bluesec1_client import TaskCapacityExceededError, TaskResult
 
 from .catalog import ToolCatalog
-from .drivers import run_claude, run_openai
+from .drivers import run_claude, run_openai, run_openai_responses
 from .investigation import Investigation
 from .metrics import compute
 from .prompt import MINIMAL_PROMPT, SYSTEM_PROMPT
@@ -145,7 +145,9 @@ class RobustAgent:
             "ablation_meaning": {a: ABLATIONS[a] for a in ablations},
             "provider": self.s.provider,
             "model": self.s.model_label(),
-            "effort": self.s.anthropic_effort if self.s.provider == "anthropic" else None,
+            "effort": (self.s.anthropic_effort if self.s.provider == "anthropic"
+                       else self.s.llm_reasoning_effort),
+            "api": "anthropic" if self.s.provider == "anthropic" else self.s.llm_api,
             "concurrency": self.s.concurrency,
             "soft_budget": self.s.soft_budget,
             "max_tool_calls": self.s.max_tool_calls,
@@ -207,11 +209,18 @@ class RobustAgent:
                 result = await run_claude(inv, self.llm, model=self.s.anthropic_model,
                                           effort=self.s.anthropic_effort,
                                           max_turns=self.s.max_turns, system=system)
+            elif self.s.llm_api == "responses":
+                result = await run_openai_responses(
+                    inv, self.llm, model=self.s.llm_default_model or "",
+                    max_turns=self.s.max_turns,
+                    max_output_tokens=self.s.llm_max_completion_tokens,
+                    effort=self.s.llm_reasoning_effort, system=system)
             else:
                 result = await run_openai(inv, self.llm, model=self.s.llm_default_model or "",
                                           max_turns=self.s.max_turns,
                                           max_completion_tokens=self.s.llm_max_completion_tokens,
-                                          system=system)
+                                          system=system,
+                                          reasoning_effort=self.s.llm_reasoning_effort)
         except Exception as exc:
             logger.error("Task {} failed in the agent: {}", session.task_id, exc)
             trace["error"] = f"{type(exc).__name__}: {exc}"[:2000]
