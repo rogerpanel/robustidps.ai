@@ -30,10 +30,10 @@ Title, abstract and author list cannot change after November 10.
 
 - [x] No author names or affiliations in the PDF (`main-conference.tex`).
 - [x] Platform name replaced by a neutral phrase (`\ReviewUI`); no repository link in the text.
-- [ ] Artifact: run `python scripts/make_anonymous_artifact.py --out ../socgraph-artifact`
-  (removes names from text files and benchmark zips and fails if any remain), upload the
-  output with Anonymous GitHub from a non-identifying account, and put that link in the
-  paper (Ethics / Availability and the Artifact appendix). Do not update it after the deadline.
+- [x] Artifact: anonymised export (`scripts/make_anonymous_artifact.py`) published at
+  https://anonymous.4open.science/r/SOC-Graph-LLM-Agents/ and cited in the conference build
+  (introduction, Ethics / Availability, Artifact appendix via `\ArtifactURL`).
+  Do not update the underlying repository after the paper deadline.
 - [ ] Do not post the paper on the RobustIDPS website or advertise results widely while
   under review (an arXiv preprint is allowed).
 
