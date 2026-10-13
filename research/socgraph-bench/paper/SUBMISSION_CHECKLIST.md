@@ -29,7 +29,7 @@ Title, abstract and author list cannot change after November 10.
 ## Anonymity
 
 - [x] No author names or affiliations in the PDF (`main-conference.tex`).
-- [x] Platform name replaced by a neutral phrase (`\ReviewUI`); no repository link in the text.
+- [x] Platform name replaced by a neutral phrase (`\ReviewUI`); the only link to code is the anonymous artifact.
 - [x] Artifact: anonymised export (`scripts/make_anonymous_artifact.py`) published at
   https://anonymous.4open.science/r/SOC-Graph-LLM-Agents/ and cited in the conference build
   (introduction, Ethics / Availability, Artifact appendix via `\ArtifactURL`).
