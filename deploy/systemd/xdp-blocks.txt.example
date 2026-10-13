@@ -1,0 +1,14 @@
+# RobustIDPS.ai XDP block list. One IPv4/IPv6 CIDR or bare address per line.
+# Lines starting with # are ignored; blank lines are ignored.
+#
+# To apply changes without dropping the BPF map:
+#   sudo systemctl reload-or-restart robustidps-xdp
+#
+# To inspect the running BPF map directly:
+#   sudo bpftool map dump name blocked_v4
+#   sudo bpftool map dump name blocked_v6
+#
+# Example entries (commented out):
+# 203.0.113.0/24        # RFC 5737 documentation block (test-net-3)
+# 198.51.100.42         # RFC 5737 example host
+# 2001:db8::/32         # RFC 3849 documentation IPv6 block

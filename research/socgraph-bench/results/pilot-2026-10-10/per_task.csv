@@ -1,0 +1,12 @@
+task_id,platform,expected_verdict,completion,quality,efficiency,reward,calls,optimal
+logon-script-persistence,windows,malicious,terminated,0.917,0.714,0.864,7,4
+lsass-dump-comsvcs,windows,malicious,terminated,1.000,0.714,0.943,7,4
+service-binpath-hijack,windows,malicious,terminated,0.922,0.600,0.849,10,5
+hta-startup-folder,windows,malicious,terminated,0.922,0.500,0.830,12,5
+firewall-rule-added,windows,malicious,terminated,0.887,0.667,0.828,6,3
+bits-download,windows,malicious,terminated,0.929,0.800,0.891,5,3
+run-key-and-beacon,windows,malicious,terminated,0.908,0.625,0.840,8,4
+lsass-query-by-svchost,windows,benign,terminated,1.000,1.000,1.000,3,2
+python-http-server,windows,malicious,terminated,0.922,0.455,0.822,11,4
+w32time-runtime-key,windows,benign,terminated,1.000,0.750,0.950,4,2
+gpsvc-service-host,windows,benign,terminated,0.850,0.429,0.753,7,2

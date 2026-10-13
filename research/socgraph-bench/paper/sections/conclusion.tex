@@ -1,0 +1,23 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented a budget-aware LLM agent for provenance-graph alert investigation and \bench, a cross-platform
+benchmark of 21 tasks from public Windows and Linux attack telemetry with benign look-alikes, selector-defined
+ground truth and cue-controlled variants.
+\ifnum\ResStudyAvailable=1
+With Claude Opus 5.5 the agent reached reward \ResFullReward{} and verdict accuracy \ResFullAccuracy{} with no
+false positives; the investigation-method prompt, not the call-level safeguards, made it efficient, and per-call
+traces exposed what aggregate scores hid, including two ground-truth defects corrected in v1.1.
+\fi
+\ifnum\ResCueAvailable=1
+Renaming artefacts without changing behaviour raised missed attacks from \ResCueBaseMissed{} to
+\ResMimicryMissed{}, and for GPT-6 astra from \McGptBaseMissed{} to \McGptMimicryMissed{}, without a single false
+alarm: the failure is silent and shows up as cleared alerts. The remedy is cheap: treat every name in telemetry
+as attacker-controlled, accept a benign verdict only when it cites behaviour, and evaluate agents on renamed
+variants before trusting them. Future work includes instructions planted in telemetry, type-checked grounding,
+open-weight models, multi-host scenarios and studies with SOC analysts.
+\else
+The released \emph{blind} and \emph{mimicry} variants measure shortcut reliance and lexical evasion
+directly. Future work includes instructions planted in telemetry, type-checked grounding, open-weight models,
+multi-host scenarios and studies with SOC analysts.
+\fi

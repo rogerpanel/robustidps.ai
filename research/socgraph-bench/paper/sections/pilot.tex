@@ -1,0 +1,29 @@
+% Pilot on the Windows tasks. Included in the results (journal) or the appendix (conference).
+Table~\ref{tab:pilot} reports the pilot on the \ResPilotTasks{} Windows tasks. All tasks completed and every
+verdict was correct (accuracy \ResPilotAccuracy{}): the eight attacks were judged malicious and the three
+benign look-alikes benign, so the false-positive and false-negative rates were both zero. Mean quality was
+\ResPilotQuality{}, mean efficiency \ResPilotEfficiency{} and mean reward \ResPilotReward{}, with
+\ResPilotCalls{} tool calls per task (range \ResPilotMinCalls{}--\ResPilotMaxCalls{}). The whole run took
+\ResPilotWall\,s of wall-clock time with four tasks in parallel.
+
+\input{tables/results_pilot}
+
+\paragraph{Where reward is lost (RQ2)} Since $R=Q(0.8+0.2E)$, the gap between the mean reward and its maximum
+of 1 decomposes into a quality part, $\overline{1-Q}=0.068$, and an efficiency part,
+$\overline{0.2\,Q(1-E)}=0.063$. Efficiency therefore costs almost as much as imperfect artifacts.
+\ifconf The per-task counts show why\else Fig.~\ref{fig:pilotcalls} shows why\fi: the agent used 80 tool calls against a target of 49 (the sum of
+$n^\star+1$), and 10 of 11 tasks exceeded their target. The largest overruns were the HTA execution (12 calls
+against a target of 6), the Python HTTP server (11 against 5) and the service-configuration change (10 against
+6), all multi-step chains in which the agent fetched relations one at a time. Benign tasks were cheaper
+(4.7 calls on average, efficiency 0.73) than malicious ones (8.3 calls, efficiency 0.63), except the Group
+Policy service host (7 calls against a target of 3), where the agent kept collecting evidence after the parent
+process alone settled the question.
+
+\paragraph{Quality} Quality was 1.0 on three tasks and at least 0.85 on all. With a correct verdict, the
+score leaves only two ways to lose quality: for malicious tasks, missing core entities or naming entities
+outside the acceptable set; for benign tasks, citing only some anchors or non-decisive fields. The per-call
+traces of the study runs attribute these losses per task.
+
+\ifconf\else
+\input{figures/pilot_calls}
+\fi

@@ -1,0 +1,79 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Cost is a first-class objective} In the Windows pilot, wasted tool calls cost almost as much reward
+as imperfect answers, and on the full benchmark they still cost about 0.06 of reward. Accuracy-only evaluation would hide this. For a SOC, every lookup has a latency and,
+with metered model APIs, a price; budgets and spending discipline belong in the agent, and efficiency belongs
+in the benchmark.
+
+\paragraph{Prompted method beats mechanical guards, for a strong model} The cache, validation, grounding
+check and budgets need no model change, run in constant time per call and apply unchanged to any model behind
+the driver interface. We expected the grounding check to matter for quality and the budget and cache for
+efficiency. With Claude Opus 5.5 none of them moved reward measurably, and the traces show why: in 63 tasks
+the full agent repeated no call, sent five malformed ones and invented one identifier, and never reached the
+hard cap. The guards had little to act on. What did move efficiency was
+the investigation method in the prompt (start from the trigger, keep competing hypotheses, stop when they are
+settled), which cut calls by about 30\% at unchanged quality. For practitioners the order of work is
+therefore: write down the analyst's method first, then add guards as insurance. The guards remain worth
+keeping; they cost nothing measurable, and their value lies in the cases this study rarely produced: weaker or
+cheaper models, adversarial content in telemetry, and runtimes that do not validate their inputs (the one
+malformed call that reached the v1.0 local runtime crashed it, \S\ref{sec:benchmark}). Testing them there needs
+a benchmark that provokes those failures, which \bench does not yet do.
+
+\paragraph{Variance is concentrated in ambiguous tasks} Run-to-run variation hardly affected tasks with a clear
+answer, but one ambiguous task flipped between verdicts and alone produced reward differences of the size one
+might attribute to a component. Ablations of LLM agents therefore need repeats, paired per-task comparisons and
+a check of which tasks carry a difference; mean-reward tables alone would have credited three safeguards with
+harm they did not do.
+
+\paragraph{Guards must check the failure that actually occurs} The most frequent identifier error in the study
+was not an invented id but a real value of the wrong type: a hostname where the host's entity id belonged. A
+grounding check that accepts any string seen in the evidence cannot catch it; one that accepts only values
+seen in identifier fields would have caught all of them, at no cost. More generally, a guard should be derived
+from the interface's types, not from a list of anticipated mistakes, and its effect measured on traces.
+
+\paragraph{Prompts trade quality and cost through the interface} The method prompt's instruction not to look
+up the host named in the alert saved calls and, by the same token, withheld the identifier the response had
+to name. Efficiency instructions are not free: they interact with what the tool interface returns, and their
+cost appears only in per-call traces, not in aggregate scores.
+
+\paragraph{Benchmarks built from attack recordings need cue control} Public recordings are made to be found:
+they carry dataset names, lab host names and operator-chosen file names that announce an attack. An agent
+that reads them can be right for the wrong reason, which is the shortcut-learning failure known from
+supervised models~\cite{geirhos2020shortcut,arp2022dosdonts}, now in an agent that reads text. Our variants
+separate two kinds of cue with opposite results. The agent quoted the dataset name but did not need it; it did
+need the operator's names: on the nine attack tasks whose reports had cited such names, it cleared 6 of
+27 runs once they were renamed. Evaluations of LLM
+investigation agents on public recordings should report a mimicry condition; ours costs a string substitution
+and leaves answers unchanged.
+
+\paragraph{Label cues cut both ways} The two models disagreed about what a recorded test means. Claude Opus
+5.5 read Atomic Red Team artefacts as attack evidence, GPT-6 astra as proof of an authorised exercise, and each
+was consistent across repeats. Neither reading is supported by the telemetry alone, which records no
+authorisation. Benchmarks built from technique tests therefore measure, in part, how a model resolves this
+ambiguity, and their cue-controlled variants are needed to separate that from investigation skill.
+
+\paragraph{Names are attacker-controlled input} The renamings that evaded the agent are those an intruder makes
+anyway, and the behaviour they hid is dual-use: creating an account, building and loading a kernel module,
+running a program with a preloaded library. A defender's agent should treat every name in telemetry as
+attacker-controlled, justify a benign verdict by behaviour and context (who normally does this on this host,
+whether a change record exists, whether the module is signed) rather than by the absence of alarming words, and
+be evaluated against renaming as a matter of course. The same channel carries a stronger threat that we did not
+test: text written for the agent itself~\cite{greshake2023indirect,debenedetti2024agentdojo}.
+
+% Shortened in the conference build (page limit); full text in the journal build.
+\ifconf\else
+\paragraph{Benign tasks deserve equal weight} Clearing benign activity is most of the work in real SOCs. A
+third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An
+agent that over-reports would show a high false-positive rate on exactly the tasks where analysts most need help.
+
+\paragraph{Contracts and model policies can conflict} Runtimes fix their interfaces, and model providers fix
+their usage policies. A field named \texttt{reasoning}, described as a trace of the model's thinking, was
+enough to have every request declined. Agent builders should treat rationale fields as statements of action
+(what a call checks) and read model reasoning from the channels the provider offers for it.
+
+\paragraph{Towards deployment} The same agent and safeguards run against the competition runtime, the local
+benchmark and, through \ReviewUI, a human reviewer who can inspect every
+call, its stated purpose and the submission. That reviewability is a prerequisite for using such an agent to
+assist, rather than replace, an analyst.
+\fi

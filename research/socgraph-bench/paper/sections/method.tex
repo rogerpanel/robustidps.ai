@@ -1,0 +1,122 @@
+\section{The Investigation Agent}
+\label{sec:method}
+
+Fig.~\ref{fig:arch} shows the architecture. The agent is a client of an investigation runtime: it leases
+tasks, issues tool calls, and submits. It uses the runtime's published client library unchanged and replaces
+only the reasoning loop. We describe the tool interface (\S\ref{sec:catalog}), the investigation method
+(\S\ref{sec:prompt}), the local safeguards (\S\ref{sec:safeguards}), policy-compatible rationale fields
+(\S\ref{sec:alias}), parallel execution (\S\ref{sec:parallel}) and the model drivers (\S\ref{sec:drivers}).
+
+\input{figures/architecture}
+
+\subsection{Catalog-driven tool interface}
+\label{sec:catalog}
+Each task observation carries the list of enabled tools with their argument schemas. The agent treats this
+catalog as authoritative and builds the model's tool definitions from it on every task, rather than from a
+hard-coded list, so changes to the runtime's tools need no code change. Schemas are normalised for portability
+across model providers: local \texttt{\$ref} references are inlined, presentation-only keys are dropped,
+\texttt{oneOf} alternatives that are distinguished by a constant discriminator are rewritten as the equivalent
+\texttt{anyOf}, and the root is forced to be an object. When a catalog entry lacks a schema, the definition
+falls back to the reference client's typed models. A JSON Schema validator (draft 2020-12) is compiled from
+each normalised schema.
+
+\subsection{Investigation method}
+\label{sec:prompt}
+The system prompt (Appendix~\ref{app:prompts}) encodes a hypothesis-driven method in three parts.
+\emph{Method:} read the alert fully, form two or three competing hypotheses that always include a benign
+explanation (administration, software update, backup, monitoring), and choose each call for the hypothesis it
+can settle most decisively, usually by following relations outward from the trigger entity.
+\emph{Spending discipline:} before every call, ask whether its answer could change the verdict or the artifact
+list; never fetch what the alert or an earlier result already shows; request independent lookups together;
+stop as soon as the verdict and the artifacts are supported. \emph{Submission guide:} which response kind fits
+which entity (compromised host, used account, persistence, dropped file, control channel, observed entity),
+and, for benign verdicts, which kinds of property prove legitimacy (valid signature, expected install path,
+known management parent, documented service behaviour). The ablation \emph{no method} replaces this prompt
+with a minimal one that states only the tool rules, close to the reference client's instructions.
+
+\subsection{Local safeguards}
+\label{sec:safeguards}
+Every tool call the model issues is executed by Algorithm~\ref{alg:execute}. Its premise is that a runtime call
+should be spent only when its result can be new information; everything else is answered locally, at no cost,
+with feedback the model can act on.
+
+\begin{algorithm}[t]
+\caption{Execute a model-issued tool call}
+\label{alg:execute}
+\small
+\begin{algorithmic}[1]
+\Require tool $t$, arguments $x$; cache $\mathcal C$; rejected set $\mathcal R$; evidence corpus $\mathcal E$; calls spent $n$; hard budget $B$; finish-by time $T$
+\State $x \gets \textsc{Unalias}(\textsc{NormaliseJSON}(x))$ \Comment{\S\ref{sec:alias}}
+\State $k \gets (t, x \setminus \{\text{rationale}\})$
+\If{$t\neq$ finish \textbf{and} $k\in\mathcal C$} \Return cached result \Comment{cache: no call spent}\EndIf
+\If{$t\neq$ finish \textbf{and} ($n\ge B$ \textbf{or} now $\ge T$)} \Return ``submit now'' \Comment{budget, deadline}\EndIf
+\If{$k\notin\mathcal R$}
+  \If{$\textsc{Validate}(t,x)$ fails} $\mathcal R\gets\mathcal R\cup\{k\}$; \Return schema errors \EndIf
+  \If{$t=$ finish \textbf{and} some cited id $\notin\mathcal E$} $\mathcal R\gets\mathcal R\cup\{k\}$; \Return ungrounded ids \EndIf
+\EndIf
+\State $y\gets$ \textsc{CallRuntime}$(t,x)$ with backoff on capacity refusals; $n\gets n+1$
+\State $\mathcal E\gets\mathcal E\cup\{y\}$; \textbf{if} $y$ is not an error \textbf{then} $\mathcal C[k]\gets y$
+\State \Return \textsc{Truncate}$(y)$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Response cache} Identical calls (same tool, same arguments, ignoring the free-text rationale) are
+answered from a cache with an explicit note that no call was spent. LLM agents re-request evidence they have
+already seen, especially across long contexts; the cache makes that free.
+
+\paragraph{Schema validation} Arguments are validated locally against the advertised schema. Invalid calls
+receive the validator's messages instead of costing a runtime call. A call rejected locally is sent unchanged
+if the model repeats it, so the runtime, not the agent, remains the authority on validity. A related
+normalisation unwraps object-typed arguments that a model serialised as JSON strings.
+
+\paragraph{Grounding check} Before a submission is sent, every entity and relation identifier it cites is
+checked against the corpus of everything the alert and earlier tool results contained. Identifiers that never
+appeared are reported back once (``use ids exactly as returned, or drop them''); an unchanged resubmission is
+sent. This targets a failure specific to LLM agents: plausible but invented identifiers in an incident
+response.
+
+\paragraph{Budgets and deadline} After each batch of results the model sees the number of calls spent. Past a
+soft budget it is told it is outside the efficient range; at a hard budget evidence calls are refused locally,
+so the agent submits with what it has instead of exhausting the runtime's step limit and failing the task. An
+optional deadline stops taking new tasks a few minutes before a cut-off and, shortly before it, allows only
+submissions, so no task is left unsubmitted.
+
+\subsection{Policy-compatible rationale fields}
+\label{sec:alias}
+The runtime requires a free-text field named \texttt{reasoning} on every evidence call and in the submission.
+In early runs with a recent frontier model, the first request of every task was declined before any output,
+with the refusal category \texttt{reasoning\_extraction}: the combination of a prompt asking the model to
+``state its hypotheses'' and a required field called \texttt{reasoning} described as the ``investigation
+trace'' read as a request to externalise the model's internal reasoning, which the model's usage policy
+declines. The fix keeps the runtime contract intact. The instruction to state hypotheses was removed from
+the first message (the method still asks the model to consider them), and the agent presents the field to the
+model as
+\texttt{purpose} (``one short sentence naming what this call checks'') and the submission's field as
+\texttt{summary} (``a short incident summary''), and maps both back to \texttt{reasoning} before validation
+and sending. The model's actual reasoning is read from its summarised thinking blocks. After the change, all
+tasks of a mock run completed where all had previously been refused. We report this because any agent built
+for a fixed runtime contract can meet the same conflict between the contract and a model provider's policies,
+and because a field rename is enough to resolve it.
+
+\subsection{Parallel execution with a learned limit}
+\label{sec:parallel}
+Budget-scored evaluations are often also time-boxed. The agent runs $W$ workers that each lease and investigate
+tasks. Before leasing, a worker reserves a slot, so no more leases are attempted than the current limit allows.
+If the runtime refuses a lease because of its active-task limit while other workers are busy, the pool lowers
+its limit to the number of tasks in flight and the worker waits for a free slot; refusals while nothing else
+runs are waited out with a bounded number of retries. Short operation-capacity or rate-limit refusals on tool
+calls are retried with backoff; a refused call was not executed, so retrying spends nothing. One task's failure
+is contained to that task.
+
+\subsection{Model drivers}
+\label{sec:drivers}
+The Claude driver uses native tool use~\cite{anthropic_tooluse} with streaming, adaptive thinking (summarised
+thinking is logged to the trace), an explicit effort level, automatic prompt caching~\cite{anthropic_promptcaching}
+of the growing conversation prefix, and server-side fallback to another model on policy declines. Assistant turns are appended unchanged, so thinking blocks remain
+valid for the next turn, and all results of a batch of parallel tool calls are returned in one message. An
+OpenAI-compatible driver supports other providers; malformed tool-call JSON is answered locally without
+spending a call. Both drivers nudge the model at most twice when it answers without a tool call, and abort the
+task on a refusal. Every task produces a trace: each call with its stated purpose, its status
+(\emph{ok}, \emph{cached}, \emph{refused locally}, \emph{error}, \emph{submitted}), the result, the summarised
+reasoning, the submission, the runtime's score and token usage. Each run records its configuration and
+aggregate metrics.

@@ -1,0 +1,8 @@
+angle,axis,Claude,Gpt
+0.0,Accuracy,0.9683,0.8413
+60.0,Recall,0.9556,0.7778
+120.0,Specificity,1.0,1.0
+180.0,Quality,0.8363,0.766
+240.0,Efficiency,0.626,0.4921
+300.0,Recall (mimicry),0.8,0.4667
+360.0,Accuracy,0.9683,0.8413

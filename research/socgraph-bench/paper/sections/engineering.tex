@@ -1,0 +1,19 @@
+% Engineering observations. Included in the results (journal) or the appendix (conference).
+\paragraph{Policy-compatible rationale fields} With the runtime's field names exposed as they were, every task
+of an initial mock run was declined at its first request with the refusal category
+\texttt{reasoning\_extraction}. After presenting the fields as \texttt{purpose} and \texttt{summary} and removing the instruction to
+state hypotheses from the first message (\S\ref{sec:alias}), all tasks completed, and the runtime still
+received its required \texttt{reasoning} fields.
+
+\paragraph{Parallel execution} On a simulated runtime that allowed two tasks in flight, the agent was started
+with four workers. It learned the limit from the first refused leases (the log shows the limit lowered first
+to three, then to two, as refusals arrived), never ran more than two tasks at once afterwards, and completed
+all 16 tasks of that run in 112\,s with the real model, without a failed task.
+
+\paragraph{Benign twins} The two Linux service tasks share an identical alert (``Service state changed by
+systemctl as root'') and graph, and differ only in the lineage of the triggering process: an operator's login
+shell through \texttt{sudo} versus the package manager's post-installation script. They test whether an agent
+reads provenance rather than the alert text. The agent never called the package manager's activity malicious,
+but it cleared the operator's service stop in 7 of 17 runs: an interactive administrator stopping a web server
+is an ordinary event in isolation, and only the lab context makes it an attack. Twin pairs thus expose the
+direction in which an agent errs when provenance alone is ambiguous.

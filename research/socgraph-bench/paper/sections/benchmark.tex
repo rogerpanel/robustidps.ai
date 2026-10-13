@@ -1,0 +1,116 @@
+\section{The \bench Benchmark}
+\label{sec:benchmark}
+
+\bench turns public attack recordings into investigation tasks in the form defined in \S\ref{sec:problem}.
+Fig.~\ref{fig:pipeline} shows the construction; Table~\ref{tab:tasks} lists the tasks.
+
+\input{figures/pipeline}
+
+\subsection{Sources and selection}
+We use two practitioner corpora recorded with real endpoint sensors. OTRF Security-Datasets~\cite{otrf_securitydatasets}
+(MIT licence) provides Windows Sysmon~\cite{microsoft_sysmon} and Security event logs captured while ATT\&CK techniques were executed
+in a lab domain; Splunk attack\_data~\cite{splunk_attackdata} (Apache-2.0) provides, among other formats, Sysmon
+for Linux~\cite{microsoft_sysmonforlinux} recordings from Ubuntu hosts in Splunk's Attack Range. We selected recordings
+that (i) contain a complete process lineage for the activity, (ii) are small enough to package (each source
+file is at most 34\,MB), and (iii) together cover distinct tactics: credential access, persistence, privilege
+escalation, defence evasion, execution, impact and service stopping. We excluded recordings whose key step is
+not observable in the telemetry (for instance, an authorised-keys write that the sensor did not capture) and
+very large recordings. The result is \BenchWinMal{} malicious Windows and \BenchLinMal{} malicious Linux tasks
+covering \BenchTechniques{} distinct ATT\&CK techniques, and \BenchWinBen{}+\BenchLinBen{} benign tasks.
+
+\subsection{Graph construction}
+A graph builder maps events to entities and relations using the runtime's type vocabulary
+(\ifconf listed in the artifact\else Table~\ref{tab:types}\fi). Sysmon process-creation events create a process entity keyed by its process GUID, a
+parent entity from the parent fields, a process-creation relation and an executed-file relation; network,
+image-load, process-access, file-create, file-delete, registry, pipe, DNS and WMI events add the corresponding
+relations. Windows Security events add scheduled tasks and logons, and service-installation events add
+services. Linux events use the Linux type names (\tool{linux\_process}, \tool{linux\_file}, \tool{linux\_user},
+\tool{linux\_process\_create}). Users are linked to processes, processes to hosts, and repeated identical
+relations (for example a beacon reconnecting from new ephemeral ports) are collapsed with a count and a
+last-seen timestamp. Field values are copied from the events, capped at 600 characters. Event files are
+treated as untrusted input: XML lines declaring a document type or entities are rejected.
+
+\paragraph{Collector self-telemetry} The Linux recordings include the log forwarder's own checkpoint-file
+writes under its installation directory, thousands per minute. These are artefacts of the collection pipeline,
+not host activity, so file-create and file-delete events under that directory are dropped. The forwarder's
+processes and network connections are kept as benign background. For the five recordings where this churn
+dominated, it reduced graphs from roughly 11{,}000--33{,}500 entities to 50--150, leaving the real host
+activity.
+
+\ifconf\else
+\input{tables/types}
+\fi
+
+\subsection{Scenario design}
+\paragraph{Malicious tasks} Each technique recording contains an operator's shell session (a Windows
+\texttt{cmd.exe} or PowerShell, a Linux login shell) from which the technique was executed. The alert is what
+a detection would raise on the key step, for example ``Process opened LSASS with full access'' for a
+\texttt{rundll32} invoking the MiniDump export of \texttt{comsvcs.dll}, or ``Kernel module loaded with insmod''.
+Alert texts describe the observable event without stating a verdict.
+
+\paragraph{Benign tasks} Benign tasks are real background events from the same recordings that a naive
+rule would flag. They include \texttt{svchost.exe} opening LSASS with access mask \texttt{0x1000}
+(query-limited information, insufficient to read memory) next to the malicious dump that opened it with
+\texttt{0x1FFFFF}; the Windows Time service writing \texttt{\textbackslash RunTime\textbackslash} values that
+match a careless \texttt{\textbackslash Run} rule; and message-of-the-day scripts running discovery commands
+as root at SSH login. Two pairs are \emph{twins}: in the Linux service recording, an operator stopping and
+disabling a web service and the package manager starting it during installation raise the same alert
+(``Service state changed by systemctl as root'') with opposite verdicts.
+
+\subsection{Ground truth}
+Ground truth is written as selectors over the graph (image name, command-line substring, path, user,
+destination address, relation type) rather than as identifiers, and is rebuilt from the raw recordings on
+every build. For a malicious task, the \emph{session root} is the operator shell above the trigger (its parent,
+or the nearest ancestor with a given image). The core set $C$ contains the trigger and the session root, the
+key commands, the artefacts that carry persistence or impact (the dump file, the Run-key value, the module
+copied into \texttt{/lib/modules}, the script that wiped directories), the host, and the account to act on:
+the session owner, plus the trigger's account unless it is the system account the session elevated to
+(\texttt{SYSTEM}, \texttt{root}). The acceptable set $A^\star$ adds every process in the session, the accounts they ran as, and every
+file, registry key, connection and process the session touched. For a benign task, the anchors are the trigger
+and the entities that prove legitimacy, for example the parent that launched it (the package manager, the
+login daemon) or the relation carrying the decisive property (the access mask), each with its real property
+fields. The neutral set holds the trigger's lineage up to the highest anchor, with its host and accounts:
+an analyst who cites the full chain from the login daemon to the trigger should not be penalised for the
+intermediate shells.
+
+\paragraph{Revision 1.1} The first study run exposed two ground-truth defects, both on Linux. Benign Linux
+tasks scored the same partial quality under every configuration; the value ($Q=0.683$) is exactly two of three
+anchors plus three cited ids outside the anchors (the only decomposition that yields it), and the trigger
+lineages contain processes between the anchors (three shells in the login-message chain, the
+\texttt{apache2.postinst} script between \texttt{dpkg} and \texttt{systemctl}). In v1.0 citing them counted as
+citing unrelated ids. Second, session processes entered the acceptable set only through
+process-creation relations, and the Linux relation type was missing from that list, so naming \texttt{sudo} or
+an intermediate shell lowered precision. Version~1.1 adds the neutral set and puts session processes and their
+accounts in $A^\star$ on both platforms. Graphs and alerts are byte-identical between the versions; the Windows
+malicious answers are unchanged. All results in \S\ref{sec:results} use v1.1, and both versions are released.
+
+\subsection{Cue-controlled variants}
+\label{sec:variants}
+Public attack recordings carry traces of how they were made. In \bench v1.1, the alert names its source
+recording (for example ``Splunk attack\_data T1489/\allowbreak linux\_service\_stop\_disable''), the Linux hosts
+are named \texttt{*-attack-range-*}, the Windows domain is \texttt{mordor.local}, and the operators chose names
+such as \texttt{rootkit.ko}, \texttt{evil\_user}, \texttt{atomic\_user1}, a firewall rule called
+``atomic testing'', and files named after ATT\&CK identifiers. A real intruder would not leave these, and an
+agent that reads them is answering a different question. We therefore release two variants with the same
+graphs, identifiers and answers, so that every score is directly comparable:
+\emph{blind} removes the alert's source field and replaces the lab host and domain names with neutral ones
+(\texttt{web-01}, \texttt{app-01}, \texttt{corp.local}); \emph{mimicry} additionally renames the
+operator-chosen names (\texttt{rootkit.ko}$\to$\texttt{hidmon.ko}, \texttt{evil\_user}$\to$\texttt{deploy},
+the Atomic Red Team download URL to a neutral one, and so on). Every renaming is a consistent string
+substitution over all attribute values, never identifiers, so the behaviour is unchanged: the same module is
+loaded, the same sudoers rule written, the same account created. The substitution tables are part of each
+variant's manifest, and the build script refuses to emit a variant in which a cue survives. In the sense of
+problem-space attacks~\cite{pierazzi2020problemspace}, mimicry is a semantics-preserving evasion of the agent's
+lexical cues, not of its reasoning about provenance.
+
+\subsection{Statistics and format}
+Graphs have \BenchEntMin{}--\BenchEntMax{} entities (median \BenchEntMedian{}) and
+\BenchRelMin{}--\BenchRelMax{} relations (median \BenchRelMedian{}), with \BenchEntTypes{} entity types and
+\BenchRelTypes{} relation types overall. The benchmark is a single \BenchZipMB\,MB zip: a manifest, one task
+file per task (alert and graph, no answers), one answer file per task, and the upstream licences. A local
+runtime serves the tasks through the same client interface as the competition runtime and scores
+submissions, so an agent runs on \bench unchanged.
+
+\ifconf\else
+\input{tables/tasks}
+\fi

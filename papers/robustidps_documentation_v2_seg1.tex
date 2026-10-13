@@ -1,0 +1,251 @@
+% === START SEGMENT 1 ===
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{mathpazo}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,fit,backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{tabularx}
+\usepackage{float}
+\definecolor{robustblue}{HTML}{1A73E8}
+\definecolor{robustdark}{HTML}{0D47A1}
+\definecolor{robustgrey}{HTML}{F5F5F5}
+\definecolor{socgreen}{HTML}{2E7D32}
+\definecolor{llmred}{HTML}{C62828}
+\definecolor{pqcpurple}{HTML}{6A1B9A}
+\hypersetup{colorlinks=true,linkcolor=robustblue,citecolor=robustblue,urlcolor=robustdark}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textsc{RobustIDPS.ai --- Technical Documentation v2}}
+\fancyhead[R]{\small\thepage}
+\fancyfoot[C]{\small DOI: 10.5281/zenodo.19129512}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.2pt}
+\title{%
+  \vspace{-1cm}
+  {\LARGE\bfseries RobustIDPS.ai}\\[6pt]
+  {\large An Adversarially Robust AI/ML Security Platform with 13+ Neural\\
+   Network Models, SOC Intelligence, and LLM Security Testing}}
+\author{%
+  \textbf{Roger Nick Anaedevha} --- \href{mailto:roger@robustidps.ai}{roger@robustidps.ai}\\
+  ICIS, MEPhI, Moscow, Russia\\[6pt]
+  Supervised by \textbf{Alexander Gennadievich Trofimov} --- \href{mailto:agtrofimov@robustidps.ai}{agtrofimov@robustidps.ai}\\
+  ICIS, MEPhI\\[8pt]
+  \normalsize DOI: \texttt{10.5281/zenodo.19129512}}
+\date{April 2026}
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+%% ================================================================
+%%  ABSTRACT
+%% ================================================================
+\begin{abstract}
+\noindent
+RobustIDPS.ai is a comprehensive, open-source AI-native intrusion detection and prevention platform comprising 46 interconnected pages organised into 9 functional groups, integrating more than 13 machine learning and deep learning models for network traffic classification across 34 attack classes and 83 engineered features.  This documentation details every subsystem of the platform.  The SOC Intelligence Suite (6 pages) provides agentic auto-investigation, natural language threat hunting, automated incident reporting, threat intelligence enrichment, IDS rule generation, and CVE vulnerability mapping.  The LLM Security Testing module (5 pages) evaluates prompt injection, jailbreak techniques, RAG poisoning, multi-agent chain attacks, and data poisoning with a 94.5\% overall detection rate.  MLSecOps compliance is ensured through integrated MITRE ATT\&CK mapping, OWASP LLM Top~10 scoring, and NIST AI RMF dashboards.  Novel contributions include a Multi-Agent Post-Quantum Cryptography IDS (PQC-IDS) with four cooperative agents, a unified Continual Learning--Reinforcement Learning (CL-RL) framework sharing Fisher information between EWC regularisation and adversarial training, and user identity management via RobustID profiles.  The platform is deployed as a Progressive Web Application (PWA) with Docker Compose orchestration, PostgreSQL persistence, and Redis caching.  Three purpose-built validation PCAP datasets provide controlled ground truth for regression testing across all detection models.
+\end{abstract}
+%% ================================================================
+%%  SECTION 1 --- INTRODUCTION
+%% ================================================================
+\section{Introduction}
+\label{sec:introduction}
+The rapid integration of artificial intelligence into cybersecurity operations has produced a new generation of commercial platforms: CrowdStrike Charlotte AI provides conversational threat analysis atop the Falcon sensor suite; SentinelOne Purple AI augments endpoint detection with natural language querying; Microsoft Security Copilot embeds GPT-4 reasoning into the Defender ecosystem; and Google Sec-Gemini leverages multimodal foundation models for threat intelligence synthesis.  While these platforms demonstrate the operational value of AI-augmented security, they share three fundamental limitations: (i)~proprietary, single-vendor LLM integration that prevents cross-provider benchmarking; (ii)~absence of systematic adversarial robustness evaluation for the ML components themselves; and (iii)~no support for post-quantum cryptographic traffic analysis.
+
+RobustIDPS.ai addresses these gaps as an open-source, academically rigorous alternative.  The platform integrates more than 13 neural network architectures---from a seven-branch surrogate ensemble with Monte Carlo dropout uncertainty quantification to a Mamba-based state-space detector and a stochastic differential equation temporal graph neural network---within a unified detection pipeline.  Adversarial robustness is evaluated against six attack families (FGSM, PGD, C\&W, DeepFool, Gaussian noise, label-masking poisoning) at configurable perturbation budgets.  Continual learning via Elastic Weight Consolidation with experience replay enables adaptation to concept drift without catastrophic forgetting, while a Constrained Policy Optimisation agent provides autonomous graduated response.
+
+Unique among both commercial and open-source alternatives, RobustIDPS.ai offers integrated LLM attack surface testing (prompt injection, jailbreak, RAG poisoning, multi-agent chain attacks, data poisoning), multi-provider LLM support (Claude, GPT-4o, Gemini, DeepSeek, Llama), and a Multi-Agent PQC-IDS module for post-quantum traffic classification.  The platform is deployed as a 46-page Progressive Web Application with full SOC Intelligence capabilities, MLSecOps compliance dashboards, and three validation PCAP datasets for reproducible benchmarking.
+%% ================================================================
+%%  SECTION 2 --- SYSTEM ARCHITECTURE
+%% ================================================================
+\section{System Architecture}
+\label{sec:architecture}
+RobustIDPS.ai is structured as a React 18 single-page application communicating with a Flask/Python backend through 60+ RESTful API endpoints and persistent WebSocket channels for real-time monitoring.  The platform is orchestrated via Docker Compose with PostgreSQL for relational persistence, Redis for caching and session management, and Celery for asynchronous task execution.  PWA support enables offline-capable deployment with service worker caching.
+
+\subsection{Architectural Overview}
+Figure~\ref{fig:architecture} presents the high-level architecture incorporating the SOC Intelligence and LLM Security layers.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=0.45cm and 0.8cm,
+  every node/.style={font=\small},
+  layer/.style={draw, rounded corners=3pt, minimum width=11cm,
+    minimum height=0.7cm, align=center, font=\small\bfseries},
+  sublayer/.style={draw, rounded corners=2pt, minimum width=5cm,
+    minimum height=0.6cm, align=center, font=\scriptsize}]
+\node[layer, fill=robustblue!15] (ui)
+  {AI Command Center --- Dashboard, Upload, Analytics, Live Monitor, Alert Causality};
+\node[layer, fill=robustblue!10, below=of ui] (defence)
+  {AI Active Defence --- Red Team, Threat Response, SOC Copilot, Federated, Attack Chain};
+\node[layer, fill=socgreen!15, below=of defence] (soc)
+  {SOC Intelligence --- Auto-Investigate, Threat Hunt, Incidents, Threat Intel, Rules, CVE};
+\node[layer, fill=llmred!12, below=of soc] (llm)
+  {LLM Attack Surfaces --- Prompt Injection, Jailbreak, RAG, Multi-Agent, Data Poisoning};
+\node[layer, fill=orange!12, below=of llm] (mlsecops)
+  {MLSecOps Standards --- MITRE ATT\&CK, Alert Triage, Compliance Hub};
+\node[layer, fill=pqcpurple!12, below=of mlsecops] (security)
+  {AI Security \& Governance --- PQ Crypto, Zero-Trust, Supply Chain, Research Hub};
+\node[layer, fill=cyan!10, below=of security] (novel)
+  {AI Novel Methods --- CL, RL Agent, Adversarial, Explainability, Autoencoder};
+\node[layer, fill=gray!12, below=of novel] (data)
+  {AI Data \& Models --- Datasets (6), Models (13+), Ablation Studies};
+\node[layer, fill=gray!8, below=of data] (system)
+  {System --- Profile/RobustID, Admin, Architecture, API Docs, About};
+\node[draw, rounded corners=3pt, fill=robustgrey, minimum width=2.2cm,
+      minimum height=4.2cm, align=center, font=\scriptsize,
+      right=0.6cm of $(soc.east)!0.5!(mlsecops.east)$] (infra) {
+  \textbf{Infrastructure}\\[3pt]Docker Compose\\[2pt]PostgreSQL\\[2pt]Redis\\[2pt]WebSocket\\[2pt]Celery\\[2pt]PWA / SW};
+\foreach \src/\dst in {ui/defence, defence/soc, soc/llm, llm/mlsecops,
+                        mlsecops/security, security/novel, novel/data, data/system} {
+  \draw[-{Stealth[length=2mm]}, gray] (\src) -- (\dst);}
+\end{tikzpicture}
+\caption{High-level system architecture of RobustIDPS.ai showing all 9 functional groups and supporting infrastructure.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Functional Group Summary}
+Table~\ref{tab:groups} summarises the nine groups, their page counts, and key features.
+\begin{table}[H]
+\centering
+\caption{RobustIDPS.ai functional groups (46 pages across 9 groups).}
+\label{tab:groups}
+\small
+\begin{tabular}{@{}llcl@{}}
+\toprule
+\textbf{Group} & \textbf{Pages} & \textbf{Key Features} \\
+\midrule
+AI Command Center     & 5 & Dashboard, Upload, Analytics, Live Monitor, Alert Causality \\
+AI Active Defence     & 5 & Red Team, Threat Response, SOC Copilot, Federated, Attack Chain \\
+SOC Intelligence      & 6 & Auto-Investigate, Threat Hunt, Incidents, Threat Intel, Rules, CVE \\
+LLM Attack Surfaces   & 5 & Prompt Injection, Jailbreak, RAG, Multi-Agent, Data Poisoning \\
+MLSecOps Standards    & 3 & MITRE ATT\&CK, Alert Triage, Compliance Hub \\
+AI Security \& Gov    & 4 & PQ Crypto, Zero-Trust, Supply Chain, Research Hub \\
+AI Novel Methods      & 5 & Continual Learning, RL Agent, Adversarial, Explainability, Autoencoder \\
+AI Data \& Models     & 3 & Datasets, Models (13+), Ablation \\
+System                & 5 & Profile, Admin, Architecture, API Docs, About \\
+\midrule
+\textbf{Total}        & \textbf{46} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+The backend exposes 60+ API endpoints covering detection, analysis, LLM integration, user management, and system administration.  WebSocket channels provide sub-second push notifications for live monitoring, alert causality updates, and detection progress.  Docker Compose orchestration enables single-command deployment with environment-based configuration for development, staging, and production profiles.
+%% ================================================================
+%%  SECTION 3 --- DETECTION MODELS
+%% ================================================================
+\section{Detection Models}
+\label{sec:models}
+RobustIDPS.ai integrates more than 13 neural network architectures, each designed to address specific aspects of the intrusion detection problem.  Table~\ref{tab:model_performance} summarises performance across the primary evaluation metrics.
+
+\subsection{Model Descriptions}
+\begin{enumerate}[leftmargin=*,label=\textbf{\arabic*.}]
+  \item \textbf{SurrogateIDS (7-Branch Ensemble)} --- Seven parallel classifier branches with shared feature extraction, MC dropout ($T{=}20$) uncertainty quantification, and temperature-scaled calibration.
+  \item \textbf{CL-RL Unified} --- EWC continual learning with Constrained Policy Optimisation for joint detection and response, sharing Fisher information via $\beta{=}0.7$.
+  \item \textbf{CT-TGNN} --- Continuous-time temporal graph neural network modelling host-level communication dynamics with attention-based temporal aggregation.
+  \item \textbf{SDE-TGNN} --- Extends CT-TGNN with stochastic differential equations for continuous-time graph evolution under uncertainty.
+  \item \textbf{MambaShield} --- Mamba state-space architecture providing linear-time sequence processing for high-throughput flow classification.
+  \item \textbf{Stochastic Transformer} --- Transformer encoder with stochastic depth and MC dropout for calibrated uncertainty-aware detection.
+  \item \textbf{FedGTD} --- Byzantine-resilient federated model using geometric trimmed deviation aggregation, tolerating up to 30\% malicious participants.
+  \item \textbf{CyberSecLLM} --- Fine-tuned LLM for traffic classification with chain-of-thought reasoning, supporting Claude, GPT-4o, Gemini, DeepSeek, and Llama backends.
+  \item \textbf{Multi-Agent PQC-IDS} --- Four cooperative agents (Traffic Analyst, PQC Specialist, Anomaly Detector, Coordinator) with attention-weighted fusion for post-quantum traffic analysis.
+  \item \textbf{Neural ODE} --- Continuous-depth residual network using neural ordinary differential equations for adaptive computation based on input complexity.
+  \item \textbf{Optimal Transport} --- Wasserstein-distance-based classifier leveraging optimal transport theory for distribution-aware anomaly detection.
+  \item \textbf{Variational Autoencoder} --- Deep generative model for unsupervised anomaly detection via reconstruction error in latent space.
+  \item \textbf{Adversarial Autoencoder} --- Adversarial training with autoencoder reconstruction for robust feature learning under input perturbation.
+\end{enumerate}
+
+\subsection{Performance Summary}
+\begin{table}[H]
+\centering
+\caption{Detection model performance on the combined validation set (clean conditions). Accuracy and F1 are macro-averaged; ECE is expected calibration error; latency is per-flow on a single CPU core.}
+\label{tab:model_performance}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{F1} & \textbf{ECE} & \textbf{Latency} \\
+\midrule
+SurrogateIDS (7-Branch)   & 97.8\% & 0.976 & 0.031 & 0.8\,ms \\
+CL-RL Unified             & 96.8\% & 0.965 & 0.035 & 1.1\,ms \\
+CT-TGNN                   & 96.2\% & 0.958 & 0.049 & 1.2\,ms \\
+SDE-TGNN                  & 96.0\% & 0.955 & 0.038 & 1.4\,ms \\
+MambaShield               & 95.9\% & 0.954 & 0.042 & 0.5\,ms \\
+Stochastic Transformer    & 95.4\% & 0.949 & 0.078 & 1.8\,ms \\
+FedGTD                    & 95.1\% & 0.946 & 0.040 & 1.3\,ms \\
+CyberSecLLM               & 97.1\% & 0.965 & 0.025 & 6.8\,ms \\
+Multi-Agent PQC-IDS       & 94.3\% & 0.938 & 0.044 & 1.5\,ms \\
+Neural ODE                & 94.8\% & 0.938 & 0.049 & 8.7\,ms \\
+Optimal Transport         & 93.9\% & 0.930 & 0.052 & 3.4\,ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+MambaShield achieves the lowest per-flow latency (0.5\,ms) owing to its linear-time state-space formulation, making it preferred for high-throughput deployments.  CyberSecLLM achieves the lowest ECE (0.025) due to the calibration properties of language model probability outputs, though at higher latency.  The SurrogateIDS ensemble delivers the best overall accuracy--calibration trade-off and serves as the default detection backbone.
+%% ================================================================
+%%  SECTION 4 --- DETECTION CAPABILITIES
+%% ================================================================
+\section{Detection Capabilities}
+\label{sec:detection}
+\subsection{Attack Taxonomy}
+The platform classifies network traffic into 34 distinct classes: 1 benign class and 33 attack classes spanning reconnaissance (PortScan, Nmap), denial-of-service (DDoS, DoS GoldenEye, DoS Hulk, DoS Slowhttptest, DoS Slowloris), brute force (FTP-Patator, SSH-Patator), web attacks (XSS, SQL Injection, Brute Force), infiltration, heartbleed, botnet, and IoT-specific categories from CIC-IoT-2023.  The taxonomy is extensible: new classes can be registered via the admin interface without retraining the full model ensemble.
+
+\subsection{Feature Engineering}
+All models operate on a shared vector of 83 engineered features extracted from raw PCAP or pre-processed CSV files.  Features span five categories: flow-level statistics (duration, packet counts, byte counts), inter-arrival time distributions (mean, std, min, max), flag-based indicators (SYN, FIN, RST, PSH, ACK counts), payload statistics (segment sizes, header lengths), and derived ratios (bytes-per-packet, packets-per-second, flow IAT ratios).  Feature extraction is performed by a shared \texttt{FeatureExtractor} module using per-feature z-score standardisation fitted on the training distribution.
+
+\subsection{Training Datasets}
+Six datasets are supported for model training and evaluation:
+\begin{itemize}[leftmargin=*,nosep]
+  \item \textbf{CICIDS2017} --- 2.8M flows, 15 attack classes, primary benchmark.
+  \item \textbf{NSL-KDD} --- 148K records, 4 attack categories, cross-dataset generalisation.
+  \item \textbf{CIC-IoT-2023} --- 1.2M flows from IoT devices, 33 attack types.
+  \item \textbf{UNSW-NB15} --- 257K records, 9 attack categories, 49 features.
+  \item \textbf{CIC-DDoS-2019} --- 80M+ flows, volumetric and application-layer DDoS.
+  \item \textbf{PQC Traffic} --- Post-quantum handshake captures (DOI:~\texttt{10.34740/kaggle/dsv/15424420}).
+\end{itemize}
+%% ================================================================
+%%  SECTION 5 --- ADVERSARIAL ROBUSTNESS
+%% ================================================================
+\section{Adversarial Robustness}
+\label{sec:adversarial}
+Adversarial robustness evaluation is a first-class capability of RobustIDPS.ai, integrated directly into the AI Active Defence group.  Six attack families are implemented and systematically evaluated against all detection models.
+
+\subsection{Attack Implementations}
+\begin{enumerate}[leftmargin=*,label=\textbf{\arabic*.},nosep]
+  \item \textbf{FGSM} (Fast Gradient Sign Method) --- Single-step gradient perturbation, $\epsilon \in [0.005, 0.1]$.
+  \item \textbf{PGD} (Projected Gradient Descent) --- Iterative with $k \in \{10, 20, 40\}$ steps, $\alpha = \epsilon/4$, $\ell_\infty$ projection.
+  \item \textbf{C\&W} (Carlini--Wagner) --- Optimisation-based $\ell_2$ minimisation with binary search over confidence $c$.
+  \item \textbf{DeepFool} --- Minimal $\ell_2$ perturbation via iterative linearisation of the decision boundary.
+  \item \textbf{Gaussian Noise} --- Isotropic $\delta \sim \mathcal{N}(0, \sigma^2 I)$, $\sigma \in [0.01, 0.1]$, non-adversarial baseline.
+  \item \textbf{Label Masking} --- Poisoning attack corrupting training labels ($p \in [0.05, 0.30]$), targeting federated learning.
+\end{enumerate}
+
+\subsection{Robustness Results}
+Table~\ref{tab:adversarial} reports SurrogateIDS F1 under each attack at the standard budget ($\epsilon = 0.03$ for gradient attacks, $\sigma = 0.05$ for Gaussian, $p = 0.15$ for label masking).
+\begin{table}[H]
+\centering
+\caption{SurrogateIDS adversarial robustness (macro-averaged F1 score).}
+\label{tab:adversarial}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Attack} & \textbf{F1 (Standard)} & \textbf{F1 (fast\_mode)} \\
+\midrule
+Clean (no attack)        & 0.976 & 0.974 \\
+FGSM ($\epsilon=0.03$)   & 0.961 & 0.958 \\
+PGD-40 ($\epsilon=0.03$) & 0.948 & 0.944 \\
+C\&W ($\ell_2$)          & 0.952 & 0.949 \\
+DeepFool ($\ell_2$)      & 0.955 & 0.951 \\
+Gaussian ($\sigma=0.05$) & 0.968 & 0.966 \\
+Label Masking ($p=0.15$) & 0.941 & 0.938 \\
+\bottomrule
+\end{tabular}
+\end{table}
+Under PGD-40 ($\epsilon = 0.03$), the ensemble degrades by only 2.8 percentage points in F1, demonstrating the effectiveness of the unified Fisher information framework that jointly governs adversarial training and EWC continual learning regularisation.  The \texttt{fast\_mode} toggle incurs a negligible additional degradation of 0.2--0.4 points across all attacks.
+
+\subsection{Fast Mode Optimisation}
+The \texttt{fast\_mode} parameter controls a latency--robustness trade-off at inference time.  When enabled, MC dropout sampling is reduced from $T{=}20$ to $T{=}1$ (single forward pass), uncertainty estimates are replaced with point predictions, and temperature scaling is bypassed.  This reduces per-flow latency by approximately 60\% while maintaining F1 within 0.4\% of the standard configuration.  Throughput in fast mode exceeds 12,000 flows/s on a single CPU core, enabling real-time analysis of 10\,Gbps links with appropriate parallelisation.
+% === END SEGMENT 1 ===

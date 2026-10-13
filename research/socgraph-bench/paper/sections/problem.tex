@@ -1,0 +1,104 @@
+\section{Preliminaries and Problem Statement}
+\label{sec:problem}
+
+\subsection{Evidence graph}
+An \emph{evidence graph} is a directed, typed multigraph $G=(V,E,\tau_V,\tau_E,\phi)$. Each vertex $v\in V$
+is an entity (a process, file, registry key, network connection, user or host) with type
+$\tau_V(v)$ and properties $\phi(v)$, a map from field names to values (for a process: image path, command line,
+user, start time, hashes; for a file: path, signature status). Each edge $e=(u,w)\in E$ is a relation with type
+$\tau_E(e)$ (process creation, file write, file execution, registry write, network connect, process access,
+\dots) and properties $\phi(e)$ (timestamp, access mask, value written). Entity and relation identifiers are
+opaque strings. Windows and Linux use distinct type names where semantics differ (for example
+\tool{win\_process\_create} and \tool{linux\_process\_create}).
+
+\subsection{Alert and tools}
+An \emph{alert} $a=(t, s, T_V, T_E)$ has a title $t$, a summary $s$, trigger entities $T_V\subseteq V$ and
+optionally trigger relations $T_E\subseteq E$. The agent never sees $G$ directly. It interacts through a
+tool set $\Omega$ advertised by the runtime with each task:
+\begin{itemize}
+\item $\tool{get\_entity}(v)$ returns $\phi(v)$ and the identifiers of the relations incident to $v$;
+\item $\tool{get\_relation}(e)$ returns $\phi(e)$ and its endpoints;
+\item $\tool{search}(q,\text{scope},\text{window})$ returns a page of entities and relations whose
+identifier or properties contain the substring $q$, optionally restricted to a type and a time window;
+\item $\tool{finish\_investigation}(\sigma)$ submits a final answer $\sigma$ and ends the task.
+\end{itemize}
+Every call except a submission may carry a short free-text field describing what it checks. A
+\emph{submission} is either malicious, $\sigma=(\textsf{mal}, A, r)$ with response artifacts
+$A=\{(v_i,k_i)\}$ pairing an entity with a response kind $k_i$ (for example host to isolate, identity to
+rotate, persistence to remove, file to delete, network block, or an \emph{observed} kind for entities that
+need no action) and a summary $r$; or benign, $\sigma=(\textsf{ben}, L, r)$ with legitimacy evidence
+$L=\{(x_j,F_j)\}$ citing an entity or relation $x_j$ and the property fields $F_j$ that prove it legitimate.
+
+\subsection{Scoring}
+Let $y\in\{\textsf{mal},\textsf{ben}\}$ be the true verdict. For malicious tasks the ground truth contains a
+\emph{core} set $C\subseteq V$ that a complete response must name and an \emph{acceptable} set
+$C\subseteq A^\star\subseteq V\cup E$ of entities involved in the attack, which may be named without
+penalty. For benign tasks it contains anchors $\mathcal{L}$, each with the set $D(x)$ of its decisive
+property fields, and a \emph{neutral} set $N$ (the trigger's process lineage up to the highest anchor, its
+host and accounts) whose citation neither earns nor loses credit. Quality $Q\in[0,1]$ is
+\begin{equation}
+Q(\sigma)=\begin{cases}0 & \text{if the verdict is wrong,}\\ \tfrac12+\tfrac12\,S(\sigma) & \text{otherwise,}\end{cases}
+\end{equation}
+where for malicious submissions $S$ is the F1 score of
+\begin{equation}
+\text{rec}=\frac{1}{|C|}\sum_{v\in C}\kappa(v),\qquad
+\text{prec}=\frac{|\{v: (v,\cdot)\in A\}\cap A^\star|}{|\{v: (v,\cdot)\in A\}|},
+\end{equation}
+with $\kappa(v)=1$ if $v$ is named with a response kind that fits its type, $0.5$ if named with another
+kind, and $0$ if not named. For benign submissions,
+$S=\max\bigl(0,\ \frac{|\{x\in\mathcal L:\ \exists (x,F)\in L,\ F\cap D(x)\neq\emptyset\}|}{|\mathcal L|}-\tfrac12\pi\bigr)$,
+where $\pi=o/(h+o)$, with $h$ the number of anchors credited and $o$ the number of cited items outside
+$\mathcal L\cup N$. With $n$ tool calls and a task-specific
+optimum $n^\star$, efficiency and reward are
+\begin{equation}
+E=\min\!\left(1,\frac{n^\star+1}{n}\right),\qquad R=Q\,(0.8+0.2\,E).
+\end{equation}
+The scorer is ours; it follows the structure of the competition's published scoring (verdict and
+artifacts, penalised by wasted calls), but its exact weights are not the competition's.
+
+\subsection{Problem statement}
+Given an alert $a$ and the tools $\Omega$, an investigation agent is a policy that issues a sequence of tool
+calls and one submission. The objective is to maximise expected reward $\mathbb{E}[R]$ over a distribution of
+alerts, that is, to reach the correct verdict, name exactly the entities that need a response (or prove
+legitimacy with decisive evidence), and do so with few calls. Calls refused by the runtime, malformed calls
+and calls past the budget all count against efficiency or quality, which motivates resolving avoidable mistakes
+\emph{before} they reach the runtime.
+
+\subsection{Threat model}
+\label{sec:threat}
+A defender runs an investigation agent over endpoint provenance telemetry. For each alert the agent queries the
+evidence graph through the runtime's tools and returns a verdict with the entities that need a response, or
+the evidence that clears the alert.
+
+\paragraph{Adversary} An intruder with code execution on a monitored host, whose activity is under
+investigation. The intruder chooses what to run and how to name it: process and file names, command-line
+arguments, paths, account names and rule names are attacker-controlled strings in the telemetry. The intruder
+does not control the sensor, the graph builder, the runtime, the agent or the model, and cannot suppress
+recorded events. The goal is to be cleared (a false negative) or, failing that, to keep artefacts out of the
+response.
+
+\paragraph{Capabilities studied} We study the weakest useful adversary: one who renames attacker-chosen
+artefacts without changing behaviour (\S\ref{sec:variants}). This costs the intruder nothing and is common
+tradecraft. Changing the graph's structure to resemble benign activity~\cite{goyal2023mimicry}, planting
+instructions in telemetry for the agent to follow~\cite{greshake2023indirect}, and tampering with sensors are
+stronger adversaries and out of scope; renaming bounds what they would achieve from below.
+
+\paragraph{Evaluation confounders} Separately from the adversary, the recordings themselves carry label cues
+(dataset names, lab host names) that no real intrusion would. They threaten the validity of measured accuracy,
+not the defender, and are controlled for in the same way.
+
+\subsection{Research questions}
+\begin{itemize}
+\item[\textbf{RQ1}] \emph{Effectiveness.} How accurate are the agent's verdicts and responses, and how do
+false-positive and false-negative rates compare?
+\item[\textbf{RQ2}] \emph{Efficiency and cost.} How many tool calls, how much time and how many tokens does an
+investigation take, and where are calls wasted?
+\item[\textbf{RQ3}] \emph{Ablation.} How much does each local safeguard and the investigation method
+contribute to quality, efficiency and reward?
+\item[\textbf{RQ4}] \emph{Robustness.} Does performance hold across operating systems and on benign
+look-alikes that share an alert with an attack?
+\item[\textbf{RQ5}] \emph{Shortcuts and evasion.} Does the agent rely on label cues in the recordings or on
+attacker-chosen names, and how does it fare when they are removed or renamed without changing behaviour?
+\item[\textbf{RQ6}] \emph{Generality across models.} Do the findings hold for a second model from another
+provider, run by the same agent?
+\end{itemize}

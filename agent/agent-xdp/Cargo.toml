@@ -1,0 +1,33 @@
+[package]
+name = "agent-xdp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "RobustIDPS.ai XDP fast-path: kernel-level packet drop for blocked source IPs"
+
+[lib]
+name = "agent_xdp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "robustidps-xdp"
+path = "src/main.rs"
+
+[dependencies]
+aya.workspace = true
+aya-log.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+log.workspace = true
+env_logger.workspace = true
+clap.workspace = true
+ipnet.workspace = true
+
+[build-dependencies]
+anyhow.workspace = true
+
+[dev-dependencies]
+tokio = { version = "1.41", features = ["macros", "rt-multi-thread"] }

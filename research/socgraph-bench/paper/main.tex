@@ -1,0 +1,23 @@
+% SOCGraph manuscript, journal format (IEEEtran; e.g. IEEE TIFS / TDSC).
+% Compiles with pdfLaTeX + BibTeX (Overleaf default). The anonymous conference
+% version for IEEE SaTML / IEEE S&P is main-conference.tex; both share
+% preamble.tex and content.tex. For Elsevier journals see README.md.
+\documentclass[journal]{IEEEtran}
+
+\input{preamble}
+
+\begin{document}
+
+\title{\TitleText}
+
+\author{Roger~Nick~Anaedevha%
+\thanks{R.~N.~Anaedevha is with the National Research Nuclear University MEPhI, Moscow, Russia.}%
+\thanks{Code, benchmark and results: \url{https://github.com/<user>/socgraph-bench} (to be updated on release).}}
+
+\markboth{Manuscript submitted for review}{Anaedevha: Robust LLM Agents for Provenance-Graph Alert Triage}
+
+\maketitle
+
+\input{content}
+
+\end{document}

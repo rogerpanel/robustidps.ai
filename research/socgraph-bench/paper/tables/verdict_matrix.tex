@@ -1,0 +1,29 @@
+\begin{table}[t]\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\caption{Correct verdicts per task (out of three repeats) for each model and pack. Green: always correct; orange: wrong once; red: wrong in two or all three repeats.}
+\label{tab:verdictmatrix}
+\begin{tabular}{@{}llcccc@{}}\toprule
+Task & OS & \rotatebox{70}{Claude, v1.1} & \rotatebox{70}{Claude, mimicry} & \rotatebox{70}{GPT-6, v1.1} & \rotatebox{70}{GPT-6, mimicry}\\\midrule
+\multicolumn{6}{@{}l}{\emph{malicious tasks}}\\
+\texttt{lsass-dump-comsvcs} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{logon-script-persistence} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{service-binpath-hijack} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{red!25}1/3 & \cellcolor{red!50}0/3\\
+\texttt{hta-startup-folder} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{firewall-rule-added} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{red!50}0/3 & \cellcolor{red!50}0/3\\
+\texttt{python-http-server} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{red!25}1/3 & \cellcolor{red!50}0/3\\
+\texttt{bits-download} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{red!50}0/3 & \cellcolor{red!50}0/3\\
+\texttt{run-key-and-beacon} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{linux-shadow-read} & lin & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{linux-wiper-shred} & lin & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{linux-kernel-module} & lin & \cellcolor{green!20}3/3 & \cellcolor{orange!30}2/3 & \cellcolor{green!20}3/3 & \cellcolor{red!50}0/3\\
+\texttt{linux-account-created} & lin & \cellcolor{green!20}3/3 & \cellcolor{red!50}0/3 & \cellcolor{green!20}3/3 & \cellcolor{red!50}0/3\\
+\texttt{linux-sudoers-nopasswd} & lin & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{linux-ld-preload-hijack} & lin & \cellcolor{green!20}3/3 & \cellcolor{red!25}1/3 & \cellcolor{green!20}3/3 & \cellcolor{red!50}0/3\\
+\texttt{linux-service-stopped} & lin & \cellcolor{red!25}1/3 & \cellcolor{red!50}0/3 & \cellcolor{green!20}3/3 & \cellcolor{red!50}0/3\\
+\multicolumn{6}{@{}l}{\emph{benign tasks}}\\
+\texttt{lsass-query-by-svchost} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{w32time-runtime-key} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{gpsvc-service-host} & win & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{linux-dpkg-service-start} & lin & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{linux-motd-discovery} & lin & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\texttt{linux-motd-tmp-cleanup} & lin & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3 & \cellcolor{green!20}3/3\\
+\bottomrule\end{tabular}\end{table}

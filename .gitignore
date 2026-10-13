@@ -16,6 +16,9 @@ dist/
 *.swp
 *.swo
 
+# SSL certificates (generated per-server)
+deploy/ssl/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -24,3 +27,28 @@ deploy/ssl/
 
 # Weights are tracked (small enough for demo)
 # backend/weights/
+
+# Scaler pickles are auto-generated per sklearn version — never commit
+backend/weights/scaler_*.pkl
+
+# Runtime SQLite database
+backend/*.db
+
+# Large generated datasets (regenerate with sample_data/generate_pqc_dataset.py)
+sample_data/pqc_test_dataset.csv
+
+# ── Self-hosted mail (deploy/mail) — secrets + account DB + DKIM keys ──
+deploy/mail/.env.mail
+deploy/mail/cloudflare.ini
+deploy/mail/config/
+
+deploy/mail/*.last.log
+
+# Generated registration deposit listing — reproduce with
+#   python3 scripts/make-deposit-listing.py --pages 70 -o deposit-listing.txt
+# Not tracked: it is a redacted copy of the tree, so committing it would
+# duplicate the source inside itself and silently go stale as code changes.
+deposit-listing.txt
+
+# BlueSec Runs default trace mount (see docker-compose.prod.yml)
+bluesec_traces/
