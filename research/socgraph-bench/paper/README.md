@@ -37,6 +37,8 @@ them are generated; do not edit these files by hand:
 | `cue_trace_macros.tex`, `tables/cue_interface.tex` | `python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/cues/*/" --out paper --prefix TrCue --table cue_interface.tex --macros cue_trace_macros.tex` |
 | `trace_macros.tex`, `tables/safeguards.tex` | `python ../scripts/trace_stats.py --pack ../benchmark/socgraph-21-v1.1.zip --runs "../results/study/*/" --out .` (run from the repository root with `--out paper` so trace paths resolve) |
 | `sensitivity_macros.tex`, `tables/sensitivity.tex` | `python scripts/sensitivity.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper` (from the repository root) |
+| `models_macros.tex`, `tables/models.tex`, `tables/verdict_matrix.tex`, `data/models_*.csv` | `python scripts/model_compare.py ...` (see the repository README) |
+| `gpt_trace_macros.tex`, `tables/gpt_interface.tex` | `python scripts/trace_stats.py ... --runs "results/models/*/" --prefix TrGpt ...` |
 | `prompts/*.txt` | copied verbatim from `agent/robust/prompt.py` |
 
 ## Other templates

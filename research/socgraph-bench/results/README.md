@@ -5,8 +5,9 @@
 | `pilot-2026-10-10/` | first real-model run, 11 Windows tasks (see its README) |
 | `run1-2026-10-11-v1.0/` | study run 1 as scored on v1.0 (console output); superseded, kept for the record |
 | `study/` | the study runs scored on SOCGraph-21 v1.1: one folder per run (`r<repeat>-<configuration>`), each with the run's `summary.json` (repeat 1: the rescored summary) and `trace_folder` pointing into `traces/` |
+| `models/` | the same agent with a second model (GPT-6 astra, OpenAI Responses API, effort high): three repeats on v1.1 and on `mimicry` (RQ6) |
 | `cues/` | the full agent on the cue-controlled variants (`blind`, `mimicry`), three repeats each (RQ5) |
-| `traces/` | per-call traces of every run: the 18 study runs, the six rescored run-1 folders, an extra full run made before the study (20:19, not part of the protocol), the six cue-variant runs and the pilot; one JSON per task with every tool call, its stated purpose, the result, the submission and token use |
+| `traces/` | per-call traces of every run: the 18 study runs, the six rescored run-1 folders, an extra full run made before the study (20:19, not part of the protocol), the six cue-variant runs, the six second-model runs and the pilot; one JSON per task with every tool call, its stated purpose, the result, the submission and token use |
 
 ## Protocol
 
@@ -62,6 +63,13 @@ python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "resu
 python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/cues/*/" --out paper \
     --prefix TrCue --table cue_interface.tex --macros cue_trace_macros.tex
 python scripts/sensitivity.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
+python scripts/model_compare.py --pack benchmark/socgraph-21-v1.1.zip \
+    --run "Claude Opus 5.5|v1.1|results/study/r*-full/" \
+    --run "Claude Opus 5.5|mimicry|results/cues/*-full-mimicry/" \
+    --run "GPT-6 astra|v1.1|results/models/*-gpt-6-astra-v1.1/" \
+    --run "GPT-6 astra|mimicry|results/models/*-gpt-6-astra-mimicry/" --out paper
+python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/models/*/" --out paper \
+    --prefix TrGpt --table gpt_interface.tex --macros gpt_trace_macros.tex
 ```
 
 ## Cue-controlled variants (RQ5), done 2026-10-12
@@ -79,7 +87,7 @@ for v in blind mimicry; do
 done
 ```
 
-## Second model (planned): any OpenAI-compatible endpoint
+## Second model: any OpenAI-compatible endpoint
 
 The agent's `openai` provider talks to any OpenAI-compatible chat-completions
 endpoint that supports tool calling: a paid API (OpenAI, DeepSeek, ...) or an

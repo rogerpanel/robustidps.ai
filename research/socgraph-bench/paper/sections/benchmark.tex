@@ -2,9 +2,11 @@
 \label{sec:benchmark}
 
 \bench turns public attack recordings into investigation tasks in the form defined in \S\ref{sec:problem}.
-Fig.~\ref{fig:pipeline} shows the construction; Table~\ref{tab:tasks} lists the tasks.
+\ifconf\else Fig.~\ref{fig:pipeline} shows the construction; \fi Table~\ref{tab:tasks} lists the tasks.
 
+\ifconf\else
 \input{figures/pipeline}
+\fi
 
 \subsection{Sources and selection}
 We use two practitioner corpora recorded with real endpoint sensors. OTRF Security-Datasets~\cite{otrf_securitydatasets}
@@ -111,4 +113,6 @@ file per task (alert and graph, no answers), one answer file per task, and the u
 runtime serves the tasks through the same client interface as the competition runtime and scores
 submissions, so an agent runs on \bench unchanged.
 
+\ifconf\else
 \input{tables/tasks}
+\fi

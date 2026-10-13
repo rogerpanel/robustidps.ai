@@ -18,7 +18,10 @@ agent is right for the right reasons, we build cue-controlled variants of \bench
 answers. Removing label cues of the recordings changed nothing measurable, but renaming attacker-chosen
 artefacts without changing behaviour (\texttt{rootkit.ko} to \texttt{hidmon.ko}, \texttt{atomic\_user1} to
 \texttt{jsmith}) cut reward by \ResMimicryPairedReward{} and raised missed attacks from \ResCueBaseMissed{} to
-\ResMimicryMissed{}: on dual-use Linux behaviour the verdict rested on names the attacker chose. Traces also
+\ResMimicryMissed{}: on dual-use Linux behaviour the verdict rested on names the attacker chose. A second model
+from another provider reproduced the effect more strongly (\McGptBaseMissed{} attacks missed, then
+\McGptMimicryMissed{} under renaming) and read the recordings' test artefacts as evidence of authorised testing,
+the opposite of the first model. Traces also
 show a grounding check accepting identifiers of the wrong type and an efficiency instruction withholding an
 identifier the response needed.
 \else

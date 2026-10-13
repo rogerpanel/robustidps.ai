@@ -24,9 +24,12 @@ remain meaningful.
 \paragraph{Models and variance} The pilot is a single run with one model. LLM outputs vary between runs, and
 the study therefore uses three repeats per configuration; paired task-level intervals resolve reward
 differences of about $\pm0.02$ (excluding the unstable task, about $\pm0.01$). Smaller component effects would need more
-repeats or more tasks. All results are for one model at one effort level; the conclusion that the safeguards
-do not matter may not hold for weaker models, which is the next experiment the OpenAI-compatible driver
-enables.
+repeats or more tasks. The ablation uses one model at one effort level; a second model was run on \bench v1.1
+and \emph{mimicry} only, and in its runs the hard budget did act, so the conclusion that the safeguards do not
+matter is model-specific. Both models are closed and may change; the traces of every call are released.
+The verdicts carry no confidence value, so calibration metrics such as the expected calibration error cannot be
+computed; we report verdict stability across repeats instead, and eliciting calibrated confidence is future
+work.
 
 \paragraph{Training-data contamination and label cues} OTRF Security-Datasets and Splunk attack\_data are
 public, so models may have seen the raw recordings during training~\cite{sainz2023contamination}. The tasks

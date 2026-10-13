@@ -19,7 +19,9 @@ v1.0 (\S\ref{sec:experiments}); all \ResPairedRepeats{} repeats have per-task re
 
 \input{tables/results_ablation}
 \input{tables/results_effects}
+\ifconf\else
 \input{figures/ablation_plot}
+\fi
 
 \paragraph{Effectiveness (RQ1)} The full agent reached reward \ResFullReward{}\,$\pm$\,\ResFullRewardSd{},
 quality \ResFullQuality{} and verdict accuracy \ResFullAccuracy{}. No configuration judged a benign task
@@ -44,7 +46,9 @@ citing the session root above it (\texttt{sshd}, \texttt{dpkg}). Hence the const
 \texttt{linux-dpkg-service-start} and \texttt{linux-motd-discovery}: two of three anchors and two relation
 citations outside $\mathcal L\cup N$.
 
+\ifconf\else
 \input{tables/sensitivity}
+\fi
 
 Table~\ref{tab:sensitivity} rescores the full agent's \TrFullSubmissions{} submissions under alternative rules,
 without new model calls. Accepting hostnames raises Windows quality from \SensOfficialWindows{} to
@@ -65,7 +69,9 @@ loss. A task took \TrFullModelCalls{} model calls on average, with about \TrFull
 \TrFullCacheReadTok{} prompt tokens read from the cache; uncached input was negligible because the system
 prompt and tool definitions were cached. The hard cap of 30 calls was never reached (at most 22 in any run).
 
+\ifconf\else
 \input{tables/safeguards}
+\fi
 
 \paragraph{Ablation (RQ3): the method prompt} Replacing the investigation-method prompt with the minimal prompt
 is the only ablation with a consistent effect. The agent then used \ResNoMethodPairedCalls{} calls per task more
@@ -115,6 +121,9 @@ script from the run folders, and this subsection will report them.
 
 \subsection{Shortcuts and evasion (RQ5)}
 \label{sec:cues}
+% The model comparison (RQ6) floats are declared here so that they are placed within the body.
+\input{tables/models}
+\input{figures/models_fig}
 The study's traces show that the agent does read label cues. Of the \TrAllSubmissions{} submissions,
 \TrAllSourceCue{} (\TrAllSourceCuePct\%) justify the verdict partly by the source recording, calling the
 activity a simulation or naming the attack dataset from the alert's source field. Most of these are correct
@@ -166,6 +175,44 @@ The runs on the \emph{blind} and \emph{mimicry} variants (\S\ref{sec:variants}) 
 \fi
 
 \ifconf\else
+\subsection{A second model (RQ6)}
+\label{sec:models}
+
+Table~\ref{tab:models} and Fig.~\ref{fig:models} compare the two models under the same agent.
+
+\paragraph{Neither model raises false alarms; both clear attacks} Specificity was 1.0 in every run: no model
+called a benign task malicious. All errors are attacks cleared as benign, the costly direction for a SOC.
+
+\paragraph{The second model misses more attacks, for a different reason} On \bench v1.1, \McModelB{} missed
+\McGptBaseMissed{} attacks against \McClaudeBaseMissed{} for \McModelA{} (Fisher exact test \McMissP{}),
+with recall \McGptBaseRecall{} against \McClaudeBaseRecall{} and MCC \McGptBaseMcc{} against
+\McClaudeBaseMcc{}. The paired difference in reward, \McDiffRewardBase{} (95\% CI \McDiffRewardBaseCI{}),
+is concentrated in four Windows tasks (\ifconf per-task verdicts are in the artifact\else Table~\ref{tab:verdictmatrix}\fi). The traces give the reason: in
+\McGptBaseCueMisses{} of its misses, \McModelB{} justified the benign verdict by test artefacts, for example
+a firewall rule named ``atomic testing'' added and deleted seconds later (``consistent with a controlled
+firewall test, not an attack'') or a service binary path set to print \texttt{T1543.003 Test} and then
+restored. The first model read the same artefacts as attack evidence (``the account name matches Atomic Red
+Team test tooling''). One label cue, opposite conclusions: whether a recorded technique test counts as an
+attack is a judgement the telemetry does not settle, and models settle it differently.
+
+\paragraph{Renaming hurts the second model more} Under \emph{mimicry}, \McModelB{} missed
+\McGptMimicryMissed{} attacks (recall \McGptMimicryRecall{}; against its own v1.1 runs, \McGptMimicryMissP{}),
+including the dual-use Linux tasks the first model also missed and Windows tasks it did not. The drop in reward,
+\McGptMimicryDrop{} (95\% CI \McGptMimicryDropCI{}), exceeds the first model's \McClaudeMimicryDrop{} by
+\McDiD{} (difference in differences, 95\% CI \McDiDCI{}). The second model's verdicts on \emph{mimicry} were
+identical in all three repeats (stability \McGptMimicryStable{}): the misses are systematic, not noise.
+
+\paragraph{Cost and interface} \McModelB{} used more tool calls (\McGptBaseCalls{} against \McClaudeBaseCalls{}
+per task, efficiency \McGptBaseEfficiency{} against \McClaudeBaseEfficiency{}) but fewer output tokens
+(\McGptBaseOutTokens{} against \McClaudeBaseOutTokens{}). Unlike the first model, it named hosts by their
+entity identifier in every report, so the hostname loss of \S\ref{sec:study} is specific to the first model and
+its prompt; and the hard budget refused \TrGptFullMimicryGptAstraBudgetTime{} calls in investigations that
+ran past 30 calls under \emph{mimicry}, a safeguard that never fired for the first model.
+
+\ifconf\else
+\input{tables/verdict_matrix}
+\fi
+
 \subsection{Engineering observations}
 \label{sec:engineering}
 \input{sections/engineering}

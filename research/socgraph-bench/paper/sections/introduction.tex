@@ -72,7 +72,10 @@ left performance unchanged, but renaming attacker-chosen artefacts without chang
 attacks from \ResCueBaseMissed{} to \ResMimicryMissed{} and cut reward by \ResMimicryPairedReward{}
 (95\% CI \ResMimicryPairedRewardCI{}). On dual-use Linux behaviour (creating an account, loading a self-built
 kernel module, preloading a library) the agent's verdict rested on names; a renaming intruder, the cheapest
-evasion there is, was cleared.
+evasion there is, was cleared. A second model under the same agent missed more attacks on the original
+benchmark (\McGptBaseMissed{} against \McClaudeBaseMissed{}) and lost significantly more under renaming
+(difference in differences \McDiD{}, 95\% CI \McDiDCI{}), and its traces show the same label cue read in the
+opposite direction.
 \fi
 \item \textbf{An open, reproducible release.} Agent, benchmark, traces of every tool call, and the script that
 regenerates all tables and plots from run folders\ifconf{} (\ArtifactURL)\fi.
