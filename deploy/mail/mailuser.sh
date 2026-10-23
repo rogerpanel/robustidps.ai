@@ -26,7 +26,7 @@ red()   { printf '\033[31m%s\033[0m\n' "$*"; }
 green() { printf '\033[32m%s\033[0m\n' "$*"; }
 bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 [[ $# -ge 1 ]] || usage 1
 [[ ${EUID:-$(id -u)} -eq 0 ]] || { red "Run with sudo: sudo bash $0 $*"; exit 1; }
