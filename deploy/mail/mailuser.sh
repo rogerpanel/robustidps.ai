@@ -7,6 +7,7 @@
 #   add     <user>            create a mailbox (prompts for a password,
 #                             or press Enter to generate a strong one)
 #   passwd  <user>            set a new password for an existing mailbox
+#   check   <user>            test a password against a mailbox (prompts)
 #   delete  <user>            remove a mailbox and all of its mail
 #   alias   <from> <to>       deliver <from> into the <to> mailbox
 #   aliases                   list every alias
@@ -49,17 +50,20 @@ exists() {
     awk -F'|' -v a="$1" '$1 == a { f = 1 } END { exit !f }' "$ACCOUNTS_FILE"
 }
 
+# Called as pw=$(read_password): only the password itself may go to stdout.
+# Every message goes to stderr; an earlier version echoed newlines and the
+# "Generated" lines to stdout, so they became part of the stored password.
 read_password() {
   local p1 p2
-  read -rsp "  Password (Enter to generate one): " p1; echo
+  read -rsp "  Password (Enter to generate one): " p1; echo >&2
   if [[ -z $p1 ]]; then
     p1=$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)
-    green "  Generated: $p1"
-    echo   "  Copy it now — it is not stored anywhere retrievable."
+    green "  Generated: $p1" >&2
+    echo   "  Copy it now — it is not stored anywhere retrievable." >&2
   else
-    read -rsp "  Confirm password: " p2; echo
-    [[ $p1 == "$p2" ]] || { red "  Passwords do not match."; return 1; }
-    [[ ${#p1} -ge 8 ]] || { red "  Use at least 8 characters."; return 1; }
+    read -rsp "  Confirm password: " p2; echo >&2
+    [[ $p1 == "$p2" ]] || { red "  Passwords do not match." >&2; return 1; }
+    [[ ${#p1} -ge 8 ]] || { red "  Use at least 8 characters." >&2; return 1; }
   fi
   printf '%s' "$p1"
 }
@@ -98,6 +102,18 @@ case $cmd in
     docker exec "$CONTAINER" setup email update "$addr" "$pw" >/dev/null
     green "Password changed for $addr"
     echo "  Existing sessions stay signed in until they sign out."
+    ;;
+
+  check)
+    [[ $# -ge 1 ]] || { red "Usage: $0 check <user>"; exit 1; }
+    addr=$(qualify "$1")
+    exists "$addr" || { red "$addr does not exist."; exit 1; }
+    read -rsp "  Password to test for $addr: " pw; echo
+    if docker exec "$CONTAINER" doveadm auth test "$addr" "$pw" >/dev/null 2>&1; then
+      green "Password is correct for $addr"
+    else
+      red "Password is NOT accepted for $addr"; exit 1
+    fi
     ;;
 
   delete)
