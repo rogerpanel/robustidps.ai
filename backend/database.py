@@ -43,6 +43,9 @@ class User(Base):
     preferred_model = Column(String(50), default="surrogate")  # Default IDS model for all pages
     timezone = Column(String(50), default="UTC")  # User's timezone for timestamp display
     orcid = Column(String(25), default="")  # ORCID identifier (e.g., 0000-0002-1825-0097)
+    # False only for self-registered accounts whose address is not yet confirmed.
+    # NULL (rows created before this column existed) counts as verified.
+    email_verified = Column(Boolean, default=True, nullable=True)
 
     jobs = relationship("Job", back_populates="user")
     audit_logs = relationship("AuditLog", back_populates="user")

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ShieldCheck, LogIn, UserPlus, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ShieldCheck, LogIn, UserPlus, Eye, EyeOff, AlertCircle, CheckCircle2, MailCheck } from 'lucide-react'
 import ThemeToggle from '../components/ThemeToggle'
 import { setAuth, type AuthUser } from '../utils/auth'
 import { setSessionId, broadcastLogin } from '../utils/sessionManager'
@@ -27,11 +27,51 @@ export default function Login({ onLogin }: Props) {
   const [useCase, setUseCase] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(false)
+  const [registrationOpen, setRegistrationOpen] = useState(false)
+  const [canResend, setCanResend] = useState(false)
+
+  // Is self-registration open? And are we arriving from a confirmation link (/?verified=...)?
+  useEffect(() => {
+    fetch(`${API}/api/auth/registration`)
+      .then((r) => (r.ok ? r.json() : { mode: 'closed' }))
+      .then((d) => setRegistrationOpen(d.mode === 'verify'))
+      .catch(() => setRegistrationOpen(false))
+    const verified = new URLSearchParams(window.location.search).get('verified')
+    if (verified) {
+      if (verified === '1') setNotice('Your e-mail address is confirmed. You can sign in now.')
+      else if (verified === 'expired') { setError('This confirmation link has expired. Sign in to request a new one.'); setCanResend(true) }
+      else setError('This confirmation link is not valid. Sign in to request a new one.')
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
+
+  const resend = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch(`${API}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.detail || `Error ${res.status}`)
+      setNotice(data.detail || 'If the account is waiting for confirmation, a new link is on its way.')
+      setCanResend(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send the e-mail')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setNotice('')
+    setCanResend(false)
     setLoading(true)
 
     try {
@@ -49,18 +89,13 @@ export default function Login({ onLogin }: Props) {
           }),
         })
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}))
-          throw new Error(data.detail || `Error ${res.status}`)
-        }
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) throw new Error(data.detail || `Error ${res.status}`)
 
-        const data = await res.json()
-        setAuth(data.access_token, data.user as AuthUser)
-        if (data.session_id) {
-          setSessionId(data.session_id)
-          broadcastLogin(data.access_token, data.user as AuthUser, data.session_id)
-        }
-        onLogin()
+        // Account created but not yet confirmed: the user signs in after opening the mailed link.
+        setNotice(data.detail || 'Check your e-mail for a confirmation link, then sign in.')
+        setPassword('')
+        setIsRegister(false)
       } else {
         // Login
         const form = new URLSearchParams()
@@ -74,7 +109,9 @@ export default function Login({ onLogin }: Props) {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
-          throw new Error(data.detail || `Error ${res.status}`)
+          const detail = String(data.detail || `Error ${res.status}`)
+          if (res.status === 403 && detail.startsWith('Email not confirmed')) setCanResend(true)
+          throw new Error(detail)
         }
 
         const data = await res.json()
@@ -95,6 +132,8 @@ export default function Login({ onLogin }: Props) {
   const toggleMode = () => {
     setIsRegister(!isRegister)
     setError('')
+    setNotice('')
+    setCanResend(false)
   }
 
   return (
@@ -122,10 +161,29 @@ export default function Login({ onLogin }: Props) {
             {isRegister ? 'Create Account' : 'Sign In'}
           </h2>
 
+          {notice && (
+            <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              {notice}
+            </div>
+          )}
+
           {error && (
-            <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
+            <div className="mb-4 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {error}
+              </div>
+              {canResend && registrationOpen && email && (
+                <button
+                  type="button"
+                  onClick={resend}
+                  disabled={loading}
+                  className="mt-2 inline-flex items-center gap-1.5 text-accent-blue hover:underline font-medium disabled:opacity-50"
+                >
+                  <MailCheck className="w-4 h-4" /> Send a new confirmation link to {email}
+                </button>
+              )}
             </div>
           )}
 
@@ -234,7 +292,9 @@ export default function Login({ onLogin }: Props) {
           </form>
 
           <p className="mt-4 text-center text-sm text-text-secondary">
-            {isRegister ? (
+            {!registrationOpen && !isRegister ? (
+              <>Accounts are created by the administrator. Contact support@robustidps.ai for access.</>
+            ) : isRegister ? (
               <>
                 Already have an account?{' '}
                 <button onClick={toggleMode} className="text-accent-blue hover:underline font-medium">

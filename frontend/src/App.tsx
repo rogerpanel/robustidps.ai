@@ -328,7 +328,8 @@ export default function App() {
   const [ethicalAccepted, setEthicalAccepted] = useState(false)
   const [showPolicyViewer, setShowPolicyViewer] = useState(false)
   const [demoMode, setDemoMode] = useState(false)
-  const [showLogin, setShowLogin] = useState(false)
+  // Arriving from an e-mail confirmation link (/?verified=...) opens the sign-in form directly.
+  const [showLogin, setShowLogin] = useState(() => new URLSearchParams(window.location.search).has('verified'))
   const { loading: analysisRunning, clearResults } = useAnalysis()
   const location = useLocation()
 

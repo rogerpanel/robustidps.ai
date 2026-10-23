@@ -136,31 +136,16 @@ class TestBruteForceProtection:
 class TestAuthEndpoints:
     """Integration tests for auth API endpoints."""
 
-    def test_register_new_user(self, client):
+    def test_register_closed_by_default(self, client):
+        # Self-registration is off unless REGISTRATION_MODE=verify and SMTP are configured;
+        # the flow itself is covered in test_p0_registration.py.
         resp = client.post("/api/auth/register", json={
             "email": "new@test.com",
             "password": "NewUser1!x",
             "full_name": "New User",
         })
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "access_token" in data
-        assert data["user"]["email"] == "new@test.com"
-
-    def test_register_duplicate_email(self, client):
-        client.post("/api/auth/register", json={
-            "email": "dup@test.com", "password": "DupUser1!x",
-        })
-        resp = client.post("/api/auth/register", json={
-            "email": "dup@test.com", "password": "DupUser1!x",
-        })
-        assert resp.status_code == 400
-
-    def test_register_weak_password(self, client):
-        resp = client.post("/api/auth/register", json={
-            "email": "weak@test.com", "password": "123",
-        })
-        assert resp.status_code == 400
+        assert resp.status_code == 403
+        assert client.get("/api/auth/registration").json() == {"mode": "closed"}
 
     def test_login_success(self, client, admin_user):
         resp = client.post("/api/auth/login", data={
@@ -193,13 +178,6 @@ class TestAuthEndpoints:
             "Authorization": "Bearer invalid-token"
         })
         assert resp.status_code == 401
-
-    def test_first_user_becomes_admin(self, client):
-        resp = client.post("/api/auth/register", json={
-            "email": "first@test.com", "password": "FirstUser1!x",
-        })
-        assert resp.status_code == 200
-        assert resp.json()["user"]["role"] == "admin"
 
 
 class TestRBAC:

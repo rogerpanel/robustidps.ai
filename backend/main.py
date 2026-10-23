@@ -16,7 +16,7 @@ Endpoints:
   GET    /api/health              Health check
   WS     /ws/stream               WebSocket: stream predictions row-by-row
   GET    /metrics                 Prometheus metrics
-  POST   /api/auth/register       (Disabled — returns 403)
+  POST   /api/auth/register       Self-registration with e-mail confirmation (REGISTRATION_MODE=verify)
   POST   /api/auth/login          Login, returns JWT
   GET    /api/auth/me             Current user info
   GET    /api/audit/logs          Audit trail (admin)

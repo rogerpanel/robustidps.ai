@@ -8,7 +8,10 @@ Roles:
 """
 
 import datetime
+import hashlib
+import html
 import logging
+import os
 import random
 import re
 import string
@@ -19,6 +22,7 @@ from typing import Optional
 import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -26,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from config import SECRET_KEY, JWT_ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from database import get_db, User
+from mailer import MailError, mail_configured, send_mail
 
 logger = logging.getLogger("robustidps.auth")
 
@@ -131,6 +136,7 @@ class UserResponse(BaseModel):
     created_at: datetime.datetime
     robust_id: str = ""
     preferred_model: str = "surrogate"
+    email_verified: bool = True
 
 
 class Token(BaseModel):
@@ -175,9 +181,14 @@ def get_current_user(
         email: str = payload.get("sub")
         if email is None:
             return None
+        if payload.get("purpose"):
+            return None  # single-purpose tokens (e-mail confirmation) never authenticate
     except jwt.PyJWTError:
         return None
-    return db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is not None and user.email_verified is False:
+        return None
+    return user
 
 
 def require_auth(user: Optional[User] = Depends(get_current_user)) -> User:
@@ -215,42 +226,198 @@ def _user_response(u: User) -> UserResponse:
         created_at=u.created_at,
         robust_id=getattr(u, 'robust_id', '') or "",
         preferred_model=getattr(u, 'preferred_model', 'surrogate') or "surrogate",
+        email_verified=getattr(u, 'email_verified', True) is not False,
     )
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
-@router.post("/register", response_model=Token)
-def register(body: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user account (public self-registration)."""
-    # Registration is disabled in production — admin creates accounts directly
-    raise HTTPException(status_code=403, detail="Registration is disabled. Contact your administrator for access.")
+# ── Self-registration with e-mail confirmation ──────────────────────────
+#
+# REGISTRATION_MODE=closed (default): only admins create accounts.
+# REGISTRATION_MODE=verify: anyone may register; the account can sign in
+# once the link mailed to the address has been opened. Needs SMTP_* (mailer.py).
 
-    existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+VERIFY_TOKEN_HOURS = 24
+_EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
+_PENDING_MESSAGE = ("If this address can be registered, we have sent a confirmation link to it. "
+                    "Open the link within 24 hours, then sign in.")
+_register_hits: dict[str, list[float]] = defaultdict(list)   # client ip -> times
+_mail_hits: dict[str, list[float]] = defaultdict(list)       # e-mail -> times
 
+
+def _registration_mode() -> str:
+    mode = os.getenv("REGISTRATION_MODE", "closed").strip().lower()
+    return "verify" if mode == "verify" and mail_configured() else "closed"
+
+
+def _registration_role() -> str:
+    role = os.getenv("REGISTRATION_ROLE", "viewer").strip().lower()
+    return role if role in ("viewer", "analyst") else "viewer"
+
+
+def _public_base_url() -> str:
+    return os.getenv("PUBLIC_BASE_URL", "https://robustidps.ai").rstrip("/")
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("CF-Connecting-IP") or request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def _allow(store: dict[str, list[float]], key: str, limit: int, window: float) -> bool:
+    """Sliding-window limiter; records the hit when allowed."""
+    now = time.time()
+    hits = [t for t in store.get(key, []) if t > now - window]
+    if len(hits) >= limit:
+        store[key] = hits
+        return False
+    hits.append(now)
+    store[key] = hits
+    return True
+
+
+def _mail_allowed(email: str) -> bool:
+    """At most one mail per address per minute and five per day."""
+    recent = [t for t in _mail_hits.get(email, []) if t > time.time() - 60]
+    if recent:
+        return False
+    return _allow(_mail_hits, email, 5, 24 * 3600)
+
+
+# Confirmation links are signed with a key derived for that purpose only, so no
+# decoder of login tokens (here, in main.py, in plugins) can ever accept one.
+_VERIFY_KEY = hashlib.sha256(f"{SECRET_KEY}:verify-email".encode()).hexdigest()
+
+
+def create_verification_token(email: str) -> str:
+    expire = datetime.datetime.utcnow() + datetime.timedelta(hours=VERIFY_TOKEN_HOURS)
+    return jwt.encode({"sub": email, "purpose": "verify-email", "exp": expire},
+                      _VERIFY_KEY, algorithm=JWT_ALGORITHM)
+
+
+def _send_verification(user: User) -> None:
+    link = f"{_public_base_url()}/api/auth/verify-email?token={create_verification_token(user.email)}"
+    name = user.full_name or "there"
+    text = (f"Hello {name},\n\n"
+            f"Confirm your RobustIDPS.ai account by opening this link within {VERIFY_TOKEN_HOURS} hours:\n\n"
+            f"{link}\n\n"
+            "If you did not register, ignore this message; the account stays inactive.\n\n"
+            "RobustIDPS.ai")
+    html_body = (f"<p>Hello {html.escape(name)},</p>"
+                 f"<p>Confirm your RobustIDPS.ai account by opening this link within {VERIFY_TOKEN_HOURS} hours:</p>"
+                 f'<p><a href="{html.escape(link)}">Confirm my e-mail address</a></p>'
+                 "<p>If you did not register, ignore this message; the account stays inactive.</p>"
+                 "<p>RobustIDPS.ai</p>")
+    send_mail(user.email, "Confirm your RobustIDPS.ai account", text, html_body)
+
+
+def _pending_response() -> JSONResponse:
+    return JSONResponse(status_code=202, content={"status": "pending", "detail": _PENDING_MESSAGE})
+
+
+@router.get("/registration")
+def registration_info():
+    """Whether self-registration is open (the sign-in page shows or hides 'Register')."""
+    return {"mode": _registration_mode()}
+
+
+@router.post("/register", status_code=202)
+def register(body: UserCreate, request: Request, db: Session = Depends(get_db)):
+    """Self-registration: creates an unconfirmed account and mails a confirmation link."""
+    if _registration_mode() != "verify":
+        raise HTTPException(status_code=403, detail="Registration is disabled. Contact your administrator for access.")
+    if not _allow(_register_hits, _client_ip(request), 10, 3600) or not _allow(_register_hits, "*", 100, 3600):
+        raise HTTPException(status_code=429, detail="Too many registration attempts. Try again later.")
+
+    email = body.email.strip().lower()
+    if not _EMAIL_RE.match(email) or len(email) > 255:
+        raise HTTPException(status_code=400, detail="Enter a valid e-mail address")
     validate_password_strength(body.password)
-
     if body.use_case and body.use_case not in USE_CASE_OPTIONS:
         raise HTTPException(status_code=400, detail="Invalid use case selection")
 
+    existing = db.execute(select(User).where(func.lower(User.email) == email)).scalar_one_or_none()
+    if existing:
+        # Same answer whether or not the address is taken, so the form cannot be used to
+        # discover accounts. An unconfirmed account gets a fresh link; its password is not
+        # changed (otherwise anyone could set the password of an account its owner then confirms).
+        if existing.email_verified is False and _mail_allowed(email):
+            try:
+                _send_verification(existing)
+            except MailError:
+                pass
+        return _pending_response()
+
     user = User(
-        email=body.email,
+        email=email,
         password_hash=hash_password(body.password),
-        full_name=body.full_name,
-        organization=body.organization,
+        full_name=body.full_name.strip()[:255],
+        organization=body.organization.strip()[:255],
         use_case=body.use_case,
-        role="viewer",  # public registrations get viewer role by default
+        role=_registration_role(),
+        is_active=True,
+        email_verified=False,
     )
     user.robust_id = _generate_robust_id(db)
     db.add(user)
+    db.flush()
+    _mail_allowed(email)
+    try:
+        _send_verification(user)
+    except MailError:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="We could not send the confirmation e-mail right now. "
+                                                    "Please try again in a few minutes.")
     db.commit()
-    db.refresh(user)
+    logger.info("New registration (unconfirmed): %s (role=%s)", email, user.role)
+    return _pending_response()
 
-    logger.info("New user registered: %s (role=viewer)", user.email)
-    token = create_access_token({"sub": user.email, "role": user.role})
-    return Token(access_token=token, user=_user_response(user))
+
+@router.get("/verify-email")
+def verify_email(token: str = "", db: Session = Depends(get_db)):
+    """Target of the link in the confirmation mail; redirects to the sign-in page."""
+    try:
+        payload = jwt.decode(token, _VERIFY_KEY, algorithms=[JWT_ALGORITHM])
+        if payload.get("purpose") != "verify-email":
+            raise jwt.InvalidTokenError("wrong purpose")
+        email = str(payload.get("sub", ""))
+    except jwt.ExpiredSignatureError:
+        return RedirectResponse("/?verified=expired", status_code=303)
+    except jwt.PyJWTError:
+        return RedirectResponse("/?verified=invalid", status_code=303)
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is None:
+        return RedirectResponse("/?verified=invalid", status_code=303)
+    if user.email_verified is False:
+        user.email_verified = True
+        db.commit()
+        logger.info("E-mail confirmed: %s", email)
+    return RedirectResponse("/?verified=1", status_code=303)
+
+
+class ResendBody(BaseModel):
+    email: str
+
+
+@router.post("/resend-verification", status_code=202)
+def resend_verification(body: ResendBody, request: Request, db: Session = Depends(get_db)):
+    """Mail a new confirmation link to an unconfirmed account (same answer for any address)."""
+    if _registration_mode() != "verify":
+        raise HTTPException(status_code=403, detail="Registration is disabled. Contact your administrator for access.")
+    if not _allow(_register_hits, _client_ip(request), 10, 3600):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+    email = body.email.strip().lower()
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if user is not None and user.email_verified is False and _mail_allowed(email):
+        try:
+            _send_verification(user)
+        except MailError:
+            raise HTTPException(status_code=503, detail="We could not send the e-mail right now. "
+                                                        "Please try again in a few minutes.")
+    return _pending_response()
 
 
 class LoginResponse(BaseModel):
@@ -276,6 +443,9 @@ def login(
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
+    if user.email_verified is False:
+        raise HTTPException(status_code=403, detail="Email not confirmed. Open the link we sent to your "
+                                                    "address, or request a new one.")
 
     _clear_failed_attempts(form.username)
     user.last_login = datetime.datetime.utcnow()
@@ -384,6 +554,22 @@ def toggle_active(
     target.is_active = active
     db.commit()
     logger.info("Admin %s set user %s active=%s", admin.email, target.email, active)
+    return {"ok": True, "user": _user_response(target)}
+
+
+@router.patch("/users/{user_id}/confirm-email")
+def confirm_email(
+    user_id: int,
+    admin: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Mark a self-registered account's address as confirmed (admin only)."""
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    target.email_verified = True
+    db.commit()
+    logger.info("Admin %s confirmed e-mail of %s", admin.email, target.email)
     return {"ok": True, "user": _user_response(target)}
 
 
