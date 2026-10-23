@@ -316,6 +316,30 @@ const NAV_GROUPS: NavGroup[] = [
 
 // Identify which groups are "operations" (left sidebar) vs "research" (right sidebar on mobile)
 const LEFT_GROUPS = ['AI Command Center', 'AI Data & Models', 'AI Active Defence', 'UAV / Aerial Defense', 'SOC Intelligence', 'System']
+/** How specifically a nav target matches the current location (0 = no match).
+ *  Path segments must match whole ("/research" does not match "/research-hub"),
+ *  and a target with a query (e.g. /dossier?vertical=uav) also needs that query. */
+function navMatchScore(to: string, pathname: string, search: string): number {
+  const [path, query] = to.split('?')
+  const hit = path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(path + '/')
+  if (!hit) return 0
+  if (query) {
+    const want = new URLSearchParams(query)
+    const have = new URLSearchParams(search)
+    for (const [k, v] of want) if (have.get(k) !== v) return 0
+    return path.length + 1
+  }
+  return path.length
+}
+
+/** Nav targets with other nav targets under them ("/uav", "/agent-studio"): highlight
+ *  them only on their own page, not on every sub-page. */
+const PARENT_TARGETS = new Set(
+  NAV_GROUPS.flatMap((g) => g.items.map((n) => n.to)).filter((to, _i, all) =>
+    all.some((other) => other !== to && other.startsWith(to + '/')),
+  ),
+)
+
 const RIGHT_GROUPS = ['AI Novel Methods', 'LLM Attack Surfaces', 'Agent Studio (Build)', 'Agent Security (Defend)', 'MLSecOps Standards', 'AI Security & Gov', 'Industry & Research']
 
 export default function App() {
@@ -366,16 +390,19 @@ export default function App() {
     })
   }, [])
 
-  // Find current breadcrumb: Group > Page
+  // Find current breadcrumb: Group > Page. The most specific item wins, so
+  // /agent-studio/red-team belongs to "Red Team Automation" (Agent Security),
+  // not to the "/agent-studio" portal entry listed earlier.
   const breadcrumb = useMemo(() => {
+    let best: { group: string; page: string; score: number } | null = null
     for (const group of NAV_GROUPS) {
-      const item = group.items.find((n) =>
-        n.to === '/' ? location.pathname === '/' : location.pathname.startsWith(n.to),
-      )
-      if (item) return { group: group.heading, page: item.label }
+      for (const n of group.items) {
+        const score = navMatchScore(n.to, location.pathname, location.search)
+        if (score > 0 && (!best || score > best.score)) best = { group: group.heading, page: n.label, score }
+      }
     }
-    return null
-  }, [location.pathname])
+    return best ? { group: best.group, page: best.page } : null
+  }, [location.pathname, location.search])
 
   // Auto-expand group containing the active page
   useEffect(() => {
@@ -550,7 +577,9 @@ export default function App() {
           <div key={group.heading} className="mb-1">
             <button
               onClick={() => toggleGroup(group.heading)}
-              className={`w-full flex items-center gap-1.5 px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+              aria-expanded={!isCollapsed}
+              title={isCollapsed ? `Show ${visibleItems.length} pages` : 'Hide these pages'}
+              className={`w-full flex items-center gap-1.5 px-3 pt-4 pb-1.5 text-left text-[10px] font-semibold uppercase tracking-wider transition-colors ${
                 isActiveGroup
                   ? group.heading === 'LLM Attack Surfaces' ? 'text-accent-orange/70' : 'text-accent-blue/70'
                   : 'text-text-secondary/50 hover:text-text-secondary/80'
@@ -561,7 +590,10 @@ export default function App() {
               ) : (
                 <ChevronDown className="w-3 h-3 shrink-0" />
               )}
-              {group.heading}
+              <span className="flex-1">{group.heading}</span>
+              {isCollapsed && (
+                <span className="normal-case tracking-normal font-normal">{visibleItems.length} pages</span>
+              )}
             </button>
             {!isCollapsed && (
               <div className="space-y-0.5">
@@ -569,10 +601,10 @@ export default function App() {
                   <NavLink
                     key={n.to}
                     to={n.to}
-                    end={n.to === '/'}
+                    end={n.to === '/' || PARENT_TARGETS.has(n.to)}
                     className={({ isActive }) =>
                       `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isActive
+                        isActive && (!n.to.includes('?') || navMatchScore(n.to, location.pathname, location.search) > 0)
                           ? group.heading === 'LLM Attack Surfaces'
                             ? 'bg-accent-orange/15 text-accent-orange'
                             : 'bg-accent-blue/15 text-accent-blue'
