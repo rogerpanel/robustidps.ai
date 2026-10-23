@@ -31,6 +31,8 @@ export default function Login({ onLogin }: Props) {
   const [loading, setLoading] = useState(false)
   const [registrationOpen, setRegistrationOpen] = useState(false)
   const [canResend, setCanResend] = useState(false)
+  // Address a confirmation link was just sent to; while set, the card shows "Check your e-mail".
+  const [sentTo, setSentTo] = useState('')
 
   // Is self-registration open? And are we arriving from a confirmation link (/?verified=...)?
   useEffect(() => {
@@ -93,7 +95,7 @@ export default function Login({ onLogin }: Props) {
         if (!res.ok) throw new Error(data.detail || `Error ${res.status}`)
 
         // Account created but not yet confirmed: the user signs in after opening the mailed link.
-        setNotice(data.detail || 'Check your e-mail for a confirmation link, then sign in.')
+        setSentTo(email)
         setPassword('')
         setIsRegister(false)
       } else {
@@ -155,162 +157,196 @@ export default function Login({ onLogin }: Props) {
           </p>
         </div>
 
-        {/* Form Card */}
-        <div className="bg-bg-card border border-bg-card rounded-xl p-6 shadow-xl">
-          <h2 className="text-lg font-semibold text-text-primary mb-6">
-            {isRegister ? 'Create Account' : 'Sign In'}
-          </h2>
-
-          {notice && (
-            <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              {notice}
+        {/* Confirmation sent */}
+        {sentTo ? (
+          <div className="bg-bg-card border border-bg-card rounded-xl p-6 shadow-xl text-center">
+            <MailCheck className="w-10 h-10 text-accent-blue mx-auto mb-3" />
+            <h2 className="text-lg font-semibold text-text-primary mb-2">Check your e-mail</h2>
+            <p className="text-sm text-text-secondary">
+              We sent a confirmation link to <span className="font-medium text-text-primary">{sentTo}</span>.
+              Open it within 24 hours, then sign in.
+            </p>
+            <p className="mt-2 text-xs text-text-secondary">
+              Nothing after a few minutes? Check your spam folder, or send a new link.
+            </p>
+            {notice && <p className="mt-3 text-sm text-accent-green">{notice}</p>}
+            {error && <p className="mt-3 text-sm text-accent-red">{error}</p>}
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => { setSentTo(''); setNotice(''); setError('') }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                <LogIn className="w-4 h-4" /> Back to sign in
+              </button>
+              <button
+                type="button"
+                onClick={resend}
+                disabled={loading}
+                className="text-sm text-accent-blue hover:underline font-medium disabled:opacity-50"
+              >
+                Send a new link
+              </button>
             </div>
-          )}
+          </div>
+        ) : (
+          <div className="bg-bg-card border border-bg-card rounded-xl p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-text-primary mb-6">
+              {isRegister ? 'Create Account' : 'Sign In'}
+            </h2>
 
-          {error && (
-            <div className="mb-4 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                {error}
+            {notice && (
+              <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-accent-green/10 border border-accent-green/30 rounded-lg text-accent-green text-sm">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                {notice}
               </div>
-              {canResend && registrationOpen && email && (
-                <button
-                  type="button"
-                  onClick={resend}
-                  disabled={loading}
-                  className="mt-2 inline-flex items-center gap-1.5 text-accent-blue hover:underline font-medium disabled:opacity-50"
-                >
-                  <MailCheck className="w-4 h-4" /> Send a new confirmation link to {email}
-                </button>
-              )}
-            </div>
-          )}
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegister && (
-              <>
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                    placeholder="Your full name"
-                  />
+            {error && (
+              <div className="mb-4 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {error}
                 </div>
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Organization
-                  </label>
-                  <input
-                    type="text"
-                    value={organization}
-                    onChange={(e) => setOrganization(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                    placeholder="University or company (optional)"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-text-secondary mb-1">
-                    Use Case
-                  </label>
-                  <select
-                    value={useCase}
-                    onChange={(e) => setUseCase(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                {canResend && registrationOpen && email && (
+                  <button
+                    type="button"
+                    onClick={resend}
+                    disabled={loading}
+                    className="mt-2 inline-flex items-center gap-1.5 text-accent-blue hover:underline font-medium disabled:opacity-50"
                   >
-                    <option value="">Select a use case (optional)</option>
-                    {USE_CASE_OPTIONS.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm text-text-secondary mb-1">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2.5 pr-10 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
-                  placeholder={isRegister ? 'Create a strong password' : 'Enter your password'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                    <MailCheck className="w-4 h-4" /> Send a new confirmation link to {email}
+                  </button>
+                )}
               </div>
-              {isRegister && (
-                <p className="mt-1 text-[11px] text-text-secondary">
-                  Min 8 chars, uppercase, lowercase, digit, and special character required.
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : isRegister ? (
-                <UserPlus className="w-4 h-4" />
-              ) : (
-                <LogIn className="w-4 h-4" />
-              )}
-              {isRegister ? 'Register' : 'Sign In'}
-            </button>
-          </form>
-
-          <p className="mt-4 text-center text-sm text-text-secondary">
-            {!registrationOpen && !isRegister ? (
-              <>Accounts are created by the administrator. Contact support@robustidps.ai for access.</>
-            ) : isRegister ? (
-              <>
-                Already have an account?{' '}
-                <button onClick={toggleMode} className="text-accent-blue hover:underline font-medium">
-                  Sign In
-                </button>
-              </>
-            ) : (
-              <>
-                Don&apos;t have an account?{' '}
-                <button onClick={toggleMode} className="text-accent-blue hover:underline font-medium">
-                  Register
-                </button>
-              </>
             )}
-          </p>
-        </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {isRegister && (
+                <>
+                  <div>
+                    <label className="block text-sm text-text-secondary mb-1">
+                      Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                      placeholder="Your full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-text-secondary mb-1">
+                      Organization
+                    </label>
+                    <input
+                      type="text"
+                      value={organization}
+                      onChange={(e) => setOrganization(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                      placeholder="University or company (optional)"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-text-secondary mb-1">
+                      Use Case
+                    </label>
+                    <select
+                      value={useCase}
+                      onChange={(e) => setUseCase(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                    >
+                      <option value="">Select a use case (optional)</option>
+                      {USE_CASE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                  placeholder="you@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">
+                  Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2.5 pr-10 bg-bg-primary border border-bg-card rounded-lg text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/50"
+                    placeholder={isRegister ? 'Create a strong password' : 'Enter your password'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {isRegister && (
+                  <p className="mt-1 text-[11px] text-text-secondary">
+                    Min 8 chars, uppercase, lowercase, digit, and special character required.
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-accent-blue hover:bg-accent-blue/90 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : isRegister ? (
+                  <UserPlus className="w-4 h-4" />
+                ) : (
+                  <LogIn className="w-4 h-4" />
+                )}
+                {isRegister ? 'Register' : 'Sign In'}
+              </button>
+            </form>
+
+            <p className="mt-4 text-center text-sm text-text-secondary">
+              {!registrationOpen && !isRegister ? (
+                <>Accounts are created by the administrator. Contact support@robustidps.ai for access.</>
+              ) : isRegister ? (
+                <>
+                  Already have an account?{' '}
+                  <button onClick={toggleMode} className="text-accent-blue hover:underline font-medium">
+                    Sign In
+                  </button>
+                </>
+              ) : (
+                <>
+                  Don&apos;t have an account?{' '}
+                  <button onClick={toggleMode} className="text-accent-blue hover:underline font-medium">
+                    Register
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
+
+        )}
 
         {/* Footer */}
         <div className="mt-6 text-center text-xs text-text-secondary">

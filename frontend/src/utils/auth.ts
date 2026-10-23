@@ -31,6 +31,12 @@ export function getUser(): AuthUser | null {
 }
 
 export function setAuth(token: string, user: AuthUser): void {
+  // Never store a missing token: "undefined" would count as signed in and then
+  // fail every request, bouncing the user back to the landing page.
+  if (!token || !user) {
+    clearAuth()
+    return
+  }
   localStorage.setItem(TOKEN_KEY, token)
   localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
@@ -41,7 +47,8 @@ export function clearAuth(): void {
 }
 
 export function isAuthenticated(): boolean {
-  return !!getToken()
+  const token = getToken()
+  return !!token && token !== 'undefined' && token !== 'null'
 }
 
 /**
