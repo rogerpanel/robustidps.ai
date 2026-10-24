@@ -441,3 +441,18 @@ def test_investigator_guard(client):
         from plugins.agent_guard import evidence as ev
         kinds = [r["summary"] for r in ev.listing(db, "analyst@example.org")]
     assert any(s.startswith("DENY delete_host") for s in kinds)
+
+
+# ── regression: rate-limited routes must keep their request bodies ─────
+
+@pytest.mark.parametrize("module", ["plugins.agent_guard.api", "plugins.agent_studio.api"])
+def test_no_body_model_degraded_to_query_param(module):
+    """With `from __future__ import annotations`, FastAPI 0.109 (production) could not resolve a
+    body model behind the slowapi decorator and treated it as a required query parameter (422)."""
+    import importlib
+    m = importlib.import_module(module)
+    app = FastAPI()
+    app.include_router(m.router)
+    bad = [(r.path, p.name) for r in app.routes if getattr(r, "dependant", None)
+           for p in r.dependant.query_params if "ForwardRef" in repr(getattr(p.field_info, "annotation", ""))]
+    assert bad == []

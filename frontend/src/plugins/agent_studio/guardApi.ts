@@ -16,7 +16,10 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
   if (!res.ok) {
     const d = (data as { detail?: unknown }).detail
     const msg = typeof d === 'string' ? d
+      : Array.isArray(d) ? d.map((e: { loc?: unknown[]; msg?: string }) =>
+          `${(e.loc || []).filter((x) => x !== 'body').join('.')}: ${e.msg}`).join('; ')
       : d && typeof d === 'object' && 'policy_errors' in d ? (d as { policy_errors: string[] }).policy_errors.join('; ')
+      : d && typeof d === 'object' && 'suite_errors' in d ? (d as { suite_errors: string[] }).suite_errors.join('; ')
       : `Error ${res.status}`
     throw new Error(msg)
   }

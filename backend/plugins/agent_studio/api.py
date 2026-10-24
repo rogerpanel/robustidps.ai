@@ -5,7 +5,6 @@ Mount point: /api/agent-studio/*. The free scanner endpoint is public
 Production note: rate-limit at the platform edge before exposing
 publicly (slowapi limiter already mounted in main.py).
 """
-from __future__ import annotations
 
 import os
 from dataclasses import asdict

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime
 import os
+import re
 import uuid
 from typing import Any
 
@@ -25,7 +26,9 @@ from plugins.agent_guard.policy import Policy
 
 
 def ttl_minutes() -> int:
-    return max(1, min(int(os.getenv("AGENT_GUARD_APPROVAL_TTL_MIN", "15")), 24 * 60))
+    """AGENT_GUARD_APPROVAL_TTL_MIN, in minutes (1 to 1440). Tolerates "30 minutes"; falls back to 15."""
+    m = re.match(r"\s*(\d+)", os.getenv("AGENT_GUARD_APPROVAL_TTL_MIN", "15"))
+    return max(1, min(int(m.group(1)) if m else 15, 24 * 60))
 
 
 def _now() -> datetime.datetime:

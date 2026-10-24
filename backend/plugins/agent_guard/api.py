@@ -7,7 +7,6 @@ the website share sessions, approvals, the tool registry and the evidence
 ledger. Approvals can only be decided by a signed-in person, never by an API
 key, so an agent cannot approve its own calls.
 """
-from __future__ import annotations
 
 import asyncio
 import json
