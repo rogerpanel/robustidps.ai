@@ -20,6 +20,18 @@ Claims attributed to the review were not re-verified here.
 | Measure denial, not only safety | **Intervention rate** (share of calls the filter touched) and **repair rate** (share of interventions that were repairs rather than stops) in evaluations and comparisons. |
 | Hermes shell hooks fail open unless `fail_closed: true` | Noted on the Safety Filter page next to the hook configuration. |
 
+## Labelled SOC response actions
+
+`suites/soc-response-actions.json` labels each action twice: the verdict the
+SOC policy should give, and whether an analyst would consider it appropriate
+in its incident context. On the built-in SOC policy no inappropriate action
+runs unreviewed, but 44% of them only reach a person rather than being
+denied: they are reasonable-looking actions (isolating a domain controller,
+blocking the internal DNS resolver, disabling the backup service account)
+that a filter seeing only the call cannot tell from appropriate ones. That
+share is the target for the predictive layer, which would weigh the effect
+of an action on the environment (asset role, blast radius, reversibility).
+
 ## Planned
 
 - **Session information flow.** Track data labels across a session

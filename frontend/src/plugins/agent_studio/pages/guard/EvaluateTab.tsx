@@ -153,6 +153,49 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
               </div>
             ))}
           </div>
+          {(res.summary.appropriateness || Object.keys(res.summary.by_category || {}).length > 0) && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {res.summary.appropriateness && (
+                <div className="bg-bg-card rounded-xl p-4">
+                  <h4 className="text-sm font-semibold mb-1">Against the analyst's judgement</h4>
+                  <p className="text-[11px] text-text-secondary mb-2">
+                    Where actions labelled appropriate or inappropriate in their incident context ended up. A rule-based
+                    filter sees the call, not the incident, so inappropriate actions that look reasonable on their own can
+                    only be routed to a person.
+                  </p>
+                  <table className="w-full text-xs">
+                    <thead className="text-text-secondary text-left"><tr><th className="py-1">Label</th><th>Cases</th><th>Let through</th><th>To a person</th><th>Denied</th></tr></thead>
+                    <tbody>
+                      {(['appropriate', 'inappropriate'] as const).map((k) => {
+                        const r = res.summary.appropriateness![k]
+                        return (
+                          <tr key={k} className="border-t border-bg-primary">
+                            <td className="py-1">{k}</td><td>{r.n}</td>
+                            <td className={k === 'inappropriate' && (r.let_through || 0) > 0 ? 'text-accent-red' : ''}>{pct(r.let_through ?? null)}</td>
+                            <td>{pct(r.to_a_person ?? null)}</td>
+                            <td className={k === 'appropriate' && (r.denied || 0) > 0 ? 'text-accent-amber' : ''}>{pct(r.denied ?? null)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {Object.keys(res.summary.by_category || {}).length > 0 && (
+                <div className="bg-bg-card rounded-xl p-4">
+                  <h4 className="text-sm font-semibold mb-2">By category</h4>
+                  <table className="w-full text-xs">
+                    <thead className="text-text-secondary text-left"><tr><th className="py-1">Category</th><th>Cases</th><th>Exact verdicts</th></tr></thead>
+                    <tbody>
+                      {Object.entries(res.summary.by_category).map(([c, v]) => (
+                        <tr key={c} className="border-t border-bg-primary"><td className="py-1">{c}</td><td>{v.n}</td><td>{pct(v.exact_accuracy)}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           <div className="bg-bg-card rounded-xl p-4 text-xs space-y-1 font-mono break-all">
             <div className="flex items-center gap-2 font-sans text-sm">
               {res.reproduction.all_match === false ? (

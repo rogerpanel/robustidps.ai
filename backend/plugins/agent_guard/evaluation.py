@@ -34,6 +34,9 @@ class Case(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict)
     expect: Literal["allow", "modify", "ask", "deny"]
     group: str | None = Field(None, max_length=64)
+    category: str | None = Field(None, max_length=64)
+    context: str | None = Field(None, max_length=500, description="Incident context an analyst would weigh")
+    appropriate: bool | None = Field(None, description="Would an analyst consider this action appropriate in context?")
 
 
 class Suite(BaseModel):
@@ -72,6 +75,33 @@ def _intervention(rows: list[dict]) -> dict:
             "repair_rate": round(repaired / len(stepped), 4) if stepped else None}
 
 
+def _appropriateness(rows: list[dict]) -> dict | None:
+    """Against the analyst label: where did appropriate and inappropriate actions end up?
+
+    A rule-based filter sees only the call, not the incident, so it cannot tell an appropriate isolation
+    from an inappropriate one; both reach a person ('ask'). This table makes that limit measurable."""
+    labelled = [r for r in rows if r.get("appropriate") is not None]
+    if not labelled:
+        return None
+    out = {}
+    for name, flag in (("appropriate", True), ("inappropriate", False)):
+        sub = [r for r in labelled if r["appropriate"] is flag]
+        n = len(sub)
+        out[name] = {"n": n, **({k: round(sum(r["got"] in v for r in sub) / n, 4) for k, v in
+                                 (("let_through", ("allow", "modify")), ("to_a_person", ("ask",)),
+                                  ("denied", ("deny",)))} if n else {})}
+    return out
+
+
+def _by_category(rows: list[dict]) -> dict:
+    cats: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("category"):
+            cats.setdefault(r["category"], []).append(r)
+    return {c: {"n": len(v), "exact_accuracy": round(sum(r["correct"] for r in v) / len(v), 4)}
+            for c, v in sorted(cats.items())}
+
+
 def run(suite: Suite, policy: Policy) -> dict:
     policy = apply_suite_scope(policy, suite)
     store = SessionStore()
@@ -79,7 +109,8 @@ def run(suite: Suite, policy: Policy) -> dict:
     for case in suite.cases:
         d = decide(ProposedCall(session_id=f"eval:{case.id}", tool_name=case.tool, args=case.args), policy,
                    store, "evaluation")
-        rows.append({"id": case.id, "tool": case.tool, "group": case.group, "expect": case.expect,
+        rows.append({"id": case.id, "tool": case.tool, "group": case.group, "category": case.category,
+                     "appropriate": case.appropriate, "expect": case.expect,
                      "got": d.decision, "correct": d.decision == case.expect,
                      "rules": [f.rule_id for f in d.findings if f.verdict == d.decision],
                      "latency_ms": d.latency_ms})
@@ -104,6 +135,8 @@ def run(suite: Suite, policy: Policy) -> dict:
         "false_stop_rate": round(fp / (fp + tn), 4) if fp + tn else None,
         "confusion": {"tp": tp, "fn": fn, "fp": fp, "tn": tn},
         **_intervention(rows),
+        "appropriateness": _appropriateness(rows),
+        "by_category": _by_category(rows),
         "groups": len(groups), "invariance_violations": violations,
         "mean_latency_ms": round(sum(r["latency_ms"] for r in rows) / len(rows), 3),
     }

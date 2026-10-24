@@ -119,7 +119,10 @@ export const guardCoverage = (name: string, version: number, policy_id: string, 
   call<Coverage>(`/toolsets/${encodeURIComponent(name)}/coverage`, { version, policy_id, policy })
 
 // ── evaluation ────────────────────────────────────────────────────────
-export interface SuiteCase { id: string; tool: string; args: Record<string, unknown>; expect: Verdict; group?: string | null }
+export interface SuiteCase {
+  id: string; tool: string; args: Record<string, unknown>; expect: Verdict; group?: string | null
+  category?: string | null; context?: string | null; appropriate?: boolean | null
+}
 export interface GuardSuite { id: string; version: string; policy_id: string; description: string; cases: SuiteCase[] }
 export interface EvalResult {
   summary: {
@@ -127,6 +130,8 @@ export interface EvalResult {
     false_stop_rate: number | null; confusion: Record<string, number>; groups: number
     intervention_rate: number | null; repair_rate: number | null
     invariance_violations: string[]; mean_latency_ms: number
+    appropriateness: Record<'appropriate' | 'inappropriate', { n: number; let_through?: number; to_a_person?: number; denied?: number }> | null
+    by_category: Record<string, { n: number; exact_accuracy: number }>
   }
   rows: { id: string; tool: string; group: string | null; expect: Verdict; got: Verdict; correct: boolean; rules: string[]; latency_ms: number }[]
   filter_version: string; suite_digest: string; policy_digest: string; result_digest: string

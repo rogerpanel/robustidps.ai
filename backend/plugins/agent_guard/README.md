@@ -67,6 +67,14 @@ website share sessions, approvals, the registry and the ledger.
   with bootstrap 95% intervals over the cases (fixed seed, so the table and
   its `comparison_digest` are reproducible). The built-in suites are
   regression tests for the built-in packs, not an independent benchmark.
+  `soc-response-actions` (51 cases) adds an analyst label per case: the
+  incident context and whether the action is appropriate in it, including
+  inappropriate containment that looks reasonable on its own (isolating a
+  domain controller after one phishing click, blocking the internal DNS
+  resolver). Evaluations then report where appropriate and inappropriate
+  actions ended up (let through, to a person, denied) and accuracy per
+  category; custom suites can carry the same `category`, `context` and
+  `appropriate` fields.
 - **Runtime Monitor**: every decision is also an event there.
 - **SOC Investigator**: optional "Safety Filter" setting; every tool call of
   the run is checked in-process and blocked or modified calls appear in the
