@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: robustidps-credentials
+type: Opaque
+stringData:
+  api_key: "rids_live_REPLACE_ME"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-docs-qa
+  labels:
+    robustidps.ai/template: "docs_qa"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-docs-qa
+  template:
+    metadata:
+      labels:
+        app: agent-docs-qa
+    spec:
+      containers:
+        - name: agent
+          image: ghcr.io/your-org/agent-docs-qa:latest
+          env:
+            - name: ROBUSTIDPS_API_BASE
+              value: "https://robustidps.ai"
+            - name: ROBUSTIDPS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: robustidps-credentials
+                  key: api_key
+            - name: RUNTIME_AGENT_ID
+              value: "docs-qa-prod-eu-1"
+          resources:
+            requests: {cpu: "100m", memory: "256Mi"}
+            limits:   {cpu: "1000m", memory: "1Gi"}

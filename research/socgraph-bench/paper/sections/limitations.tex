@@ -1,0 +1,32 @@
+\section{Scope and Threats to Validity}
+\label{sec:limitations}
+
+\paragraph{Benchmark scale and ground truth} \bench has 21 lab-recorded tasks, one technique per recording, so
+results do not establish performance on enterprise-scale, multi-host campaigns; the graph builder and selectors
+apply unchanged to further recordings and corpora~\cite{darpa_tc,landauer2023maintainable,grimmer2023lidds}.
+Ground truth follows a stated rule applied through published selectors; other analysts could draw the core set
+differently~\cite{jiang2025orthrus,bilot2025simpler}. Both answer versions and the rescoring tool are released,
+so the rule can be changed and every run re-evaluated, as we did for v1.1. Scorer weights are ours; comparisons
+on the same scorer are unaffected by them.
+
+\paragraph{Models and variance} Each condition has three repeats; paired task-level intervals resolve reward
+differences of about $\pm0.02$, so smaller effects would need more repeats or tasks. The ablation uses one model
+at one effort level, and with GPT-6 astra the hard budget did act, so the null effect of the safeguards is
+model-specific. Both models are closed and may change; every call is traced. Verdicts carry no confidence
+value, so calibration error cannot be computed; we report verdict stability instead.
+
+\paragraph{Contamination and adversary strength} The recordings are public and may have been seen in
+training~\cite{sainz2023contamination}; the tasks re-express them as graphs with opaque identifiers and new
+alerts, and the \emph{blind} variant removes their label cues without changing results. Mimicry renames
+strings only, so its effect is a lower bound on what an adaptive attacker achieves; structural mimicry and
+instructions planted in telemetry~\cite{greshake2023indirect,debenedetti2024agentdojo} are stronger and are the
+next step. Some renamed tasks become genuinely ambiguous from provenance alone; we keep the recordings' labels,
+which follow the operator's intent, and release the agent's stated reasons for each case.
+
+\paragraph{Protocol} The prompt and safeguards were fixed before the study runs, class balance is reported and
+results are broken down per class and platform~\cite{arp2022dosdonts}. We did not obtain results on the
+official competition tasks; all results are on \bench with our scorer.
+
+\ifconf\else
+\input{sections/ethics}
+\fi

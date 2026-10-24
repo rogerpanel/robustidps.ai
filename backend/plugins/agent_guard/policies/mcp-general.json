@@ -1,0 +1,145 @@
+{
+  "id": "mcp-general",
+  "version": "1",
+  "name": "General MCP / coding agent",
+  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits.",
+  "default_tier": "unknown",
+  "tiers": {
+    "read": {
+      "decision": "allow",
+      "description": "Reading files, listing, searching",
+      "reversible": true
+    },
+    "write": {
+      "decision": "ask",
+      "description": "Creating or changing files and resources",
+      "reversible": true
+    },
+    "network": {
+      "decision": "ask",
+      "description": "Outbound requests",
+      "reversible": true
+    },
+    "shell": {
+      "decision": "ask",
+      "description": "Command execution",
+      "reversible": false
+    },
+    "unknown": {
+      "decision": "ask",
+      "description": "Tools this pack does not classify"
+    }
+  },
+  "tools": [
+    {
+      "match": [
+        "read*",
+        "get_*",
+        "list*",
+        "search*",
+        "glob*",
+        "grep*",
+        "view*",
+        "*__read*",
+        "*__list*",
+        "*__search*",
+        "*__get_*"
+      ],
+      "tier": "read"
+    },
+    {
+      "match": [
+        "write*",
+        "edit*",
+        "create*",
+        "update*",
+        "delete*",
+        "move*",
+        "rename*",
+        "*__write*",
+        "*__edit*",
+        "*__create*",
+        "*__update*",
+        "*__delete*"
+      ],
+      "tier": "write"
+    },
+    {
+      "match": [
+        "fetch*",
+        "http*",
+        "web*",
+        "browse*",
+        "*__fetch*"
+      ],
+      "tier": "network"
+    },
+    {
+      "match": [
+        "bash*",
+        "shell*",
+        "exec*",
+        "run*",
+        "terminal*",
+        "*__exec*",
+        "*__run*"
+      ],
+      "tier": "shell"
+    }
+  ],
+  "arg_rules": [
+    {
+      "id": "shell-chaining",
+      "description": "Command chaining, substitution or redirection",
+      "tools": [
+        "bash*",
+        "shell*",
+        "exec*",
+        "run*",
+        "terminal*",
+        "*__exec*",
+        "*__run*"
+      ],
+      "args": [
+        "command*",
+        "cmd*",
+        "script*"
+      ],
+      "pattern": "[;&|`<>]|\\$\\(",
+      "decision": "deny"
+    },
+    {
+      "id": "credential-files",
+      "description": "Paths to credentials and keys",
+      "args": [
+        "*"
+      ],
+      "pattern": "(^|[/\\\\~])(\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker)([/\\\\]|$)|(^|[/\\\\])(id_rsa|id_ed25519|\\.env|\\.netrc|shadow)$",
+      "decision": "deny"
+    }
+  ],
+  "redact": [
+    {
+      "id": "no-secrets-in-args",
+      "args": [
+        "password",
+        "passwd",
+        "secret*",
+        "api_key",
+        "apikey",
+        "token",
+        "*_token",
+        "private_key"
+      ]
+    }
+  ],
+  "max_calls_per_session": 500,
+  "escalate_after_denials": 3,
+  "hint_tiers": {
+    "read": "read",
+    "change": "write",
+    "destroy": "write",
+    "exec": "shell",
+    "unclear": "unknown"
+  }
+}

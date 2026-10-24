@@ -1,5 +1,33 @@
-version: '3.8'
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: robustidps
+      POSTGRES_USER: robustidps
+      POSTGRES_PASSWORD: devpassword
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robustidps"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+
   backend:
     build:
       context: ./backend
@@ -11,11 +39,29 @@ services:
       - ./sample_data:/app/sample_data
     environment:
       - DEVICE=cpu
-      - MC_PASSES=50
+      - MC_PASSES=20
+      - DATABASE_URL=postgresql://robustidps:devpassword@postgres:5432/robustidps
+      - SECRET_KEY=dev-secret-not-for-production
+      - ADMIN_EMAIL=admin@robustidps.ai
+      - ADMIN_PASSWORD=admin1234
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 30s
       timeout: 5s
+    # Prevention engine: network enforcement + ALFA AWUS036ACH wireless monitor
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/bus/usb:/dev/bus/usb  # ALFA AWUS036ACH USB passthrough
+    privileged: false
 
   frontend:
     build:
@@ -27,3 +73,7 @@ services:
       - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
+
+volumes:
+  pgdata:
+  redisdata:

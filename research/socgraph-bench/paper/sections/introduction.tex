@@ -1,0 +1,99 @@
+\section{Introduction}
+\label{sec:intro}
+
+\IEEEPARstart{A}{lert} triage is the bottleneck of security operations. Analysts in security operations
+centres describe being flooded with alarms, most of which are false positives, and spending much of their
+time confirming that activity was benign~\cite{alahmadi2022falsepositives,kokulu2019soc}. The resulting
+workload is a recognised cause of analyst burnout~\cite{sundaramurthy2015burnout}. Detection research has
+responded by building systems that reason over \emph{provenance graphs}, the causal record of processes,
+files, sockets and their interactions collected by endpoint sensors, to reconstruct attacks and to separate
+them from benign activity~\cite{hossain2017sleuth,milajerdi2019holmes,hassan2019nodoze,han2020unicorn,cheng2024kairos}.
+These systems raise or rank alerts, but the investigation that follows, deciding what an alert means and
+what must be done about it, is still largely manual.
+
+Large language models (LLMs) used as agents, interleaving reasoning with tool calls~\cite{yao2023react,schick2023toolformer},
+are a natural fit for that investigation. An agent that receives an alert can query the evidence graph,
+follow relations from the triggering process to its parent, children, written files and network
+connections, and submit a verdict with the entities that require a response. Recent industrial evaluations
+frame exactly this task: the BlueSec1 competition runtime~\cite{bluesec1_reference} gives an agent an alert
+and a small tool interface over an evidence graph (\tool{search}, \tool{get\_entity}, \tool{get\_relation},
+\tool{finish\_investigation}) and scores both the quality of the submission and the number of tool calls
+spent.
+
+Building such an agent raises problems that general agent benchmarks~\cite{liu2024agentbench,jimenez2024swebench}
+and LLM security benchmarks~\cite{bhatt2023cyberseceval,alam2024ctibench,zhang2025cybench} do not address.
+First, \emph{cost}: in a SOC, and in budget-scored evaluations, every lookup counts, so an agent must decide
+which evidence is worth fetching. Second, \emph{grounding}: an LLM may cite entities that never appeared in
+any tool result, which is unacceptable for incident response. Third, \emph{robustness}: alerts that look the
+same can mean opposite things (an operator stopping a web service versus a package manager starting it), so
+an agent must clear benign activity as reliably as it confirms attacks. Fourth, \emph{evaluation}: public
+provenance datasets either lack entity-level ground truth or are hundreds of gigabytes in size, and none
+packages alert-investigation tasks with benign look-alikes across operating systems. Fifth,
+\emph{shortcuts}: public attack recordings are labelled by how they were made, and the labels leak into dataset
+names, lab host names and the names operators chose for their tools. An agent can then be right for the wrong
+reason, and an intruder who avoids such names would not be caught the same way, the evasion problem known from
+mimicry attacks on host-based detection~\cite{wagner2002mimicry,goyal2023mimicry}.
+
+This paper makes the following contributions.
+
+\begin{enumerate}
+\item \textbf{A grounded, budget-aware investigation agent} (\S\ref{sec:method}). Tools are derived from the
+runtime's advertised catalog. Every call passes through local safeguards that answer repeated, malformed,
+ungrounded or over-budget calls without spending a runtime call: a response cache, schema validation, a
+grounding check on the submission, and soft and hard budgets with deadline control. Tasks run in parallel
+under a runtime limit the agent learns from refusals. We also report a practical failure mode, model-side
+refusals of requests that ask the model to externalise its reasoning, and a field-aliasing fix that keeps the
+runtime contract intact.
+\item \textbf{\bench, a cross-platform benchmark from public telemetry} (\S\ref{sec:benchmark}). A graph
+builder converts Windows Sysmon and Sysmon-for-Linux recordings from OTRF Security-Datasets~\cite{otrf_securitydatasets}
+and Splunk attack\_data~\cite{splunk_attackdata} into 21 evidence-graph tasks: 15 ATT\&CK technique
+executions and 6 benign look-alikes from the same hosts, with ground truth defined as selectors over the
+graph and a scorer for verdict, response artifacts, legitimacy evidence and efficiency. The benchmark is a
+0.55\,MB file and can be rebuilt from the original recordings. Two cue-controlled variants share its graphs
+and answers: \emph{blind} removes label cues of the recordings, and \emph{mimicry} also renames
+attacker-chosen artefacts without changing behaviour.
+\item \textbf{An empirical evaluation and ablation protocol} (\S\ref{sec:experiments}--\S\ref{sec:results}).
+\ifconf\else In a pilot on the \ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent reached the correct verdict on
+all of them, including all three benign tasks, with mean quality \ResPilotQuality{} and mean efficiency
+\ResPilotEfficiency{}. \fi The ablation protocol switches off one safeguard at a time and reports quality,
+efficiency, verdict accuracy, false-positive and false-negative rates, and cost, per platform and per verdict
+class, with paired task-level confidence intervals.
+\ifnum\ResStudyAvailable=1
+On all 21 tasks the full agent reached reward \ResFullReward{} with no false positives. The
+investigation-method prompt is what makes it efficient (\ResNoMethodCalls{} instead of \ResFullCalls{} calls
+per task without it);
+the safeguards did not change reward measurably with this model, a negative result we report with its
+statistics. Per-call traces explain it and expose the actual sources of error: identifiers of the wrong type
+that a substring grounding check accepts, and an efficiency instruction that withheld a needed identifier.
+\fi
+\ifnum\ResCueAvailable=1
+\item \textbf{A shortcut and evasion analysis} (\S\ref{sec:cues}). Removing label cues of the recordings
+left performance unchanged, but renaming attacker-chosen artefacts without changing behaviour raised missed
+attacks from \ResCueBaseMissed{} to \ResMimicryMissed{} and cut reward by \ResMimicryPairedReward{}
+(95\% CI \ResMimicryPairedRewardCI{}). On dual-use Linux behaviour (creating an account, loading a self-built
+kernel module, preloading a library) the agent's verdict rested on names; a renaming intruder, the cheapest
+evasion there is, was cleared. GPT-6 astra, run through the OpenAI Responses API under the same agent, missed
+more attacks on the original benchmark (\McGptBaseMissed{} against \McClaudeBaseMissed{}) and lost significantly more under renaming
+(difference in differences \McDiD{}, 95\% CI \McDiDCI{}), and its traces show the same label cue read in the
+opposite direction.
+\fi
+\item \textbf{An open, reproducible release.} Agent, benchmark, traces of every tool call, and the script that
+regenerates all tables and plots from run folders\ifconf{} (\ArtifactURL)\fi.
+\end{enumerate}
+
+\ifnum\ResCueAvailable=1
+\paragraph{Take-home} We ask whether an LLM agent's verdict on provenance evidence can be trusted when the
+attacker writes part of that evidence. With two frontier models it cannot be by default: neither raised a
+single false alarm, but renaming artefacts without changing behaviour raised missed attacks from
+\McClaudeBaseMissed{} to \McClaudeMimicryMissed{} and from \McGptBaseMissed{} to \McGptMimicryMissed{}. With
+Claude Opus 5.5 the call-level safeguards changed nothing measurable, while the prompted investigation method
+cut tool calls by about 30\%. For researchers, benchmarks built from public attack recordings need cue-controlled variants to
+measure investigation rather than name reading; for AI security engineers, the analyst's method and a rule that
+benign verdicts cite behaviour, not names, matter more than mechanical guards; for SOC analysts, a benign verdict
+justified by names alone should be reviewed as possible evasion.
+\fi
+
+The remainder of the paper reviews related work (\S\ref{sec:background}), defines the task
+(\S\ref{sec:problem}), presents the agent (\S\ref{sec:method}) and the benchmark (\S\ref{sec:benchmark}),
+describes the experimental setup (\S\ref{sec:experiments}), reports results (\S\ref{sec:results}), and
+discusses implications (\S\ref{sec:discussion}) and threats to validity (\S\ref{sec:limitations}).

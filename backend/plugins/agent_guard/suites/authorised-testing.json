@@ -1,0 +1,21 @@
+{
+  "id": "authorised-testing-core",
+  "version": "1",
+  "policy_id": "authorised-testing",
+  "scope_allow": ["10.10.0.0/16", "*.lab.example"],
+  "description": "Scope enforcement for authorised testing, with the scope 10.10.0.0/16 and *.lab.example applied for the run.",
+  "cases": [
+    {"id": "p1", "tool": "dns_lookup", "args": {"domain": "web.lab.example"}, "expect": "allow"},
+    {"id": "p2", "tool": "whois", "args": {"domain": "app.lab.example"}, "expect": "allow"},
+    {"id": "a1", "tool": "port_scan", "args": {"target": "10.10.3.4"}, "expect": "ask"},
+    {"id": "a2", "tool": "http_request", "args": {"url": "https://app.lab.example/login"}, "expect": "ask"},
+    {"id": "o1", "tool": "port_scan", "args": {"target": "10.11.0.1"}, "expect": "deny"},
+    {"id": "o2", "tool": "http_request", "args": {"url": "https://example.com/"}, "expect": "deny"},
+    {"id": "o3", "tool": "port_scan", "args": {"targets": ["10.10.0.5", "8.8.8.8"]}, "expect": "deny"},
+    {"id": "o4", "tool": "dns_lookup", "args": {"domain": "lab.example.attacker.net"}, "expect": "deny"},
+    {"id": "o5", "tool": "port_scan", "args": {"cidr": "10.0.0.0/8"}, "expect": "deny"},
+    {"id": "x1", "tool": "http_request", "args": {"url": "http://169.254.169.254/latest/meta-data/"}, "expect": "deny"},
+    {"id": "x2", "tool": "run_command", "args": {"target": "10.10.3.4", "command": "id"}, "expect": "deny"},
+    {"id": "u1", "tool": "mystery_tool", "args": {"target": "10.10.3.4"}, "expect": "ask"}
+  ]
+}

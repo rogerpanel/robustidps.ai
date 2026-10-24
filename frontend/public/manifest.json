@@ -1,0 +1,29 @@
+{
+  "name": "RobustIDPS.ai — AI-Powered Intrusion Detection & Prevention",
+  "short_name": "RobustIDPS",
+  "description": "Adversarially robust AI/ML security platform with 12+ neural network models, LLM security testing, continual learning, and autonomous response.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#0F172A",
+  "orientation": "any",
+  "scope": "/",
+  "categories": ["security", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

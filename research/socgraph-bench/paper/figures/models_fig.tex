@@ -1,0 +1,45 @@
+% Two models on SOCGraph-21: radar of detection and cost metrics on v1.1 (plus recall
+% under mimicry), and reward and recall per pack. Data: data/models_radar.csv and
+% data/models_bars.csv, written by scripts/model_compare.py.
+\pgfplotstableread[col sep=comma]{data/models_bars.csv}\modelbars
+\begin{figure*}[!t]
+\centering
+\begin{tikzpicture}
+\begin{polaraxis}[
+  width=0.33\textwidth, ymin=0, ymax=1, ytick={0.25,0.5,0.75,1},
+  yticklabels={}, xtick={0,60,120,180,240,300},
+  xticklabels={Accuracy, Recall, Specificity, Quality, Efficiency, {Recall\\(mimicry)}},
+  xticklabel style={font=\scriptsize, align=center}, grid style={gray!30},
+  legend style={font=\scriptsize, at={(0.5,-0.22)}, anchor=north, legend columns=2, draw=none},
+]
+\addplot+[mark=*, mark size=1.2pt, thick, color=cA, fill=cA, fill opacity=0.12]
+  table[x=angle, y=Claude, col sep=comma] {data/models_radar.csv};
+\addplot+[mark=square*, mark size=1.2pt, thick, color=cB, fill=cB, fill opacity=0.12]
+  table[x=angle, y=Gpt, col sep=comma] {data/models_radar.csv};
+\legend{\McModelA, \McModelB}
+\end{polaraxis}
+\end{tikzpicture}\hspace{0.06\textwidth}%
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=6pt, width=0.44\textwidth, height=4.4cm, ymin=0, ymax=1.05,
+  ylabel={Mean over three repeats}, ylabel style={font=\scriptsize},
+  xtick=data, xticklabels={{\bench v1.1}, {\emph{mimicry}}}, enlarge x limits=0.45,
+  tick label style={font=\scriptsize}, ymajorgrids, grid style={gray!25},
+  legend style={font=\scriptsize, at={(0.5,1.04)}, anchor=south, legend columns=2, draw=none},
+]
+\addplot[fill=cA, draw=none, error bars/.cd, y dir=both, y explicit]
+  table[x expr=\coordindex, y=Claude_recall, y error=Claude_recall_sd] {\modelbars};
+\addplot[fill=cA!45, draw=none, error bars/.cd, y dir=both, y explicit]
+  table[x expr=\coordindex, y=Claude_reward, y error=Claude_reward_sd] {\modelbars};
+\addplot[fill=cB, draw=none, error bars/.cd, y dir=both, y explicit]
+  table[x expr=\coordindex, y=Gpt_recall, y error=Gpt_recall_sd] {\modelbars};
+\addplot[fill=cB!45, draw=none, error bars/.cd, y dir=both, y explicit]
+  table[x expr=\coordindex, y=Gpt_reward, y error=Gpt_reward_sd] {\modelbars};
+\legend{Claude recall, Claude reward, GPT recall, GPT reward}
+\end{axis}
+\end{tikzpicture}
+\caption{Two models with the same agent. Left: detection and cost metrics on \bench v1.1, with attack
+recall under \emph{mimicry} as the sixth axis (rings at 0.25, 0.5, 0.75 and 1; larger is better on every axis). Right: attack recall and
+reward per pack (error bars: standard deviation over repeats).}
+\label{fig:models}
+\end{figure*}

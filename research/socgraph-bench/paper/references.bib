@@ -1,0 +1,664 @@
+% references.bib -- SocGraph-Bench paper
+% Built 2026-10-11. Every entry was checked against a publisher page, DBLP,
+% arXiv, an official proceedings/project page, or the official repository.
+% Fields that could not be confirmed (often DOI and pages) were left out rather
+% than guessed. See references_verification.md for the source used for each
+% entry and which fields were omitted.
+%
+% Themes:
+%   (1) Provenance-based intrusion detection and investigation
+%   (2) Datasets and telemetry
+%   (3) SOC operations and alert triage
+%   (4) LLM agents, tool use, agent benchmarks
+%   (5) LLMs for cybersecurity
+%   (6) Methodology and online documentation
+
+% =====================================================================
+% (1) Provenance-based intrusion detection and investigation
+% =====================================================================
+
+@inproceedings{hossain2017sleuth,
+  author    = {Md Nahid Hossain and Sadegh M. Milajerdi and Junao Wang and Birhanu Eshete and Rigel Gjomemo and R. Sekar and Scott D. Stoller and V. N. Venkatakrishnan},
+  title     = {{SLEUTH}: Real-time Attack Scenario Reconstruction from {COTS} Audit Data},
+  booktitle = {26th {USENIX} Security Symposium ({USENIX} Security 17)},
+  year      = {2017},
+  pages     = {487--504},
+  address   = {Vancouver, BC},
+  publisher = {USENIX Association},
+  isbn      = {978-1-931971-40-9},
+  url       = {https://www.usenix.org/conference/usenixsecurity17/technical-sessions/presentation/hossain}
+}
+
+@inproceedings{milajerdi2019holmes,
+  author    = {Sadegh M. Milajerdi and Rigel Gjomemo and Birhanu Eshete and R. Sekar and V. N. Venkatakrishnan},
+  title     = {{HOLMES}: Real-Time {APT} Detection through Correlation of Suspicious Information Flows},
+  booktitle = {2019 IEEE Symposium on Security and Privacy (SP)},
+  year      = {2019},
+  pages     = {1137--1152},
+  publisher = {IEEE},
+  url       = {https://ieeexplore.ieee.org/document/8835390/}
+}
+
+@inproceedings{milajerdi2019poirot,
+  author    = {Sadegh M. Milajerdi and Birhanu Eshete and Rigel Gjomemo and V. N. Venkatakrishnan},
+  title     = {{POIROT}: Aligning Attack Behavior with Kernel Audit Records for Cyber Threat Hunting},
+  booktitle = {Proceedings of the 2019 ACM SIGSAC Conference on Computer and Communications Security (CCS)},
+  year      = {2019},
+  pages     = {1795--1812},
+  address   = {London, UK},
+  publisher = {ACM}
+}
+
+@inproceedings{hassan2019nodoze,
+  author    = {Wajih Ul Hassan and Shengjian Guo and Ding Li and Zhengzhang Chen and Kangkook Jee and Zhichun Li and Adam Bates},
+  title     = {{NoDoze}: Combatting Threat Alert Fatigue with Automated Provenance Triage},
+  booktitle = {26th Annual Network and Distributed System Security Symposium (NDSS)},
+  year      = {2019},
+  address   = {San Diego, CA},
+  publisher = {The Internet Society},
+  url       = {https://www.ndss-symposium.org/ndss-paper/nodoze-combatting-threat-alert-fatigue-with-automated-provenance-triage/}
+}
+
+@inproceedings{hassan2020rapsheet,
+  author    = {Wajih Ul Hassan and Adam Bates and Daniel Marino},
+  title     = {Tactical Provenance Analysis for Endpoint Detection and Response Systems},
+  booktitle = {2020 IEEE Symposium on Security and Privacy (SP)},
+  year      = {2020},
+  pages     = {1172--1189},
+  publisher = {IEEE},
+  url       = {https://ieeexplore.ieee.org/document/9152771/}
+}
+
+@inproceedings{wang2020provdetector,
+  author    = {Qi Wang and Wajih Ul Hassan and Ding Li and Kangkook Jee and Xiao Yu and Kexuan Zou and Junghwan Rhee and Zhengzhang Chen and Wei Cheng and Carl A. Gunter and Haifeng Chen},
+  title     = {You Are What You Do: Hunting Stealthy Malware via Data Provenance Analysis},
+  booktitle = {27th Annual Network and Distributed System Security Symposium (NDSS)},
+  year      = {2020},
+  address   = {San Diego, CA},
+  publisher = {The Internet Society},
+  url       = {https://www.ndss-symposium.org/ndss-paper/you-are-what-you-do-hunting-stealthy-malware-via-data-provenance-analysis/}
+}
+
+@inproceedings{han2020unicorn,
+  author    = {Xueyuan Han and Thomas Pasquier and Adam Bates and James Mickens and Margo Seltzer},
+  title     = {{UNICORN}: Runtime Provenance-Based Detector for Advanced Persistent Threats},
+  booktitle = {27th Annual Network and Distributed System Security Symposium (NDSS)},
+  year      = {2020},
+  address   = {San Diego, CA},
+  publisher = {The Internet Society},
+  url       = {https://www.ndss-symposium.org/ndss-paper/unicorn-runtime-provenance-based-detector-for-advanced-persistent-threats/}
+}
+
+@inproceedings{manzoor2016streamspot,
+  author    = {Emaad Manzoor and Sadegh M. Milajerdi and Leman Akoglu},
+  title     = {Fast Memory-efficient Anomaly Detection in Streaming Heterogeneous Graphs},
+  booktitle = {Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining (KDD)},
+  year      = {2016},
+  publisher = {ACM},
+  eprint    = {1602.04844},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{alsaheel2021atlas,
+  author    = {Abdulellah Alsaheel and Yuhong Nan and Shiqing Ma and Le Yu and Gregory Walkup and Z. Berkay Celik and Xiangyu Zhang and Dongyan Xu},
+  title     = {{ATLAS}: A Sequence-based Learning Approach for Attack Investigation},
+  booktitle = {30th {USENIX} Security Symposium ({USENIX} Security 21)},
+  year      = {2021},
+  pages     = {3005--3022},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixsecurity21/presentation/alsaheel}
+}
+
+@inproceedings{zeng2022shadewatcher,
+  author    = {Jun Zeng and Xiang Wang and Jiahao Liu and Yinfang Chen and Zhenkai Liang and Tat-Seng Chua and Zheng Leong Chua},
+  title     = {{SHADEWATCHER}: Recommendation-guided Cyber Threat Analysis using System Audit Records},
+  booktitle = {2022 IEEE Symposium on Security and Privacy (SP)},
+  year      = {2022},
+  pages     = {489--506},
+  publisher = {IEEE},
+  doi       = {10.1109/SP46214.2022.9833669}
+}
+
+@article{wang2022threatrace,
+  author    = {Su Wang and Zhiliang Wang and Tao Zhou and Hongbin Sun and Xia Yin and Dongqi Han and Han Zhang and Xingang Shi and Jiahai Yang},
+  title     = {{THREATRACE}: Detecting and Tracing Host-Based Threats in Node Level Through Provenance Graph Learning},
+  journal   = {IEEE Transactions on Information Forensics and Security},
+  year      = {2022},
+  url       = {https://ieeexplore.ieee.org/document/9899459/}
+}
+
+@inproceedings{fang2022depimpact,
+  author    = {Pengcheng Fang and Peng Gao and Changlin Liu and Erman Ayday and Kangkook Jee and Ting Wang and Yanfang Ye and Zhuotao Liu and Xusheng Xiao},
+  title     = {Back-Propagating System Dependency Impact for Attack Investigation},
+  booktitle = {31st {USENIX} Security Symposium ({USENIX} Security 22)},
+  year      = {2022},
+  pages     = {2461--2478},
+  address   = {Boston, MA},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixsecurity22/presentation/fang}
+}
+
+@inproceedings{inam2023sok,
+  author    = {Muhammad Adil Inam and Yinfang Chen and Akul Goyal and Jason Liu and Jaron Mink and Noor Michael and Sneha Gaur and Adam Bates and Wajih Ul Hassan},
+  title     = {{SoK}: History is a Vast Early Warning System: Auditing the Provenance of System Intrusions},
+  booktitle = {2023 IEEE Symposium on Security and Privacy (SP)},
+  year      = {2023},
+  pages     = {2620--2638},
+  publisher = {IEEE},
+  url       = {https://ieeexplore.ieee.org/document/10179405/}
+}
+
+@inproceedings{dong2023arewethereyet,
+  author    = {Feng Dong and Shaofei Li and Peng Jiang and Ding Li and Haoyu Wang and Liangyi Huang and Xusheng Xiao and Jiedong Chen and Xiapu Luo and Yao Guo and Xiangqun Chen},
+  title     = {Are we there yet? An Industrial Viewpoint on Provenance-based Endpoint Detection and Response Tools},
+  booktitle = {Proceedings of the 2023 ACM SIGSAC Conference on Computer and Communications Security (CCS)},
+  year      = {2023},
+  pages     = {2396--2410},
+  address   = {Copenhagen, Denmark},
+  publisher = {ACM},
+  doi       = {10.1145/3576915.3616580}
+}
+
+@inproceedings{cheng2024kairos,
+  author    = {Zijun Cheng and Qiujian Lv and Jinyuan Liang and Yan Wang and Degang Sun and Thomas Pasquier and Xueyuan Han},
+  title     = {{KAIROS}: Practical Intrusion Detection and Investigation using Whole-system Provenance},
+  booktitle = {2024 IEEE Symposium on Security and Privacy (SP)},
+  year      = {2024},
+  pages     = {3533--3551},
+  publisher = {IEEE},
+  url       = {https://ieeexplore.ieee.org/document/10646673/}
+}
+
+@inproceedings{rehman2024flash,
+  author    = {Mati Ur Rehman and Hadi Ahmadi and Wajih Ul Hassan},
+  title     = {{FLASH}: A Comprehensive Approach to Intrusion Detection via Provenance Graph Representation Learning},
+  booktitle = {2024 IEEE Symposium on Security and Privacy (SP)},
+  year      = {2024},
+  pages     = {3552--3570},
+  publisher = {IEEE},
+  url       = {https://ieeexplore.ieee.org/document/10646725/}
+}
+
+@inproceedings{jia2024magic,
+  author    = {Zian Jia and Yun Xiong and Yuhong Nan and Yao Zhang and Jinjing Zhao and Mi Wen},
+  title     = {{MAGIC}: Detecting Advanced Persistent Threats via Masked Graph Representation Learning},
+  booktitle = {33rd {USENIX} Security Symposium ({USENIX} Security 24)},
+  year      = {2024},
+  pages     = {5197--5214},
+  address   = {Philadelphia, PA},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixsecurity24/presentation/jia-zian}
+}
+
+@inproceedings{li2024nodlink,
+  author    = {Shaofei Li and Feng Dong and Xusheng Xiao and Haoyu Wang and Fei Shao and Jiedong Chen and Yao Guo and Xiangqun Chen and Ding Li},
+  title     = {{NODLINK}: An Online System for Fine-Grained {APT} Attack Detection and Investigation},
+  booktitle = {31st Annual Network and Distributed System Security Symposium (NDSS)},
+  year      = {2024},
+  address   = {San Diego, CA},
+  publisher = {The Internet Society},
+  url       = {https://www.ndss-symposium.org/ndss-paper/nodlink-an-online-system-for-fine-grained-apt-attack-detection-and-investigation/}
+}
+
+@inproceedings{jiang2025orthrus,
+  author    = {Baoxiang Jiang and Tristan Bilot and Nour El Madhoun and Khaldoun Al Agha and Anis Zouaoui and Shahrear Iqbal and Xueyuan Han and Thomas Pasquier},
+  title     = {{ORTHRUS}: Achieving High Quality of Attribution in Provenance-based Intrusion Detection Systems},
+  booktitle = {34th {USENIX} Security Symposium ({USENIX} Security 25)},
+  year      = {2025},
+  address   = {Seattle, WA},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixsecurity25/presentation/jiang-baoxiang}
+}
+
+@inproceedings{bilot2025simpler,
+  author    = {Tristan Bilot and Baoxiang Jiang and Zefeng Li and Nour El Madhoun and Khaldoun Al Agha and Anis Zouaoui and Thomas Pasquier},
+  title     = {Sometimes Simpler is Better: A Comprehensive Analysis of State-of-the-Art Provenance-Based Intrusion Detection Systems},
+  booktitle = {34th {USENIX} Security Symposium ({USENIX} Security 25)},
+  year      = {2025},
+  address   = {Seattle, WA},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixsecurity25/presentation/bilot}
+}
+
+@inproceedings{aly2025ocrapt,
+  author    = {Ahmed Aly and Essam Mansour and Amr Youssef},
+  title     = {{OCR-APT}: Reconstructing {APT} Stories from Audit Logs using Subgraph Anomaly Detection and {LLMs}},
+  booktitle = {Proceedings of the 2025 ACM SIGSAC Conference on Computer and Communications Security (CCS)},
+  year      = {2025},
+  pages     = {261--275},
+  address   = {Taipei, Taiwan},
+  publisher = {ACM},
+  doi       = {10.1145/3719027.3765219}
+}
+
+% =====================================================================
+% (2) Datasets and telemetry
+% =====================================================================
+
+@misc{darpa_tc,
+  author       = {{DARPA Information Innovation Office (I2O)}},
+  title        = {Transparent Computing: Material from the {DARPA} Transparent Computing Program (Engagement 3 and Engagement 5 data releases)},
+  howpublished = {\url{https://github.com/darpa-i2o/Transparent-Computing}},
+  note         = {GitHub repository. Accessed 2026-10-11}
+}
+
+@misc{darpa_optc,
+  author       = {{DARPA} and {Five Directions}},
+  title        = {Operationally Transparent Cyber ({OpTC}) Data Release},
+  howpublished = {\url{https://github.com/FiveDirections/OpTC-data}},
+  note         = {GitHub repository. Accessed 2026-10-11}
+}
+
+@misc{otrf_securitydatasets,
+  author       = {Roberto Rodriguez and Jose Luis Rodriguez},
+  title        = {Security Datasets: Re-play Security Events},
+  howpublished = {\url{https://github.com/OTRF/Security-Datasets}},
+  note         = {Open Threat Research Forge (OTRF). Documentation: \url{https://securitydatasets.com}. Accessed 2026-10-11}
+}
+
+@misc{splunk_attackdata,
+  author       = {{Splunk Inc.}},
+  title        = {attack\_data: A Repository of Curated Datasets from Various Attacks},
+  howpublished = {\url{https://github.com/splunk/attack_data}},
+  note         = {GitHub repository, Apache-2.0 license. Dataset catalog: \url{https://research.splunk.com/attack_data/}. Accessed 2026-10-11}
+}
+
+@misc{microsoft_sysmon,
+  author       = {Mark Russinovich and Thomas Garnier},
+  title        = {Sysmon ({System Monitor})},
+  howpublished = {\url{https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon}},
+  note         = {Microsoft Sysinternals documentation. Accessed 2026-10-11}
+}
+
+@misc{microsoft_sysmonforlinux,
+  author       = {{Microsoft Sysinternals}},
+  title        = {Sysmon for Linux},
+  howpublished = {\url{https://github.com/microsoft/Sysmon-Linux}},
+  note         = {GitHub repository (formerly published as SysmonForLinux). Accessed 2026-10-11}
+}
+
+@techreport{strom2018attack,
+  author      = {Blake E. Strom and Andy Applebaum and Doug P. Miller and Kathryn C. Nickels and Adam G. Pennington and Cody B. Thomas},
+  title       = {{MITRE ATT\&CK}: Design and Philosophy},
+  institution = {The MITRE Corporation},
+  year        = {2018},
+  note        = {Originally published July 2018, revised March 2020},
+  url         = {https://www.mitre.org/news-insights/publication/mitre-attck-design-and-philosophy}
+}
+
+@inproceedings{grimmer2023lidds,
+  author    = {Martin Grimmer and Tim Kaelble and Felix Nirsberger and Emmely Schulze and Toni Rucks and J{\"o}rn Hoffmann and Erhard Rahm},
+  title     = {Dataset Report: {LID-DS} 2021},
+  booktitle = {Critical Information Infrastructures Security (CRITIS 2022)},
+  series    = {Lecture Notes in Computer Science},
+  volume    = {13723},
+  pages     = {63--73},
+  publisher = {Springer},
+  year      = {2023},
+  doi       = {10.1007/978-3-031-35190-7_6}
+}
+
+@article{landauer2023maintainable,
+  author    = {Max Landauer and Florian Skopik and Maximilian Frank and Wolfgang Hotwagner and Markus Wurzenberger and Andreas Rauber},
+  title     = {Maintainable Log Datasets for Evaluation of Intrusion Detection Systems},
+  journal   = {IEEE Transactions on Dependable and Secure Computing},
+  volume    = {20},
+  number    = {4},
+  year      = {2023}
+}
+
+@inproceedings{creech2013adfa,
+  author    = {Gideon Creech and Jiankun Hu},
+  title     = {Generation of a new {IDS} test dataset: Time to retire the {KDD} collection},
+  booktitle = {2013 IEEE Wireless Communications and Networking Conference (WCNC)},
+  year      = {2013},
+  pages     = {4487--4492},
+  publisher = {IEEE},
+  doi       = {10.1109/WCNC.2013.6555301}
+}
+
+@incollection{kent2016lanl,
+  author    = {A. D. Kent},
+  title     = {Cyber-Security Data Sources for Dynamic Network Research},
+  booktitle = {Dynamic Networks and Cyber-Security},
+  editor    = {Niall Adams and Nick Heard},
+  series    = {Security Science and Technology},
+  volume    = {1},
+  publisher = {World Scientific},
+  address   = {Singapore},
+  year      = {2016},
+  note      = {Describes the LANL ``Comprehensive, Multi-Source Cyber-Security Events'' data set, \url{https://csr.lanl.gov/data/cyber1/}}
+}
+
+@misc{pidsmaker_repo,
+  author       = {Tristan Bilot and Baoxiang Jiang and Thomas Pasquier},
+  title        = {{PIDSMaker}: Building and Evaluating Provenance-based Intrusion Detection Systems (framework, preprocessed datasets and ground-truth labels)},
+  howpublished = {\url{https://github.com/ubc-provenance/PIDSMaker}},
+  note         = {GitHub repository; accompanying paper arXiv:2601.22983, listed by the authors as appearing at ACM KDD 2026. Accessed 2026-10-11}
+}
+
+% =====================================================================
+% (3) SOC operations, alert triage and analyst workload
+% =====================================================================
+
+@inproceedings{sundaramurthy2015burnout,
+  author    = {Sathya Chandran Sundaramurthy and Alexandru G. Bardas and Jacob Case and Xinming Ou and Michael Wesch and John McHugh and S. Raj Rajagopalan},
+  title     = {A Human Capital Model for Mitigating Security Analyst Burnout},
+  booktitle = {Eleventh Symposium On Usable Privacy and Security (SOUPS 2015)},
+  year      = {2015},
+  address   = {Ottawa, Canada},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/soups2015/proceedings/presentation/sundaramurthy}
+}
+
+@inproceedings{kokulu2019soc,
+  author    = {Faris Bugra Kokulu and Ananta Soneji and Tiffany Bao and Yan Shoshitaishvili and Ziming Zhao and Adam Doup{\'e} and Gail-Joon Ahn},
+  title     = {Matched and Mismatched {SOCs}: A Qualitative Study on Security Operations Center Issues},
+  booktitle = {Proceedings of the 2019 ACM SIGSAC Conference on Computer and Communications Security (CCS)},
+  year      = {2019},
+  pages     = {1955--1970},
+  address   = {London, UK},
+  publisher = {ACM}
+}
+
+@inproceedings{alahmadi2022falsepositives,
+  author    = {Bushra A. Alahmadi and Louise Axon and Ivan Martinovic},
+  title     = {99\% False Positives: A Qualitative Study of {SOC} Analysts' Perspectives on Security Alarms},
+  booktitle = {31st {USENIX} Security Symposium ({USENIX} Security 22)},
+  year      = {2022},
+  pages     = {2783--2800},
+  address   = {Boston, MA},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixsecurity22/presentation/alahmadi}
+}
+
+@inproceedings{vermeer2023alertalchemy,
+  author    = {Mathew Vermeer and Natalia Kadenko and Michel van Eeten and Carlos Ga{\~n}{\'a}n and Simon Parkin},
+  title     = {Alert Alchemy: {SOC} Workflows and Decisions in the Management of {NIDS} Rules},
+  booktitle = {Proceedings of the 2023 ACM SIGSAC Conference on Computer and Communications Security (CCS)},
+  year      = {2023},
+  pages     = {2770--2784},
+  address   = {Copenhagen, Denmark},
+  publisher = {ACM},
+  doi       = {10.1145/3576915.3616581}
+}
+
+@inproceedings{liu2022rapid,
+  author    = {Yushan Liu and Xiaokui Shu and Yixin Sun and Jiyong Jang and Prateek Mittal},
+  title     = {{RAPID}: Real-Time Alert Investigation with Context-aware Prioritization for Efficient Threat Discovery},
+  booktitle = {Proceedings of the 38th Annual Computer Security Applications Conference (ACSAC)},
+  year      = {2022},
+  pages     = {827--840},
+  publisher = {ACM},
+  doi       = {10.1145/3564625.3567997}
+}
+
+% =====================================================================
+% (4) LLM agents, tool use and agent benchmarks
+% =====================================================================
+
+@inproceedings{wei2022cot,
+  author    = {Jason Wei and Xuezhi Wang and Dale Schuurmans and Maarten Bosma and Brian Ichter and Fei Xia and Ed Chi and Quoc V. Le and Denny Zhou},
+  title     = {Chain-of-Thought Prompting Elicits Reasoning in Large Language Models},
+  booktitle = {Advances in Neural Information Processing Systems 35 (NeurIPS 2022)},
+  year      = {2022},
+  url       = {https://proceedings.neurips.cc/paper/2022/hash/9d5609613524ecf4f15af0f7b31abca4-Abstract-Conference.html}
+}
+
+@inproceedings{yao2023react,
+  author    = {Shunyu Yao and Jeffrey Zhao and Dian Yu and Nan Du and Izhak Shafran and Karthik Narasimhan and Yuan Cao},
+  title     = {{ReAct}: Synergizing Reasoning and Acting in Language Models},
+  booktitle = {The Eleventh International Conference on Learning Representations (ICLR)},
+  year      = {2023},
+  url       = {https://openreview.net/forum?id=WE_vluYUL-X}
+}
+
+@inproceedings{schick2023toolformer,
+  author    = {Timo Schick and Jane Dwivedi-Yu and Roberto Dess{\`\i} and Roberta Raileanu and Maria Lomeli and Eric Hambro and Luke Zettlemoyer and Nicola Cancedda and Thomas Scialom},
+  title     = {Toolformer: Language Models Can Teach Themselves to Use Tools},
+  booktitle = {Advances in Neural Information Processing Systems 36 (NeurIPS 2023)},
+  year      = {2023},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2023/file/d842425e4bf79ba039352da0f658a906-Paper-Conference.pdf}
+}
+
+@inproceedings{shinn2023reflexion,
+  author    = {Noah Shinn and Federico Cassano and Ashwin Gopinath and Karthik Narasimhan and Shunyu Yao},
+  title     = {Reflexion: Language Agents with Verbal Reinforcement Learning},
+  booktitle = {Advances in Neural Information Processing Systems 36 (NeurIPS 2023)},
+  year      = {2023},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2023/hash/1b44b878bb782e6954cd888628510e90-Abstract-Conference.html}
+}
+
+@inproceedings{liu2024agentbench,
+  author    = {Xiao Liu and Hao Yu and Hanchen Zhang and Yifan Xu and Xuanyu Lei and Hanyu Lai and Yu Gu and Hangliang Ding and Kaiwen Men and Kejuan Yang and Shudan Zhang and Xiang Deng and Aohan Zeng and Zhengxiao Du and Chenhui Zhang and Sheng Shen and Tianjun Zhang and Yu Su and Huan Sun and Minlie Huang and Yuxiao Dong and Jie Tang},
+  title     = {{AgentBench}: Evaluating {LLMs} as Agents},
+  booktitle = {The Twelfth International Conference on Learning Representations (ICLR)},
+  year      = {2024},
+  url       = {https://proceedings.iclr.cc/paper_files/paper/2024/file/e9df36b21ff4ee211a8b71ee8b7e9f57-Paper-Conference.pdf}
+}
+
+@inproceedings{jimenez2024swebench,
+  author    = {Carlos E. Jimenez and John Yang and Alexander Wettig and Shunyu Yao and Kexin Pei and Ofir Press and Karthik R. Narasimhan},
+  title     = {{SWE}-bench: Can Language Models Resolve Real-world {GitHub} Issues?},
+  booktitle = {The Twelfth International Conference on Learning Representations (ICLR)},
+  year      = {2024},
+  url       = {https://openreview.net/forum?id=VTF8yNQM66}
+}
+
+@inproceedings{yao2025taubench,
+  author    = {Shunyu Yao and Noah Shinn and Pedram Razavi and Karthik Narasimhan},
+  title     = {$\tau$-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains},
+  booktitle = {The Thirteenth International Conference on Learning Representations (ICLR)},
+  year      = {2025},
+  url       = {https://proceedings.iclr.cc/paper_files/paper/2025/hash/1b126cc38b8638e07bef37e7b2bb72bf-Abstract-Conference.html}
+}
+
+@inproceedings{patil2025bfcl,
+  author    = {Shishir G. Patil and Huanzhi Mao and Fanjia Yan and Charlie Cheng-Jie Ji and Vishnu Suresh and Ion Stoica and Joseph E. Gonzalez},
+  title     = {The {Berkeley} Function Calling Leaderboard ({BFCL}): From Tool Use to Agentic Evaluation of Large Language Models},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning (ICML)},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {267},
+  pages     = {48371--48392},
+  publisher = {PMLR},
+  year      = {2025},
+  url       = {https://proceedings.mlr.press/v267/patil25a.html}
+}
+
+% =====================================================================
+% (5) LLMs for cybersecurity
+% =====================================================================
+
+@misc{bhatt2023cyberseceval,
+  author        = {Manish Bhatt and Sahana Chennabasappa and Cyrus Nikolaidis and Shengye Wan and Ivan Evtimov and Dominik Gabi and Daniel Song and others},
+  title         = {Purple {Llama} {CyberSecEval}: A Secure Coding Benchmark for Language Models},
+  year          = {2023},
+  eprint        = {2312.04724},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  url           = {https://arxiv.org/abs/2312.04724}
+}
+
+@misc{bhatt2024cyberseceval2,
+  author        = {Manish Bhatt and Sahana Chennabasappa and Yue Li and Cyrus Nikolaidis and Daniel Song and Shengye Wan and Faizan Ahmad and Cornelius Aschermann and Yaohui Chen and Dhaval Kapil and David Molnar and Spencer Whitman and Joshua Saxe},
+  title         = {{CyberSecEval 2}: A Wide-Ranging Cybersecurity Evaluation Suite for Large Language Models},
+  year          = {2024},
+  eprint        = {2404.13161},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  url           = {https://arxiv.org/abs/2404.13161}
+}
+
+@misc{wan2024cyberseceval3,
+  author        = {Shengye Wan and Cyrus Nikolaidis and Daniel Song and David Molnar and James Crnkovich and Jayson Grace and Manish Bhatt and Sahana Chennabasappa and Spencer Whitman and Stephanie Ding and Vlad Ionescu and Yue Li and Joshua Saxe},
+  title         = {{CyberSecEval 3}: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models},
+  year          = {2024},
+  eprint        = {2408.01605},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  url           = {https://arxiv.org/abs/2408.01605}
+}
+
+@inproceedings{alam2024ctibench,
+  author    = {Md Tanvirul Alam and Dipkamal Bhusal and Le Nguyen and Nidhi Rastogi},
+  title     = {{CTIBench}: A Benchmark for Evaluating {LLMs} in Cyber Threat Intelligence},
+  booktitle = {Advances in Neural Information Processing Systems 37 (NeurIPS 2024), Datasets and Benchmarks Track},
+  year      = {2024},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2024/hash/5acd3c628aa1819fbf07c39ef73e7285-Abstract.html}
+}
+
+@inproceedings{shao2024nyuctf,
+  author    = {Minghao Shao and Sofija Jancheska and Meet Udeshi and Brendan Dolan-Gavitt and Haoran Xi and Kimberly Milner and Boyuan Chen and Max Yin and Siddharth Garg and Prashanth Krishnamurthy and Farshad Khorrami and Ramesh Karri and Muhammad Shafique},
+  title     = {{NYU CTF Bench}: A Scalable Open-Source Benchmark Dataset for Evaluating {LLMs} in Offensive Security},
+  booktitle = {Advances in Neural Information Processing Systems 37 (NeurIPS 2024), Datasets and Benchmarks Track},
+  year      = {2024},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2024/hash/69d97a6493fbf016fff0a751f253ad18-Abstract.html}
+}
+
+@inproceedings{deng2024pentestgpt,
+  author    = {Gelei Deng and Yi Liu and V{\'\i}ctor Mayoral-Vilches and Peng Liu and Yuekang Li and Yuan Xu and Tianwei Zhang and Yang Liu and Martin Pinzger and Stefan Rass},
+  title     = {{PentestGPT}: Evaluating and Harnessing Large Language Models for Automated Penetration Testing},
+  booktitle = {33rd {USENIX} Security Symposium ({USENIX} Security 24)},
+  year      = {2024},
+  pages     = {847--864},
+  address   = {Philadelphia, PA},
+  publisher = {USENIX Association},
+  isbn      = {978-1-939133-44-1},
+  url       = {https://www.usenix.org/conference/usenixsecurity24/presentation/deng}
+}
+
+@inproceedings{zhang2025cybench,
+  author    = {Andy K. Zhang and Neil Perry and Riya Dulepet and Joey Ji and Celeste Menders and Justin W. Lin and Eliot Jones and Gashon Hussein and Samantha Liu and Donovan Julian Jasper and Pura Peetathawatchai and Ari Glenn and Vikram Sivashankar and Daniel Zamoshchin and Leo Glikbarg and Derek Askaryar and Haoxiang Yang and Aolin Zhang and Rishi Alluri and Nathan Tran and Rinnara Sangpisit and Kenny O. Oseleononmen and Dan Boneh and Daniel E. Ho and Percy Liang},
+  title     = {Cybench: A Framework for Evaluating Cybersecurity Capabilities and Risks of Language Models},
+  booktitle = {The Thirteenth International Conference on Learning Representations (ICLR)},
+  year      = {2025},
+  url       = {https://openreview.net/forum?id=tc90LV0yRL}
+}
+
+@article{xu2025llm4security,
+  author    = {Hanxiang Xu and Shenao Wang and Ningke Li and Kailong Wang and Yanjie Zhao and Kai Chen and Ting Yu and Yang Liu and Haoyu Wang},
+  title     = {Large Language Models for Cyber Security: A Systematic Literature Review},
+  journal   = {ACM Transactions on Software Engineering and Methodology},
+  year      = {2025},
+  doi       = {10.1145/3769676}
+}
+
+@inproceedings{wu2026excytin,
+  author    = {Yiran Wu and Mauricio Velazco and Andrew Zhao and Manuel Ra{\'u}l Mel{\'e}ndez Luj{\'a}n and Srisuma Movva and Yogesh K. Roy and Quang Nguyen and Roberto Rodriguez and Qingyun Wu and Michael Albada and Julia Kiseleva and Anand Mudgerikar},
+  title     = {{ExCyTIn-Bench}: Evaluating {LLM} Agents on Cyber Threat Investigation},
+  booktitle = {International Conference on Machine Learning (ICML)},
+  year      = {2026},
+  note      = {arXiv:2507.14201},
+  url       = {https://icml.cc/virtual/2026/poster/66310}
+}
+
+% =====================================================================
+% (6) Methodology and online documentation
+% =====================================================================
+
+@inproceedings{arp2022dosdonts,
+  author    = {Daniel Arp and Erwin Quiring and Feargus Pendlebury and Alexander Warnecke and Fabio Pierazzi and Christian Wressnegger and Lorenzo Cavallaro and Konrad Rieck},
+  title     = {Dos and Don'ts of Machine Learning in Computer Security},
+  booktitle = {31st {USENIX} Security Symposium ({USENIX} Security 22)},
+  year      = {2022},
+  pages     = {3971--3988},
+  address   = {Boston, MA},
+  publisher = {USENIX Association},
+  url       = {https://www.usenix.org/conference/usenixsecurity22/presentation/arp}
+}
+
+@inproceedings{sainz2023contamination,
+  author    = {Oscar Sainz and Jon Campos and Iker Garc{\'\i}a-Ferrero and Julen Etxaniz and Oier Lopez de Lacalle and Eneko Agirre},
+  title     = {{NLP} Evaluation in trouble: On the Need to Measure {LLM} Data Contamination for each Benchmark},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2023},
+  year      = {2023},
+  pages     = {10776--10787},
+  address   = {Singapore},
+  publisher = {Association for Computational Linguistics}
+}
+
+@misc{anthropic_promptcaching,
+  author       = {{Anthropic}},
+  title        = {Prompt caching},
+  howpublished = {\url{https://platform.claude.com/docs/en/build-with-claude/prompt-caching}},
+  note         = {Claude Platform documentation. Accessed 2026-10-11}
+}
+
+@misc{anthropic_tooluse,
+  author       = {{Anthropic}},
+  title        = {Tool use with {Claude}},
+  howpublished = {\url{https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview}},
+  note         = {Claude Platform documentation. Accessed 2026-10-11}
+}
+
+% Added by the author: the competition's public reference client (repository cloned and inspected 2026-10-09).
+@misc{bluesec1_reference,
+  author       = {{False-Positive-Community}},
+  title        = {{BlueSec1} Reference Agent and Runtime Client},
+  howpublished = {\url{https://github.com/False-Positive-Community/bluesec1-agent}},
+  year         = {2026},
+  note         = {Accessed 2026-10-11}
+}
+
+% ---- Adversarial robustness, evasion, shortcuts, prompt injection (added for v1.1 study)
+@inproceedings{wagner2002mimicry,
+  author    = {David Wagner and Paolo Soto},
+  title     = {Mimicry Attacks on Host-Based Intrusion Detection Systems},
+  booktitle = {Proceedings of the 9th ACM Conference on Computer and Communications Security (CCS)},
+  address   = {Washington, DC, USA},
+  publisher = {ACM},
+  year      = {2002},
+  pages     = {255--264},
+  doi       = {10.1145/586110.586145}
+}
+
+@article{geirhos2020shortcut,
+  author    = {Robert Geirhos and J{\"o}rn-Henrik Jacobsen and Claudio Michaelis and Richard Zemel and Wieland Brendel and Matthias Bethge and Felix A. Wichmann},
+  title     = {Shortcut Learning in Deep Neural Networks},
+  journal   = {Nature Machine Intelligence},
+  volume    = {2},
+  number    = {11},
+  pages     = {665--673},
+  year      = {2020},
+  doi       = {10.1038/s42256-020-00257-z}
+}
+
+@inproceedings{greshake2023indirect,
+  author    = {Sahar Abdelnabi and Kai Greshake and Shailesh Mishra and Christoph Endres and Thorsten Holz and Mario Fritz},
+  title     = {Not What You've Signed Up For: Compromising Real-World {LLM}-Integrated Applications with Indirect Prompt Injection},
+  booktitle = {Proceedings of the 16th ACM Workshop on Artificial Intelligence and Security (AISec)},
+  address   = {Copenhagen, Denmark},
+  publisher = {ACM},
+  year      = {2023},
+  pages     = {79--90},
+  doi       = {10.1145/3605764.3623985}
+}
+
+@inproceedings{goyal2023mimicry,
+  author    = {Akul Goyal and Xueyuan Han and Gang Wang and Adam Bates},
+  title     = {Sometimes, You Aren't What You Do: Mimicry Attacks against Provenance Graph Host Intrusion Detection Systems},
+  booktitle = {Proceedings of the 30th Network and Distributed System Security Symposium (NDSS)},
+  address   = {San Diego, CA, USA},
+  publisher = {The Internet Society},
+  year      = {2023},
+  doi       = {10.14722/ndss.2023.24207}
+}
+
+@inproceedings{debenedetti2024agentdojo,
+  author    = {Edoardo Debenedetti and Jie Zhang and Mislav Balunovi{\'c} and Luca Beurer-Kellner and Marc Fischer and Florian Tram{\`e}r},
+  title     = {{AgentDojo}: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for {LLM} Agents},
+  booktitle = {Advances in Neural Information Processing Systems 37 (NeurIPS 2024), Datasets and Benchmarks Track},
+  volume    = {37},
+  year      = {2024},
+  doi       = {10.52202/079017-2636}
+}
+
+@inproceedings{pierazzi2020problemspace,
+  author    = {Fabio Pierazzi and Feargus Pendlebury and Jacopo Cortellazzi and Lorenzo Cavallaro},
+  title     = {Intriguing Properties of Adversarial {ML} Attacks in the Problem Space},
+  booktitle = {2020 IEEE Symposium on Security and Privacy (SP)},
+  publisher = {IEEE},
+  year      = {2020},
+  pages     = {1332--1349},
+  doi       = {10.1109/SP40000.2020.00073}
+}

@@ -1,0 +1,25 @@
+{
+  "run_id": "local-run",
+  "date": "2026-10-10T23:15:18+03:00",
+  "source": "console output of the run (per-task log lines and the printed summary)",
+  "benchmark": "SOCGraph v0: the 11 Windows tasks (OTRF Security-Datasets)",
+  "config": {
+    "label": "pilot (full)",
+    "ablations": [],
+    "provider": "anthropic",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "concurrency": 4,
+    "soft_budget": 12,
+    "max_tool_calls": 30,
+    "runtime": "LocalClient"
+  },
+  "tasks": 11,
+  "completed": 11,
+  "mean_quality": 0.9326,
+  "mean_efficiency": 0.6594,
+  "mean_reward": 0.87,
+  "mean_tool_calls": 7.27,
+  "peak_parallel_tasks": 4,
+  "wall_clock_seconds": 56.7
+}
