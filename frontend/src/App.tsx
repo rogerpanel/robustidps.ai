@@ -7,6 +7,7 @@ import {
   Radio,
   Info,
   ShieldCheck,
+  Gavel,
   Wifi,
   WifiOff,
   Brain,
@@ -143,6 +144,7 @@ const AgentStudioPortal = lazy(() => import('./plugins/agent_studio/pages/AgentS
 const AgentEvalHarness = lazy(() => import('./plugins/agent_studio/pages/EvalHarness'))
 const AgentRedTeam = lazy(() => import('./plugins/agent_studio/pages/RedTeam'))
 const AgentRuntimeMonitor = lazy(() => import('./plugins/agent_studio/pages/RuntimeMonitor'))
+const AgentSafetyFilter = lazy(() => import('./plugins/agent_studio/pages/SafetyFilter'))
 const AgentSupplyChain = lazy(() => import('./plugins/agent_studio/pages/SupplyChainScanner'))
 const AgentAccountConsole = lazy(() => import('./plugins/agent_studio/pages/AccountConsole'))
 const AgentQuickstart = lazy(() => import('./plugins/agent_studio/pages/Quickstart'))
@@ -271,6 +273,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/agent-scanner', label: 'Free MCP/Agent Scanner', icon: FileSearch },
       { to: '/agent-studio/red-team', label: 'Red Team Automation', icon: Swords },
       { to: '/agent-studio/runtime', label: 'Runtime Monitor', icon: Activity },
+      { to: '/agent-guard', label: 'Safety Filter', icon: Gavel },
       { to: '/dossier?vertical=agent_studio', label: 'Assurance Dossier', icon: FileText },
     ],
   },
@@ -917,6 +920,7 @@ export default function App() {
               <Route path="/agent-studio/eval" element={<AgentEvalHarness />} />
               <Route path="/agent-studio/red-team" element={<AgentRedTeam />} />
               <Route path="/agent-studio/runtime" element={<AgentRuntimeMonitor />} />
+              <Route path="/agent-guard" element={<AgentSafetyFilter />} />
               <Route path="/agent-studio/supply-chain" element={<AgentSupplyChain />} />
               <Route path="/agent-studio/account" element={<AgentAccountConsole />} />
               <Route path="/agent-studio/quickstart" element={<AgentQuickstart />} />

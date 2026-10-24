@@ -1,0 +1,31 @@
+{
+  "id": "authorised-testing",
+  "version": "1",
+  "name": "Authorised security testing (rules of engagement)",
+  "description": "Every target must be inside the agreed scope. Passive lookups are allowed, active probing needs approval, and destructive or code-execution tools are denied. Fill scope.allow with the networks and hosts in your rules of engagement; with an empty list every target is out of scope.",
+  "default_tier": "unknown",
+  "tiers": {
+    "passive": {"decision": "allow", "description": "Lookups that send nothing to the target", "reversible": true},
+    "active": {"decision": "ask", "description": "Probes that touch the target", "reversible": true},
+    "destructive": {"decision": "deny", "description": "Code execution or changes on the target", "reversible": false},
+    "unknown": {"decision": "ask", "description": "Tools this pack does not classify"}
+  },
+  "tools": [
+    {"match": ["whois*", "dns_*", "lookup*", "search*", "get_*", "list_*", "read_*"], "tier": "passive"},
+    {"match": ["*scan*", "probe*", "crawl*", "fuzz*", "http_request*", "fetch*", "ping*", "traceroute*"], "tier": "active"},
+    {"match": ["exploit*", "*payload*", "delete*", "write_*", "upload*", "shell*", "bash*", "exec*", "run_command*"], "tier": "destructive"}
+  ],
+  "arg_rules": [
+    {"id": "metadata-endpoint", "description": "Cloud instance metadata endpoints are never in scope", "args": ["target*", "host*", "url*", "ip*", "address*"], "pattern": "169\\.254\\.169\\.254|metadata\\.google\\.internal|fd00:ec2::254", "decision": "deny"}
+  ],
+  "scope": {
+    "target_args": ["target", "targets", "host", "hostname", "ip", "url", "domain", "address", "cidr"],
+    "allow": [],
+    "on_violation": "deny"
+  },
+  "redact": [
+    {"id": "no-secrets-in-args", "args": ["password", "passwd", "secret*", "api_key", "apikey", "token", "*_token", "private_key"]}
+  ],
+  "max_calls_per_session": 300,
+  "escalate_after_denials": 3
+}
