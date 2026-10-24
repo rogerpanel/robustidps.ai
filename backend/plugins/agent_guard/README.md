@@ -78,7 +78,7 @@ website share sessions, approvals, the registry and the ledger.
 | GET/POST | `/toolsets`, `/toolsets/{name}`, `/toolsets/{name}/pin`, `/toolsets/{name}/verify`, `/toolsets/{name}/coverage` | Tool Registry |
 | GET/POST | `/suites`, `/evaluate`, `/evaluate/compare` | Evaluation, ablations and baselines |
 | GET | `/evidence`, `/evidence/verify`, `/evidence/summary`, `/evidence/export` | Evidence ledger |
-| GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py` | |
+| GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py`, `/integrations/{agentdojo,inspect}` | |
 
 ## Connecting agents: `client.py`
 
@@ -98,6 +98,29 @@ One stdlib file, also served at `/api/agent-guard/client.py`:
   environment on the user's machine; nothing is proxied through robustidps.ai.
 
 Every failure is a deny: a tool the guard did not approve never runs.
+
+## Benchmark harnesses: AgentDojo and Inspect (`integrations/`)
+
+Both files sit next to `agent_guard_client.py` and are served at
+`/api/agent-guard/integrations/agentdojo` and `/api/agent-guard/integrations/inspect`.
+
+- `agentdojo_guard.py`: `GuardedToolsExecutor(guard)` replaces AgentDojo's
+  `ToolsExecutor` inside `ToolsExecutionLoop`. Allowed calls run through the
+  stock executor; modified calls run with the corrected arguments; ask and
+  deny return a tool error with the reasons (paired with the original tool
+  call id). `executor.decisions` keeps every verdict for analysis. Verified
+  with agentdojo 0.1.35.
+- `inspect_guard.py`: the `agent_guard` approver (registered with
+  `@approver`, usable from Python `ApprovalPolicy` lists or approval YAML).
+  allow = approve, modify = modify (corrected `ToolCall`), ask = escalate
+  (or reject with `ask_as="reject"`), deny = reject (or terminate with
+  `deny_as="terminate"`); guard failures reject. Verified with inspect_ai
+  0.3.283, end to end with a scripted `mockllm` model.
+
+Each connector uses one guard session per task or sample and a fresh prefix
+per instance, so budgets and repeated-denial rules do not carry over between
+tasks or runs. Both accept a `checker(tool, args)` function instead of the
+HTTP client for offline experiments.
 
 ## Limits
 

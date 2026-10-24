@@ -69,6 +69,7 @@ export const guardDecisions = (sessionId: string) =>
 export const guardReset = (sessionId: string) =>
   call<{ reset: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/reset`, {})
 export const guardClientUrl = `${API}/api/agent-guard/client.py`
+export const guardIntegrationUrl = (name: 'agentdojo' | 'inspect') => `${API}/api/agent-guard/integrations/${name}`
 
 // ── approvals ─────────────────────────────────────────────────────────
 export interface GuardApproval {

@@ -260,6 +260,20 @@ def client_script() -> PlainTextResponse:
                              headers={"Content-Disposition": 'attachment; filename="agent_guard_client.py"'})
 
 
+INTEGRATIONS = {"agentdojo": "agentdojo_guard.py", "inspect": "inspect_guard.py"}
+
+
+@router.get("/integrations/{name}")
+def integration_script(name: str) -> PlainTextResponse:
+    """Connector files for AgentDojo (GuardedToolsExecutor) and Inspect (agent_guard approver)."""
+    filename = INTEGRATIONS.get(name)
+    if filename is None:
+        raise HTTPException(404, f"Unknown integration; available: {', '.join(INTEGRATIONS)}")
+    path = Path(__file__).parent / "integrations" / filename
+    return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/x-python",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
 @router.get("/policies")
 def list_policies() -> list[dict]:
     return [p.model_dump() for p in builtin_policies().values()]

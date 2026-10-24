@@ -4,6 +4,7 @@ import { Gavel, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Download, C
 import PageGuide from '../../../components/PageGuide'
 import {
   guardCheck, guardDecisions, guardPolicies, guardReset, guardValidate, guardClientUrl,
+  guardIntegrationUrl,
   type GuardDecision, type GuardLogEntry, type GuardPolicy, type Verdict,
 } from '../guardApi'
 import ApprovalsTab from './guard/ApprovalsTab'
@@ -171,6 +172,23 @@ verdict = guard.check("isolate_host", {"host": "10.0.4.17"})
 
 @guard.tool              # or wrap your own tool functions
 def isolate_host(host: str): ...`
+
+  const dojoSnippet = `from agentdojo.agent_pipeline import AgentPipeline, InitQuery, SystemMessage, ToolsExecutionLoop
+from agent_guard_client import GuardClient
+from agentdojo_guard import GuardedToolsExecutor
+
+guard = GuardClient("${window.location.origin}", token="<your token>", policy_id="${policyId}")
+pipeline = AgentPipeline([SystemMessage(system_message), InitQuery(), llm,
+                          ToolsExecutionLoop([GuardedToolsExecutor(guard), llm])])`
+  const inspectSnippet = `from inspect_ai import Task
+from inspect_ai.approval import ApprovalPolicy, human_approver
+from inspect_guard import agent_guard
+
+Task(..., approval=[
+    ApprovalPolicy(agent_guard(url="${window.location.origin}", token="<your token>",
+                               policy="${policyId}"), "*"),
+    ApprovalPolicy(human_approver(), "*"),   # decides what the guard escalates
+])`
 
   return (
     <div className="space-y-6">
@@ -396,6 +414,28 @@ def isolate_host(host: str): ...`
               the hook endpoint returns it as agentGuard.openhands_risk.
             </p>
           </div>
+        </div>
+        <div className="grid lg:grid-cols-2 gap-4 pt-2 border-t border-bg-primary">
+          {[
+            { key: 'dojo', title: 'AgentDojo (replaces ToolsExecutor)', file: 'agentdojo_guard.py', url: guardIntegrationUrl('agentdojo'), code: dojoSnippet,
+              note: 'Blocked calls return a tool error with the reason; modified arguments run instead of the originals. One guard session per task and run.' },
+            { key: 'insp', title: 'Inspect (approver)', file: 'inspect_guard.py', url: guardIntegrationUrl('inspect'), code: inspectSnippet,
+              note: 'allow approves, modify approves the corrected call, ask escalates to the next approver (e.g. a person), deny rejects. Guard failures reject.' },
+          ].map((x) => (
+            <div key={x.key}>
+              <div className="flex items-center justify-between mb-1 gap-2">
+                <p className="text-xs text-text-secondary">{x.title}</p>
+                <span className="flex items-center gap-3">
+                  <a href={x.url} className="text-xs text-accent-blue inline-flex items-center gap-1"><Download className="w-3.5 h-3.5" /> {x.file}</a>
+                  <button onClick={() => copy(x.key, x.code)} className="text-xs text-accent-blue inline-flex items-center gap-1">
+                    {copied === x.key ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} Copy
+                  </button>
+                </span>
+              </div>
+              <pre className="text-xs bg-bg-primary rounded-lg p-3 overflow-x-auto">{x.code}</pre>
+              <p className="text-[11px] text-text-secondary mt-1">{x.note} Needs agent_guard_client.py next to it.</p>
+            </div>
+          ))}
         </div>
       </div>
       </>}
