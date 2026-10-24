@@ -158,7 +158,7 @@ def _to_runtime_monitor(call: ProposedCall, decision: Decision) -> None:
 def _approved(call: ProposedCall, policy: Policy, tid: str, approval_id: str, db: Session) -> Decision:
     started = time.perf_counter()
     c = canonicalize(call, policy)
-    ok, reason = approvals.consume(db, tid, approval_id, call.session_id, c.key)
+    ok, reason, approved_args = approvals.consume(db, tid, approval_id, call.session_id, c.key)
     if not ok:
         return deny_decision(call, policy, reason, "approval-not-valid", started).model_copy(
             update={"call_key": c.key, "approval_id": approval_id})
@@ -169,7 +169,7 @@ def _approved(call: ProposedCall, policy: Policy, tid: str, approval_id: str, db
                     tool_name=call.tool_name, canonical_tool=c.tool, hidden_characters=c.hidden,
                     session_calls=state.calls, policy_id=policy.id, policy_version=policy.version,
                     call_key=c.key, approval_id=approval_id,
-                    modified_args=c.args if c.hidden else None,
+                    modified_args=approved_args if approved_args is not None and approved_args != call.args else None,
                     latency_ms=round((time.perf_counter() - started) * 1000, 3))
 
 
@@ -177,8 +177,8 @@ def _finish(call: ProposedCall, policy: Policy, tid: str, decision: Decision, db
     """Queue an approval for 'ask', then log, ledger and monitor the decision."""
     if decision.decision == "ask" and not decision.approval_id:
         try:
-            row = approvals.create(db, tid, call, policy, decision, decision.call_key,
-                                   canonicalize(call, policy).args)
+            run_args = decision.modified_args if decision.modified_args is not None else canonicalize(call, policy).args
+            row = approvals.create(db, tid, call, policy, decision, decision.call_key, run_args)
             decision = decision.model_copy(update={"approval_id": row.id})
         except Exception:  # noqa: BLE001 — no approval record means no way to approve: deny
             logger.warning("approval create failed", exc_info=True)

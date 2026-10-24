@@ -81,7 +81,8 @@ def test_scope():
     assert run(pol, "port_scan", {"target": "10.10.3.4"}).decision == "ask"
     assert run(pol, "port_scan", {"target": "10.11.0.1"}).decision == "deny"
     assert run(pol, "http_request", {"url": "https://evil.example/x"}).decision == "deny"
-    assert run(pol, "port_scan", {"targets": ["10.10.0.1", "8.8.8.8"]}).decision == "deny"
+    mixed = run(pol, "port_scan", {"targets": ["10.10.0.1", "8.8.8.8"]})
+    assert mixed.decision == "ask" and mixed.modified_args["targets"] == ["10.10.0.1"]  # repaired, then approval
     # Empty scope: everything is out of scope.
     assert run(scoped_testing([]), "dns_lookup", {"domain": "web.lab.example"}).decision == "deny"
 
@@ -118,7 +119,7 @@ def test_repeat_of_denied_call_stays_denied():
 def test_new_policy_version_unlocks_denied_call():
     store = SessionStore()
     run(SOC, "delete_file", {"path": "/x"}, store=store)
-    newer = SOC.model_copy(update={"version": "2"})
+    newer = SOC.model_copy(update={"version": SOC.version + "-next"})
     assert run(newer, "delete_file", {"path": "/x"}, store=store).findings[-1].rule_id == "tier:contain_irreversible"
 
 
@@ -471,3 +472,65 @@ def test_compare_with_ablations_and_baselines(client):
     again = c.post("/api/agent-guard/evaluate/compare", json={"suite_id": "authorised-testing-core"}).json()
     assert again["comparison_digest"] == r["comparison_digest"]   # deterministic, including the intervals
     assert c.get("/api/agent-guard/evidence", params={"kind": "evaluation_compare"}).json()
+
+
+# ── repair instead of refusal, budgets, agent-config protection ────────
+
+def test_scope_projection_details():
+    pol = scoped_testing(["10.10.0.0/16", "*.lab.example"])
+    d = run(pol, "dns_lookup", {"domain": ["web.lab.example", "evil.example"]})
+    assert d.decision == "modify" and d.modified_args["domain"] == ["web.lab.example"]
+    assert any(f.rule_id == "scope-projected" for f in d.findings)
+    d = run(pol, "port_scan", {"cidr": "10.0.0.0/8"})
+    assert d.decision == "ask" and d.modified_args["cidr"] == "10.10.0.0/16"
+    assert run(pol, "port_scan", {"targets": ["8.8.8.8", "1.1.1.1"]}).decision == "deny"   # nothing in scope
+    assert run(pol, "http_request", {"url": "https://evil.example/"}).decision == "deny"
+    two = scoped_testing(["10.10.0.0/16", "10.20.0.0/16"])
+    assert run(two, "port_scan", {"cidr": "10.0.0.0/8"}).decision == "deny"             # ambiguous: no guess
+
+
+def test_budgets_count_and_sum():
+    store = SessionStore()
+    for i in range(10):
+        assert run(SOC, "isolate_host", {"host": f"10.0.0.{i}"}, store=store).decision == "ask"
+    # 'ask' does not charge the containment budget; let some through as allowed to charge it
+    pol = SOC.model_copy(update={"tiers": {**SOC.tiers, "contain_reversible": SOC.tiers["contain_reversible"].model_copy(
+        update={"decision": "allow"})}})
+    store = SessionStore()
+    for i in range(10):
+        assert run(pol, "isolate_host", {"host": f"10.0.1.{i}"}, store=store).decision == "allow"
+    d = run(pol, "isolate_host", {"host": "10.0.1.99"}, store=store)
+    assert d.decision == "deny" and any(f.rule_id == "containment-budget" for f in d.findings)
+
+    from plugins.agent_guard.policy import parse_policy
+    spend = parse_policy({"id": "spend", "version": "1", "default_tier": "pay",
+                          "tiers": {"pay": {"decision": "allow"}},
+                          "budgets": [{"id": "usd", "tools": ["pay*"], "arg": "amount", "max_total": 100, "reserve": 10}]})
+    store = SessionStore()
+    assert run(spend, "pay", {"amount": 60}, store=store).decision == "allow"
+    d = run(spend, "pay", {"amount": 50}, store=store)
+    assert d.decision == "modify" and d.modified_args["amount"] == 30      # 100 - 10 reserve - 60 used
+    assert run(spend, "pay", {"amount": 1}, store=store).decision == "deny"
+    assert run(spend, "pay", {"amount": "lots"}, store=SessionStore()).decision == "deny"  # unparseable: fail closed
+    assert validation_errors({**spend.model_dump(), "budgets": [{"id": "x", "tools": ["*"], "max_total": 5, "reserve": 5}]})
+
+
+def test_agent_config_files_protected():
+    assert run(MCP, "write_file", {"path": "/srv/app/.claude/settings.json", "content": "{}"}).decision == "deny"
+    assert run(MCP, "edit", {"path": ".vscode/settings.json"}).decision == "deny"
+    assert run(MCP, "bash", {"command": "cp x .cursor/mcp.json"}).decision == "deny"
+    assert run(MCP, "read_file", {"path": "/srv/app/.claude/settings.json"}).decision == "allow"  # reading is fine
+    assert run(MCP, "write_file", {"path": "/srv/app/notes.md"}).decision == "ask"
+
+
+def test_approval_runs_the_repaired_call(client):
+    c, _ = client
+    pol = scoped_testing(["10.10.0.0/16"]).model_dump()
+    body = {"session_id": "p1", "tool_name": "port_scan", "args": {"targets": ["10.10.0.5", "8.8.8.8"]}, "policy": pol}
+    d = c.post("/api/agent-guard/check", json=body).json()
+    assert d["decision"] == "ask" and d["modified_args"] == {"targets": ["10.10.0.5"]}
+    ap = c.get(f"/api/agent-guard/approvals/{d['approval_id']}").json()
+    assert ap["preview"]["args"] == {"targets": ["10.10.0.5"]}            # the reviewer sees the repaired call
+    c.post(f"/api/agent-guard/approvals/{d['approval_id']}/decide", json={"decision": "approve"})
+    ok = c.post("/api/agent-guard/check", json={**body, "approval_id": d["approval_id"]}).json()
+    assert ok["decision"] == "allow" and ok["modified_args"] == {"targets": ["10.10.0.5"]}

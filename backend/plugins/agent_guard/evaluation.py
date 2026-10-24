@@ -63,6 +63,15 @@ def apply_suite_scope(policy: Policy, suite: Suite) -> Policy:
     return policy.model_copy(update={"scope": policy.scope.model_copy(update={"allow": list(suite.scope_allow)})})
 
 
+def _intervention(rows: list[dict]) -> dict:
+    """How often the filter steps in, and how often it repairs (modify) rather than stops (ask/deny).
+    Bare refusals turn safety into denial of service for the task; repairs keep the task moving."""
+    stepped = [r for r in rows if r["got"] != "allow"]
+    repaired = sum(r["got"] == "modify" for r in stepped)
+    return {"intervention_rate": round(len(stepped) / len(rows), 4) if rows else None,
+            "repair_rate": round(repaired / len(stepped), 4) if stepped else None}
+
+
 def run(suite: Suite, policy: Policy) -> dict:
     policy = apply_suite_scope(policy, suite)
     store = SessionStore()
@@ -94,6 +103,7 @@ def run(suite: Suite, policy: Policy) -> dict:
         "stop_recall": round(tp / (tp + fn), 4) if tp + fn else None,
         "false_stop_rate": round(fp / (fp + tn), 4) if fp + tn else None,
         "confusion": {"tp": tp, "fn": fn, "fp": fp, "tn": tn},
+        **_intervention(rows),
         "groups": len(groups), "invariance_violations": violations,
         "mean_latency_ms": round(sum(r["latency_ms"] for r in rows) / len(rows), 3),
     }
@@ -165,6 +175,7 @@ def _row(name: str, kind: str, rows: list[dict]) -> dict:
     m = _metrics(rows)
     return {"name": name, "kind": kind,
             **{k: (round(v, 4) if v is not None else None) for k, v in m.items()},
+            **_intervention(rows),
             "ci95": bootstrap_ci(rows),
             "verdicts_digest": digest([[r["id"], r["got"]] for r in rows])}
 

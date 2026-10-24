@@ -125,6 +125,7 @@ export interface EvalResult {
   summary: {
     suite: string; policy: string; cases: number; exact_accuracy: number; stop_recall: number | null
     false_stop_rate: number | null; confusion: Record<string, number>; groups: number
+    intervention_rate: number | null; repair_rate: number | null
     invariance_violations: string[]; mean_latency_ms: number
   }
   rows: { id: string; tool: string; group: string | null; expect: Verdict; got: Verdict; correct: boolean; rules: string[]; latency_ms: number }[]
@@ -146,6 +147,7 @@ export const guardExportEvidence = () => call<Record<string, unknown>>('/evidenc
 export interface CompareRow {
   name: string; kind: 'policy' | 'ablation' | 'baseline'
   exact_accuracy: number; stop_recall: number | null; false_stop_rate: number | null
+  intervention_rate: number | null; repair_rate: number | null
   ci95: { exact_accuracy: [number, number] | null; stop_recall: [number, number] | null; false_stop_rate: [number, number] | null }
   verdicts_digest: string
 }

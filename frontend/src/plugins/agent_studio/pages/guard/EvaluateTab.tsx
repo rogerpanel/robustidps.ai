@@ -113,7 +113,7 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
           </div>
           <table className="w-full text-xs">
             <thead className="text-text-secondary text-left">
-              <tr><th className="py-1">Configuration</th><th>Exact verdicts (95% CI)</th><th>Stop recall (95% CI)</th><th>False stops (95% CI)</th></tr>
+              <tr><th className="py-1">Configuration</th><th>Exact verdicts (95% CI)</th><th>Stop recall (95% CI)</th><th>False stops (95% CI)</th><th>Interventions</th><th>of which repairs</th></tr>
             </thead>
             <tbody>
               {cmp.table.map((r) => (
@@ -122,6 +122,8 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
                   {(['exact_accuracy', 'stop_recall', 'false_stop_rate'] as const).map((k) => (
                     <td key={k}>{pct(r[k])}{r.ci95[k] && <span className="text-text-secondary font-normal"> [{pct(r.ci95[k]![0])}, {pct(r.ci95[k]![1])}]</span>}</td>
                   ))}
+                  <td>{pct(r.intervention_rate)}</td>
+                  <td>{pct(r.repair_rate)}</td>
                 </tr>
               ))}
             </tbody>
@@ -136,12 +138,13 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
 
       {res && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             {[
               ['Exact verdicts', pct(res.summary.exact_accuracy)],
               ['Stop recall', pct(res.summary.stop_recall)],
               ['False stops', pct(res.summary.false_stop_rate)],
               ['Name-invariance', res.summary.invariance_violations.length ? `${res.summary.invariance_violations.length} broken` : `${res.summary.groups}/${res.summary.groups} groups`],
+              ['Repaired, not stopped', `${pct(res.summary.repair_rate)} of ${pct(res.summary.intervention_rate)} interventions`],
               ['Mean latency', `${res.summary.mean_latency_ms} ms`],
             ].map(([k, v]) => (
               <div key={k} className="bg-bg-card rounded-xl p-3">

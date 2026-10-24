@@ -58,6 +58,8 @@ def preview(call: ProposedCall, policy: Policy, decision: Decision, clean_args: 
 
 def create(db: Session, customer_id: str, call: ProposedCall, policy: Policy, decision: Decision,
            call_key: str, clean_args: dict[str, Any]) -> GuardApproval:
+    """`clean_args` are the arguments the call will run with if approved (repaired by the policy where it
+    repaired them); the reviewer sees exactly these and the approved call runs with exactly these."""
     row = GuardApproval(
         id=uuid.uuid4().hex, customer_id=customer_id, session_id=call.session_id, call_key=call_key,
         status="pending", expires_at=_now() + datetime.timedelta(minutes=ttl_minutes()),
@@ -115,21 +117,22 @@ def decide(db: Session, customer_id: str, approval_id: str, approve: bool, actor
     return row
 
 
-def consume(db: Session, customer_id: str, approval_id: str, session_id: str, call_key: str) -> tuple[bool, str]:
-    """Use an approval for this exact call. Returns (allowed, reason)."""
+def consume(db: Session, customer_id: str, approval_id: str, session_id: str,
+            call_key: str) -> tuple[bool, str, dict[str, Any] | None]:
+    """Use an approval for this exact call. Returns (allowed, reason, the approved arguments)."""
     row = get(db, customer_id, approval_id)
     if row is None:
-        return False, "Unknown approval."
+        return False, "Unknown approval.", None
     if row.session_id != session_id or row.call_key != call_key:
-        return False, "The approval was granted for a different call."
+        return False, "The approval was granted for a different call.", None
     if row.status == "pending":
-        return False, "The approval is still pending."
+        return False, "The approval is still pending.", None
     if row.status != "approved":
-        return False, f"The approval is {row.status}."
+        return False, f"The approval is {row.status}.", None
     # Single use, atomically: only one caller can move it from approved to used.
     done = db.execute(update(GuardApproval).where(GuardApproval.id == row.id, GuardApproval.status == "approved")
                       .values(status="used"))
     db.commit()
     if done.rowcount != 1:
-        return False, "The approval was already used."
-    return True, f"Approved by {row.decided_by or 'a reviewer'}."
+        return False, "The approval was already used.", None
+    return True, f"Approved by {row.decided_by or 'a reviewer'}.", dict(row.request.get("args") or {})

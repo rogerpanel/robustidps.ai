@@ -76,7 +76,9 @@ class Redact(BaseModel):
 class Scope(BaseModel):
     target_args: list[str] = Field(default_factory=list, description="Argument keys that hold targets")
     allow: list[str] = Field(default_factory=list, description="CIDRs, IPs, host globs (*.lab.example)")
-    on_violation: Literal["ask", "deny"] = "deny"
+    on_violation: Literal["ask", "deny", "project"] = Field(
+        "deny", description="project: repair the call to its in-scope part (drop out-of-scope list entries, "
+                            "narrow a range to the one allowed network inside it); deny when nothing in scope remains")
 
     @field_validator("allow")
     @classmethod
@@ -85,6 +87,17 @@ class Scope(BaseModel):
             if "/" in entry:
                 ipaddress.ip_network(entry, strict=False)
         return v
+
+
+class Budget(BaseModel):
+    """Running total per session over matching tools: a count of calls (arg empty) or the sum of a numeric argument."""
+    id: str
+    description: str = ""
+    tools: list[str] = Field(..., min_length=1)
+    arg: str | None = None
+    max_total: float = Field(..., gt=0)
+    reserve: float = Field(0, ge=0, description="Kept back, e.g. for a safe abort; usable total is max_total - reserve")
+    when_exhausted: Literal["ask", "deny"] = "deny"
 
 
 class Policy(BaseModel):
@@ -99,6 +112,7 @@ class Policy(BaseModel):
     clamps: list[Clamp] = Field(default_factory=list)
     redact: list[Redact] = Field(default_factory=list)
     scope: Scope | None = None
+    budgets: list[Budget] = Field(default_factory=list)
     max_calls_per_session: int | None = Field(None, ge=1, le=100_000)
     escalate_after_denials: int = Field(3, ge=1, le=100,
                                         description="After this many denied attempts in a session, allow becomes ask")
@@ -118,7 +132,12 @@ class Policy(BaseModel):
                 raise ValueError(f"hint_tiers: unknown hint '{hint}' (use {', '.join(sorted(HINTS))})")
             if tier not in self.tiers:
                 raise ValueError(f"hint_tiers: '{hint}' uses undefined tier '{tier}'")
-        n = len(self.tools) + len(self.arg_rules) + len(self.clamps) + len(self.redact)
+        if len({b.id for b in self.budgets}) != len(self.budgets):
+            raise ValueError("budget ids must be unique")
+        for b in self.budgets:
+            if b.reserve >= b.max_total:
+                raise ValueError(f"budget '{b.id}': reserve must be below max_total")
+        n = len(self.tools) + len(self.arg_rules) + len(self.clamps) + len(self.redact) + len(self.budgets)
         if n > MAX_RULES:
             raise ValueError(f"too many rules ({n} > {MAX_RULES})")
         return self
@@ -158,6 +177,23 @@ def target_in_scope(value: str, allow: list[str]) -> bool:
         elif fnmatchcase(host, entry):
             return True
     return False
+
+
+def project_target(value: str, allow: list[str]) -> str | None:
+    """Narrow an out-of-scope range to the single allowed network it contains, else None."""
+    try:
+        requested = ipaddress.ip_network(value.strip(), strict=False)
+    except ValueError:
+        return None
+    inside = []
+    for entry in allow:
+        entry = entry.strip()
+        if "/" not in entry and not _is_ip(entry):
+            continue
+        net = ipaddress.ip_network(entry, strict=False)
+        if net.version == requested.version and net.subnet_of(requested):
+            inside.append(net)
+    return str(inside[0]) if len(inside) == 1 else None
 
 
 def _is_ip(text: str) -> bool:

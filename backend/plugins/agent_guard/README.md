@@ -11,15 +11,21 @@ tabs Test, Approvals, Tool Registry, Evaluate and Evidence.
 |---|---|
 | Canonicalise | NFKC; hidden, bidirectional and tag characters removed and reported (hidden text in the tool name is a deny, in arguments an ask); rationale fields such as `reasoning` are ignored by rules |
 | Tier | Tool name (glob) to an action tier with a verdict, e.g. read = allow, reversible containment = ask, irreversible = deny; unknown tools get the pack's default |
-| Scope | Target arguments (hosts, IPs, URLs, CIDRs) must fall inside the agreed scope |
+| Scope | Target arguments (hosts, IPs, URLs, CIDRs) must fall inside the agreed scope; with `on_violation: "project"` the call is repaired to its in-scope part (out-of-scope list entries dropped, a range narrowed to the one allowed network inside it) and denied only when nothing in scope remains |
 | Argument rules | Regex rules on argument values (mass targets, shell chaining, credential paths, metadata endpoints) |
 | Clamps and redaction | Numeric caps (e.g. result limits) and removal of secret-bearing arguments become `modify` |
+| Budgets | Per-session running totals (`budgets`): a count of calls or the sum of a numeric argument, with a reserve; amounts over what is left are clipped, exhausted budgets stop the call, non-numeric amounts are denied |
 | Session | Budget of calls; a call identical to one already denied stays denied; after N denials every allowed call needs approval until a person resets the session |
 
 Fail closed: filter errors, timeouts (`AGENT_GUARD_TIMEOUT_S`, default 2 s),
 oversized arguments, a concurrent check for the same session, malformed hook
 payloads and missing, pending, expired, used or mismatched approvals are all
 denies. A new policy version re-judges earlier denials.
+
+Repairs (modify) are preferred to refusals where the repair is unambiguous,
+because a filter that only refuses turns safety into task failure; when a
+repaired call also needs approval, the approval shows and runs the repaired
+arguments. See `DESIGN_NOTES.md` for what was adopted from an external review.
 
 Policies classify actions and targets, never attacker-chosen names in
 telemetry, so renaming an artefact cannot change a verdict (the Evaluate
@@ -52,8 +58,8 @@ website share sessions, approvals, the registry and the ledger.
   section) for the signed-in user.
 - **Evaluation** (`evaluation.py`, `suites/*.json`). Labelled cases (exact
   verdicts; groups that differ only in names or stated reasons must agree).
-  Reports exact accuracy, stop recall, false-stop rate, invariance and
-  latency, with a `result_digest` over suite, policy, filter version and
+  Reports exact accuracy, stop recall, false-stop rate, intervention and
+  repair rates, invariance and latency, with a `result_digest` over suite, policy, filter version and
   verdicts. Re-runs with the same inputs are compared automatically.
   `/evaluate/compare` puts the policy next to single-layer ablations
   (without scope, argument rules, clamps/redaction; tiers only) and two

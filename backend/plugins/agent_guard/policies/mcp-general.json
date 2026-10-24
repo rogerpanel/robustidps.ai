@@ -1,8 +1,8 @@
 {
   "id": "mcp-general",
-  "version": "1",
+  "version": "2",
   "name": "General MCP / coding agent",
-  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits.",
+  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files.",
   "default_tier": "unknown",
   "tiers": {
     "read": {
@@ -115,6 +115,36 @@
         "*"
       ],
       "pattern": "(^|[/\\\\~])(\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker)([/\\\\]|$)|(^|[/\\\\])(id_rsa|id_ed25519|\\.env|\\.netrc|shadow)$",
+      "decision": "deny"
+    },
+    {
+      "id": "agent-config-write",
+      "description": "Changes to agent, IDE or MCP configuration and hook files (the path agents use to grant themselves permissions)",
+      "tools": [
+        "write*",
+        "edit*",
+        "create*",
+        "update*",
+        "delete*",
+        "move*",
+        "rename*",
+        "*__write*",
+        "*__edit*",
+        "*__create*",
+        "*__update*",
+        "*__delete*",
+        "bash*",
+        "shell*",
+        "exec*",
+        "run*",
+        "terminal*",
+        "*__exec*",
+        "*__run*"
+      ],
+      "args": [
+        "*"
+      ],
+      "pattern": "(\\.claude|\\.cursor|\\.codex|\\.hermes|\\.openhands|\\.gemini)[/\\\\]|\\.vscode[/\\\\]settings\\.json|(^|[/\\\\\\s])\\.?mcp\\.json|claude_desktop_config\\.json",
       "decision": "deny"
     }
   ],

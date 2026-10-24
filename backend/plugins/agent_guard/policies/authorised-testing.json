@@ -1,8 +1,8 @@
 {
   "id": "authorised-testing",
-  "version": "1",
+  "version": "2",
   "name": "Authorised security testing (rules of engagement)",
-  "description": "Every target must be inside the agreed scope. Passive lookups are allowed, active probing needs approval, and destructive or code-execution tools are denied. Fill scope.allow with the networks and hosts in your rules of engagement; with an empty list every target is out of scope.",
+  "description": "Every target must be inside the agreed scope: calls naming targets outside it are repaired to their in-scope part (out-of-scope list entries dropped, a broader range narrowed to the allowed network inside it) or denied when nothing in scope remains. Passive lookups are allowed, active probing needs approval and is capped per session, and destructive or code-execution tools are denied. Fill scope.allow with the networks and hosts in your rules of engagement; with an empty list every target is out of scope.",
   "default_tier": "unknown",
   "tiers": {
     "passive": {
@@ -94,7 +94,7 @@
       "cidr"
     ],
     "allow": [],
-    "on_violation": "deny"
+    "on_violation": "project"
   },
   "redact": [
     {
@@ -119,5 +119,23 @@
     "destroy": "destructive",
     "exec": "destructive",
     "unclear": "unknown"
-  }
+  },
+  "budgets": [
+    {
+      "id": "active-probe-budget",
+      "description": "Active probes per session",
+      "tools": [
+        "*scan*",
+        "probe*",
+        "crawl*",
+        "fuzz*",
+        "http_request*",
+        "fetch*",
+        "ping*",
+        "traceroute*"
+      ],
+      "max_total": 50,
+      "when_exhausted": "deny"
+    }
+  ]
 }

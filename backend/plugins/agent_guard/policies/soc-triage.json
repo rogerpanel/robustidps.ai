@@ -1,6 +1,6 @@
 {
   "id": "soc-triage",
-  "version": "1",
+  "version": "2",
   "name": "SOC alert triage",
   "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose.",
   "default_tier": "unknown",
@@ -163,5 +163,23 @@
     "destroy": "contain_irreversible",
     "exec": "contain_irreversible",
     "unclear": "unknown"
-  }
+  },
+  "budgets": [
+    {
+      "id": "containment-budget",
+      "description": "Containment actions per session",
+      "tools": [
+        "isolate*",
+        "quarantine*",
+        "block_*",
+        "disable_account*",
+        "kill_process*",
+        "suspend*",
+        "revoke_session*",
+        "reset_password*"
+      ],
+      "max_total": 10,
+      "when_exhausted": "deny"
+    }
+  ]
 }

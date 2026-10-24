@@ -30,7 +30,7 @@ from plugins.agent_guard.canonical import (
 from plugins.agent_guard.contract import (
     Decision, Finding, ProposedCall, RISK_OF, SEVERITY,
 )
-from plugins.agent_guard.policy import Policy, target_in_scope, tool_matches
+from plugins.agent_guard.policy import Policy, project_target, target_in_scope, tool_matches
 
 LOCK_WAIT_S = 1.0
 MAX_SESSIONS = 5000
@@ -43,6 +43,7 @@ class SessionState:
     calls: int = 0
     denied_attempts: int = 0
     denied_keys: set[str] = field(default_factory=set)
+    budget_used: dict[str, float] = field(default_factory=dict)
     last_seen: float = field(default_factory=time.time)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -93,17 +94,6 @@ class DecisionLog:
         if session_id:
             items = [e for e in items if e.get("session_id") == session_id]
         return items[-limit:][::-1]
-
-
-def _targets(args: dict[str, Any], keys: list[str]) -> list[tuple[str, str]]:
-    out = []
-    for key in keys:
-        value = args.get(key)
-        values = value if isinstance(value, list) else [value]
-        for v in values:
-            if isinstance(v, (str, int, float)) and not isinstance(v, bool) and str(v).strip():
-                out.append((key, str(v)))
-    return out
 
 
 @dataclass
@@ -171,11 +161,45 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
     findings.append(Finding(rule_id=f"tier:{tier}", verdict=t.decision,
                             reason=f"Tier '{tier}': {t.description or t.decision}."))
 
+    modified = dict(args)
+    changed = bool(hidden)
+
     if policy.scope and policy.scope.target_args:
-        for arg_key, value in _targets(args, policy.scope.target_args):
-            if not target_in_scope(value, policy.scope.allow):
-                findings.append(Finding(rule_id="out-of-scope", verdict=policy.scope.on_violation,
-                                        reason=f"Target '{value}' in '{arg_key}' is outside the agreed scope."))
+        sc = policy.scope
+        for arg_key in sc.target_args:
+            value = args.get(arg_key)
+            items = value if isinstance(value, list) else [value]
+            targets = [str(v) for v in items
+                       if isinstance(v, (str, int, float)) and not isinstance(v, bool) and str(v).strip()]
+            outside = [t for t in targets if not target_in_scope(t, sc.allow)]
+            if not outside:
+                continue
+            if sc.on_violation != "project":
+                for t in outside:
+                    findings.append(Finding(rule_id="out-of-scope", verdict=sc.on_violation,
+                                            reason=f"Target '{t}' in '{arg_key}' is outside the agreed scope."))
+                continue
+            # Minimal repair: keep the in-scope part of the call, deny only if nothing in scope remains.
+            if isinstance(value, list):
+                kept = [v for v in value if str(v) not in outside]
+                if kept:
+                    modified[arg_key] = kept
+                    changed = True
+                    findings.append(Finding(rule_id="scope-projected", verdict="modify",
+                                            reason=f"Dropped out-of-scope target(s) {', '.join(outside)} from '{arg_key}'."))
+                else:
+                    findings.append(Finding(rule_id="out-of-scope", verdict="deny",
+                                            reason=f"No target in '{arg_key}' is inside the agreed scope."))
+            else:
+                narrowed = project_target(outside[0], sc.allow)
+                if narrowed:
+                    modified[arg_key] = narrowed
+                    changed = True
+                    findings.append(Finding(rule_id="scope-projected", verdict="modify",
+                                            reason=f"Narrowed '{arg_key}' from {outside[0]} to the in-scope range {narrowed}."))
+                else:
+                    findings.append(Finding(rule_id="out-of-scope", verdict="deny",
+                                            reason=f"Target '{outside[0]}' in '{arg_key}' is outside the agreed scope."))
 
     strings = matchable_strings(args)
     for rule in policy.arg_rules:
@@ -188,8 +212,6 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
                                         reason=f"{rule.description or rule.id} (argument '{path}')."))
                 break
 
-    modified = dict(args)
-    changed = bool(hidden)
     for red in policy.redact:
         if not tool_matches(tool, red.tools):
             continue
@@ -207,6 +229,43 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
             findings.append(Finding(rule_id=clamp.id, verdict="modify",
                                     reason=f"Capped '{clamp.arg}' from {value} to {modified[clamp.arg]}."))
 
+    # Session budgets: clip to what is left, or stop once exhausted. Charged only if the call is let through.
+    charges: list[tuple[str, float]] = []
+    for budget in policy.budgets:
+        if not tool_matches(tool, budget.tools):
+            continue
+        left = budget.max_total - budget.reserve - state.budget_used.get(budget.id, 0.0)
+        if budget.arg is None:
+            amount = 1.0
+            if left < 1:
+                findings.append(Finding(rule_id=budget.id, verdict=budget.when_exhausted,
+                                        reason=f"{budget.description or budget.id}: {int(budget.max_total - budget.reserve)} "
+                                               "calls used in this session."))
+                continue
+        else:
+            raw = modified.get(budget.arg)
+            if not isinstance(raw, (int, float)) or isinstance(raw, bool) or raw < 0:
+                findings.append(Finding(rule_id=budget.id, verdict="deny",
+                                        reason=f"'{budget.arg}' must be a non-negative number for budget '{budget.id}'."))
+                continue
+            amount = float(raw)
+            if left <= 0:
+                findings.append(Finding(rule_id=budget.id, verdict=budget.when_exhausted,
+                                        reason=f"{budget.description or budget.id}: nothing left in this session."))
+                continue
+            if amount > left:
+                new = int(left) if isinstance(raw, int) else round(left, 6)
+                if new <= 0:
+                    findings.append(Finding(rule_id=budget.id, verdict=budget.when_exhausted,
+                                            reason=f"{budget.description or budget.id}: nothing left in this session."))
+                    continue
+                modified[budget.arg] = new
+                changed = True
+                amount = float(new)
+                findings.append(Finding(rule_id=budget.id, verdict="modify",
+                                        reason=f"Clipped '{budget.arg}' from {raw} to the {new} left in budget '{budget.id}'."))
+        charges.append((budget.id, amount))
+
     verdict = max((f.verdict for f in findings), key=SEVERITY.__getitem__)
     if verdict == "allow" and changed:
         verdict = "modify"
@@ -214,6 +273,9 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
         findings.append(Finding(rule_id="session-escalated", verdict="ask",
                                 reason=f"{state.denied_attempts} denied attempts in this session; further calls need approval."))
         verdict = "ask"
+    if verdict in ("allow", "modify"):
+        for budget_id, amount in charges:
+            state.budget_used[budget_id] = state.budget_used.get(budget_id, 0.0) + amount
     return finish(verdict, modified if changed else None)
 
 
