@@ -19,6 +19,12 @@ Modules:
   engine.py     L1 evaluation, session state, fail-closed wrapper
   adapters.py   Claude-style / Hermes shell hooks, OpenHands risk levels
   client.py     stdlib client and command hook users copy into their agents
+  approvals.py  queue for 'ask' decisions, bound to the exact call, single use
+  registry.py   tool registry: fingerprints, versions, pins, coverage (shared with the scanner)
+  evidence.py   hash-chained evidence ledger (decisions, approvals, pins, evaluations)
+  evaluation.py labelled suites (suites/*.json) with verifiable result digests
+  db_models.py  tables for the three above
   api.py        /api/agent-guard/*
 """
+from plugins.agent_guard import db_models  # noqa: F401  (registers the tables for init_db)
 from plugins.agent_guard.api import router  # noqa: F401

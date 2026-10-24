@@ -103,7 +103,7 @@ def _uav_dossier(dossier_id: str, audience: str) -> dict:
 
 
 def _agent_studio_dossier(dossier_id: str, audience: str,
-                          scan_report: dict | None = None) -> dict:
+                          scan_report: dict | None = None, runtime_safety: dict | None = None) -> dict:
     from plugins.agent_studio.api import SKU_CATALOG
     from plugins.agent_studio.scanner import SCANNER_CHECKS
 
@@ -120,6 +120,7 @@ def _agent_studio_dossier(dossier_id: str, audience: str,
             "skus_offered": SKU_CATALOG,
         },
         "scan_report": scan_report,
+        "runtime_safety": runtime_safety,
         "attack_coverage": {
             "owasp_agentic_top_10": [
                 "ASI01 Goal Hijack", "ASI02 Unauthenticated Resource",
@@ -157,11 +158,17 @@ def _agent_studio_dossier(dossier_id: str, audience: str,
              "requirement": "ASI01–ASI10 attestation",
              "satisfied_by": ["Free MCP / Agent Scanner"],
              "evidence": "Per-check pass/fail with severity"},
+            {"jurisdiction": "INT", "instrument": "EU AI Act Art. 14 / NIST AI RMF Manage",
+             "requirement": "Human oversight and runtime control of agent actions",
+             "satisfied_by": ["Agent Guard safety filter, approval queue and tool pinning"],
+             "evidence": "Hash-chained evidence ledger (head hash below; verify with "
+                         "GET /api/agent-guard/evidence/export)"},
         ],
         "reproducibility": {
             "scanner_runner": "POST /api/agent-studio/scanner/run",
             "wall_clock_ms": 500,
             "checks_version": "v0.1.0",
+            "guard_evaluation": "POST /api/agent-guard/evaluate (deterministic; compare result_digest)",
         },
     }
 
@@ -171,10 +178,11 @@ def assemble_dossier(
     audience: Literal["operator", "auditor", "investor"] = "auditor",
     scan_report: dict | None = None,
     dossier_id: str | None = None,
+    runtime_safety: dict | None = None,
 ) -> dict:
     dossier_id = dossier_id or f"DOS-{uuid.uuid4().hex[:10]}"
     if vertical == "uav":
         return _uav_dossier(dossier_id, audience)
     if vertical == "agent_studio":
-        return _agent_studio_dossier(dossier_id, audience, scan_report)
+        return _agent_studio_dossier(dossier_id, audience, scan_report, runtime_safety)
     raise ValueError(f"Unknown dossier vertical: {vertical}")

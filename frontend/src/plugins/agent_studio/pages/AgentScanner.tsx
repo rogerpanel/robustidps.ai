@@ -7,6 +7,7 @@ import PageGuide from '../../../components/PageGuide'
 import { runAgentScan, fetchSKUCatalog } from '../api'
 import type { ScanReport, InputKind, Severity, SKU } from '../api'
 import { useAgentStudioState } from '../../../hooks/useAgentStudioState'
+import { guardRegisterToolset, type Toolset } from '../guardApi'
 import AccessBanner from '../components/AccessBanner'
 
 const SAMPLE_MCP = `{
@@ -172,6 +173,7 @@ export default function AgentScanner() {
                   )
                 })}
               </div>
+              <RegisterInRegistry text={text} />
               <div className="space-y-1.5 max-h-96 overflow-y-auto">
                 {sortedResults.map((r) => (
                   <div key={r.code}
@@ -231,6 +233,46 @@ function Tile({ label, value, tone }: { label: string; value: string; tone?: 're
     <div className={`border rounded-md p-2 ${cls}`}>
       <div className="text-[10px] uppercase tracking-wider opacity-70">{label}</div>
       <div className="text-lg font-semibold">{value}</div>
+    </div>
+  )
+}
+
+/** Hand the scanned tool list to the shared Tool Registry (fingerprints, versions, pins for the MCP gateway). */
+function RegisterInRegistry({ text }: { text: string }) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [res, setRes] = useState<Toolset | null>(null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    try { const n = JSON.parse(text)?.name; if (typeof n === 'string' && !name) setName(n.slice(0, 64)) } catch { /* not JSON */ }
+  }, [text, name])
+  const register = async () => {
+    setBusy(true); setErr(''); setRes(null)
+    try { setRes(await guardRegisterToolset(name.trim(), text)) } catch (e) { setErr(e instanceof Error ? e.message : String(e)) }
+    finally { setBusy(false) }
+  }
+  return (
+    <div className="mb-3 p-2 rounded-md border border-accent-blue/20 bg-accent-blue/5 text-xs space-y-1.5">
+      <div className="font-medium">Use these tools with the Safety Filter</div>
+      <div className="flex gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="toolset name, e.g. filesystem-server"
+               className="flex-1 bg-bg-primary border border-bg-card rounded px-2 py-1" />
+        <button onClick={register} disabled={busy || !name.trim()}
+                className="px-2 py-1 rounded bg-accent-blue text-white disabled:opacity-40">
+          {busy ? 'Registering…' : 'Register in Tool Registry'}
+        </button>
+      </div>
+      {err && <div className="text-accent-red">{err}</div>}
+      {res && (
+        <div className="text-text-secondary">
+          {res.unchanged ? 'Unchanged since' : 'Registered'} <span className="font-mono">{res.name} v{res.version}</span>: {res.n_tools} tools
+          {res.n_hidden > 0 && <span className="text-accent-red">, {res.n_hidden} with hidden characters</span>}
+          {res.diff && ` (vs v${res.diff.against_version}: +${res.diff.added.length} −${res.diff.removed.length} ~${res.diff.changed.length})`}.{' '}
+          <Link to={`/agent-guard?tab=registry&toolset=${encodeURIComponent(res.name)}`} className="text-accent-blue hover:underline">
+            Review, pin and check policy coverage →
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

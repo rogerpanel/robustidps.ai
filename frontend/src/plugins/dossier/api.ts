@@ -18,6 +18,7 @@ export interface Dossier {
   regulatory_mapping: Record<string, unknown>[]
   reproducibility: Record<string, unknown>
   scan_report?: Record<string, unknown> | null
+  runtime_safety?: Record<string, unknown> | null
 }
 
 export async function generateDossier(
@@ -27,7 +28,12 @@ export async function generateDossier(
 ): Promise<Dossier> {
   const res = await fetch(`${API}/api/dossier/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // The signed-in user's token lets the server add their Agent Guard evidence (runtime_safety).
+    headers: {
+      'Content-Type': 'application/json',
+      ...(localStorage.getItem('robustidps_token')
+        ? { Authorization: `Bearer ${localStorage.getItem('robustidps_token')}` } : {}),
+    },
     body: JSON.stringify({ vertical, audience, scan_report }),
   })
   if (!res.ok) throw new Error(`/api/dossier/generate → ${res.status}`)

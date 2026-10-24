@@ -51,3 +51,5 @@ class Decision(BaseModel):
     policy_version: str = ""
     filter_version: str = FILTER_VERSION
     latency_ms: float = 0.0
+    call_key: str = Field("", description="Digest of the canonical call; approvals and sticky denials bind to it")
+    approval_id: str | None = Field(None, description="Set on 'ask': poll /approvals/{id}, then repeat the call with it")

@@ -1,10 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Gavel, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Download, Copy } from 'lucide-react'
 import PageGuide from '../../../components/PageGuide'
 import {
   guardCheck, guardDecisions, guardPolicies, guardReset, guardValidate, guardClientUrl,
   type GuardDecision, type GuardLogEntry, type GuardPolicy, type Verdict,
 } from '../guardApi'
+import ApprovalsTab from './guard/ApprovalsTab'
+import RegistryTab from './guard/RegistryTab'
+import EvaluateTab from './guard/EvaluateTab'
+import EvidenceTab from './guard/EvidenceTab'
+
+const TABS = [
+  { id: 'test', label: 'Test' },
+  { id: 'approvals', label: 'Approvals' },
+  { id: 'registry', label: 'Tool Registry' },
+  { id: 'evaluate', label: 'Evaluate' },
+  { id: 'evidence', label: 'Evidence' },
+] as const
+type TabId = typeof TABS[number]['id']
 
 const VERDICT_STYLE: Record<Verdict, string> = {
   allow: 'bg-accent-green/15 text-accent-green border-accent-green/30',
@@ -50,6 +64,10 @@ function newSession() {
 }
 
 export default function SafetyFilter() {
+  const [params, setParams] = useSearchParams()
+  const tab = (TABS.some((t) => t.id === params.get('tab')) ? params.get('tab') : 'test') as TabId
+  const setTab = (t: TabId) => setParams((p) => { p.set('tab', t); if (t !== 'registry') p.delete('toolset'); return p }, { replace: true })
+  const [pendingCount, setPendingCount] = useState(0)
   const [policies, setPolicies] = useState<GuardPolicy[]>([])
   const [policyId, setPolicyId] = useState('soc-triage')
   const [policyText, setPolicyText] = useState('')
@@ -63,6 +81,8 @@ export default function SafetyFilter() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [copied, setCopied] = useState('')
+  // An approval requested by the last check; pressing Check again with the same call uses it.
+  const [pendingApproval, setPendingApproval] = useState<{ id: string; tool: string; args: string } | null>(null)
 
   useEffect(() => {
     guardPolicies().then(setPolicies).catch((e) => setErr(String(e.message || e)))
@@ -80,13 +100,30 @@ export default function SafetyFilter() {
 
   const inlinePolicy = () => (editing ? JSON.parse(policyText) : undefined)
 
+  // The policy edited in the Test tab, shared with the Registry and Evaluate tabs (undefined if not edited or invalid).
+  const editedPolicy = useMemo(() => {
+    if (!editing) return undefined
+    try { return JSON.parse(policyText) } catch { return undefined }
+  }, [editing, policyText])
+
+  const usePolicy = (p: GuardPolicy) => {
+    setPolicyText(JSON.stringify(p, null, 2)); setEditing(true)
+    setPolicyMsg({ ok: true, text: 'Loaded the generated policy. Validate it, then try calls against it.' })
+    setTab('test')
+  }
+
   const runCheck = async () => {
     setErr(''); setBusy(true)
     try {
       let args: Record<string, unknown>
       try { args = JSON.parse(argsText || '{}') } catch { throw new Error('Arguments are not valid JSON') }
-      setResult(await guardCheck({ session_id: sessionId, tool_name: tool, args, policy_id: policyId,
-                                   policy: inlinePolicy(), framework: 'test-page' }))
+      const reuse = pendingApproval && pendingApproval.tool === tool && pendingApproval.args === argsText
+        ? pendingApproval.id : undefined
+      const d = await guardCheck({ session_id: sessionId, tool_name: tool, args, policy_id: policyId,
+                                   policy: inlinePolicy(), framework: 'test-page', approval_id: reuse })
+      setResult(d)
+      setPendingApproval(d.decision === 'ask' && d.approval_id ? { id: d.approval_id, tool, args: argsText }
+        : d.findings.some((f) => f.reason.includes('still pending')) ? pendingApproval : null)
       refreshLog()
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
@@ -160,6 +197,27 @@ def isolate_host(host: str): ...`
         tip="The filter judges what a call does and where it points, never the names inside your telemetry, so renaming an artefact cannot change a verdict."
       />
 
+      <div className="flex flex-wrap gap-1 border-b border-bg-card">
+        {TABS.map((t) => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+                  className={`px-4 py-2 text-sm font-medium -mb-px border-b-2 ${tab === t.id ? 'border-accent-blue text-accent-blue' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
+            {t.label}
+            {t.id === 'approvals' && pendingCount > 0 && (
+              <span className="ml-1.5 px-1.5 rounded-full bg-accent-amber/20 text-accent-amber text-[10px]">{pendingCount}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'approvals' && <ApprovalsTab onCount={setPendingCount} />}
+      {tab === 'registry' && (
+        <RegistryTab policies={policies} policyId={policyId} inlinePolicy={editedPolicy}
+                     initialToolset={params.get('toolset') || undefined} onUsePolicy={usePolicy} />
+      )}
+      {tab === 'evaluate' && <EvaluateTab policies={policies} policyId={policyId} inlinePolicy={editedPolicy} />}
+      {tab === 'evidence' && <EvidenceTab />}
+
+      {tab === 'test' && <>
       {err && (
         <div className="flex items-center gap-2 px-3 py-2 bg-accent-red/10 border border-accent-red/30 rounded-lg text-accent-red text-sm">
           <AlertCircle className="w-4 h-4 shrink-0" /> {err}
@@ -251,6 +309,13 @@ def isolate_host(host: str): ...`
                   </li>
                 ))}
               </ul>
+              {result.approval_id && (
+                <p className="text-xs text-accent-amber">
+                  Approval request queued.{' '}
+                  <button onClick={() => setTab('approvals')} className="underline">Review it in Approvals</button>, then press Check
+                  again: the approved call is allowed once (the agent clients do this automatically).
+                </p>
+              )}
               {result.hidden_characters.length > 0 && (
                 <p className="text-xs text-accent-amber">Hidden characters removed: {result.hidden_characters.join(' · ')}</p>
               )}
@@ -333,6 +398,7 @@ def isolate_host(host: str): ...`
           </div>
         </div>
       </div>
+      </>}
     </div>
   )
 }

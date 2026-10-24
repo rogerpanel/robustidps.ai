@@ -66,6 +66,9 @@ class RunConfig:
     effort: str = "high"          # anthropic only: low | medium | high | xhigh | max
     max_tool_calls: int = 15      # evidence queries; submit_verdict does not count
     api_key: str | None = None
+    guard_policy: str | None = None   # Agent Guard policy pack checked before every tool call; None = off
+    guard_tenant: str = ""            # whose approvals / evidence ledger the checks belong to
+    guard_session: str = ""
 
     def resolved_model(self) -> str:
         return self.model or DEFAULT_MODELS[self.provider]
@@ -77,7 +80,9 @@ def new_trace(cfg: RunConfig, mission_id: str | None = None) -> dict:
             "steps": [], "tool_calls": 0, "verdict": None, "stop_reason": None,
             "error": None, "usage": {"input_tokens": 0, "output_tokens": 0,
                                      "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
-            "started_at": time.time(), "duration_s": None}
+            "started_at": time.time(), "duration_s": None,
+            "guard": ({"policy": cfg.guard_policy, "checked": 0, "blocked": 0, "modified": 0}
+                      if cfg.guard_policy else None)}
 
 
 def _opening(brief: dict, cfg: RunConfig) -> str:
@@ -85,9 +90,43 @@ def _opening(brief: dict, cfg: RunConfig) -> str:
             + f"\n\nEvidence-query budget: {cfg.max_tool_calls} calls.")
 
 
+def _guard(name: str, args: dict, cfg: RunConfig, trace: dict) -> tuple[str | None, dict]:
+    """Agent Guard check before a tool runs. Returns (block reason or None, arguments to use)."""
+    if not cfg.guard_policy:
+        return None, args
+    from plugins.agent_guard.api import guard_call_sync
+    from plugins.agent_guard.contract import ProposedCall
+    from plugins.agent_guard.policy import builtin_policies
+
+    g = trace.get("guard") or {"policy": cfg.guard_policy, "checked": 0, "blocked": 0, "modified": 0}
+    trace["guard"] = g
+    g["checked"] += 1
+    policy = builtin_policies().get(cfg.guard_policy)
+    if policy is None:
+        g["blocked"] += 1
+        return f"unknown guard policy {cfg.guard_policy!r}", args
+    d = guard_call_sync(ProposedCall(session_id=cfg.guard_session or "investigator", tool_name=name,
+                                     args=args, agent_id="soc-investigator", framework=cfg.provider),
+                        policy, cfg.guard_tenant or "investigator")
+    if d.decision == "allow":
+        return None, args
+    reasons = "; ".join(d.reasons)
+    if d.decision == "modify" and d.modified_args is not None:
+        g["modified"] += 1
+        trace["steps"].append({"type": "guard", "tool": name, "decision": "modify", "text": reasons})
+        return None, d.modified_args
+    g["blocked"] += 1
+    note = f" Approval {d.approval_id} is queued on the Safety Filter page." if d.approval_id else ""
+    trace["steps"].append({"type": "guard", "tool": name, "decision": d.decision, "text": reasons + note})
+    return f"Blocked by Agent Guard ({d.decision}): {reasons}.{note}", args
+
+
 def _handle(name: str, args: dict, source: EvidenceSource, cfg: RunConfig, trace: dict) -> tuple[str, bool]:
     """Run one tool call and record it. Returns (tool result text, is_error)."""
     steps = trace["steps"]
+    blocked, args = _guard(name, args, cfg, trace)
+    if blocked:
+        return to_text({"error": blocked}), True
     if name == "submit_verdict":
         problems = validate_verdict(args)
         if problems:

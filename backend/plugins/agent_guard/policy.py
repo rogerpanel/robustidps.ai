@@ -26,6 +26,7 @@ MAX_RULES = 300
 MAX_PATTERN = 400
 
 TierVerdict = Literal["allow", "ask", "deny"]
+HINTS = frozenset({"read", "change", "destroy", "exec", "unclear"})
 
 
 class Tier(BaseModel):
@@ -101,6 +102,9 @@ class Policy(BaseModel):
     max_calls_per_session: int | None = Field(None, ge=1, le=100_000)
     escalate_after_denials: int = Field(3, ge=1, le=100,
                                         description="After this many denied attempts in a session, allow becomes ask")
+    hint_tiers: dict[str, str] = Field(default_factory=dict,
+                                       description="Tool-registry effect hints (read, change, destroy, exec, unclear) "
+                                                   "to tiers, used to suggest rules for unclassified tools")
 
     @model_validator(mode="after")
     def _consistent(self) -> "Policy":
@@ -109,6 +113,11 @@ class Policy(BaseModel):
         for rule in self.tools:
             if rule.tier not in self.tiers:
                 raise ValueError(f"tool rule {rule.match} uses undefined tier '{rule.tier}'")
+        for hint, tier in self.hint_tiers.items():
+            if hint not in HINTS:
+                raise ValueError(f"hint_tiers: unknown hint '{hint}' (use {', '.join(sorted(HINTS))})")
+            if tier not in self.tiers:
+                raise ValueError(f"hint_tiers: '{hint}' uses undefined tier '{tier}'")
         n = len(self.tools) + len(self.arg_rules) + len(self.clamps) + len(self.redact)
         if n > MAX_RULES:
             raise ValueError(f"too many rules ({n} > {MAX_RULES})")

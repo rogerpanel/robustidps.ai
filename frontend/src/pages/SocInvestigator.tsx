@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Bot, Play, Loader2, CheckCircle2, XCircle, Target, Lightbulb, ListChecks,
-  AlertTriangle, SearchCheck, HelpCircle,
+  AlertTriangle, SearchCheck, HelpCircle, ShieldAlert,
 } from 'lucide-react'
 import { authHeaders } from '../utils/auth'
 import ExportMenu from '../components/ExportMenu'
@@ -18,14 +18,15 @@ interface Verdict {
   recommended_actions: string[]
 }
 interface Step {
-  type: 'reasoning' | 'tool_call' | 'note' | 'verdict'
-  text?: string; n?: number; tool?: string; rationale?: string
+  type: 'reasoning' | 'tool_call' | 'note' | 'verdict' | 'guard'
+  text?: string; n?: number; tool?: string; rationale?: string; decision?: string
   input?: Record<string, unknown>; result?: Record<string, unknown>; is_error?: boolean; verdict?: Verdict
 }
 interface Trace {
   status: string; provider: string; model: string; max_tool_calls: number; steps: Step[]
   tool_calls: number; verdict: Verdict | null; stop_reason: string | null; error: string | null
   usage: Record<string, number>; duration_s: number | null
+  guard?: { policy: string; checked: number; blocked: number; modified: number } | null
 }
 interface Score {
   quality: number; efficiency: number | null; score: number; tool_calls: number
@@ -88,6 +89,13 @@ function StepView({ step }: { step: Step }) {
     return <p className="text-xs text-accent-amber flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />{step.text}</p>
   if (step.type === 'verdict')
     return <p className="text-xs text-accent-green flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" />Verdict submitted</p>
+  if (step.type === 'guard')
+    return (
+      <p className={`text-xs flex items-start gap-1.5 ${step.decision === 'modify' ? 'text-accent-blue' : 'text-accent-red'}`}>
+        <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+        <span>Safety Filter {step.decision} on <span className="font-mono">{step.tool}</span>: {step.text}</span>
+      </p>
+    )
   return (
     <div className={`rounded-lg border p-3 ${step.is_error ? 'border-accent-red/30 bg-accent-red/5' : 'border-bg-card bg-bg-secondary'}`}>
       <div className="flex items-center gap-2 text-xs">
@@ -122,6 +130,7 @@ export default function SocInvestigator() {
   const [effort, setEffort] = useState('high')
   const [budget, setBudget] = useState(15)
   const [apiKey, setApiKey] = useState('')
+  const [guardPolicy, setGuardPolicy] = useState('')
   const [run, setRun] = useState<RunState | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [starting, setStarting] = useState(false)
@@ -149,7 +158,8 @@ export default function SocInvestigator() {
       const { run_id } = await call<{ run_id: string }>('/api/investigator/runs', {
         method: 'POST',
         body: JSON.stringify({ mission_id: missionId, provider, model: model || null, effort,
-                               max_tool_calls: budget, api_key: apiKey || null }),
+                               max_tool_calls: budget, api_key: apiKey || null,
+                               guard_policy: guardPolicy || null }),
       })
       poll(run_id)
     } catch (e) {
@@ -218,6 +228,12 @@ export default function SocInvestigator() {
                      className="w-full bg-bg-primary border border-bg-card rounded-lg px-2 py-2" />
             </label>
           </div>
+          <select value={guardPolicy} onChange={e => setGuardPolicy(e.target.value)} disabled={running}
+                  title="Check every tool call with the Safety Filter (Agent Security > Safety Filter)"
+                  className="w-full bg-bg-primary border border-bg-card rounded-lg px-2 py-2 text-xs">
+            <option value="">Safety Filter: off</option>
+            <option value="soc-triage">Safety Filter: SOC triage policy</option>
+          </select>
           <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} disabled={running}
                  placeholder="API key (optional if the server has one)" autoComplete="off"
                  className="w-full bg-bg-primary border border-bg-card rounded-lg px-3 py-2 text-xs" />
@@ -240,6 +256,7 @@ export default function SocInvestigator() {
               <span className="ml-auto text-xs font-normal text-text-secondary">
                 {run.trace.model} · {run.trace.tool_calls}/{run.trace.max_tool_calls} queries
                 {run.trace.duration_s != null && ` · ${run.trace.duration_s}s`}
+                {run.trace.guard && ` · guard ${run.trace.guard.policy}: ${run.trace.guard.checked} checked, ${run.trace.guard.blocked} blocked, ${run.trace.guard.modified} modified`}
               </span>
             </div>
             {run.trace.steps.length === 0 && running && <p className="text-xs text-text-secondary">Forming hypotheses…</p>}

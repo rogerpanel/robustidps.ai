@@ -106,23 +106,40 @@ def _targets(args: dict[str, Any], keys: list[str]) -> list[tuple[str, str]]:
     return out
 
 
-def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decision:
-    """Judge one call. Mutates the session state (counts, denials)."""
-    started = time.perf_counter()
-    findings: list[Finding] = []
+@dataclass
+class Canonical:
+    tool: str
+    args: dict[str, Any]
+    hidden: list[str]
+    hidden_in_tool: bool
+    key: str
 
+
+def canonicalize(call: ProposedCall, policy: Policy) -> Canonical:
+    """L0 form of a call; `key` identifies the same call under the same policy version."""
     tool, hidden_in_tool = canonical_tool(call.tool_name)
     hidden: list[str] = []
     args: dict[str, Any] = clean_value(call.args, "", hidden)
     if hidden_in_tool:
         hidden.insert(0, f"tool_name: {', '.join(sorted(set(hidden_in_tool)))}")
+    return Canonical(tool, args, hidden, bool(hidden_in_tool),
+                     call_key(policy.id, policy.version, tool, stable_json(args)))
+
+
+def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decision:
+    """Judge one call. Mutates the session state (counts, denials)."""
+    started = time.perf_counter()
+    findings: list[Finding] = []
+
+    c = canonicalize(call, policy)
+    tool, args, hidden, key = c.tool, c.args, c.hidden, c.key
+    if c.hidden_in_tool:
         findings.append(Finding(rule_id="hidden-characters-tool", verdict="deny",
                                 reason="The tool name contains hidden characters; what a reviewer sees is not what runs."))
     elif hidden:
         findings.append(Finding(rule_id="hidden-characters-args", verdict="ask",
                                 reason="Arguments contained hidden characters; they were removed and the cleaned call needs approval."))
 
-    key = call_key(policy.id, policy.version, tool, stable_json(args))
     state.calls += 1
     tier = policy.tier_for(tool)
 
@@ -138,7 +155,7 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
             tool_name=call.tool_name, canonical_tool=tool, tier=tier,
             hidden_characters=hidden, session_calls=state.calls,
             policy_id=policy.id, policy_version=policy.version,
-            latency_ms=round((time.perf_counter() - started) * 1000, 3),
+            latency_ms=round((time.perf_counter() - started) * 1000, 3), call_key=key,
         )
 
     if key in state.denied_keys:

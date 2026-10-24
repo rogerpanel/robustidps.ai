@@ -1,10 +1,11 @@
 # Agent Guard: a fail-closed safety filter for agent tool calls
 
 Every tool call an agent proposes is checked here before it runs. The answer is
-`allow`, `modify` (run with `modified_args`), `ask` (a human must approve) or
-`deny`. Page: **Agent Security (Defend) > Safety Filter** (`/agent-guard`).
+`allow`, `modify` (run with `modified_args`), `ask` (a person must approve) or
+`deny`. Page: **Agent Security (Defend) > Safety Filter** (`/agent-guard`), with
+tabs Test, Approvals, Tool Registry, Evaluate and Evidence.
 
-## What it checks (phase 0)
+## What it checks
 
 | Layer | Check |
 |---|---|
@@ -13,53 +14,91 @@ Every tool call an agent proposes is checked here before it runs. The answer is
 | Scope | Target arguments (hosts, IPs, URLs, CIDRs) must fall inside the agreed scope |
 | Argument rules | Regex rules on argument values (mass targets, shell chaining, credential paths, metadata endpoints) |
 | Clamps and redaction | Numeric caps (e.g. result limits) and removal of secret-bearing arguments become `modify` |
-| Session | Budget of calls; a call identical to one already denied stays denied; after N denials every allowed call needs approval until a human resets the session |
+| Session | Budget of calls; a call identical to one already denied stays denied; after N denials every allowed call needs approval until a person resets the session |
 
 Fail closed: filter errors, timeouts (`AGENT_GUARD_TIMEOUT_S`, default 2 s),
-oversized arguments, a concurrent check for the same session and malformed
-hook payloads are all denies. A new policy version re-judges earlier denials.
+oversized arguments, a concurrent check for the same session, malformed hook
+payloads and missing, pending, expired, used or mismatched approvals are all
+denies. A new policy version re-judges earlier denials.
 
 Policies classify actions and targets, never attacker-chosen names in
-telemetry, so renaming an artefact cannot change a verdict.
+telemetry, so renaming an artefact cannot change a verdict (the Evaluate
+suites test this with name-only variants).
 
-## Policy packs
+## Shared infrastructure (used by other Agent Security modules)
 
-`policies/soc-triage.json`, `policies/authorised-testing.json` (fill
-`scope.allow` with your rules of engagement; empty means everything is out of
-scope), `policies/mcp-general.json`. Submit your own JSON with `policy` in a
-check request, or validate it at `POST /api/agent-guard/policies/validate`.
+Everything is scoped to a **tenant**: the e-mail behind the identity, so an
+agent on a user's `rids_live_` API key and the same user signed in on the
+website share sessions, approvals, the registry and the ledger.
+
+- **Approval queue** (`approvals.py`). An `ask` returns `approval_id`. A
+  signed-in person (never an API key) approves or denies with a note; the
+  preview shows the exact cleaned arguments, targets, tier, reversibility and
+  hidden characters. The agent repeats the same call with the `approval_id`
+  and gets `allow` once. The approval is bound to the session and the
+  canonical call; a denial makes the call sticky-denied; unanswered requests
+  expire (`AGENT_GUARD_APPROVAL_TTL_MIN`, default 15).
+- **Tool Registry** (`registry.py`). Register an MCP `tools/list`, tool array,
+  OpenAI function tools or agent spec (also from the MCP/Agent Scanner page).
+  Each tool gets a fingerprint over its cleaned name, description and schema;
+  the text is run through the scanner; versions are diffed (added, removed,
+  changed). A person pins a version (not possible while any tool has hidden
+  characters). Coverage shows how a policy classifies each tool and suggests
+  tiers from names and descriptions; the suggestions open as a policy to edit.
+- **Evidence ledger** (`evidence.py`). Append-only, hash-chained records of
+  non-allow decisions, approvals, registrations, pins, drift, session resets
+  and evaluations. `/evidence/verify` recomputes the chain; the head hash and
+  counts appear in the Agent Studio **Assurance Dossier** (runtime safety
+  section) for the signed-in user.
+- **Evaluation** (`evaluation.py`, `suites/*.json`). Labelled cases (exact
+  verdicts; groups that differ only in names or stated reasons must agree).
+  Reports exact accuracy, stop recall, false-stop rate, invariance and
+  latency, with a `result_digest` over suite, policy, filter version and
+  verdicts. Re-runs with the same inputs are compared automatically. The
+  built-in suites are regression tests for the built-in packs, not an
+  independent benchmark.
+- **Runtime Monitor**: every decision is also an event there.
+- **SOC Investigator**: optional "Safety Filter" setting; every tool call of
+  the run is checked in-process and blocked or modified calls appear in the
+  trace and in the ledger.
 
 ## API (`/api/agent-guard`)
 
 | Method | Path | |
 |---|---|---|
-| POST | `/check` | `{session_id, tool_name, args, policy_id?, policy?, agent_id?, framework?}` returns the decision |
-| POST | `/hooks/claude?policy_id=` | Claude-style PreToolUse payload in, hook JSON out (Claude Code; Hermes shell hooks use the same JSON) |
-| GET | `/decisions?session_id=` | Recent decisions of the caller |
-| POST | `/sessions/{id}/reset` | Human reset of a session's budget, denials and escalation |
-| GET | `/policies`, `/policies/{id}`, `/info`, `/client.py` | |
+| POST | `/check` | `{session_id, tool_name, args, policy_id?, policy?, approval_id?, agent_id?, framework?}` |
+| POST | `/hooks/claude?policy_id=` | Claude-style PreToolUse payload in, hook JSON out (Claude Code; Hermes shell hooks) |
+| GET | `/decisions?session_id=` | Recent decisions (in memory) |
+| POST | `/sessions/{id}/reset` | Person resets a session |
+| GET/POST | `/approvals`, `/approvals/{id}`, `/approvals/{id}/decide` | Approval queue |
+| GET/POST | `/toolsets`, `/toolsets/{name}`, `/toolsets/{name}/pin`, `/toolsets/{name}/verify`, `/toolsets/{name}/coverage` | Tool Registry |
+| GET/POST | `/suites`, `/evaluate` | Evaluation |
+| GET | `/evidence`, `/evidence/verify`, `/evidence/summary`, `/evidence/export` | Evidence ledger |
+| GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py` | |
 
-Identity is the Agent Studio one: platform login token, `rids_live_` API key,
-or demo mode. Every decision also feeds the Runtime Monitor
-(allow, warn for modify/ask, block for deny).
+## Connecting agents: `client.py`
 
-## Connecting agents
+One stdlib file, also served at `/api/agent-guard/client.py`:
 
-`client.py` (also served at `/api/agent-guard/client.py`) is a single stdlib
-file: `GuardClient.check()`, a `@guard.tool` decorator, and a command hook:
+- `GuardClient.check()` and the `@guard.tool` decorator; with
+  `approval_wait=<seconds>` an `ask` waits for a person and re-checks with
+  the approval; a retried call reuses its pending approval.
+- `hook`: Claude-style PreToolUse command hook.
+- `mcp-proxy`: a gateway between an agent and a stdio MCP server:
+  `python agent_guard_client.py mcp-proxy --policy mcp-general --toolset NAME --approval-wait 120 -- <server command>`.
+  `tools/list` is verified against the pinned version (changed, new and
+  hidden-character tools are withheld and calls to them refused), every
+  `tools/call` is checked (deny or unapproved ask returns a tool error with
+  the reason; modify forwards the corrected arguments), and hidden characters
+  are stripped from results. Server credentials stay in the server process's
+  environment on the user's machine; nothing is proxied through robustidps.ai.
 
-```bash
-AGENT_GUARD_URL=https://robustidps.ai AGENT_GUARD_TOKEN=... \
-python agent_guard_client.py hook --policy mcp-general   # stdin: hook JSON, stdout: verdict JSON
-```
-
-OpenHands: map the verdict to a security risk (allow LOW, modify MEDIUM,
-ask/deny HIGH) in a `SecurityAnalyzer`; the hook endpoint returns it as
-`agentGuard.openhands_risk`.
+Every failure is a deny: a tool the guard did not approve never runs.
 
 ## Limits
 
-Session state and the decision log are in memory in one backend process:
-run one worker for the guard or move `SessionStore` to Redis before scaling
-out. Phase 0 is deterministic; the predictive layer (effect model,
-recoverability check, calibrated deferral) is the planned research step.
+Sessions and the in-memory decision log live in one backend process (the
+backend runs one worker); approvals, registry and ledger are in the database.
+The guard is deterministic (rules, not prediction); the predictive layer
+(effect model, recoverability check, calibrated deferral) is the planned
+research step.

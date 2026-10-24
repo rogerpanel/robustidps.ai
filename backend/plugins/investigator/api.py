@@ -47,6 +47,8 @@ class RunRequest(BaseModel):
     effort: str = Field("high", pattern="^(low|medium|high|xhigh|max)$")
     max_tool_calls: int = Field(15, ge=1, le=60)
     api_key: str | None = Field(None, description="Optional; otherwise the server's key for the provider.")
+    guard_policy: str | None = Field(None, max_length=64,
+                                     description="Agent Guard policy pack to check every tool call against (off if empty)")
 
 
 @router.get("/missions")
@@ -67,7 +69,7 @@ def _execute(run_id: str, mission_id: str, cfg: RunConfig) -> None:
 
 @router.post("/runs")
 @limiter.limit(RATE_RUN)
-def start_run(request: Request, body: RunRequest, _: User = Depends(require_auth)) -> dict:
+def start_run(request: Request, body: RunRequest, user: User = Depends(require_auth)) -> dict:
     if body.mission_id not in _missions:
         raise HTTPException(404, f"unknown mission {body.mission_id!r}")
     if body.provider not in DEFAULT_MODELS:
@@ -75,9 +77,15 @@ def start_run(request: Request, body: RunRequest, _: User = Depends(require_auth
     key = body.api_key or SERVER_KEYS[body.provider]
     if not key:
         raise HTTPException(400, f"no API key for {body.provider}: supply one or configure the server")
-    cfg = RunConfig(provider=body.provider, model=body.model, effort=body.effort,
-                    max_tool_calls=body.max_tool_calls, api_key=key)
+    if body.guard_policy:
+        from plugins.agent_guard.policy import builtin_policies
+        if body.guard_policy not in builtin_policies():
+            raise HTTPException(400, f"unknown guard policy {body.guard_policy!r}")
     run_id = uuid.uuid4().hex[:12]
+    cfg = RunConfig(provider=body.provider, model=body.model, effort=body.effort,
+                    max_tool_calls=body.max_tool_calls, api_key=key,
+                    guard_policy=body.guard_policy or None, guard_tenant=(user.email or "").lower(),
+                    guard_session=f"investigator-{run_id}")
     with _lock:
         _runs[run_id] = {"trace": new_trace(cfg, body.mission_id), "score": None, "answer": None}
         while len(_runs) > MAX_KEPT_RUNS:
