@@ -54,9 +54,13 @@ website share sessions, approvals, the registry and the ledger.
   verdicts; groups that differ only in names or stated reasons must agree).
   Reports exact accuracy, stop recall, false-stop rate, invariance and
   latency, with a `result_digest` over suite, policy, filter version and
-  verdicts. Re-runs with the same inputs are compared automatically. The
-  built-in suites are regression tests for the built-in packs, not an
-  independent benchmark.
+  verdicts. Re-runs with the same inputs are compared automatically.
+  `/evaluate/compare` puts the policy next to single-layer ablations
+  (without scope, argument rules, clamps/redaction; tiers only) and two
+  trivial baselines (allow everything, ask a person for everything), each
+  with bootstrap 95% intervals over the cases (fixed seed, so the table and
+  its `comparison_digest` are reproducible). The built-in suites are
+  regression tests for the built-in packs, not an independent benchmark.
 - **Runtime Monitor**: every decision is also an event there.
 - **SOC Investigator**: optional "Safety Filter" setting; every tool call of
   the run is checked in-process and blocked or modified calls appear in the
@@ -72,7 +76,7 @@ website share sessions, approvals, the registry and the ledger.
 | POST | `/sessions/{id}/reset` | Person resets a session |
 | GET/POST | `/approvals`, `/approvals/{id}`, `/approvals/{id}/decide` | Approval queue |
 | GET/POST | `/toolsets`, `/toolsets/{name}`, `/toolsets/{name}/pin`, `/toolsets/{name}/verify`, `/toolsets/{name}/coverage` | Tool Registry |
-| GET/POST | `/suites`, `/evaluate` | Evaluation |
+| GET/POST | `/suites`, `/evaluate`, `/evaluate/compare` | Evaluation, ablations and baselines |
 | GET | `/evidence`, `/evidence/verify`, `/evidence/summary`, `/evidence/export` | Evidence ledger |
 | GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py` | |
 

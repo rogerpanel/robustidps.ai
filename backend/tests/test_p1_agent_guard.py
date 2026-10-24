@@ -456,3 +456,18 @@ def test_no_body_model_degraded_to_query_param(module):
     bad = [(r.path, p.name) for r in app.routes if getattr(r, "dependant", None)
            for p in r.dependant.query_params if "ForwardRef" in repr(getattr(p.field_info, "annotation", ""))]
     assert bad == []
+
+
+def test_compare_with_ablations_and_baselines(client):
+    c, _ = client
+    r = c.post("/api/agent-guard/evaluate/compare", json={"suite_id": "authorised-testing-core"}).json()
+    rows = {row["name"]: row for row in r["table"]}
+    assert rows["full policy"]["exact_accuracy"] == 1.0 and rows["full policy"]["ci95"]["exact_accuracy"] == [1.0, 1.0]
+    assert rows["without scope"]["exact_accuracy"] < 1.0          # scope enforcement carries weight here
+    assert rows["allow everything"]["stop_recall"] == 0.0
+    assert rows["ask a person for everything"]["false_stop_rate"] == 1.0
+    lo, hi = rows["without scope"]["ci95"]["exact_accuracy"]
+    assert lo <= rows["without scope"]["exact_accuracy"] <= hi
+    again = c.post("/api/agent-guard/evaluate/compare", json={"suite_id": "authorised-testing-core"}).json()
+    assert again["comparison_digest"] == r["comparison_digest"]   # deterministic, including the intervals
+    assert c.get("/api/agent-guard/evidence", params={"kind": "evaluation_compare"}).json()

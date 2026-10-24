@@ -6,7 +6,8 @@ breaks every later hash. verify() recomputes the chain; the head hash can be
 quoted in a dossier or paper as a commitment to the whole history.
 
 Kinds: guard_decision (deny / ask / modify only; allows are counted, not
-stored), approval, toolset_pin, toolset_register, scan, evaluation.
+stored), approval, toolset_pin, toolset_register, toolset_drift, session_reset,
+evaluation, evaluation_compare.
 """
 from __future__ import annotations
 

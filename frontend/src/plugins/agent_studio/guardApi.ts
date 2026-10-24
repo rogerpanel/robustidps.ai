@@ -141,3 +141,17 @@ export interface EvidenceVerification { valid: boolean; records: number; head: s
 export const guardEvidence = (kind?: string) => call<EvidenceRecord[]>(`/evidence?limit=200${kind ? `&kind=${kind}` : ''}`)
 export const guardVerifyEvidence = () => call<EvidenceVerification>('/evidence/verify')
 export const guardExportEvidence = () => call<Record<string, unknown>>('/evidence/export')
+
+export interface CompareRow {
+  name: string; kind: 'policy' | 'ablation' | 'baseline'
+  exact_accuracy: number; stop_recall: number | null; false_stop_rate: number | null
+  ci95: { exact_accuracy: [number, number] | null; stop_recall: [number, number] | null; false_stop_rate: [number, number] | null }
+  verdicts_digest: string
+}
+export interface CompareResult {
+  suite: string; policy: string; cases: number; table: CompareRow[]
+  bootstrap: { resamples: number; seed: number }
+  comparison_digest: string; note: string; evidence: { seq: number; hash: string }
+}
+export const guardCompare = (body: { suite_id?: string; suite?: unknown; policy_id?: string; policy?: unknown }) =>
+  call<CompareResult>('/evaluate/compare', body)

@@ -29,7 +29,7 @@ from plugins.agent_guard.adapters import (
 )
 from plugins.agent_guard.contract import FILTER_VERSION, Decision, Finding, ProposedCall
 from plugins.agent_guard.engine import DecisionLog, SessionStore, canonicalize, decide, deny_decision
-from plugins.agent_guard.evaluation import Suite, builtin_suites, run as run_suite
+from plugins.agent_guard.evaluation import Suite, builtin_suites, compare as compare_suite, run as run_suite
 from plugins.agent_guard.policy import Policy, builtin_policies, parse_policy, validation_errors
 from plugins.agent_studio.auth import require_api_key
 
@@ -460,6 +460,40 @@ def evaluate(body: EvaluateBody, customer: dict = Depends(require_api_key), db: 
         "all_match": all(p.get("result_digest") == result["result_digest"] for p in same_inputs)
         if same_inputs else None,
     }
+    return result
+
+
+def _suite_from(body: EvaluateBody) -> Suite:
+    if body.suite is not None:
+        if len(json.dumps(body.suite, default=str)) > MAX_POLICY_BYTES * 5:
+            raise HTTPException(413, "Suite too large")
+        try:
+            return Suite.model_validate(body.suite)
+        except ValidationError as exc:
+            raise HTTPException(422, {"suite_errors": [f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}"
+                                                       for e in exc.errors()][:20]})
+    suite = builtin_suites().get(body.suite_id or "")
+    if suite is None:
+        raise HTTPException(404, f"Unknown suite '{body.suite_id}'")
+    return suite
+
+
+@router.post("/evaluate/compare")
+def evaluate_compare(body: EvaluateBody, customer: dict = Depends(require_api_key),
+                     db: Session = Depends(get_db)) -> dict:
+    """The policy against single-layer ablations and trivial baselines, with bootstrap 95% intervals."""
+    suite = _suite_from(body)
+    policy = _resolve_policy(body.policy_id or suite.policy_id or "soc-triage", body.policy)
+    result = compare_suite(suite, policy)
+    rec = evidence.append(db, tenant(customer), "evaluation_compare",
+                          {"suite_digest": result["suite_digest"], "policy_digest": result["policy_digest"],
+                           "filter_version": result["filter_version"],
+                           "comparison_digest": result["comparison_digest"],
+                           "table": [{k: r[k] for k in ("name", "kind", "exact_accuracy", "stop_recall",
+                                                        "false_stop_rate")} for r in result["table"]]},
+                          f"Compared {result['policy']} on {result['suite']} against "
+                          f"{len(result['table']) - 1} ablations and baselines")
+    result["evidence"] = {"seq": rec.seq, "hash": rec.hash}
     return result
 
 
