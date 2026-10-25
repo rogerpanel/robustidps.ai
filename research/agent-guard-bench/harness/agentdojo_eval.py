@@ -23,6 +23,11 @@ Usage (needs agentdojo; the repository's backend on PYTHONPATH):
 """
 from __future__ import annotations
 
+import os as _os
+# Isolation: the harness never uses a database. Pin an in-memory one before any backend import, so that the
+# backend's config (which loads the repository's .env) can never point it at a production database.
+_os.environ["DATABASE_URL"] = "sqlite://"  # AGBENCH_ISOLATE
+
 import argparse
 import json
 import platform

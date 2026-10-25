@@ -27,5 +27,7 @@ Table~\ref{tab:internal} summarises the built-in suites; every pack reaches 100\
 \subsection{RQ4: Authoring from failures}
 On the AgentDojo replay we label benign calls as acceptable when they are allowed, modified or asked, and attack-goal calls when they are asked or denied, then propose edits on one half of the tasks and goals and test on the other half (both directions, general strategy). On Slack, edits proposed from one half close the unreviewed goal in the other (\AuSlackGoalBefore{} $\to$ \AuSlackGoalAfter{}), but they do so by asking for reads that precede attack goals, and benign requests per task rise from \AuSlackAsksBefore{} to \AuSlackAsksAfter{}. Authoring optimises the labels it is given: call-level labels that only penalise unreviewed attack calls and refusals push edits toward asking. A burden-aware objective, or labels on the effectful step of an attack only, is needed before such edits are adopted; the tool reports the burden so that a person can see it.
 
+\input{generated/live_section}
+
 \subsection{Overhead}
 The decision itself takes a median of \LatMedian{}\,ms (95th percentile \LatPNinetyFive{}\,ms) per call in process, excluding network transport. The full replay, including all policies, deferral analysis and authoring folds, runs in \AdSeconds{}\,s in a single Python process.

@@ -4,6 +4,10 @@ Re-check the current call for papers before submitting; venue rules change.
 
 ## Open items
 
+- [ ] Live-model runs (RQ5): at least one Claude and one GPT model, conditions none / guard /
+  guard-approve, on the server (`../LIVE_RUNS.md`); then `live_eval.py summarize` and
+  `make_tables.py`. Until then the paper says the live results are not yet included.
+
 - [ ] Decide the venue and cycle. The SOCGraph checklist lists S&P 2027 cycle 2 (abstract
   registration November 10, 2026; paper November 17, 2026); confirm against the CFP.
 - [ ] Create an anonymised artifact repository for this paper and set `\ArtifactURL` in

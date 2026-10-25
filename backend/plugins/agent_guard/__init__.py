@@ -32,4 +32,7 @@ Modules:
   api.py        /api/agent-guard/*
 """
 from plugins.agent_guard import db_models  # noqa: F401  (registers the tables for init_db)
-from plugins.agent_guard.api import router  # noqa: F401
+try:
+    from plugins.agent_guard.api import router  # noqa: F401
+except ModuleNotFoundError:  # standalone use (the evaluation harness) without the web stack installed;
+    router = None            # the backend always has it, and include_router(None) would fail loudly there

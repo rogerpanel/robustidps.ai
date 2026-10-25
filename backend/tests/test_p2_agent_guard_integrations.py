@@ -131,3 +131,47 @@ def test_openhands_parses_the_served_hooks_json():
     cfg = hooks.HookConfig.from_dict(_json.loads(text))
     (h,) = cfg.get_hooks_for_event(hooks.HookEventType.PRE_TOOL_USE, "terminal")
     assert h.command.endswith("hook --format openhands --policy mcp-general --approval-wait 60") and h.timeout == 90
+
+
+def test_agentdojo_sessions_and_approve_mode():
+    pytest.importorskip("agentdojo")
+    from agentdojo.functions_runtime import FunctionCall, FunctionsRuntime
+    from agentdojo_guard import GuardedToolsExecutor, NewGuardSession
+
+    runtime, ran = FunctionsRuntime([]), []
+
+    @runtime.register_function
+    def bash(command: str) -> str:
+        """Run a command.
+
+        :param command: command
+        """
+        ran.append(command)
+        return "ok"
+
+    seen, approved = [], []
+
+    def checker(tool, args, session):
+        seen.append(session)
+        return {"decision": "ask", "reasons": ["shell"], "approval_id": "a1"}
+
+    def call(ex, cid):
+        msgs = [{"role": "user", "content": [{"type": "text", "content": "q"}]},
+                {"role": "assistant", "content": None,
+                 "tool_calls": [FunctionCall(function="bash", args={"command": "ls"}, id=cid)]}]
+        return ex.query("same prompt", runtime, messages=msgs)[3]
+
+    blocking = GuardedToolsExecutor(checker=checker)
+    marker = NewGuardSession(blocking)
+    marker.query("same prompt", runtime)
+    out = call(blocking, "1")
+    marker.query("same prompt", runtime)        # a second run of the same task: a new guard session
+    call(blocking, "2")
+    assert ran == [] and "approval" in out[-1]["error"] and seen[0] != seen[1]
+    approving = GuardedToolsExecutor(checker=checker, on_ask="approve",
+                                     approved=lambda t, a, s, v: approved.append((t, s)))
+    approving.begin_session(suite="x", user_task="user_task_0", injection_task=None)
+    call(approving, "3")
+    assert ran == ["ls"] and approved and approving.decisions[-1]["user_task"] == "user_task_0"
+    with pytest.raises(ValueError):
+        GuardedToolsExecutor(checker=checker, on_ask="sometimes")

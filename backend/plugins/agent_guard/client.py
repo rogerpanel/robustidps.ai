@@ -99,7 +99,8 @@ class GuardDenied(RuntimeError):
 class GuardClient:
     def __init__(self, base_url: str, token: str = "", session_id: str = "default",
                  policy_id: str = "soc-triage", timeout: float = 5.0, approval_wait: float = 0.0,
-                 poll_interval: float = 3.0, agent_id: str = "", framework: str = "python"):
+                 poll_interval: float = 3.0, agent_id: str = "", framework: str = "python",
+                 policy: dict | None = None):
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.session_id = session_id
@@ -109,6 +110,7 @@ class GuardClient:
         self.poll_interval = poll_interval
         self.agent_id = agent_id
         self.framework = framework
+        self.policy = policy                    # an inline policy pack (validated by the server) instead of policy_id
         self._approvals: dict[str, str] = {}    # call -> approval id, so a retry reuses its approval
 
     def _req(self, method: str, path: str, body: dict | None = None) -> Any:
@@ -127,6 +129,7 @@ class GuardClient:
         verdict = self._post("/api/agent-guard/check", {
             "session_id": self.session_id, "policy_id": self.policy_id, "tool_name": tool_name, "args": args,
             "agent_id": self.agent_id, "framework": self.framework,
+            **({"policy": self.policy} if self.policy is not None else {}),
             **({"approval_id": approval_id} if approval_id else {})})
         if verdict.get("decision") not in ("allow", "modify", "ask", "deny"):
             raise ValueError("unexpected response")
