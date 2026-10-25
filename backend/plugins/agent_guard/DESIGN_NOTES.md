@@ -116,13 +116,28 @@ previous string rules on the two new suites (written alongside the packs):
   to session budgets, re-checked when the approval is used; calibrated
   deferral now only considers asks raised by the action tier alone.
 
+## Agent hosts: OpenHands and the Claude Agent SDK
+
+Both were checked against the installed SDKs rather than their documentation:
+
+- OpenHands (openhands-sdk 1.58.2) runs command hooks with the event on
+  stdin and reads `{"decision", "reason"}`; exit 2 blocks. Any other exit
+  code, a timeout or a missing command lets the call through, and there is
+  no ask or argument rewriting. The connector therefore exits 2 on every
+  refusal and error, refuses asks with the approval id and modifies with the
+  corrected arguments, and judges multiplexed tools per command. Our
+  earlier Claude-format answer would not have blocked anything in OpenHands.
+- The Claude Agent SDK (claude-agent-sdk 0.2.174) does not call
+  `can_use_tool` for calls its permission settings already allow, so the
+  connector is a PreToolUse hook, which sees every call.
+- Because hook processes are stateless, the guard now reuses a pending
+  request for a repeated identical call and lets a recently approved request
+  be used once by the next identical call in the same session.
+
 ## Planned
 
-- **Out-of-process enforcement for in-process hooks.** Host-side hooks act
-  only as deny-by-default routers to the guard service (already true for
-  the client and gateway; document per framework).
-- **OpenHands SDK hooks** accept Claude-style JSON per the review; verify
-  against the SDK and add a documented example (allow/deny only there).
+- Policy authoring from evaluation failures: propose a policy change that
+  fixes a failing labelled case and show which other cases it would change.
 
 ## Not adopted
 

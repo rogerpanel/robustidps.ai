@@ -234,6 +234,15 @@ def _finish(call: ProposedCall, policy: Policy, tid: str, decision: Decision, db
             logger.warning("deferral failed", exc_info=True)
             info = {"score": None, "eligible": False, "reason": "deferral failed", "mode": "error"}
         decision = decision.model_copy(update={"deferral": info})
+    if decision.decision == "ask" and not decision.approval_id and decision.call_key:
+        try:  # a repeat of a call that is already waiting for a person reuses that request
+            pending = approvals.find_for_call(db, tid, call.session_id, decision.call_key, "pending")
+            if pending is not None:
+                decision = decision.model_copy(update={
+                    "approval_id": pending.id,
+                    "reasons": [*decision.reasons, f"Approval {pending.id} for this exact call is still pending."]})
+        except Exception:  # noqa: BLE001 — on failure a new request is queued below
+            logger.warning("pending approval lookup failed", exc_info=True)
     if decision.decision == "ask" and not decision.approval_id:
         try:
             run_args = decision.modified_args if decision.modified_args is not None else canonicalize(call, policy).args
@@ -270,10 +279,22 @@ def _too_large(call: ProposedCall) -> bool:
     return len(json.dumps(call.args, default=str)) > MAX_ARGS_BYTES
 
 
+def _earlier_approval(call: ProposedCall, policy: Policy, tid: str, db: Session) -> str | None:
+    """An approval a person granted recently for exactly this call in this session (for stateless clients)."""
+    try:
+        row = approvals.find_for_call(db, tid, call.session_id, canonicalize(call, policy).key, "approved")
+        return row.id if row is not None else None
+    except Exception:  # noqa: BLE001 — without it the call is judged normally
+        logger.warning("approved approval lookup failed", exc_info=True)
+        return None
+
+
 async def guard_call(call: ProposedCall, policy: Policy, tid: str, approval_id: str | None,
                      db: Session) -> Decision:
     """API entry point: decide (with the timeout), then record."""
     started = time.perf_counter()
+    if not approval_id and not _too_large(call):
+        approval_id = await run_in_threadpool(_earlier_approval, call, policy, tid, db)
     if _too_large(call):
         decision = deny_decision(call, policy, "Arguments too large to inspect; failing closed.",
                                  "args-too-large", started)
@@ -294,6 +315,8 @@ def guard_call_sync(call: ProposedCall, policy: Policy, tid: str, approval_id: s
     """In-process entry point for agents running in worker threads (e.g. the SOC Investigator)."""
     db = SessionLocal()
     try:
+        if not approval_id and not _too_large(call):
+            approval_id = _earlier_approval(call, policy, tid, db)
         if _too_large(call):
             decision = deny_decision(call, policy, "Arguments too large to inspect; failing closed.",
                                      "args-too-large")
@@ -335,7 +358,27 @@ def client_script() -> PlainTextResponse:
                              headers={"Content-Disposition": 'attachment; filename="agent_guard_client.py"'})
 
 
-INTEGRATIONS = {"agentdojo": "agentdojo_guard.py", "inspect": "inspect_guard.py", "selftest": "selftest.py"}
+INTEGRATIONS = {"agentdojo": "agentdojo_guard.py", "inspect": "inspect_guard.py", "selftest": "selftest.py",
+                "claude-sdk": "claude_sdk_guard.py"}
+
+
+@router.get("/integrations/openhands-hooks")
+def openhands_hooks(policy: str = "mcp-general", approval_wait: int = 0, python: str = "python3",
+                    client_path: str = "~/.agent_guard/agent_guard_client.py") -> PlainTextResponse:
+    """A .openhands/hooks.json that routes every tool call through the guard (fail closed: exit 2)."""
+    if policy not in builtin_policies():
+        raise HTTPException(404, f"Unknown policy '{policy}'")
+    if python not in ("python3", "python", "py"):
+        raise HTTPException(422, "python must be python3, python or py")
+    if not (0 <= approval_wait <= 3600) or not client_path or any(c in client_path for c in "\"'`$;&|<>%\n\r"):
+        raise HTTPException(422, "approval_wait must be 0-3600 and client_path a plain path")
+    path = f'"{client_path}"' if " " in client_path else client_path
+    wait = f" --approval-wait {approval_wait}" if approval_wait else ""
+    config = {"PreToolUse": [{"matcher": "*", "hooks": [{
+        "type": "command", "command": f"{python} {path} hook --format openhands --policy {policy}{wait}",
+        "timeout": approval_wait + 30}]}]}
+    return PlainTextResponse(json.dumps(config, indent=2) + "\n", media_type="application/json",
+                             headers={"Content-Disposition": 'attachment; filename="hooks.json"'})
 
 
 @router.get("/integrations/{name}")

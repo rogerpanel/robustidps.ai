@@ -961,3 +961,82 @@ def test_typed_suites_and_ablation(client):
     rows = {t["name"]: t for t in c.post("/api/agent-guard/evaluate/compare",
                                          json={"suite_id": "typed-actions-soc"}).json()["table"]}
     assert rows["without typed actions"]["exact_accuracy"] < rows["full policy"]["exact_accuracy"]
+
+
+# ── OpenHands hook, approval reuse for stateless clients, served config ────
+
+from plugins.agent_guard import client as guard_client  # noqa: E402
+
+
+def test_openhands_event_mapping():
+    tool, args, session = guard_client.openhands_call(
+        {"event_type": "PreToolUse", "tool_name": "file_editor", "tool_input": {"command": "view", "path": "/a"},
+         "session_id": "conv-1"})
+    assert tool == "file_editor:view" and args["path"] == "/a" and session == "openhands:conv-1"
+    assert guard_client.openhands_call({"tool_name": "terminal", "tool_input": {"command": "ls"}})[0] == "terminal"
+    with pytest.raises((ValueError, TypeError)):
+        guard_client.openhands_call({"tool_name": "terminal", "tool_input": "ls"})
+
+
+def _run_openhands_hook(monkeypatch, capsys, payload, verdict=None, raw=None):
+    import io
+    if verdict is not None:
+        monkeypatch.setattr(guard_client.GuardClient, "check", lambda self, t, a: verdict)
+    monkeypatch.setattr("sys.stdin", io.StringIO(raw if raw is not None else json.dumps(payload)))
+    code = guard_client._hook("mcp-general", "auto", 0)
+    out = capsys.readouterr().out.strip()
+    return code, json.loads(out) if out else None
+
+
+def test_openhands_hook_blocks_with_exit_2(monkeypatch, capsys):
+    ev = {"event_type": "PreToolUse", "tool_name": "terminal", "tool_input": {"command": "ls"}, "session_id": "c"}
+    code, out = _run_openhands_hook(monkeypatch, capsys, ev, {"decision": "allow", "reasons": ["ok"]})
+    assert code == 0 and out["decision"] == "allow"
+    for verdict in ({"decision": "deny", "reasons": ["no"]},
+                    {"decision": "ask", "reasons": ["shell"], "approval_id": "abc"},
+                    {"decision": "modify", "reasons": ["capped"], "modified_args": {"command": "ls"}}):
+        code, out = _run_openhands_hook(monkeypatch, capsys, ev, verdict)
+        assert code == 2 and out["decision"] == "deny"
+    code, out = _run_openhands_hook(monkeypatch, capsys, ev, {"decision": "ask", "approval_id": "abc", "reasons": []})
+    assert "abc" in out["reason"]
+    # unreachable guard (the client turns errors into a deny), malformed input, wrong types: all exit 2
+    monkeypatch.setattr(guard_client.GuardClient, "check", guard_client.GuardClient.check.__wrapped__
+                        if hasattr(guard_client.GuardClient.check, "__wrapped__") else guard_client.GuardClient.check)
+    monkeypatch.setenv("AGENT_GUARD_URL", "http://127.0.0.1:9")
+    code, out = _run_openhands_hook(monkeypatch, capsys, ev)
+    assert code == 2
+    code, _ = _run_openhands_hook(monkeypatch, capsys, None, raw="not json")
+    assert code == 2
+    code, _ = _run_openhands_hook(monkeypatch, capsys, {"event_type": "PreToolUse", "tool_name": "x", "tool_input": 3})
+    assert code == 2
+    code, out = _run_openhands_hook(monkeypatch, capsys, {"event_type": "SessionStart"})
+    assert code == 0 and out == {}
+
+
+def test_repeated_call_reuses_pending_then_approved_request(client):
+    c, _ = client
+    body = {"session_id": "hook-proc", "tool_name": "isolate_host", "args": {"host": "10.0.0.9"}}
+    first = c.post("/api/agent-guard/check", json=body).json()
+    second = c.post("/api/agent-guard/check", json=body).json()
+    assert first["decision"] == second["decision"] == "ask" and first["approval_id"] == second["approval_id"]
+    assert len(c.get("/api/agent-guard/approvals", params={"status": "pending"}).json()) == 1
+    c.post(f"/api/agent-guard/approvals/{first['approval_id']}/decide", json={"decision": "approve"})
+    third = c.post("/api/agent-guard/check", json=body).json()          # no approval id: a new process retrying
+    assert third["decision"] == "allow" and third["approval_id"] == first["approval_id"]
+    fourth = c.post("/api/agent-guard/check", json=body).json()         # single use: asks again
+    assert fourth["decision"] == "ask" and fourth["approval_id"] != first["approval_id"]
+    other = c.post("/api/agent-guard/check", json={**body, "session_id": "another"}).json()
+    assert other["decision"] == "ask"                                   # never across sessions
+
+
+def test_openhands_hooks_endpoint(client):
+    c, _ = client
+    r = c.get("/api/agent-guard/integrations/openhands-hooks",
+              params={"policy": "mcp-general", "approval_wait": 120, "client_path": "C:\\Users\\Ann Lee\\guard\\agent_guard_client.py",
+                      "python": "py"})
+    h = r.json()["PreToolUse"][0]["hooks"][0]
+    assert h["timeout"] == 150 and h["command"].startswith('py "C:\\Users\\Ann Lee\\guard\\agent_guard_client.py" hook')
+    assert "--format openhands --policy mcp-general --approval-wait 120" in h["command"]
+    assert c.get("/api/agent-guard/integrations/openhands-hooks", params={"client_path": "x; rm -rf /"}).status_code == 422
+    assert c.get("/api/agent-guard/integrations/openhands-hooks", params={"python": "bash"}).status_code == 422
+    assert c.get("/api/agent-guard/integrations/claude-sdk").status_code == 200

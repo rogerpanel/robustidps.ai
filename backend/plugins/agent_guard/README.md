@@ -78,6 +78,8 @@ website share sessions, approvals, the registry and the ledger.
   (19 steps, 7 sessions) cover the information-flow rules, including
   destination tricks and the public-issue to private-repository to public
   pull request pattern.
+  `agent-hosts-mcp` (22 cases) pins how the coding pack treats Claude Code
+  and OpenHands tool names.
   `typed-actions-testing` (32 cases) and `typed-actions-soc` (12 cases)
   cover typed network arguments: normalisation, repairs, limits, disguised
   addresses, schemes and unreadable values.
@@ -108,7 +110,7 @@ website share sessions, approvals, the registry and the ledger.
 | GET/PUT/POST | `/environment`, `/environment/validate` | Asset inventory for the predictive layer and the internal destinations for information flow (PUT: a person) |
 | GET | `/sessions/{id}` | What the guard holds for a session: calls, denials, budgets used, assets taken down, data labels |
 | GET | `/evidence`, `/evidence/verify`, `/evidence/summary`, `/evidence/export` | Evidence ledger |
-| GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py`, `/integrations/{agentdojo,inspect}` | |
+| GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py`, `/integrations/{agentdojo,inspect,claude-sdk,selftest}`, `/integrations/openhands-hooks` | |
 
 ## Connecting agents: `client.py`
 
@@ -128,6 +130,41 @@ One stdlib file, also served at `/api/agent-guard/client.py`:
   environment on the user's machine; nothing is proxied through robustidps.ai.
 
 Every failure is a deny: a tool the guard did not approve never runs.
+
+## Agent hosts: where the check runs and what happens when it fails
+
+The guard runs as a service; each host only forwards the call and obeys the
+answer, so an agent cannot edit the policy. What differs is how the host
+reacts when its hook fails, which is why each connector is written to fail
+closed for that host:
+
+| Host | Connector | On error or timeout | ask | modify |
+|---|---|---|---|---|
+| Claude Code | `hook` (settings.json PreToolUse) | the client answers deny; a hook that cannot start at all (no Python) does not block in Claude Code, so check it with the self-test | Claude Code's own prompt | runs `updatedInput` |
+| Hermes Agent | same `hook` (shell hooks) | blocks only with `fail_closed: true` | as Claude Code | as Claude Code |
+| OpenHands | `hook --format openhands` (`.openhands/hooks.json`, download from the page) | exit 2 on every refusal and error; OpenHands lets calls through on any other failure or a timeout, so keep the hook `timeout` above `--approval-wait` + 30 s | refused with the approval id (or waits with `--approval-wait`) | refused, with the corrected arguments in the reason |
+| Claude Agent SDK | `integrations/claude_sdk_guard.py` (PreToolUse callback) | deny, also when the guard misses its deadline | refused with the approval id; `ask_as="ask"` hands it to Claude's prompt | runs `updatedInput` |
+| MCP clients | `mcp-proxy` | tool error | tool error, or waits | forwards corrected arguments |
+| AgentDojo, Inspect | `integrations/` | tool error / reject | tool error / escalate | corrected call |
+| Python agents | `GuardClient`, `@guard.tool` | `GuardDenied` | waits with `approval_wait` | corrected arguments |
+
+Hooks start a new process for every call, so they cannot remember an
+approval. The guard does: repeating exactly the same call in the same session
+reuses its pending request instead of queueing another, and once a person
+approves it, the next identical call in that session uses the approval (once,
+within the approval TTL). OpenHands' `file_editor` and `task_tracker` are
+judged per command (`file_editor:view`, `file_editor:create`), so a policy can
+allow viewing and ask for writing; the tool runs exactly that command.
+
+OpenHands' `HookConfig.load(path)` returns an empty configuration, not an
+error, when the path does not exist (it does not expand `~`): check
+`not HookConfig.load(path).is_empty()` before starting a conversation.
+
+Keep `agent_guard_client.py` and `hooks.json` outside the agent's workspace
+(the coding pack also denies writes to `.claude/`, `.openhands/` and similar),
+and give the agent's environment a dedicated API key: an API key cannot
+approve, reset sessions or change settings, but the agent can read its own
+environment.
 
 ## Calibrated deferral (`deferral.py`)
 
@@ -162,11 +199,14 @@ comparison, the evidence chain, the environment model, the information-flow
 rules (a send before and after reading an e-mail, session labels, the
 multi-step suite), typed network actions (a mass block written as
 0.0.0.0/1, a budget charge on an approval, a scan list cut to scope with its
-rate lowered, a metadata address in hex, the typed suite), an approval round trip
+rate lowered, a metadata address in hex, the typed suite), the OpenHands hook
+(allowed view, blocked chained command with exit 2, blocked when the guard is
+unreachable) and the Claude Agent SDK hook (if `claude_sdk_guard.py` is next
+to it), an approval round trip
 (a person approves on the page) and, if installed, the AgentDojo and Inspect
 connectors; prints PASS/FAIL and writes a JSON report.
 
-## Benchmark harnesses: AgentDojo and Inspect (`integrations/`)
+## Benchmark harnesses and SDK connectors (`integrations/`)
 
 Both files sit next to `agent_guard_client.py` and are served at
 `/api/agent-guard/integrations/agentdojo` and `/api/agent-guard/integrations/inspect`.
@@ -183,6 +223,19 @@ Both files sit next to `agent_guard_client.py` and are served at
   (or reject with `ask_as="reject"`), deny = reject (or terminate with
   `deny_as="terminate"`); guard failures reject. Verified with inspect_ai
   0.3.283, end to end with a scripted `mockllm` model.
+
+- `claude_sdk_guard.py`: `agent_guard_hook(guard)` for
+  `ClaudeAgentOptions(hooks={"PreToolUse": [HookMatcher(matcher=None,
+  hooks=[...], timeout=90)]})`. A hook rather than `can_use_tool`, which the
+  SDK skips for calls its permission settings already allow. Verified with
+  claude-agent-sdk 0.2.174 through the SDK's own hook dispatch.
+- OpenHands needs no extra file: `agent_guard_client.py hook --format
+  openhands`, configured by the `hooks.json` served at
+  `/api/agent-guard/integrations/openhands-hooks?policy=...&approval_wait=...`.
+  Verified with openhands-sdk 1.58.2 end to end: a real conversation with the
+  terminal and file editor tools and a scripted model, where a chained
+  exfiltration command and an edit of `.openhands/hooks.json` were blocked, a
+  file view ran, and a command that needed approval ran once after approval.
 
 Each connector uses one guard session per task or sample and a fresh prefix
 per instance, so budgets and repeated-denial rules do not carry over between

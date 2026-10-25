@@ -19,6 +19,16 @@ take the same JSON):
     AGENT_GUARD_URL=https://robustidps.ai AGENT_GUARD_TOKEN=... \\
     python agent_guard_client.py hook --policy soc-triage
 
+As an OpenHands PreToolUse hook (.openhands/hooks.json; detected from the
+event, or pass --format openhands). OpenHands lets a call through when a hook
+fails, times out or exits with anything but 2, so this mode answers
+{"decision": ..., "reason": ...} and exits 2 on every refusal and every
+error. OpenHands hooks cannot ask or rewrite arguments: "ask" refuses with the
+approval id (a person approves on the Safety Filter page, then the agent
+repeats the call), or waits with --approval-wait; "modify" refuses and states
+the corrected arguments to repeat the call with. Keep the hook's "timeout" in
+hooks.json above --approval-wait plus 30 seconds.
+
 As an MCP gateway between an agent and a local (stdio) MCP server:
 
     python agent_guard_client.py mcp-proxy --policy mcp-general --toolset my-server \\
@@ -124,7 +134,7 @@ class GuardClient:
 
     def check(self, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         """The guard's verdict; with approval_wait, an 'ask' waits for a person and is re-checked."""
-        key = json.dumps([tool_name, args], sort_keys=True, default=str)
+        key = json.dumps([self.session_id, tool_name, args], sort_keys=True, default=str)
         try:
             aid = self._approvals.get(key)
             if aid:  # retry of a call that was sent for approval earlier
@@ -179,13 +189,86 @@ class GuardClient:
 
 # ── command hook ──────────────────────────────────────────────────────
 
-def _hook(policy: str) -> int:
+# OpenHands tools that multiplex reads and writes on a `command` argument are judged as "tool:command", so a
+# policy can allow file_editor:view and ask for file_editor:create. The tool runs exactly that command.
+_OPENHANDS_MULTIPLEXED = {"file_editor", "planning_file_editor", "str_replace_editor", "task_tracker"}
+
+
+def openhands_call(event: dict[str, Any]) -> tuple[str, dict[str, Any], str]:
+    """(tool name for the guard, arguments, session id) from an OpenHands hook event. Raises on bad input."""
+    tool = event.get("tool_name")
+    if not isinstance(tool, str) or not tool:
+        raise ValueError("tool_name missing")
+    args = event.get("tool_input") or {}
+    if not isinstance(args, dict):
+        raise TypeError("tool_input must be an object")
+    command = args.get("command")
+    if tool.lower() in _OPENHANDS_MULTIPLEXED and isinstance(command, str) and command:
+        tool = f"{tool}:{command}"
+    session = str(event.get("session_id") or os.environ.get("OPENHANDS_SESSION_ID") or "openhands")[:120]
+    return tool, args, f"openhands:{session}"
+
+
+def _hook_openhands(policy: str, payload: dict[str, Any], approval_wait: float) -> int:
+    def refuse(reason: str) -> int:
+        reason = f"Agent Guard: {reason}"
+        print(json.dumps({"decision": "deny", "reason": reason}))
+        print(reason, file=sys.stderr)
+        return 2  # exit 2 blocks in OpenHands; any other failure would let the call through
+    try:
+        if payload.get("event_type") != "PreToolUse":
+            print("{}")
+            return 0  # the guard only decides tool calls
+        tool, args, session = openhands_call(payload)
+        guard = GuardClient(os.environ.get("AGENT_GUARD_URL", "http://localhost:8000"),
+                            os.environ.get("AGENT_GUARD_TOKEN", ""), session_id=session, policy_id=policy,
+                            approval_wait=approval_wait, agent_id=session, framework="openhands")
+        verdict = guard.check(tool, args)
+        decision = verdict.get("decision")
+        reasons = " ".join(verdict.get("reasons") or [])
+        if decision == "allow":
+            print(json.dumps({"decision": "allow", "reason": f"Agent Guard: {reasons}"[:1000]}))
+            return 0
+        if decision == "modify":
+            return refuse(f"run this call with corrected arguments instead: "
+                          f"{json.dumps(verdict.get('modified_args'), default=str)[:2000]} ({reasons})")
+        if decision == "ask":
+            aid = verdict.get("approval_id")
+            return refuse(f"needs a person's approval ({reasons}). Approval request {aid}: approve it on the "
+                          "Safety Filter page, then repeat exactly the same call." if aid else
+                          f"needs a person's approval ({reasons}).")
+        return refuse(reasons or "denied")
+    except Exception as exc:  # noqa: BLE001 — every failure blocks
+        return refuse(f"guard unreachable or invalid input ({type(exc).__name__}); failing closed")
+
+
+def _hook(policy: str, fmt: str = "auto", approval_wait: float = 0.0) -> int:
+    payload: Any = None
+    if fmt in ("auto", "openhands"):
+        try:
+            payload = json.load(sys.stdin)
+        except Exception:  # noqa: BLE001
+            payload = None
+        is_openhands = isinstance(payload, dict) and "event_type" in payload and "hook_event_name" not in payload
+        if fmt == "openhands" or is_openhands:
+            return _hook_openhands(policy, payload if isinstance(payload, dict) else {"event_type": "PreToolUse"},
+                                   approval_wait)
+        if payload is None:  # unreadable input: refuse in both formats (Claude reads stdout, OpenHands exit 2)
+            print(json.dumps({"decision": "deny", "hookSpecificOutput": {
+                "hookEventName": "PreToolUse", "permissionDecision": "deny",
+                "permissionDecisionReason": "Agent Guard: unreadable hook input; failing closed"}}))
+            return 2
+    return _hook_claude(policy, payload)
+
+
+def _hook_claude(policy: str, payload: Any = None) -> int:
     def deny(reason: str) -> int:
         print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                                  "permissionDecisionReason": f"Agent Guard: {reason}"}}))
         return 0
     try:
-        payload = json.load(sys.stdin)
+        if payload is None:
+            payload = json.load(sys.stdin)
         client = GuardClient(os.environ.get("AGENT_GUARD_URL", "http://localhost:8000"),
                              os.environ.get("AGENT_GUARD_TOKEN", ""), policy_id=policy)
         answer = client._post(f"/api/agent-guard/hooks/claude?policy_id={urllib.parse.quote(policy)}", payload)
@@ -331,8 +414,12 @@ class McpGateway:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Agent Guard client")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    h = sub.add_parser("hook", help="Claude-style PreToolUse command hook (stdin JSON -> stdout JSON)")
+    h = sub.add_parser("hook", help="PreToolUse command hook, Claude-style or OpenHands (stdin JSON -> stdout JSON)")
     h.add_argument("--policy", default=os.environ.get("AGENT_GUARD_POLICY", "soc-triage"))
+    h.add_argument("--format", choices=["auto", "claude", "openhands"], default="auto",
+                   help="hook protocol (default: detected from the event)")
+    h.add_argument("--approval-wait", type=float, default=float(os.environ.get("AGENT_GUARD_APPROVAL_WAIT", "0")),
+                   help="OpenHands: seconds to wait for a person on 'ask' (default 0: refuse with the approval id)")
     m = sub.add_parser("mcp-proxy", help="guard a stdio MCP server: mcp-proxy [options] -- command args...")
     m.add_argument("--policy", default=os.environ.get("AGENT_GUARD_POLICY", "mcp-general"))
     m.add_argument("--toolset", help="Tool Registry name whose pinned version tools/list must match")
@@ -342,7 +429,7 @@ def main() -> int:
     m.add_argument("command", nargs=argparse.REMAINDER)
     args = ap.parse_args()
     if args.cmd == "hook":
-        return _hook(args.policy)
+        return _hook(args.policy, args.format, args.approval_wait)
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command:
         ap.error("mcp-proxy needs the MCP server command after --")

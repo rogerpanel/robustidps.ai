@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-FILTER_VERSION = "0.4.0"
+FILTER_VERSION = "0.5.0"
 
 Verdict = Literal["allow", "modify", "ask", "deny"]
 Risk = Literal["LOW", "MEDIUM", "HIGH", "UNKNOWN"]

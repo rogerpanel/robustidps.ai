@@ -82,3 +82,52 @@ def test_inspect_approver():
     strict = agent_guard(checker=checker, ask_as="reject", deny_as="terminate")
     assert approve(strict, "bash", {}).decision == "reject"
     assert approve(strict, "delete_file", {}).decision == "terminate"
+
+
+# ── Claude Agent SDK hook (no SDK needed: the hook is a plain async function) ──
+
+def _hook_call(hook, tool, args, session="s1"):
+    return asyncio.run(hook({"hook_event_name": "PreToolUse", "session_id": session, "tool_name": tool,
+                             "tool_input": args, "tool_use_id": "t1"}, "t1", {"signal": None}))
+
+
+def test_claude_sdk_hook_mapping():
+    from claude_sdk_guard import agent_guard_hook
+    hook = agent_guard_hook(checker=checker)
+    assert _hook_call(hook, "read_file", {"path": "a"}) == {}                      # Claude's own rules decide
+    out = _hook_call(hook, "search", {"query": "x", "limit": 9999})["hookSpecificOutput"]
+    assert out["permissionDecision"] == "allow" and out["updatedInput"] == {"query": "x", "limit": 500}
+    out = _hook_call(hook, "bash", {"command": "ls"})["hookSpecificOutput"]
+    assert out["permissionDecision"] == "deny" and "a1" in out["permissionDecisionReason"]
+    assert _hook_call(hook, "delete_file", {})["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert _hook_call(hook, "explode", {})["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert asyncio.run(hook({"hook_event_name": "PostToolUse"}, None, {})) == {}
+    bad = asyncio.run(hook({"hook_event_name": "PreToolUse", "tool_name": "x", "tool_input": "no"}, None, {}))
+    assert bad["hookSpecificOutput"]["permissionDecision"] == "deny"
+    ask = agent_guard_hook(checker=checker, ask_as="ask")
+    assert _hook_call(ask, "bash", {"command": "ls"})["hookSpecificOutput"]["permissionDecision"] == "ask"
+    grant = agent_guard_hook(checker=checker, grant_on_allow=True)
+    assert _hook_call(grant, "read_file", {"path": "a"})["hookSpecificOutput"]["permissionDecision"] == "allow"
+    import time as _t
+    slow = agent_guard_hook(checker=lambda t, a: _t.sleep(2) or {"decision": "allow"}, deadline_s=0.3)
+    assert _hook_call(slow, "read_file", {})["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert [d["decision"] for d in hook.decisions] == ["allow", "modify", "ask", "deny"]
+
+
+def test_claude_sdk_options_accept_the_hook():
+    sdk = pytest.importorskip("claude_agent_sdk")
+    from claude_sdk_guard import agent_guard_hook
+    hook = agent_guard_hook(checker=checker)
+    opts = sdk.ClaudeAgentOptions(hooks={"PreToolUse": [sdk.HookMatcher(matcher=None, hooks=[hook], timeout=90)]})
+    assert opts.hooks["PreToolUse"][0].hooks[0] is hook
+
+
+def test_openhands_parses_the_served_hooks_json():
+    hooks = pytest.importorskip("openhands.sdk.hooks")
+    import json as _json
+    from plugins.agent_guard.api import openhands_hooks
+    text = openhands_hooks(policy="mcp-general", approval_wait=60, python="python3",
+                           client_path="/opt/guard/agent_guard_client.py").body.decode()
+    cfg = hooks.HookConfig.from_dict(_json.loads(text))
+    (h,) = cfg.get_hooks_for_event(hooks.HookEventType.PRE_TOOL_USE, "terminal")
+    assert h.command.endswith("hook --format openhands --policy mcp-general --approval-wait 60") and h.timeout == 90

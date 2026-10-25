@@ -89,6 +89,20 @@ def get(db: Session, customer_id: str, approval_id: str) -> GuardApproval | None
                                                   GuardApproval.customer_id == customer_id)).scalar_one_or_none()
 
 
+def find_for_call(db: Session, customer_id: str, session_id: str, call_key: str, status: str) -> GuardApproval | None:
+    """The newest pending or recently approved request for exactly this call in this session.
+
+    Lets stateless clients (command hooks start a new process per call) retry a call: a repeat while the
+    request is pending reuses it instead of queueing another, and a repeat after approval uses the approval.
+    An approval is only picked up this way within the approval TTL of its decision."""
+    expire_stale(db)
+    q = select(GuardApproval).where(GuardApproval.customer_id == customer_id, GuardApproval.session_id == session_id,
+                                    GuardApproval.call_key == call_key, GuardApproval.status == status)
+    if status == "approved":
+        q = q.where(GuardApproval.decided_at >= _now() - datetime.timedelta(minutes=ttl_minutes()))
+    return db.execute(q.order_by(GuardApproval.created_at.desc()).limit(1)).scalars().first()
+
+
 def listing(db: Session, customer_id: str, status: str | None = None, limit: int = 100) -> list[dict]:
     expire_stale(db)
     q = select(GuardApproval).where(GuardApproval.customer_id == customer_id)

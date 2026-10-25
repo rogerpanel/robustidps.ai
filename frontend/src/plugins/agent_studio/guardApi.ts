@@ -111,7 +111,9 @@ export const guardSession = (sessionId: string) =>
 export const guardReset = (sessionId: string) =>
   call<{ reset: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/reset`, {})
 export const guardClientUrl = `${API}/api/agent-guard/client.py`
-export const guardIntegrationUrl = (name: 'agentdojo' | 'inspect' | 'selftest') => `${API}/api/agent-guard/integrations/${name}`
+export const guardIntegrationUrl = (name: 'agentdojo' | 'inspect' | 'selftest' | 'claude-sdk') => `${API}/api/agent-guard/integrations/${name}`
+export const guardOpenHandsHooksUrl = (policy: string, approvalWait = 0) =>
+  `${API}/api/agent-guard/integrations/openhands-hooks?policy=${encodeURIComponent(policy)}&approval_wait=${approvalWait}`
 
 // ── approvals ─────────────────────────────────────────────────────────
 export interface GuardApproval {

@@ -4,7 +4,7 @@ import { Gavel, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Download, C
 import PageGuide from '../../../components/PageGuide'
 import {
   guardCheck, guardDecisions, guardPolicies, guardReset, guardValidate, guardClientUrl,
-  guardIntegrationUrl, guardSession,
+  guardIntegrationUrl, guardOpenHandsHooksUrl, guardSession,
   type GuardDecision, type GuardLogEntry, type GuardPolicy, type GuardSessionState, type Verdict,
 } from '../guardApi'
 import ApprovalsTab from './guard/ApprovalsTab'
@@ -264,6 +264,24 @@ from agentdojo_guard import GuardedToolsExecutor
 guard = GuardClient("${window.location.origin}", token="<your token>", policy_id="${policyId}")
 pipeline = AgentPipeline([SystemMessage(system_message), InitQuery(), llm,
                           ToolsExecutionLoop([GuardedToolsExecutor(guard), llm])])`
+  const openhandsSnippet = `# 1. Put agent_guard_client.py OUTSIDE the agent's workspace, e.g. ~/.agent_guard/
+# 2. Save hooks.json (download link) as .openhands/hooks.json in the project,
+#    or pass it in code:
+import os
+from openhands.sdk import Conversation
+from openhands.sdk.hooks import HookConfig
+hooks = HookConfig.load(os.path.expanduser("~/.agent_guard/hooks.json"))
+assert not hooks.is_empty()   # a wrong path loads an empty config: no guard
+conv = Conversation(agent=agent, workspace=".", hook_config=hooks)
+# 3. In the environment OpenHands runs in (use a dedicated API key):
+#    AGENT_GUARD_URL=${window.location.origin}  AGENT_GUARD_TOKEN=rids_live_...`
+  const claudeSdkSnippet = `from claude_agent_sdk import ClaudeAgentOptions, HookMatcher
+from agent_guard_client import GuardClient
+from claude_sdk_guard import agent_guard_hook
+
+guard = GuardClient("${window.location.origin}", token="<your token>", policy_id="${policyId}")
+options = ClaudeAgentOptions(hooks={"PreToolUse": [
+    HookMatcher(matcher=None, hooks=[agent_guard_hook(guard)], timeout=90)]})`
   const inspectSnippet = `from inspect_ai import Task
 from inspect_ai.approval import ApprovalPolicy, human_approver
 from inspect_guard import agent_guard
@@ -543,13 +561,16 @@ Task(..., approval=[
             </div>
             <pre className="text-xs bg-bg-primary rounded-lg p-3 overflow-x-auto">{pythonSnippet}</pre>
             <p className="text-[11px] text-text-secondary mt-1">
-              OpenHands: map the verdict to a risk level (allow LOW, modify MEDIUM, ask and deny HIGH) in a security analyzer;
-              the hook endpoint returns it as agentGuard.openhands_risk.
+              OpenHands and the Claude Agent SDK have their own connectors below.
             </p>
           </div>
         </div>
         <div className="grid lg:grid-cols-2 gap-4 pt-2 border-t border-bg-primary">
           {[
+            { key: 'oh', title: 'OpenHands (PreToolUse command hook)', file: 'hooks.json', url: guardOpenHandsHooksUrl(policyId === 'soc-triage' ? 'mcp-general' : policyId), code: openhandsSnippet,
+              note: 'OpenHands lets a call through when a hook fails or times out, so this hook exits 2 on every refusal and error (verified with openhands-sdk 1.58.2). OpenHands hooks cannot ask or rewrite: an ask is refused with its approval id (approve it in Approvals, the agent repeats the call and it runs once), a modify is refused with the corrected arguments. file_editor is judged per command (file_editor:view, file_editor:create).' },
+            { key: 'csdk', title: 'Claude Agent SDK (PreToolUse hook)', file: 'claude_sdk_guard.py', url: guardIntegrationUrl('claude-sdk'), code: claudeSdkSnippet,
+              note: 'A hook, not can_use_tool: the SDK skips can_use_tool for calls its permission settings already allow. allow leaves Claude\'s own permission rules in force, modify runs the corrected input, ask and deny are refused (ask with its approval id), and failures or a slow guard deny (verified with claude-agent-sdk 0.2.174).' },
             { key: 'dojo', title: 'AgentDojo (replaces ToolsExecutor)', file: 'agentdojo_guard.py', url: guardIntegrationUrl('agentdojo'), code: dojoSnippet,
               note: 'Blocked calls return a tool error with the reason; modified arguments run instead of the originals. One guard session per task and run.' },
             { key: 'insp', title: 'Inspect (approver)', file: 'inspect_guard.py', url: guardIntegrationUrl('inspect'), code: inspectSnippet,

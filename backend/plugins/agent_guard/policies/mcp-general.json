@@ -1,8 +1,8 @@
 {
   "id": "mcp-general",
-  "version": "4",
+  "version": "5",
   "name": "General MCP / coding agent",
-  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files. Information flow: a session that has read untrusted content (web pages, issues, e-mails, messages) and sensitive data (secrets, databases, files under confidential paths, repository contents) may not send data out (requests, posts, issues and pull requests, uploads, network shell commands) without a person. Web requests are read as values: only http and https, and cloud metadata or link-local addresses are denied in any spelling.",
+  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files. Information flow: a session that has read untrusted content (web pages, issues, e-mails, messages) and sensitive data (secrets, databases, files under confidential paths, repository contents) may not send data out (requests, posts, issues and pull requests, uploads, network shell commands) without a person. Web requests are read as values: only http and https, and cloud metadata or link-local addresses are denied in any spelling. Claude Code (MultiEdit, NotebookEdit, TodoWrite) and OpenHands tools are covered by name: file_editor:view, the task tracker and browser state reads are allowed; file edits, apply_patch and browser navigation, clicks and typing need approval.",
   "default_tier": "unknown",
   "tiers": {
     "read": {
@@ -31,6 +31,68 @@
     }
   },
   "tools": [
+    {
+      "match": [
+        "todowrite",
+        "todoread",
+        "exitplanmode",
+        "ls"
+      ],
+      "tier": "read"
+    },
+    {
+      "match": [
+        "multiedit*",
+        "notebookedit*"
+      ],
+      "tier": "write"
+    },
+    {
+      "match": [
+        "file_editor:view",
+        "planning_file_editor:view",
+        "str_replace_editor:view",
+        "task_tracker:*",
+        "browser_get_state*",
+        "browser_get_content*",
+        "browser_list_tabs*",
+        "browser_get_storage*",
+        "browser_scroll*",
+        "browser_go_back*",
+        "browser_switch_tab*",
+        "browser_close_tab*",
+        "browser_start_recording*",
+        "browser_stop_recording*"
+      ],
+      "tier": "read"
+    },
+    {
+      "match": [
+        "file_editor:create",
+        "file_editor:str_replace",
+        "file_editor:insert",
+        "file_editor:undo_edit",
+        "planning_file_editor:create",
+        "planning_file_editor:str_replace",
+        "planning_file_editor:insert",
+        "planning_file_editor:undo_edit",
+        "str_replace_editor:create",
+        "str_replace_editor:str_replace",
+        "str_replace_editor:insert",
+        "str_replace_editor:undo_edit",
+        "apply_patch*",
+        "browser_set_storage*"
+      ],
+      "tier": "write"
+    },
+    {
+      "match": [
+        "browser_navigate*",
+        "browser_click*",
+        "browser_type*"
+      ],
+      "tier": "network"
+    },
     {
       "match": [
         "read*",
@@ -139,7 +201,22 @@
         "run*",
         "terminal*",
         "*__exec*",
-        "*__run*"
+        "*__run*",
+        "file_editor:create",
+        "file_editor:str_replace",
+        "file_editor:insert",
+        "file_editor:undo_edit",
+        "planning_file_editor:create",
+        "planning_file_editor:str_replace",
+        "planning_file_editor:insert",
+        "planning_file_editor:undo_edit",
+        "str_replace_editor:create",
+        "str_replace_editor:str_replace",
+        "str_replace_editor:insert",
+        "str_replace_editor:undo_edit",
+        "apply_patch*",
+        "multiedit*",
+        "notebookedit*"
       ],
       "args": [
         "*"
@@ -197,7 +274,10 @@
           "*get_message*",
           "*list_messages*",
           "*search_messages*",
-          "*channel_history*"
+          "*channel_history*",
+          "browser_get_content*",
+          "browser_get_state*",
+          "browser_navigate*"
         ]
       },
       {
@@ -244,7 +324,10 @@
           "view*",
           "grep*",
           "*__read*",
-          "cat*"
+          "cat*",
+          "file_editor:view",
+          "planning_file_editor:view",
+          "str_replace_editor:view"
         ],
         "args": [
           "path*",
@@ -273,7 +356,10 @@
           "*comment_on*",
           "*push*",
           "*share*",
-          "*create_gist*"
+          "*create_gist*",
+          "browser_navigate*",
+          "browser_click*",
+          "browser_type*"
         ],
         "destination_args": [
           "url",
@@ -333,7 +419,8 @@
         "http*",
         "web*",
         "browse*",
-        "*__fetch*"
+        "*__fetch*",
+        "browser_navigate*"
       ],
       "target_args": [
         "url",
