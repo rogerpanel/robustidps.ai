@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from plugins.agent_guard.contract import FILTER_VERSION, ProposedCall
 from plugins.agent_guard.engine import SessionStore, decide
+from plugins.agent_guard.environment import Environment
 from plugins.agent_guard.evidence import digest
 from plugins.agent_guard.policy import Policy
 
@@ -45,6 +46,7 @@ class Suite(BaseModel):
     policy_id: str = ""
     description: str = ""
     scope_allow: list[str] | None = None
+    environment: dict[str, Any] | None = Field(None, description="Asset inventory for the predictive layer")
     cases: list[Case] = Field(..., min_length=1, max_length=MAX_CASES)
 
 
@@ -104,11 +106,12 @@ def _by_category(rows: list[dict]) -> dict:
 
 def run(suite: Suite, policy: Policy) -> dict:
     policy = apply_suite_scope(policy, suite)
+    env = Environment.model_validate(suite.environment) if suite.environment else None
     store = SessionStore()
     rows = []
     for case in suite.cases:
         d = decide(ProposedCall(session_id=f"eval:{case.id}", tool_name=case.tool, args=case.args), policy,
-                   store, "evaluation")
+                   store, "evaluation", env)
         rows.append({"id": case.id, "tool": case.tool, "group": case.group, "category": case.category,
                      "appropriate": case.appropriate, "expect": case.expect,
                      "got": d.decision, "correct": d.decision == case.expect,
@@ -194,7 +197,10 @@ def _ablations(policy: Policy) -> dict[str, Policy]:
         out["without argument rules"] = policy.model_copy(update={"arg_rules": []})
     if policy.clamps or policy.redact:
         out["without clamps and redaction"] = policy.model_copy(update={"clamps": [], "redact": []})
-    out["tiers only"] = policy.model_copy(update={"scope": None, "arg_rules": [], "clamps": [], "redact": []})
+    if policy.predictive is not None:
+        out["without prediction"] = policy.model_copy(update={"predictive": None})
+    out["tiers only"] = policy.model_copy(update={"scope": None, "arg_rules": [], "clamps": [], "redact": [],
+                                                  "predictive": None})
     return out
 
 

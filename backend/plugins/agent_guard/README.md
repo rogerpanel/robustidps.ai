@@ -15,6 +15,7 @@ tabs Test, Approvals, Tool Registry, Evaluate and Evidence.
 | Argument rules | Regex rules on argument values (mass targets, shell chaining, credential paths, metadata endpoints) |
 | Clamps and redaction | Numeric caps (e.g. result limits) and removal of secret-bearing arguments become `modify` |
 | Budgets | Per-session running totals (`budgets`): a count of calls or the sum of a numeric argument, with a reserve; amounts over what is left are clipped, exhausted budgets stop the call, non-numeric amounts are denied |
+| Prediction (L2) | With an asset inventory (Environment tab), containment calls get a predicted effect: which assets or services become unavailable, how many dependents they take down, and how many members of each redundancy group stay up, counting what the session already took down (approved calls included). Unsafe predictions are denied (service effects matched by process name or path go to a person); targets missing from the inventory go to a person |
 | Session | Budget of calls; a call identical to one already denied stays denied; after N denials every allowed call needs approval until a person resets the session |
 
 Fail closed: filter errors, timeouts (`AGENT_GUARD_TIMEOUT_S`, default 2 s),
@@ -91,6 +92,7 @@ website share sessions, approvals, the registry and the ledger.
 | GET/POST | `/approvals`, `/approvals/{id}`, `/approvals/{id}/decide` | Approval queue |
 | GET/POST | `/toolsets`, `/toolsets/{name}`, `/toolsets/{name}/pin`, `/toolsets/{name}/verify`, `/toolsets/{name}/coverage` | Tool Registry |
 | GET/POST | `/suites`, `/evaluate`, `/evaluate/compare` | Evaluation, ablations and baselines |
+| GET/PUT/POST | `/environment`, `/environment/validate` | Asset inventory for the predictive layer (PUT: a person) |
 | GET | `/evidence`, `/evidence/verify`, `/evidence/summary`, `/evidence/export` | Evidence ledger |
 | GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py`, `/integrations/{agentdojo,inspect}` | |
 
@@ -112,6 +114,18 @@ One stdlib file, also served at `/api/agent-guard/client.py`:
   environment on the user's machine; nothing is proxied through robustidps.ai.
 
 Every failure is a deny: a tool the guard did not approve never runs.
+
+## Self-test (`integrations/selftest.py`)
+
+Served at `/api/agent-guard/integrations/selftest` (as `agent_guard_selftest.py`).
+Next to `agent_guard_client.py`, on any machine with Python 3.10+ (Windows
+included, no packages needed):
+`python agent_guard_selftest.py --url https://robustidps.ai --token rids_live_... --approval`.
+It checks connection and token, verdicts of every kind, sticky denial, the
+coding and testing policies, the labelled suite and its reproducibility, the
+comparison, the evidence chain, the environment model, an approval round trip
+(a person approves on the page) and, if installed, the AgentDojo and Inspect
+connectors; prints PASS/FAIL and writes a JSON report.
 
 ## Benchmark harnesses: AgentDojo and Inspect (`integrations/`)
 
@@ -140,6 +154,7 @@ HTTP client for offline experiments.
 
 Sessions and the in-memory decision log live in one backend process (the
 backend runs one worker); approvals, registry and ledger are in the database.
-The guard is deterministic (rules, not prediction); the predictive layer
-(effect model, recoverability check, calibrated deferral) is the planned
-research step.
+The guard is deterministic. Its prediction is only as good as the inventory: an asset missing from it
+has an unknown effect (routed to a person), and dependents and groups are what the defender declares.
+Session state for prediction covers the session; organisation-wide state comes from `available: false`
+in the inventory. Calibrated deferral is the next research step.

@@ -52,6 +52,7 @@ def preview(call: ProposedCall, policy: Policy, decision: Decision, clean_args: 
         "targets": targets, "n_targets": len(targets),
         "hidden_characters": decision.hidden_characters, "reasons": decision.reasons,
         "risk": decision.risk, "agent_id": call.agent_id, "framework": call.framework,
+        "prediction": decision.prediction,
         "policy": f"{policy.id} v{policy.version}",
     }
 
@@ -64,6 +65,7 @@ def create(db: Session, customer_id: str, call: ProposedCall, policy: Policy, de
         id=uuid.uuid4().hex, customer_id=customer_id, session_id=call.session_id, call_key=call_key,
         status="pending", expires_at=_now() + datetime.timedelta(minutes=ttl_minutes()),
         request={"tool_name": call.tool_name, "args": clean_args, "policy_id": policy.id,
+                 "prediction": decision.prediction,
                  "policy_version": policy.version, "agent_id": call.agent_id, "framework": call.framework},
         preview=preview(call, policy, decision, clean_args))
     db.add(row)
@@ -136,3 +138,9 @@ def consume(db: Session, customer_id: str, approval_id: str, session_id: str,
     if done.rowcount != 1:
         return False, "The approval was already used.", None
     return True, f"Approved by {row.decided_by or 'a reviewer'}.", dict(row.request.get("args") or {})
+
+
+def approved_prediction(db: Session, customer_id: str, approval_id: str) -> dict | None:
+    row = db.execute(select(GuardApproval).where(GuardApproval.id == approval_id,
+                                                 GuardApproval.customer_id == customer_id)).scalar_one_or_none()
+    return (row.request or {}).get("prediction") if row is not None else None

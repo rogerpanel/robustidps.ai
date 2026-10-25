@@ -30,7 +30,9 @@ from plugins.agent_guard.canonical import (
 from plugins.agent_guard.contract import (
     Decision, Finding, ProposedCall, RISK_OF, SEVERITY,
 )
+from plugins.agent_guard.environment import Environment
 from plugins.agent_guard.policy import Policy, project_target, target_in_scope, tool_matches
+from plugins.agent_guard.predictive import predict
 
 LOCK_WAIT_S = 1.0
 MAX_SESSIONS = 5000
@@ -44,6 +46,8 @@ class SessionState:
     denied_attempts: int = 0
     denied_keys: set[str] = field(default_factory=set)
     budget_used: dict[str, float] = field(default_factory=dict)
+    unavailable: set[str] = field(default_factory=set)   # assets this session has taken down (predictive layer)
+    blast: int = 0
     last_seen: float = field(default_factory=time.time)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -116,7 +120,7 @@ def canonicalize(call: ProposedCall, policy: Policy) -> Canonical:
                      call_key(policy.id, policy.version, tool, stable_json(args)))
 
 
-def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decision:
+def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Environment | None = None) -> Decision:
     """Judge one call. Mutates the session state (counts, denials)."""
     started = time.perf_counter()
     findings: list[Finding] = []
@@ -132,6 +136,7 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
 
     state.calls += 1
     tier = policy.tier_for(tool)
+    prediction = None
 
     def finish(verdict: str, modified: dict | None = None) -> Decision:
         if verdict == "deny":
@@ -146,6 +151,7 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
             hidden_characters=hidden, session_calls=state.calls,
             policy_id=policy.id, policy_version=policy.version,
             latency_ms=round((time.perf_counter() - started) * 1000, 3), call_key=key,
+            prediction=prediction.report if prediction is not None else None,
         )
 
     if key in state.denied_keys:
@@ -266,6 +272,10 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
                                         reason=f"Clipped '{budget.arg}' from {raw} to the {new} left in budget '{budget.id}'."))
         charges.append((budget.id, amount))
 
+    # L2: predicted effect of the (possibly repaired) call on the environment model.
+    prediction = predict(tool, modified, policy, env, state.unavailable, state.blast)
+    findings.extend(prediction.findings)
+
     verdict = max((f.verdict for f in findings), key=SEVERITY.__getitem__)
     if verdict == "allow" and changed:
         verdict = "modify"
@@ -276,10 +286,20 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState) -> Decisio
     if verdict in ("allow", "modify"):
         for budget_id, amount in charges:
             state.budget_used[budget_id] = state.budget_used.get(budget_id, 0.0) + amount
+        commit_prediction(state, prediction.report)
     return finish(verdict, modified if changed else None)
 
 
-def decide(call: ProposedCall, policy: Policy, store: SessionStore, customer_id: str) -> Decision:
+def commit_prediction(state: SessionState, report: dict | None) -> None:
+    """Record what a call that is let through takes down, so later calls in the session are judged against it."""
+    if not report:
+        return
+    state.unavailable.update(a["id"] for a in report.get("affected", []))
+    state.blast += int(report.get("blast_radius") or 0)
+
+
+def decide(call: ProposedCall, policy: Policy, store: SessionStore, customer_id: str,
+           env: Environment | None = None) -> Decision:
     """evaluate() with the fail-closed guarantees described in the module docstring."""
     started = time.perf_counter()
     try:
@@ -288,7 +308,7 @@ def decide(call: ProposedCall, policy: Policy, store: SessionStore, customer_id:
             return deny_decision(call, policy, "Another check for this session is still running.",
                                  "concurrent-check", started)
         try:
-            return evaluate(call, policy, state)
+            return evaluate(call, policy, state, env)
         finally:
             state.lock.release()
     except Exception as exc:  # noqa: BLE001 — any failure must be a deny

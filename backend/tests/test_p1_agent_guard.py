@@ -1,5 +1,6 @@
 """Agent Guard: policy evaluation, fail-closed behaviour, adapters and API."""
 import copy
+import json
 import time
 
 import pytest
@@ -549,3 +550,74 @@ def test_soc_response_action_suite(client):
     custom = {"id": "mine", "cases": [{"id": "x", "tool": "isolate_host", "args": {"host": "h"}, "expect": "ask",
                                        "category": "contain", "context": "test", "appropriate": True}]}
     assert c.post("/api/agent-guard/evaluate", json={"suite": custom, "policy_id": "soc-triage"}).status_code == 200
+
+
+# ── predictive layer ────────────────────────────────────────────────────
+
+def _env():
+    from plugins.agent_guard.environment import EXAMPLE, Environment
+    data = json.loads(json.dumps(EXAMPLE))
+    data["groups"]["domain-controllers"]["min_available"] = 1
+    data["assets"].append({"name": "DC-02", "kind": "host", "ip": "10.0.0.11", "role": "domain controller",
+                           "group": "domain-controllers", "dependents": 50})
+    return Environment.model_validate(data)
+
+
+def run_env(tool, args, env, store=None, session="s1"):
+    store = store or SessionStore()
+    return decide(ProposedCall(session_id=session, tool_name=tool, args=args), SOC, store, "c1", env)
+
+
+def test_prediction_group_loss_and_session_horizon():
+    env = _env()
+    small = env.model_copy(update={"assets": [a.model_copy(update={"dependents": 10}) if a.name.startswith("DC") else a
+                                              for a in env.assets]})
+    pol = SOC.model_copy(update={"tiers": {**SOC.tiers, "contain_reversible": SOC.tiers["contain_reversible"].model_copy(
+        update={"decision": "allow"})}})
+    store = SessionStore()
+    d1 = decide(ProposedCall(session_id="h", tool_name="isolate_host", args={"host": "DC-01"}), pol, store, "c1", small)
+    assert d1.decision == "allow" and d1.prediction["groups"][0]["remaining_after"] == 1   # DC-02 still up
+    d2 = decide(ProposedCall(session_id="h", tool_name="isolate_host", args={"host": "10.0.0.11"}), pol, store, "c1", small)
+    assert d2.decision == "deny" and any(f.rule_id == "predicted-group-loss" for f in d2.findings)  # would leave none
+
+
+def test_prediction_blast_radius_unknown_and_service():
+    env = _env()
+    d = run_env("disable_account", {"account": "svc-backup"}, env)
+    assert d.decision == "deny" and any(f.rule_id == "predicted-blast-radius" for f in d.findings)
+    assert d.prediction["blast_radius"] == 300 and d.prediction["safe"] is False
+    d = run_env("disable_account", {"account": "jdoe"}, env)
+    assert d.decision == "ask" and d.prediction["safe"] is True and d.prediction["affected"][0]["name"] == "jdoe"
+    d = run_env("block_ip", {"ip": "203.0.113.9"}, env)
+    assert d.decision == "ask" and d.prediction["unknown"] == ["203.0.113.9"]
+    d = run_env("kill_process", {"host": "SRV-DB-01", "process": "sqlservr.exe"}, env)
+    assert d.decision == "ask" and any(f.rule_id == "predicted-group-loss" for f in d.findings)  # service: a person decides
+    d = run_env("kill_process", {"host": "WS-0412", "process": "sqlservr.exe"}, env)
+    assert d.decision == "ask" and d.prediction["affected"] == []                                # no such service there
+    assert run_env("get_entity", {"entity_id": "DC-01"}, env).prediction is None                 # reads: no prediction
+    assert run_env("isolate_host", {"host": "DC-01"}, None).prediction is None                   # no inventory: inactive
+
+
+def test_environment_validation_and_api(client):
+    c, who = client
+    from plugins.agent_guard.environment import EXAMPLE
+    bad = {"groups": {}, "assets": [{"name": "A", "group": "missing"}]}
+    assert c.post("/api/agent-guard/environment/validate", json={"environment": bad}).json()["valid"] is False
+    assert c.get("/api/agent-guard/environment").json()["environment"] is None
+    who["source"] = "api_key"
+    assert c.put("/api/agent-guard/environment", json={"environment": EXAMPLE}).status_code == 403
+    who["source"] = "platform_jwt"
+    assert c.put("/api/agent-guard/environment", json={"environment": EXAMPLE}).json()["version"] == 1
+    d = c.post("/api/agent-guard/check", json={"session_id": "e1", "tool_name": "isolate_host",
+                                               "args": {"host": "DC-01"}}).json()
+    assert d["decision"] == "deny" and d["prediction"]["affected"][0]["name"] == "DC-01"
+    # An approved containment counts towards the session's predicted state.
+    d = c.post("/api/agent-guard/check", json={"session_id": "e2", "tool_name": "isolate_host",
+                                               "args": {"host": "WS-0412"}}).json()
+    ap = c.get(f"/api/agent-guard/approvals/{d['approval_id']}").json()
+    assert ap["preview"]["prediction"]["blast_radius"] == 1
+    c.post(f"/api/agent-guard/approvals/{d['approval_id']}/decide", json={"decision": "approve"})
+    c.post("/api/agent-guard/check", json={"session_id": "e2", "tool_name": "isolate_host",
+                                          "args": {"host": "WS-0412"}, "approval_id": d["approval_id"]})
+    assert "ws-0412" in guard_api.STORE.get("cust_a", "e2").unavailable
+    assert c.get("/api/agent-guard/evidence", params={"kind": "environment_update"}).json()

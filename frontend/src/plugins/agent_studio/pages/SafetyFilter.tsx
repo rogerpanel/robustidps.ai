@@ -11,11 +11,14 @@ import ApprovalsTab from './guard/ApprovalsTab'
 import RegistryTab from './guard/RegistryTab'
 import EvaluateTab from './guard/EvaluateTab'
 import EvidenceTab from './guard/EvidenceTab'
+import EnvironmentTab from './guard/EnvironmentTab'
+import PredictionView from './guard/PredictionView'
 
 const TABS = [
   { id: 'test', label: 'Test' },
   { id: 'approvals', label: 'Approvals' },
   { id: 'registry', label: 'Tool Registry' },
+  { id: 'environment', label: 'Environment' },
   { id: 'evaluate', label: 'Evaluate' },
   { id: 'evidence', label: 'Evidence' },
 ] as const
@@ -246,6 +249,7 @@ Task(..., approval=[
       )}
       {tab === 'evaluate' && <EvaluateTab policies={policies} policyId={policyId} inlinePolicy={editedPolicy} />}
       {tab === 'evidence' && <EvidenceTab />}
+      {tab === 'environment' && <EnvironmentTab />}
 
       {tab === 'test' && <>
       {err && (
@@ -339,6 +343,7 @@ Task(..., approval=[
                   </li>
                 ))}
               </ul>
+              {result.prediction && <PredictionView p={result.prediction} />}
               {result.approval_id && (
                 <p className="text-xs text-accent-amber">
                   Approval request queued.{' '}
@@ -400,6 +405,13 @@ Task(..., approval=[
         <p className="text-sm text-text-secondary">
           One small Python file, no dependencies. If the guard cannot be reached or answers badly, the client denies the call.
         </p>
+        <div className="text-sm bg-bg-primary rounded-lg p-3 flex flex-wrap items-center gap-2">
+          <span className="font-medium">Check everything from another machine:</span>
+          <a href={guardIntegrationUrl('selftest')} className="text-accent-blue inline-flex items-center gap-1"><Download className="w-3.5 h-3.5" /> agent_guard_selftest.py</a>
+          <span className="text-text-secondary">next to agent_guard_client.py, then</span>
+          <code className="text-xs">python agent_guard_selftest.py --url {window.location.origin} --token rids_live_… --approval</code>
+          <span className="text-text-secondary">(PASS/FAIL per operation, saved as a JSON report).</span>
+        </div>
         <div className="grid lg:grid-cols-2 gap-4">
           <div>
             <div className="flex items-center justify-between mb-1">

@@ -32,6 +32,22 @@ that a filter seeing only the call cannot tell from appropriate ones. That
 share is the target for the predictive layer, which would weigh the effect
 of an action on the environment (asset role, blast radius, reversibility).
 
+## Predictive layer (L2), first version
+
+`predictive.py` predicts, for containment calls, what becomes unavailable in
+the defender's inventory (`environment.py`) and admits the call only if the
+state afterwards keeps every redundancy group at or above its minimum and
+the dependents taken down per call and per session under the policy limits.
+The session is the horizon: what earlier calls (including approved ones)
+took down counts. On the labelled response-action suite with its inventory,
+inappropriate actions that only reached a person fall from 44% to 22%
+(the rest are denied with a stated prediction), and no appropriate action
+is newly denied. The remaining 22% are cases the inventory cannot separate
+(a neighbouring workstation with no declared role, unknown tools) or that
+are matched by process name, which is deliberately left to a person
+because an attacker could name a process after a critical service to make
+the guard refuse to stop it.
+
 ## Planned
 
 - **Session information flow.** Track data labels across a session
@@ -41,8 +57,8 @@ of an action on the environment (asset role, blast radius, reversibility).
 - **Typed actions for network tools.** Parse common tool arguments into
   target sets and rates before checking, and deny what cannot be parsed,
   instead of matching strings.
-- **Lookahead.** The predictive layer from the research report: check that
-  a safe fallback is still reachable after the proposed action.
+- **Calibrated deferral.** Learn when to route to a person from approval outcomes, with a bound on missed
+  unsafe actions at a fixed approval budget.
 - **Out-of-process enforcement for in-process hooks.** Host-side hooks act
   only as deny-by-default routers to the guard service (already true for
   the client and gateway; document per framework).

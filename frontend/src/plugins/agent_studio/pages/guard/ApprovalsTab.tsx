@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { guardApprovals, guardDecideApproval, type GuardApproval } from '../../guardApi'
+import PredictionView from './PredictionView'
 
 const STATUS_STYLE: Record<string, string> = {
   pending: 'bg-accent-amber/15 text-accent-amber',
@@ -70,6 +71,7 @@ export default function ApprovalsTab({ onCount }: { onCount?: (n: number) => voi
             <p className="text-xs text-accent-red flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" />
               Hidden characters were removed from this call: {a.preview.hidden_characters.join(' · ')}</p>
           )}
+          {a.preview.prediction && <PredictionView p={a.preview.prediction} />}
           <div className="grid md:grid-cols-2 gap-3">
             <div>
               <p className="text-xs text-text-secondary mb-1">Targets ({a.preview.n_targets})</p>

@@ -1,8 +1,8 @@
 {
   "id": "soc-triage",
-  "version": "2",
+  "version": "3",
   "name": "SOC alert triage",
-  "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose.",
+  "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose. With an asset inventory (Environment tab), containment is also checked against its predicted effect: it is denied if a redundancy group would fall below its minimum or too many dependents would be cut off; service effects matched by process name or path go to a person instead.",
   "default_tier": "unknown",
   "tiers": {
     "read": {
@@ -181,5 +181,53 @@
       "max_total": 10,
       "when_exhausted": "deny"
     }
-  ]
+  ],
+  "predictive": {
+    "effects": [
+      {
+        "tools": [
+          "isolate*",
+          "unisolate*"
+        ],
+        "makes_unavailable": "host",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "disable_account*",
+          "revoke_session*",
+          "reset_password*",
+          "suspend*"
+        ],
+        "makes_unavailable": "account",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "block_ip*"
+        ],
+        "makes_unavailable": "ip",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "block_domain*"
+        ],
+        "makes_unavailable": "domain",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "kill_process*",
+          "quarantine_file*",
+          "quarantine*"
+        ],
+        "makes_unavailable": "service",
+        "on_violation": "ask"
+      }
+    ],
+    "max_blast_radius": 100,
+    "max_session_blast_radius": 250,
+    "unknown_target": "ask"
+  }
 }

@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-FILTER_VERSION = "0.1.0"
+FILTER_VERSION = "0.2.0"
 
 Verdict = Literal["allow", "modify", "ask", "deny"]
 Risk = Literal["LOW", "MEDIUM", "HIGH", "UNKNOWN"]
@@ -53,3 +53,4 @@ class Decision(BaseModel):
     latency_ms: float = 0.0
     call_key: str = Field("", description="Digest of the canonical call; approvals and sticky denials bind to it")
     approval_id: str | None = Field(None, description="Set on 'ask': poll /approvals/{id}, then repeat the call with it")
+    prediction: dict[str, Any] | None = Field(None, description="Predicted effect on the environment (L2), if evaluated")

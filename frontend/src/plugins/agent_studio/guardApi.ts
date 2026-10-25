@@ -46,6 +46,17 @@ export interface GuardDecision {
   latency_ms: number
   call_key: string
   approval_id: string | null
+  prediction: GuardPrediction | null
+}
+
+export interface GuardPrediction {
+  effect: string
+  affected: { id: string; name: string; role: string; group: string | null; dependents: number }[]
+  unknown: string[]
+  blast_radius: number
+  session_blast_radius: number
+  groups: { group: string; members: number; remaining_after: number; min_available: number }[]
+  safe: boolean
 }
 
 export interface GuardLogEntry extends GuardDecision {
@@ -69,7 +80,7 @@ export const guardDecisions = (sessionId: string) =>
 export const guardReset = (sessionId: string) =>
   call<{ reset: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/reset`, {})
 export const guardClientUrl = `${API}/api/agent-guard/client.py`
-export const guardIntegrationUrl = (name: 'agentdojo' | 'inspect') => `${API}/api/agent-guard/integrations/${name}`
+export const guardIntegrationUrl = (name: 'agentdojo' | 'inspect' | 'selftest') => `${API}/api/agent-guard/integrations/${name}`
 
 // ── approvals ─────────────────────────────────────────────────────────
 export interface GuardApproval {
@@ -86,6 +97,7 @@ export interface GuardApproval {
     tool: string; canonical_tool: string; args: Record<string, unknown>; tier: string; tier_description: string
     reversible: boolean | null; targets: { arg: string; value: string }[]; n_targets: number
     hidden_characters: string[]; reasons: string[]; risk: string; agent_id: string; framework: string; policy: string
+    prediction?: GuardPrediction | null
   }
 }
 export const guardApprovals = (status?: string) =>
@@ -163,3 +175,22 @@ export interface CompareResult {
 }
 export const guardCompare = (body: { suite_id?: string; suite?: unknown; policy_id?: string; policy?: unknown }) =>
   call<CompareResult>('/evaluate/compare', body)
+
+// ── environment model (predictive layer) ──────────────────────────────
+export const guardEnvironment = () =>
+  call<{ version: number; environment: Record<string, unknown> | null; example: Record<string, unknown> }>('/environment')
+export const guardValidateEnvironment = (environment: unknown) =>
+  call<{ valid: boolean; errors: string[]; assets?: number; groups?: number }>('/environment/validate', { environment })
+export async function guardSaveEnvironment(environment: unknown) {
+  const res = await fetch(`${API}/api/agent-guard/environment`, {
+    method: 'PUT', headers: headers(true), body: JSON.stringify({ environment }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const d = (data as { detail?: unknown }).detail
+    throw new Error(typeof d === 'string' ? d
+      : d && typeof d === 'object' && 'environment_errors' in d ? (d as { environment_errors: string[] }).environment_errors.join('; ')
+      : `Error ${res.status}`)
+  }
+  return data as { version: number; assets: number; groups: number }
+}

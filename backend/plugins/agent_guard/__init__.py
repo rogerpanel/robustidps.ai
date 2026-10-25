@@ -24,6 +24,8 @@ Modules:
   evidence.py   hash-chained evidence ledger (decisions, approvals, pins, evaluations)
   evaluation.py labelled suites (suites/*.json) with verifiable result digests
   db_models.py  tables for the three above
+  environment.py asset inventory and redundancy groups (per tenant) for the predictive layer
+  predictive.py L2: predicted effect of a call on the environment; safe if groups and limits hold
   api.py        /api/agent-guard/*
 """
 from plugins.agent_guard import db_models  # noqa: F401  (registers the tables for init_db)

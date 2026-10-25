@@ -100,6 +100,25 @@ class Budget(BaseModel):
     when_exhausted: Literal["ask", "deny"] = "deny"
 
 
+class Effect(BaseModel):
+    """What a matching tool does to its target, for the predictive layer."""
+    tools: list[str] = Field(..., min_length=1)
+    makes_unavailable: Literal["host", "account", "ip", "domain", "service"]
+    on_violation: Literal["ask", "deny"] = "deny"
+
+
+class Predictive(BaseModel):
+    """L2: predict the effect of a call on the defender's environment model before it runs.
+
+    A call is unsafe if, after it, a redundancy group would have fewer available members than it must keep,
+    or if it (or the session so far) would take down more dependents than allowed. Targets missing from the
+    inventory have an unknown effect."""
+    effects: list[Effect] = Field(..., min_length=1)
+    max_blast_radius: int | None = Field(None, ge=0, description="Dependents one call may take down")
+    max_session_blast_radius: int | None = Field(None, ge=0, description="Dependents a session may take down")
+    unknown_target: Literal["ask", "allow"] = "ask"
+
+
 class Policy(BaseModel):
     id: str = Field(..., pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$")
     version: str = Field(..., min_length=1, max_length=32)
@@ -113,6 +132,7 @@ class Policy(BaseModel):
     redact: list[Redact] = Field(default_factory=list)
     scope: Scope | None = None
     budgets: list[Budget] = Field(default_factory=list)
+    predictive: Predictive | None = None
     max_calls_per_session: int | None = Field(None, ge=1, le=100_000)
     escalate_after_denials: int = Field(3, ge=1, le=100,
                                         description="After this many denied attempts in a session, allow becomes ask")

@@ -23,12 +23,14 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
-from plugins.agent_guard import approvals, evidence, registry
+from plugins.agent_guard import approvals, environment, evidence, registry
 from plugins.agent_guard.adapters import (
     call_from_claude_hook, claude_hook_deny, claude_hook_response, openhands_risk,
 )
 from plugins.agent_guard.contract import FILTER_VERSION, Decision, Finding, ProposedCall
-from plugins.agent_guard.engine import DecisionLog, SessionStore, canonicalize, decide, deny_decision
+from plugins.agent_guard.engine import (
+    DecisionLog, SessionStore, canonicalize, commit_prediction, decide, deny_decision,
+)
 from plugins.agent_guard.evaluation import Suite, builtin_suites, compare as compare_suite, run as run_suite
 from plugins.agent_guard.policy import Policy, builtin_policies, parse_policy, validation_errors
 from plugins.agent_studio.auth import require_api_key
@@ -47,6 +49,7 @@ MAX_ARGS_BYTES = 100_000
 MAX_POLICY_BYTES = 200_000
 MAX_TOOLSET_BYTES = 1_000_000
 
+ENV_ENABLED = True
 router = APIRouter(prefix="/api/agent-guard", tags=["Agent Guard"])
 STORE = SessionStore()
 LOG = DecisionLog()
@@ -164,6 +167,7 @@ def _approved(call: ProposedCall, policy: Policy, tid: str, approval_id: str, db
             update={"call_key": c.key, "approval_id": approval_id})
     state = STORE.get(tid, call.session_id)
     state.calls += 1
+    commit_prediction(state, approvals.approved_prediction(db, tid, approval_id))  # the approved effect happens
     return Decision(decision="allow", risk="MEDIUM", reasons=[reason],
                     findings=[Finding(rule_id="human-approved", verdict="allow", reason=reason)],
                     tool_name=call.tool_name, canonical_tool=c.tool, hidden_characters=c.hidden,
@@ -192,6 +196,17 @@ def _finish(call: ProposedCall, policy: Policy, tid: str, decision: Decision, db
     return decision
 
 
+def _env_for(db: Session, tid: str):
+    """The tenant's environment model for the predictive layer (None if none is defined or it cannot load)."""
+    if not ENV_ENABLED:
+        return None
+    try:
+        return environment.load(db, tid)[0]
+    except Exception:  # noqa: BLE001 — without a model the layer is inactive; the rule layers still apply
+        logger.warning("environment load failed", exc_info=True)
+        return None
+
+
 def _too_large(call: ProposedCall) -> bool:
     return len(json.dumps(call.args, default=str)) > MAX_ARGS_BYTES
 
@@ -207,7 +222,8 @@ async def guard_call(call: ProposedCall, policy: Policy, tid: str, approval_id: 
         decision = await run_in_threadpool(_approved, call, policy, tid, approval_id, db)
     else:
         try:
-            decision = await asyncio.wait_for(run_in_threadpool(decide, call, policy, STORE, tid),
+            env = await run_in_threadpool(_env_for, db, tid)
+            decision = await asyncio.wait_for(run_in_threadpool(decide, call, policy, STORE, tid, env),
                                               timeout=_timeout())
         except asyncio.TimeoutError:
             decision = deny_decision(call, policy, "The filter timed out; failing closed.",
@@ -225,7 +241,7 @@ def guard_call_sync(call: ProposedCall, policy: Policy, tid: str, approval_id: s
         elif approval_id:
             decision = _approved(call, policy, tid, approval_id, db)
         else:
-            decision = decide(call, policy, STORE, tid)
+            decision = decide(call, policy, STORE, tid, _env_for(db, tid))
         return _finish(call, policy, tid, decision, db)
     except Exception:  # noqa: BLE001
         logger.warning("in-process guard failed", exc_info=True)
@@ -260,7 +276,7 @@ def client_script() -> PlainTextResponse:
                              headers={"Content-Disposition": 'attachment; filename="agent_guard_client.py"'})
 
 
-INTEGRATIONS = {"agentdojo": "agentdojo_guard.py", "inspect": "inspect_guard.py"}
+INTEGRATIONS = {"agentdojo": "agentdojo_guard.py", "inspect": "inspect_guard.py", "selftest": "selftest.py"}
 
 
 @router.get("/integrations/{name}")
@@ -270,8 +286,9 @@ def integration_script(name: str) -> PlainTextResponse:
     if filename is None:
         raise HTTPException(404, f"Unknown integration; available: {', '.join(INTEGRATIONS)}")
     path = Path(__file__).parent / "integrations" / filename
+    download = "agent_guard_selftest.py" if name == "selftest" else filename
     return PlainTextResponse(path.read_text(encoding="utf-8"), media_type="text/x-python",
-                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+                             headers={"Content-Disposition": f'attachment; filename="{download}"'})
 
 
 @router.get("/policies")
@@ -509,6 +526,50 @@ def evaluate_compare(body: EvaluateBody, customer: dict = Depends(require_api_ke
                           f"{len(result['table']) - 1} ablations and baselines")
     result["evidence"] = {"seq": rec.seq, "hash": rec.hash}
     return result
+
+
+# ── environment model (predictive layer) ──────────────────────────────
+
+class EnvironmentBody(BaseModel):
+    environment: dict[str, Any]
+
+
+@router.get("/environment")
+def get_environment(customer: dict = Depends(require_api_key), db: Session = Depends(get_db)) -> dict:
+    env, version = environment.load(db, tenant(customer))
+    return {"version": version, "environment": json.loads(env.model_dump_json()) if env else None,
+            "example": environment.EXAMPLE}
+
+
+@router.post("/environment/validate")
+def validate_environment(body: EnvironmentBody) -> dict:
+    try:
+        env = environment.Environment.model_validate(body.environment)
+    except ValidationError as exc:
+        return {"valid": False, "errors": [f"{'.'.join(str(p) for p in e['loc']) or 'environment'}: {e['msg']}"
+                                           for e in exc.errors()][:20]}
+    return {"valid": True, "errors": [], "assets": len(env.assets), "groups": len(env.groups)}
+
+
+@router.put("/environment")
+def put_environment(body: EnvironmentBody, customer: dict = Depends(require_api_key),
+                    db: Session = Depends(get_db)) -> dict:
+    """Replace the tenant's asset inventory (a person only: it decides what the guard protects)."""
+    _require_person(customer)
+    if len(json.dumps(body.environment, default=str)) > MAX_TOOLSET_BYTES * 2:
+        raise HTTPException(413, "Environment too large")
+    try:
+        env = environment.Environment.model_validate(body.environment)
+    except ValidationError as exc:
+        raise HTTPException(422, {"environment_errors": [f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}"
+                                                         for e in exc.errors()][:20]})
+    tid = tenant(customer)
+    version = environment.save(db, tid, env, _actor(customer))
+    evidence.append(db, tid, "environment_update",
+                    {"version": version, "assets": len(env.assets), "groups": sorted(env.groups),
+                     "digest": evidence.digest(json.loads(env.model_dump_json())), "by": _actor(customer)},
+                    f"Environment model v{version} saved ({len(env.assets)} assets) by {_actor(customer)}")
+    return {"version": version, "assets": len(env.assets), "groups": len(env.groups)}
 
 
 # ── evidence ledger ───────────────────────────────────────────────────
