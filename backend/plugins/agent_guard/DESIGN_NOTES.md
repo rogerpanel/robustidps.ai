@@ -56,8 +56,16 @@ auto-approved requests a person would have denied (alpha, at confidence
 1 - delta). An earlier draft used conformal risk control with a loss averaged
 over all requests; a simulation test showed that bounds the wrong quantity
 (wrong auto-approvals as a share of all requests, not of auto-approvals), so
-it was replaced. In simulation (400 decisions, alpha 0.05, delta 0.1) the true
-rate exceeded alpha in 4.5% of calibrations and a threshold was found in 61%.
+it was replaced. A second simulation (1,000 runs per history size, alpha 0.05,
+delta 0.1) found a power plateau: testing every distinct score from the lowest
+starts with the smallest group that could pass, the fixed sequence stops at its
+first failure, and a threshold was found in about 64% of runs however long the
+history. Testing a grid of score deciles (still fixed by the scores alone)
+finds one in 20% of runs at 100 decisions, 79% at 400 and 98% at 1,600, with
+the guarantee violated in at most 1% of runs (allowed: 10%), and auto-approves
+close to the best possible share. On the AgentDojo replay, deferral without
+information-flow labels could auto-approve most of a hijacked agent's attack
+goals; see research/agent-guard-bench.
 The eligibility rules keep adversarially placed requests (hidden characters,
 unknown targets, unsafe predictions) away from the threshold entirely.
 

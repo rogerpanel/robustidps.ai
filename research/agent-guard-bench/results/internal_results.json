@@ -1,0 +1,2075 @@
+{
+ "meta": {
+  "filter_version": "0.5.0",
+  "policies": {
+   "authorised-testing": "3",
+   "mcp-general": "5",
+   "soc-triage": "5"
+  },
+  "suites": {
+   "agent-hosts-mcp": {
+    "version": "1",
+    "cases": 22
+   },
+   "authorised-testing-core": {
+    "version": "2",
+    "cases": 14
+   },
+   "mcp-general-core": {
+    "version": "2",
+    "cases": 22
+   },
+   "org-coding-holdout": {
+    "version": "1",
+    "cases": 8
+   },
+   "org-coding-preferences": {
+    "version": "1",
+    "cases": 10
+   },
+   "session-flow-mcp": {
+    "version": "1",
+    "cases": 19
+   },
+   "session-flow-soc": {
+    "version": "1",
+    "cases": 27
+   },
+   "soc-response-actions": {
+    "version": "2",
+    "cases": 51
+   },
+   "soc-triage-core": {
+    "version": "1",
+    "cases": 33
+   },
+   "typed-actions-soc": {
+    "version": "1",
+    "cases": 12
+   },
+   "typed-actions-testing": {
+    "version": "1",
+    "cases": 32
+   }
+  },
+  "seconds": 39.6
+ },
+ "suites": {
+  "agent-hosts-mcp": {
+   "policy": "mcp-general v5",
+   "cases": 22,
+   "sessions": 0,
+   "invariance_groups": 0,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 0.6818,
+     "stop_recall": 0.9412,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7273,
+     "reason_accuracy": 0.6818,
+     "ci95": {
+      "exact_accuracy": [
+       0.5,
+       0.8636
+      ],
+      "stop_recall": [
+       0.8,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without information flow",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 0.9091,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": 0.9091,
+     "ci95": {
+      "exact_accuracy": [
+       0.7727,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.5909,
+     "stop_recall": 0.9412,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7273,
+     "reason_accuracy": 0.5909,
+     "ci95": {
+      "exact_accuracy": [
+       0.4091,
+       0.7727
+      ],
+      "stop_recall": [
+       0.8,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.2273,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.0455,
+       0.4091
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.3636,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.1818,
+       0.5909
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "c9d907ac71d4330f4fc0279d6f4adc9573ac292342f6a08e52cf5a7a18682f48"
+  },
+  "authorised-testing-core": {
+   "policy": "authorised-testing v3",
+   "cases": 14,
+   "sessions": 0,
+   "invariance_groups": 0,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8571,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without scope",
+     "kind": "ablation",
+     "exact_accuracy": 0.7143,
+     "stop_recall": 0.9167,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7857,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.5,
+       0.9286
+      ],
+      "stop_recall": [
+       0.75,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8571,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8571,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8571,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.6429,
+     "stop_recall": 0.9167,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7857,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.3571,
+       0.8571
+      ],
+      "stop_recall": [
+       0.75,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.1429,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.0,
+       0.3571
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.4286,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.1429,
+       0.7143
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "589321840e3e481bbd319410303df38f6f5a2b4b422870e2898e4eb4c47ce390"
+  },
+  "mcp-general-core": {
+   "policy": "mcp-general v5",
+   "cases": 22,
+   "sessions": 0,
+   "invariance_groups": 2,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 0.6364,
+     "stop_recall": 0.8235,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.6364,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.4091,
+       0.8182
+      ],
+      "stop_recall": [
+       0.625,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without information flow",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7727,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.6364,
+     "stop_recall": 0.8235,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.6364,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.4091,
+       0.8182
+      ],
+      "stop_recall": [
+       0.625,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.2273,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.0455,
+       0.4091
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.4091,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.1818,
+       0.5909
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "be83651b2a761b9e8f7e71b348e13743ce7dd8e2165cfa04fae51af2b8e6b0f7"
+  },
+  "session-flow-mcp": {
+   "policy": "mcp-general v5",
+   "cases": 19,
+   "sessions": 7,
+   "invariance_groups": 1,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4211,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4211,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4211,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without information flow",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4211,
+     "reason_accuracy": 0.375,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4211,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4211,
+     "reason_accuracy": 0.375,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.5789,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.4,
+       0.75
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.4211,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.25,
+       0.6
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "dae070ee361be1896b9e9143f303f3b9713d453960a67ea533e18067e4ee2de7"
+  },
+  "session-flow-soc": {
+   "policy": "soc-triage v5",
+   "cases": 27,
+   "sessions": 8,
+   "invariance_groups": 1,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4074,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4074,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4074,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without prediction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4074,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without information flow",
+     "kind": "ablation",
+     "exact_accuracy": 0.6667,
+     "stop_recall": 0.1818,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0741,
+     "reason_accuracy": 0.0909,
+     "ci95": {
+      "exact_accuracy": [
+       0.5,
+       0.8846
+      ],
+      "stop_recall": [
+       0.0,
+       0.5714
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.4074,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.6667,
+     "stop_recall": 0.1818,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0741,
+     "reason_accuracy": 0.0909,
+     "ci95": {
+      "exact_accuracy": [
+       0.5,
+       0.8846
+      ],
+      "stop_recall": [
+       0.0,
+       0.5714
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.5926,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.4412,
+       0.7826
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.4074,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.2143,
+       0.5588
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "361a9ce4391f19449dbab7533bbc4071ef1ab920322f049057e4ec064c2f3d33"
+  },
+  "soc-response-actions": {
+   "policy": "soc-triage v5",
+   "cases": 51,
+   "sessions": 0,
+   "invariance_groups": 6,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8039,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 0.9608,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8039,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.902,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 0.9608,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7647,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.902,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without prediction",
+     "kind": "ablation",
+     "exact_accuracy": 0.9216,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8039,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.8431,
+       0.9804
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without information flow",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8039,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.8039,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.8039,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7647,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.6863,
+       0.902
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.1961,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.098,
+       0.3137
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.4706,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.3333,
+       0.6078
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "be753a88dec7bbf9596fe8aac7c111b3d1b748ccb206cc2a18b7530f0f49592f"
+  },
+  "soc-triage-core": {
+   "policy": "soc-triage v5",
+   "cases": 33,
+   "sessions": 0,
+   "invariance_groups": 5,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7273,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 0.9697,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7273,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.9091,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 0.9394,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.6667,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.8485,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without prediction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7273,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without information flow",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7273,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.7273,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.8485,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.6667,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.7273,
+       0.9697
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.2727,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.1212,
+       0.4242
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.4242,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.2727,
+       0.6061
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "a1e4da2748542f1a64827da7837b41781ee61bb0ab210ed88b9203ce1f85f6cf"
+  },
+  "typed-actions-soc": {
+   "policy": "soc-triage v5",
+   "cases": 12,
+   "sessions": 0,
+   "invariance_groups": 0,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "without prediction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "without information flow",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 0.5,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": 0.3333,
+     "ci95": {
+      "exact_accuracy": [
+       0.25,
+       0.75
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.5,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": 0.3333,
+     "ci95": {
+      "exact_accuracy": [
+       0.25,
+       0.75
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.0,
+     "stop_recall": 0.0,
+     "false_stop_rate": null,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.0,
+       0.0
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": null
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.5,
+     "stop_recall": 1.0,
+     "false_stop_rate": null,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.25,
+       0.75
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": null
+     }
+    }
+   ],
+   "comparison_digest": "65ba7ebdd78e56182bf2cebd9ab3a1a25bef0b363792fecf3ee31b86c06a9dee"
+  },
+  "typed-actions-testing": {
+   "policy": "authorised-testing v3",
+   "cases": 32,
+   "sessions": 0,
+   "invariance_groups": 1,
+   "invariance_violations": [],
+   "table": [
+    {
+     "name": "full policy",
+     "kind": "policy",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.9375,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without scope",
+     "kind": "ablation",
+     "exact_accuracy": 0.9062,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.9062,
+     "reason_accuracy": 0.8333,
+     "ci95": {
+      "exact_accuracy": [
+       0.7812,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without argument rules",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.9375,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without clamps and redaction",
+     "kind": "ablation",
+     "exact_accuracy": 1.0,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.9375,
+     "reason_accuracy": 1.0,
+     "ci95": {
+      "exact_accuracy": [
+       1.0,
+       1.0
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "without typed actions",
+     "kind": "ablation",
+     "exact_accuracy": 0.5938,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.6667,
+     "intervention_rate": 0.9688,
+     "reason_accuracy": 0.2667,
+     "ci95": {
+      "exact_accuracy": [
+       0.4062,
+       0.75
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       1.0
+      ]
+     }
+    },
+    {
+     "name": "tiers only",
+     "kind": "ablation",
+     "exact_accuracy": 0.5312,
+     "stop_recall": 1.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.9062,
+     "reason_accuracy": 0.2667,
+     "ci95": {
+      "exact_accuracy": [
+       0.3438,
+       0.7188
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "allow everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.0625,
+     "stop_recall": 0.0,
+     "false_stop_rate": 0.0,
+     "intervention_rate": 0.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.0,
+       0.1562
+      ],
+      "stop_recall": [
+       0.0,
+       0.0
+      ],
+      "false_stop_rate": [
+       0.0,
+       0.0
+      ]
+     }
+    },
+    {
+     "name": "ask a person for everything",
+     "kind": "baseline",
+     "exact_accuracy": 0.4688,
+     "stop_recall": 1.0,
+     "false_stop_rate": 1.0,
+     "intervention_rate": 1.0,
+     "reason_accuracy": null,
+     "ci95": {
+      "exact_accuracy": [
+       0.3125,
+       0.625
+      ],
+      "stop_recall": [
+       1.0,
+       1.0
+      ],
+      "false_stop_rate": [
+       1.0,
+       1.0
+      ]
+     }
+    }
+   ],
+   "comparison_digest": "f9d034c279379076adce78a9c09b74e06e0f9b7c063f1546ed1ae9e88a27984f"
+  }
+ },
+ "before_after": {
+  "session-flow-soc": {
+   "before": {
+    "policy": "soc-triage v3",
+    "exact_accuracy": 0.7778,
+    "stop_recall": 0.9091,
+    "false_stop_rate": 0.3125,
+    "reason_accuracy": 0.0909,
+    "confusion": {
+     "tp": 10,
+     "fn": 1,
+     "fp": 5,
+     "tn": 11
+    }
+   },
+   "after": {
+    "policy": "soc-triage v5",
+    "exact_accuracy": 1.0,
+    "stop_recall": 1.0,
+    "false_stop_rate": 0.0,
+    "reason_accuracy": 1.0,
+    "confusion": {
+     "tp": 11,
+     "fn": 0,
+     "fp": 0,
+     "tn": 16
+    }
+   }
+  },
+  "typed-actions-soc": {
+   "before": {
+    "policy": "soc-triage v4",
+    "exact_accuracy": 0.5,
+    "stop_recall": 1.0,
+    "false_stop_rate": null,
+    "reason_accuracy": 0.3333,
+    "confusion": {
+     "tp": 12,
+     "fn": 0,
+     "fp": 0,
+     "tn": 0
+    }
+   },
+   "after": {
+    "policy": "soc-triage v5",
+    "exact_accuracy": 1.0,
+    "stop_recall": 1.0,
+    "false_stop_rate": null,
+    "reason_accuracy": 1.0,
+    "confusion": {
+     "tp": 12,
+     "fn": 0,
+     "fp": 0,
+     "tn": 0
+    }
+   }
+  },
+  "typed-actions-testing": {
+   "before": {
+    "policy": "authorised-testing v2",
+    "exact_accuracy": 0.5938,
+    "stop_recall": 1.0,
+    "false_stop_rate": 0.6667,
+    "reason_accuracy": 0.2667,
+    "confusion": {
+     "tp": 29,
+     "fn": 0,
+     "fp": 2,
+     "tn": 1
+    }
+   },
+   "after": {
+    "policy": "authorised-testing v3",
+    "exact_accuracy": 1.0,
+    "stop_recall": 1.0,
+    "false_stop_rate": 0.0,
+    "reason_accuracy": 1.0,
+    "confusion": {
+     "tp": 29,
+     "fn": 0,
+     "fp": 0,
+     "tn": 3
+    }
+   }
+  }
+ },
+ "predictive": {
+  "with prediction": {
+   "appropriate": {
+    "n": 33,
+    "let_through": 0.3636,
+    "to_a_person": 0.6061,
+    "denied": 0.0303
+   },
+   "inappropriate": {
+    "n": 18,
+    "let_through": 0.0,
+    "to_a_person": 0.2222,
+    "denied": 0.7778
+   }
+  },
+  "without prediction": {
+   "appropriate": {
+    "n": 33,
+    "let_through": 0.3636,
+    "to_a_person": 0.6061,
+    "denied": 0.0303
+   },
+   "inappropriate": {
+    "n": 18,
+    "let_through": 0.0,
+    "to_a_person": 0.4444,
+    "denied": 0.5556
+   }
+  }
+ },
+ "authoring_example": {
+  "narrow": {
+   "train_before": 0.7,
+   "holdout_before": 0.625,
+   "train_after": 1.0,
+   "holdout_after": 0.75,
+   "edits": [
+    "Argument rule: deny 'read_file' when 'path' is exactly '/srv/app/config/secrets.yaml' (this value only)",
+    "Argument rule: deny 'mcp__deploy__trigger_deploy' when 'service' is exactly 'billing' (this value only)",
+    "Classify 'bash' in tier 'read' (allow) only when 'command' is exactly 'git status'"
+   ],
+   "failures": 3
+  },
+  "general": {
+   "train_before": 0.7,
+   "holdout_before": 0.625,
+   "train_after": 1.0,
+   "holdout_after": 1.0,
+   "edits": [
+    "Argument rule: deny 'read_file' when 'path' names a file called 'secrets*' in any folder",
+    "Classify every 'deploy' MCP tool (mcp__deploy__*) in tier 'authored-deny' (deny)",
+    "Classify 'bash' in tier 'read' (allow) only when 'command' is exactly 'git status'"
+   ],
+   "failures": 3
+  }
+ },
+ "deferral_simulation": {
+  "alpha": 0.05,
+  "delta": 0.1,
+  "runs": 1000,
+  "seed": 20261025,
+  "optimal_auto_share": 0.5296,
+  "by_grid": {
+   "every score": {
+    "100": {
+     "ready": 0.367,
+     "violations": 0.034,
+     "mean_auto_share_when_ready": 0.5083651226158039
+    },
+    "200": {
+     "ready": 0.64,
+     "violations": 0.038,
+     "mean_auto_share_when_ready": 0.4012812500000004
+    },
+    "400": {
+     "ready": 0.636,
+     "violations": 0.027,
+     "mean_auto_share_when_ready": 0.40019654088050305
+    },
+    "800": {
+     "ready": 0.655,
+     "violations": 0.032,
+     "mean_auto_share_when_ready": 0.3770961832061068
+    },
+    "1600": {
+     "ready": 0.633,
+     "violations": 0.046,
+     "mean_auto_share_when_ready": 0.3799644549763031
+    }
+   },
+   "deciles": {
+    "100": {
+     "ready": 0.198,
+     "violations": 0.009,
+     "mean_auto_share_when_ready": 0.5055555555555555
+    },
+    "200": {
+     "ready": 0.529,
+     "violations": 0.001,
+     "mean_auto_share_when_ready": 0.4143667296786414
+    },
+    "400": {
+     "ready": 0.79,
+     "violations": 0.002,
+     "mean_auto_share_when_ready": 0.4460759493670868
+    },
+    "800": {
+     "ready": 0.822,
+     "violations": 0.001,
+     "mean_auto_share_when_ready": 0.4720194647201937
+    },
+    "1600": {
+     "ready": 0.976,
+     "violations": 0.001,
+     "mean_auto_share_when_ready": 0.4909836065573762
+    }
+   }
+  }
+ }
+}

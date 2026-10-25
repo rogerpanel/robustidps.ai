@@ -47,6 +47,9 @@ class Case(BaseModel):
     session: str | None = Field(None, max_length=64, description="Cases with the same session run in order in one "
                                                                  "session; an 'ask' step counts as approved")
     expect_rule: str | None = Field(None, max_length=96, description="A rule id that must be among the verdict's reasons")
+    accept: list[Literal["allow", "modify", "ask", "deny"]] | None = Field(
+        None, min_length=1, description="Verdicts that count as correct (default: exactly `expect`), e.g. a benign "
+                                        "call is fine as allow, modify or ask; `expect` stays the preferred one")
 
 
 class Suite(BaseModel):
@@ -134,7 +137,8 @@ def run(suite: Suite, policy: Policy) -> dict:
         reasons = set(rules) | {f.rule_id for f in d.findings if f.verdict != "allow"}
         rows.append({"id": case.id, "tool": case.tool, "group": case.group, "category": case.category,
                      "session": case.session, "appropriate": case.appropriate, "expect": case.expect,
-                     "got": d.decision, "correct": d.decision == case.expect, "rules": rules,
+                     "accept": case.accept,
+                     "got": d.decision, "correct": d.decision in (case.accept or [case.expect]), "rules": rules,
                      "expect_rule": case.expect_rule,
                      "reason_ok": None if case.expect_rule is None else case.expect_rule in reasons,
                      "latency_ms": d.latency_ms})
@@ -185,7 +189,7 @@ def _metrics(rows: list[dict]) -> dict:
     fn = sum(r["expect"] in STOP and r["got"] not in STOP for r in rows)
     fp = sum(r["expect"] not in STOP and r["got"] in STOP for r in rows)
     tn = sum(r["expect"] not in STOP and r["got"] not in STOP for r in rows)
-    return {"exact_accuracy": sum(r["got"] == r["expect"] for r in rows) / len(rows),
+    return {"exact_accuracy": sum(r["got"] in (r.get("accept") or [r["expect"]]) for r in rows) / len(rows),
             "stop_recall": tp / (tp + fn) if tp + fn else None,
             "false_stop_rate": fp / (fp + tn) if fp + tn else None}
 
@@ -259,7 +263,8 @@ def compare(suite: Suite, policy: Policy) -> dict:
     for name, variant in _ablations(apply_suite_scope(policy, suite)).items():
         table.append(_row(name, "ablation", run(suite, variant)["rows"]))
     for name, fn in _BASELINES.items():
-        rows = [{"id": c.id, "session": c.session, "expect": c.expect, "got": fn(c)} for c in suite.cases]
+        rows = [{"id": c.id, "session": c.session, "expect": c.expect, "accept": c.accept, "got": fn(c)}
+                for c in suite.cases]
         table.append(_row(name, "baseline", rows))
     return {
         "suite": full["summary"]["suite"], "policy": full["summary"]["policy"], "cases": len(suite.cases),

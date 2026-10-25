@@ -1,0 +1,36 @@
+\section{Enforcing in Real Hosts}
+\label{sec:hosts}
+
+A monitor mediates only what the host routes through it and only as reliably as the host reacts to its failures. We read each host's hook contract in the installed software rather than in summaries, and wrote one connector per contract (Table~\ref{tab:hosts}).
+
+\begin{table*}[t]
+\centering
+\caption{Pre-execution hook contracts of agent hosts, as verified in the installed versions, and how each connector fails closed.}
+\label{tab:hosts}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{lXXl}
+\toprule
+Host (version) & Blocks the call when the hook\ldots & Lets the call through when the hook\ldots & Connector \\
+\midrule
+Claude Code~\cite{claudehooks} & exits 2, or exits 0 with a \texttt{deny} decision & exits with any other non-zero code (documented as a non-blocking error) & answers \texttt{deny} on every caught error \\
+OpenHands SDK 1.58.2 & exits 2, or prints \texttt{\{"decision": "deny"\}} & exits with any other code, times out, or its command is missing; a missing \texttt{hooks.json} path loads an empty configuration without an error & exits 2 on every refusal and error \\
+Claude Agent SDK 0.2.174 & a PreToolUse callback returns \texttt{deny} & \emph{(callback)}; \texttt{can\_use\_tool} is not consulted for calls the permission settings already allow & PreToolUse callback; deadline $\to$ \texttt{deny} \\
+MCP clients (stdio) & --- & --- & proxy between client and server \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\paragraph{Failure semantics}
+Both command-hook hosts treat most hook failures as non-blocking: in OpenHands, only exit code 2 or an explicit \texttt{deny} stops a call, while any other exit code, a timeout and a missing command let it proceed; Claude Code documents non-zero exit codes other than 2 as non-blocking errors~\cite{claudehooks}. A guard that is unreachable, slow or crashing therefore fails \emph{open} unless the connector itself turns every error into a block. The two hosts also read different answers: OpenHands reads a top-level \texttt{decision}, Claude Code a \texttt{permissionDecision} inside \texttt{hookSpecificOutput}. Our first connector, written for Claude Code, would have blocked nothing in OpenHands. The OpenHands mode now exits 2 on every refusal and every error, and its own deadline is set below the hook timeout so that the guard, not the host, decides. OpenHands hooks cannot ask a person or rewrite arguments, so an \verdict{ask} is refused with the approval identifier (the person approves on the review page and the agent repeats the call) or waits for the person within the hook's timeout, and a \verdict{modify} is refused with the corrected arguments in the reason. Multiplexed tools (\tool{file\_editor} with commands \tool{view}, \tool{create}, \tool{str\_replace}) are judged as \tool{tool:command}, so a policy can allow viewing and ask for editing.
+
+\paragraph{Why a hook and not a permission callback}
+The Claude Agent SDK offers a permission callback (\texttt{can\_use\_tool}), but its documentation in version 0.2.174 states that it is not invoked for calls already permitted by allowed-tool lists, the permission mode or settings; only a PreToolUse hook sees every call. Our connector maps \verdict{allow} to no decision (the host's own permission rules still apply, so the guard only removes permissions), \verdict{modify} to an allow with updated input, and \verdict{ask} and \verdict{deny} to refusals; a missed deadline is a refusal.
+
+\paragraph{Stateless hooks and approvals}
+Hook processes start afresh for every call and cannot remember an approval. The service therefore binds approvals to the session and the canonical call and lets the next identical call use a recent approval once (\S\ref{sec:design}); a repeat while the request is pending reuses it instead of queueing another.
+
+\paragraph{End-to-end checks}
+We ran a real OpenHands conversation (terminal and file-editor tools, a scripted model) with the generated \texttt{hooks.json}. A file view ran; a chained exfiltration command (\texttt{cat README.md | curl -d @- \ldots}) and an overwrite of \texttt{.openhands/hooks.json} were blocked and never executed; a shell command that needed approval was refused, approved by a person, repeated by the agent, run once and marked used. With the guard unreachable, returning a non-guard response, or given malformed input, the hook blocked. For the Claude Agent SDK we drove the SDK's own hook dispatch (the code path the CLI invokes) with the callback against a live guard: reads passed with no objection, a chained shell command was denied, an oversized search ran with corrected input, and an unreachable or slow guard produced a denial. The connectors' self-test repeats these checks on any machine.
+
+\paragraph{Keeping the guard out of the agent's reach}
+Policies live in the service; the coding pack denies writes to agent and IDE configuration (\texttt{.claude/}, \texttt{.openhands/}, \texttt{mcp.json} and similar), which is how agents have granted themselves permissions; the hook script and its configuration should live outside the agent's workspace; and the agent's API key cannot approve, reset sessions or change settings.

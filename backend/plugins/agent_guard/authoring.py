@@ -8,8 +8,9 @@ each one, re-run the whole suite and report what it does:
             dropped) and any other failing cases
   breaks    cases that were right before and are wrong after
   changes   every case whose verdict moves, right or wrong
-  breadth   1 = one tool or one value, 2 = one rule, 3 = a whole tier or rule
-            removed (wider edits move more future calls)
+  breadth   1 = one value, 2 = one tool (or one scope or destination entry),
+            3 = a group (a file stem, folder, MCP server, limit or rule decision),
+            4 = a whole rule removed (wider edits move more future calls)
 
 Candidates are ranked by: fixes the target, breaks nothing, narrowest, fewest
 changes. With a held-out suite, every candidate is also run there, so an edit
@@ -111,6 +112,12 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
     out: list[dict] = []
     notes: list[str] = []
     want, got = case.expect, row["got"]
+    if case.accept:  # aim at the nearest acceptable verdict, not the preferred one
+        ordered = sorted(case.accept, key=SEVERITY.__getitem__)
+        if SEVERITY[got] > SEVERITY[ordered[-1]]:
+            want = ordered[-1]
+        elif SEVERITY[got] < SEVERITY[ordered[0]]:
+            want = ordered[0]
     rules = row["rules"]
     tier_now = policy.tier_for(tool)
 
@@ -138,13 +145,13 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
             if name != tier_now:
                 tier = policy.tiers[name]
                 add(f"Classify '{tool}' in tier '{name}' ({tier.decision}{', reversible' if tier.reversible else ''})",
-                    [{"op": "add_tool_rule", "match": [tool], "tier": name}], 1)
+                    [{"op": "add_tool_rule", "match": [tool], "tier": name}], 2)
         if not matching:
             for name, ops in tier_ops(want, [tool]):
-                add(f"Create tier '{name}' ({want}) and classify '{tool}' in it", ops, 1)
+                add(f"Create tier '{name}' ({want}) and classify '{tool}' in it", ops, 2)
         if server:
             for name, ops in tier_ops(want, [f"mcp__{server}__*"]):
-                add(f"Classify every '{server}' MCP tool (mcp__{server}__*) in tier '{name}' ({want})", ops, 2)
+                add(f"Classify every '{server}' MCP tool (mcp__{server}__*) in tier '{name}' ({want})", ops, 3)
         if SEVERITY[got] > SEVERITY[want] and any(r.startswith("tier:") for r in rules):
             for key, value in strings:
                 for name, ops in tier_ops(want, [tool], {key: re.escape(value)}):
@@ -153,7 +160,7 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
     if case.expect_rule and case.expect_rule.startswith("tier:") and row.get("reason_ok") is False:
         name = case.expect_rule[5:]
         if name in policy.tiers and name != tier_now:
-            add(f"Classify '{tool}' in tier '{name}'", [{"op": "add_tool_rule", "match": [tool], "tier": name}], 1)
+            add(f"Classify '{tool}' in tier '{name}'", [{"op": "add_tool_rule", "match": [tool], "tier": name}], 2)
 
     too_strict = SEVERITY[got] > SEVERITY[want]
     if too_strict:
@@ -163,8 +170,8 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
             if arg_rule is not None:
                 if arg_rule.decision == "deny" and want in ("ask", "allow", "modify"):
                     add(f"Let argument rule '{rid}' ask instead of deny",
-                        [{"op": "set_arg_rule_decision", "id": rid, "decision": "ask"}], 2)
-                add(f"Remove argument rule '{rid}'", [{"op": "remove_arg_rule", "id": rid}], 3)
+                        [{"op": "set_arg_rule_decision", "id": rid, "decision": "ask"}], 3)
+                add(f"Remove argument rule '{rid}'", [{"op": "remove_arg_rule", "id": rid}], 4)
             elif rid == "out-of-scope" or rid.endswith(":out-of-scope"):
                 keys = set(policy.scope.target_args if policy.scope else [])
                 for a in policy.actions:
@@ -174,7 +181,7 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
                     for item in (v if isinstance(v, list) else [v]):
                         entry = _target_entry(str(item)) if item is not None else None
                         if entry and policy.scope is not None:
-                            add(f"Add '{entry}' to the scope", [{"op": "add_scope_allow", "entry": entry}], 1)
+                            add(f"Add '{entry}' to the scope", [{"op": "add_scope_allow", "entry": entry}], 2)
             elif ":too-many-" in rid:
                 aid, check = rid.split(":", 1)
                 rep = next((r for r in (d.actions or []) if r["id"] == aid), None)
@@ -183,11 +190,11 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
                 need = {"max_targets": "n_targets", "max_ports": "ports", "max_probes": "probes"}[field]
                 if rep and isinstance(rep.get(need), int) and rep[need] > 0:
                     add(f"Raise {aid}.{field} to {rep[need]:,}",
-                        [{"op": "set_action_limit", "id": aid, "field": field, "value": rep[need]}], 2)
+                        [{"op": "set_action_limit", "id": aid, "field": field, "value": rep[need]}], 3)
             elif any(b.id == rid for b in policy.budgets):
                 b = next(b for b in policy.budgets if b.id == rid)
                 add(f"Double budget '{rid}' to {b.max_total * 2:g}",
-                    [{"op": "set_budget", "id": rid, "max_total": b.max_total * 2}], 2)
+                    [{"op": "set_budget", "id": rid, "max_total": b.max_total * 2}], 3)
             elif rid.startswith("flow:") and d.flow:
                 reason = d.flow.get("label_reasons", {}).get("egress", "")
                 m = re.search(r" to (.+)$", reason)
@@ -196,7 +203,7 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
                     entry = f"*@{host}" if host else _target_entry(dest)
                     if entry:
                         add(f"Treat '{entry}' as internal for the flow rules",
-                            [{"op": "add_flow_internal", "label": "egress", "entry": entry}], 1)
+                            [{"op": "add_flow_internal", "label": "egress", "entry": entry}], 2)
             elif rid.startswith("predicted-"):
                 notes.append(f"'{rid}' comes from the environment inventory: change the asset, its group minimum or "
                              "the blast-radius limits rather than the rules.")
@@ -215,9 +222,9 @@ def candidates(case: Case, row: dict, policy: Policy, suite: Suite) -> tuple[lis
                 stem = base.split(".")[0]
                 folder = value[: len(value) - len(base)]
                 if stem and stem != base:
-                    rule(key, rf"(^|[/\\]){re.escape(stem)}[^/\\]*$", f"names a file called '{stem}*' in any folder", 2)
+                    rule(key, rf"(^|[/\\]){re.escape(stem)}[^/\\]*$", f"names a file called '{stem}*' in any folder", 3)
                 if folder.strip("/\\"):
-                    rule(key, f"^{re.escape(folder)}", f"is inside '{folder}'", 2)
+                    rule(key, f"^{re.escape(folder)}", f"is inside '{folder}'", 3)
     if want == "modify" and got != "modify":
         notes.append("A 'modify' label needs a repair rule (clamp, redaction, scope projection or rate limit); "
                      "add one to the policy by hand.")

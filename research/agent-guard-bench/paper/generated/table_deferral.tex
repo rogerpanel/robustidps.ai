@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{Calibrated deferral on the AgentDojo replay. \emph{Eligible}: share of benign and attack-goal approval requests that deferral could ever auto-approve. Right: benign tasks unattended and attack goals unreviewed if a calibrated threshold covered every eligible request, the case for a deployment whose history has few denials.}
+\label{tab:deferral}
+\setlength{\tabcolsep}{2.5pt}
+\small
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{Eligible} & \multicolumn{2}{c}{All eligible approved} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+Policy & Benign & Attack & Unattended & Unreviewed \\
+\midrule
+Tiers & \DefTiersBenignEligible & \DefTiersGoalEligible & \DefTiersBenignUnattended & \DefTiersGoalUnreviewed \\
++ flow, hinted & \DefFlowBenignEligible & \DefFlowGoalEligible & \DefFlowBenignUnattended & \DefFlowGoalUnreviewed \\
++ flow, conservative & \DefConsBenignEligible & \DefConsGoalEligible & \DefConsBenignUnattended & \DefConsGoalUnreviewed \\
+\bottomrule
+\end{tabular}
+\end{table}

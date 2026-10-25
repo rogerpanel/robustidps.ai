@@ -1,0 +1,34 @@
+% Decision pipeline for one proposed tool call.
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=3.5mm and 2.2mm, font=\scriptsize,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=9mm, inner sep=2pt, fill=white, text width=24mm},
+  layer/.style={box, fill=cA!7, draw=cA!60},
+  state/.style={box, fill=cC!8, draw=cC!60, dashed, text width=40mm},
+  outbox/.style={box, fill=cB!8, draw=cB!60, text width=28mm},
+  arr/.style={-{Stealth[length=1.6mm]}, thick}]
+\node[box] (host) {Host hook\\(Claude Code, OpenHands,\\SDK, MCP proxy)};
+\node[layer, right=of host] (l0) {L0\\canonicalise\\(NFKC, hidden chars)};
+\node[layer, right=of l0] (l1) {L1 policy\\tiers (+\,\texttt{when}), scope,\\argument rules, clamps,\\redaction, budgets};
+\node[layer, right=of l1] (ty) {Typed actions\\targets, ports,\\rates as values};
+\node[layer, right=of ty] (l2) {L2 predictive\\effect on the\\asset inventory};
+\node[layer, right=of l2] (fl) {Session flow\\untrusted / sensitive\\/ egress};
+\node[outbox, below=6mm of fl] (v) {worst finding wins;\\allow + repair $\to$ \verdict{modify};\\escalate after $N$ denials};
+\node[outbox, left=of v] (ap) {\verdict{ask}: approval queue\\(reuse, single use, TTL);\\calibrated deferral\\(tier-only asks)};
+\node[outbox, left=of ap] (led) {hash-chained ledger;\\runtime monitor};
+\node[state, below=7mm of host.south west, anchor=north west] (st) {session state: denials, budgets used,\\assets taken down, data labels\\(read by L1, L2 and flow)};
+\draw[arr] (host) -- (l0);
+\draw[arr] (l0) -- (l1);
+\draw[arr] (l1) -- (ty);
+\draw[arr] (ty) -- (l2);
+\draw[arr] (l2) -- (fl);
+\draw[arr] (fl) -- (v);
+\draw[arr] (v) -- (ap);
+\draw[arr] (ap) -- (led);
+\draw[arr, dashed] (st.east) -| (l1.south);
+\draw[arr, cB] (led.south) |- node[pos=0.75, below] {verdict to the host; any error $\to$ \verdict{deny}} ([xshift=-3mm,yshift=-3mm]st.south west) |- (host.west);
+\end{tikzpicture}
+\caption{\SystemNameCap{} judges one proposed call. Every layer adds findings; the strictest finding decides. Calls that are let through (including approved and auto-approved ones) update the session state that later calls are judged against.}
+\label{fig:architecture}
+\end{figure*}

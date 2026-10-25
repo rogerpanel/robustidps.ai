@@ -1,0 +1,17 @@
+\section{Background}
+\label{sec:background}
+
+\paragraph{Agents, tools and hooks}
+An agent loop sends the conversation to a model, receives proposed tool calls (a name and JSON arguments), executes them and feeds the results back. Tools come from the host application or from Model Context Protocol (MCP) servers~\cite{mcp}. Hosts expose a pre-execution hook: Claude Code runs a command before each tool call and reads its exit code and JSON answer~\cite{claudehooks}; OpenHands~\cite{openhands} runs command hooks configured in \texttt{.openhands/hooks.json}; the Claude Agent SDK accepts Python callbacks. A hook is the natural place for a reference monitor~\cite{anderson}: it sees every call before it runs, provided the host consults it and obeys its answer.
+
+\paragraph{Indirect prompt injection}
+Content an agent reads (an e-mail, a web page, an issue, a log line) can contain instructions; a model that follows them performs the attacker's task with the user's privileges~\cite{greshake}. Benchmarks measure utility and attack success for agents and defences: InjecAgent~\cite{injecagent}, AgentDojo~\cite{agentdojo} and AgentHarm~\cite{agentharm}. The canonical exploit chain combines untrusted input, access to private data and a way to send data out, the ``lethal trifecta''~\cite{trifecta}; one public instance used an issue in a public repository to make a coding agent copy private repository contents into a public pull request~\cite{invariantgithub}. Meta's ``Rule of Two'' recommends that an agent session combine at most two of these three properties without human approval~\cite{ruleoftwo}.
+
+\paragraph{Safety filters}
+In control, a safety filter monitors a learned controller's proposed input and replaces or modifies it when the system would leave a safe set~\cite{hsu}. A model predictive safety filter certifies an input only if a constraint-satisfying backup trajectory remains feasible over a horizon~\cite{wabersich}; control barrier functions minimally modify inputs to keep a safe set forward-invariant~\cite{ames}; shields restrict or override reinforcement learning actions~\cite{shielding}. We borrow the vocabulary: a minimal modification is preferred to a refusal, and the decision may depend on a predicted next state (what the call would take down), not only on the call.
+
+\paragraph{Information flow control}
+Lattice models track the security labels of data as it flows~\cite{denning}. Agent systems apply them coarsely, labelling what a session or variable has been exposed to and restricting what may follow: CaMeL separates a privileged planner from a quarantined parser and attaches capabilities to values~\cite{camel}; FIDES~\cite{fides} and f-secure~\cite{fsecure} label context and gate actions by label.
+
+\paragraph{Calibrated deferral}
+Learning to defer trains a model to hand cases to an expert~\cite{madras,mozannar}; KnowNo asks a person for help when a conformal prediction set is ambiguous~\cite{knowno}. Conformal risk control bounds the expected loss of a thresholded predictor~\cite{crc}, and Learn then Test (LTT) selects parameters by multiple hypothesis testing so that, with probability at least $1-\delta$, a chosen risk is at most $\alpha$~\cite{ltt}. We use LTT with exact binomial tests~\cite{clopper} to decide which approval requests need a person.

@@ -1,6 +1,6 @@
 import type { CaseDiff, GuardPolicy, SuggestResult } from '../../guardApi'
 
-const BREADTH = ['', 'one tool or value', 'one rule', 'a whole rule or tier']
+const BREADTH = ['', 'one value', 'one tool', 'a group of tools or values', 'a whole rule']
 
 function Diff({ d, label }: { d: CaseDiff; label: string }) {
   return (

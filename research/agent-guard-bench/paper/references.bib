@@ -1,0 +1,470 @@
+% references.bib -- Agent Guard paper
+% Every entry below was checked against a primary or authoritative source
+% (arXiv listing, proceedings/publisher page, official docs/blog) on 2026-10-25.
+% See references_verification.md for the source checked and corrections made.
+% Fields that could not be confirmed (e.g. some DOIs/page ranges) were omitted
+% rather than guessed.
+
+% ---------------------------------------------------------------------------
+% Agent security: benchmarks, attacks, defences
+% ---------------------------------------------------------------------------
+
+@inproceedings{agentdojo,
+  author    = {Edoardo Debenedetti and Jie Zhang and Mislav Balunovi{\'c} and Luca Beurer-Kellner and Marc Fischer and Florian Tram{\`e}r},
+  title     = {{AgentDojo}: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for {LLM} Agents},
+  booktitle = {Advances in Neural Information Processing Systems 37 (NeurIPS 2024), Datasets and Benchmarks Track},
+  year      = {2024},
+  eprint    = {2406.13352},
+  archivePrefix = {arXiv}
+}
+
+@misc{camel,
+  author       = {Edoardo Debenedetti and Ilia Shumailov and Tianqi Fan and Jamie Hayes and Nicholas Carlini and Daniel Fabian and Christoph Kern and Chongyang Shi and Andreas Terzis and Florian Tram{\`e}r},
+  title        = {Defeating Prompt Injections by Design},
+  howpublished = {arXiv preprint arXiv:2503.18813},
+  year         = {2025},
+  eprint       = {2503.18813},
+  archivePrefix = {arXiv}
+}
+
+@misc{fides,
+  author       = {Manuel Costa and Boris K{\"o}pf and Aashish Kolluri and Andrew Paverd and Mark Russinovich and Ahmed Salem and Shruti Tople and Lukas Wutschitz and Santiago Zanella-B{\'e}guelin},
+  title        = {Securing {AI} Agents with Information-Flow Control},
+  howpublished = {arXiv preprint arXiv:2505.23643},
+  year         = {2025},
+  eprint       = {2505.23643},
+  archivePrefix = {arXiv}
+}
+
+@misc{progent,
+  author       = {Tianneng Shi and Jingxuan He and Zhun Wang and Hongwei Li and Linyu Wu and Wenbo Guo and Dawn Song},
+  title        = {{Progent}: Securing {AI} Agents with Privilege Control},
+  howpublished = {arXiv preprint arXiv:2504.11703},
+  year         = {2025},
+  note         = {Earlier versions (v1--v2) titled ``Progent: Programmable Privilege Control for LLM Agents''},
+  eprint       = {2504.11703},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{agentspec,
+  author    = {Haoyu Wang and Christopher M. Poskitt and Jun Sun},
+  title     = {{AgentSpec}: Customizable Runtime Enforcement for Safe and Reliable {LLM} Agents},
+  booktitle = {Proceedings of the IEEE/ACM 48th International Conference on Software Engineering (ICSE 2026)},
+  year      = {2026},
+  eprint    = {2503.18666},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{melon,
+  author    = {Kaijie Zhu and Xianjun Yang and Jindong Wang and Wenbo Guo and William Yang Wang},
+  title     = {{MELON}: Provable Defense Against Indirect Prompt Injection Attacks in {AI} Agents},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning (ICML 2025)},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {267},
+  pages     = {80310--80329},
+  publisher = {PMLR},
+  year      = {2025},
+  eprint    = {2502.05174},
+  archivePrefix = {arXiv}
+}
+
+@misc{llamafirewall,
+  author       = {Sahana Chennabasappa and Cyrus Nikolaidis and Daniel Song and David Molnar and Stephanie Ding and Shengye Wan and Spencer Whitman and Lauren Deason and Nicholas Doucette and Abraham Montilla and Alekhya Gampa and Beto de Paola and Dominik Gabi and James Crnkovich and Jean-Christophe Testud and Kat He and Rashnil Chaturvedi and Wu Zhou and Joshua Saxe},
+  title        = {{LlamaFirewall}: An Open Source Guardrail System for Building Secure {AI} Agents},
+  howpublished = {arXiv preprint arXiv:2505.03574},
+  year         = {2025},
+  eprint       = {2505.03574},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{shieldagent,
+  author    = {Zhaorun Chen and Mintong Kang and Bo Li},
+  title     = {{ShieldAgent}: Shielding Agents via Verifiable Safety Policy Reasoning},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning (ICML 2025)},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {267},
+  pages     = {8313--8344},
+  publisher = {PMLR},
+  year      = {2025},
+  eprint    = {2503.22738},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{guardagent,
+  author    = {Zhen Xiang and Linzhi Zheng and Yanjie Li and Junyuan Hong and Qinbin Li and Han Xie and Jiawei Zhang and Zidi Xiong and Chulin Xie and Carl Yang and Dawn Song and Bo Li},
+  title     = {{GuardAgent}: Safeguard {LLM} Agents via Knowledge-Enabled Reasoning},
+  booktitle = {Proceedings of the 42nd International Conference on Machine Learning (ICML 2025)},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {267},
+  pages     = {68316--68342},
+  publisher = {PMLR},
+  year      = {2025},
+  eprint    = {2406.09187},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{greshake,
+  author    = {Kai Greshake and Sahar Abdelnabi and Shailesh Mishra and Christoph Endres and Thorsten Holz and Mario Fritz},
+  title     = {Not What You've Signed Up For: Compromising Real-World {LLM}-Integrated Applications with Indirect Prompt Injection},
+  booktitle = {Proceedings of the 16th ACM Workshop on Artificial Intelligence and Security (AISec 2023)},
+  pages     = {79--90},
+  publisher = {ACM},
+  address   = {Copenhagen, Denmark},
+  year      = {2023},
+  eprint    = {2302.12173},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{injecagent,
+  author    = {Qiusi Zhan and Zhixiang Liang and Zifan Ying and Daniel Kang},
+  title     = {{InjecAgent}: Benchmarking Indirect Prompt Injections in Tool-Integrated Large Language Model Agents},
+  booktitle = {Findings of the Association for Computational Linguistics: ACL 2024},
+  editor    = {Lun-Wei Ku and Andre Martins and Vivek Srikumar},
+  pages     = {10471--10506},
+  publisher = {Association for Computational Linguistics},
+  address   = {Bangkok, Thailand},
+  year      = {2024},
+  doi       = {10.18653/v1/2024.findings-acl.624}
+}
+
+@inproceedings{toolemu,
+  author    = {Yangjun Ruan and Honghua Dong and Andrew Wang and Silviu Pitis and Yongchao Zhou and Jimmy Ba and Yann Dubois and Chris J. Maddison and Tatsunori Hashimoto},
+  title     = {Identifying the Risks of {LM} Agents with an {LM}-Emulated Sandbox},
+  booktitle = {The Twelfth International Conference on Learning Representations (ICLR 2024)},
+  year      = {2024},
+  eprint    = {2309.15817},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{openhands,
+  author    = {Xingyao Wang and Boxuan Li and Yufan Song and Frank F. Xu and Xiangru Tang and Mingchen Zhuge and Jiayi Pan and Yueqi Song and Bowen Li and Jaskirat Singh and Hoang H. Tran and Fuqiang Li and Ren Ma and Mingzhang Zheng and Bill Qian and Yanjun Shao and Niklas Muennighoff and Yizhe Zhang and Binyuan Hui and Junyang Lin and Robert Brennan and Hao Peng and Heng Ji and Graham Neubig},
+  title     = {{OpenHands}: An Open Platform for {AI} Software Developers as Generalist Agents},
+  booktitle = {The Thirteenth International Conference on Learning Representations (ICLR 2025)},
+  year      = {2025},
+  eprint    = {2407.16741},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{agentharm,
+  author    = {Maksym Andriushchenko and Alexandra Souly and Mateusz Dziemian and Derek Duenas and Maxwell Lin and Justin Wang and Dan Hendrycks and Andy Zou and Zico Kolter and Matt Fredrikson and Eric Winsor and Jerome Wynne and Yarin Gal and Xander Davies},
+  title     = {{AgentHarm}: A Benchmark for Measuring Harmfulness of {LLM} Agents},
+  booktitle = {The Thirteenth International Conference on Learning Representations (ICLR 2025)},
+  year      = {2025},
+  eprint    = {2410.09024},
+  archivePrefix = {arXiv}
+}
+
+@misc{llamaguard,
+  author       = {Hakan Inan and Kartikeya Upasani and Jianfeng Chi and Rashi Rungta and Krithika Iyer and Yuning Mao and Michael Tontchev and Qing Hu and Brian Fuller and Davide Testuggine and Madian Khabsa},
+  title        = {{Llama Guard}: {LLM}-based Input-Output Safeguard for Human-{AI} Conversations},
+  howpublished = {arXiv preprint arXiv:2312.06674},
+  year         = {2023},
+  eprint       = {2312.06674},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{adaptiveattacks,
+  author    = {Milad Nasr and Nicholas Carlini and Chawin Sitawarin and Sander V. Schulhoff and Jamie Hayes and Michael Ilie and Juliette Pluto and Shuang Song and Harsh Chaudhari and Ilia Shumailov and Abhradeep Guha Thakurta and Kai Yuanqing Xiao and Andreas Terzis and Florian Tram{\`e}r},
+  title     = {The Attacker Moves Second: Stronger Adaptive Attacks Bypass Defenses Against {LLM} Jailbreaks and Prompt Injections},
+  booktitle = {35th USENIX Security Symposium (USENIX Security 26)},
+  publisher = {USENIX Association},
+  address   = {Baltimore, MD, USA},
+  year      = {2026},
+  eprint    = {2510.09023},
+  archivePrefix = {arXiv}
+}
+
+@misc{shadearena,
+  author       = {Jonathan Kutasov and Yuqi Sun and Paul Colognese and Teun van der Weij and Linda Petrini and Chen Bo Calvin Zhang and John Hughes and Xiang Deng and Henry Sleight and Tyler Tracy and Buck Shlegeris and Joe Benton},
+  title        = {{SHADE-Arena}: Evaluating Sabotage and Monitoring in {LLM} Agents},
+  howpublished = {arXiv preprint arXiv:2506.15740},
+  year         = {2025},
+  eprint       = {2506.15740},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{isolategpt,
+  author    = {Yuhao Wu and Franziska Roesner and Tadayoshi Kohno and Ning Zhang and Umar Iqbal},
+  title     = {{IsolateGPT}: An Execution Isolation Architecture for {LLM}-Based Agentic Systems},
+  booktitle = {Network and Distributed System Security Symposium (NDSS 2025)},
+  publisher = {Internet Society},
+  address   = {San Diego, CA, USA},
+  year      = {2025},
+  doi       = {10.14722/ndss.2025.241131}
+}
+
+@misc{fsecure,
+  author       = {Fangzhou Wu and Ethan Cecchetti and Chaowei Xiao},
+  title        = {System-Level Defense against Indirect Prompt Injection Attacks: An Information Flow Control Perspective},
+  howpublished = {arXiv preprint arXiv:2409.19091},
+  year         = {2024},
+  eprint       = {2409.19091},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{conseca,
+  author    = {Lillian Tsai and Eugene Bagdasarian},
+  title     = {Contextual Agent Security: A Policy for Every Purpose},
+  booktitle = {Workshop on Hot Topics in Operating Systems (HotOS '25)},
+  publisher = {ACM},
+  address   = {Banff, AB, Canada},
+  year      = {2025},
+  doi       = {10.1145/3713082.3730378},
+  eprint    = {2501.17070},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{taskshield,
+  author    = {Feiran Jia and Tong Wu and Xin Qin and Anna Squicciarini},
+  title     = {The Task Shield: Enforcing Task Alignment to Defend Against Indirect Prompt Injection in {LLM} Agents},
+  booktitle = {Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)},
+  pages     = {29680--29697},
+  publisher = {Association for Computational Linguistics},
+  address   = {Vienna, Austria},
+  year      = {2025},
+  doi       = {10.18653/v1/2025.acl-long.1435}
+}
+
+@inproceedings{goyal,
+  author    = {Akul Goyal and Xueyuan Han and Gang Wang and Adam Bates},
+  title     = {Sometimes, You Aren't What You Do: Mimicry Attacks against Provenance Graph Host Intrusion Detection Systems},
+  booktitle = {30th Network and Distributed System Security Symposium (NDSS 2023)},
+  publisher = {Internet Society},
+  address   = {San Diego, CA, USA},
+  year      = {2023}
+}
+
+@misc{orangetsai,
+  author       = {Orange Tsai},
+  title        = {A New Era of {SSRF} -- Exploiting {URL} Parser in Trending Programming Languages},
+  month        = jul,
+  year         = {2017},
+  howpublished = {Black Hat USA 2017. Slides: \url{https://www.blackhat.com/docs/us-17/thursday/us-17-Tsai-A-New-Era-Of-SSRF-Exploiting-URL-Parser-In-Trending-Programming-Languages.pdf}},
+  note         = {Accessed October 2026}
+}
+
+% ---------------------------------------------------------------------------
+% Risk control, conformal prediction, deferral, statistics
+% ---------------------------------------------------------------------------
+
+@article{ltt,
+  author  = {Anastasios N. Angelopoulos and Stephen Bates and Emmanuel J. Cand{\`e}s and Michael I. Jordan and Lihua Lei},
+  title   = {Learn Then Test: Calibrating Predictive Algorithms to Achieve Risk Control},
+  journal = {The Annals of Applied Statistics},
+  volume  = {19},
+  number  = {2},
+  pages   = {1641--1662},
+  year    = {2025},
+  doi     = {10.1214/24-AOAS1998},
+  eprint  = {2110.01052},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{crc,
+  author    = {Anastasios Angelopoulos and Stephen Bates and Adam Fisch and Lihua Lei and Tal Schuster},
+  title     = {Conformal Risk Control},
+  booktitle = {The Twelfth International Conference on Learning Representations (ICLR 2024)},
+  year      = {2024},
+  eprint    = {2208.02814},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{madras,
+  author    = {David Madras and Toniann Pitassi and Richard Zemel},
+  title     = {Predict Responsibly: Improving Fairness and Accuracy by Learning to Defer},
+  booktitle = {Advances in Neural Information Processing Systems 31 (NeurIPS 2018)},
+  year      = {2018}
+}
+
+@inproceedings{mozannar,
+  author    = {Hussein Mozannar and David Sontag},
+  title     = {Consistent Estimators for Learning to Defer to an Expert},
+  booktitle = {Proceedings of the 37th International Conference on Machine Learning (ICML 2020)},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {119},
+  pages     = {7076--7087},
+  publisher = {PMLR},
+  year      = {2020}
+}
+
+@inproceedings{knowno,
+  author    = {Allen Z. Ren and Anushri Dixit and Alexandra Bodrova and Sumeet Singh and Stephen Tu and Noah Brown and Peng Xu and Leila Takayama and Fei Xia and Jake Varley and Zhenjia Xu and Dorsa Sadigh and Andy Zeng and Anirudha Majumdar},
+  title     = {Robots That Ask For Help: Uncertainty Alignment for Large Language Model Planners},
+  booktitle = {Proceedings of the 7th Conference on Robot Learning (CoRL 2023)},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {229},
+  pages     = {661--682},
+  publisher = {PMLR},
+  year      = {2023},
+  eprint    = {2307.01928},
+  archivePrefix = {arXiv}
+}
+
+@book{efron,
+  author    = {Bradley Efron and Robert J. Tibshirani},
+  title     = {An Introduction to the Bootstrap},
+  series    = {Monographs on Statistics and Applied Probability},
+  number    = {57},
+  publisher = {Chapman \& Hall},
+  address   = {New York},
+  year      = {1993}
+}
+
+@article{clopper,
+  author  = {C. J. Clopper and E. S. Pearson},
+  title   = {The Use of Confidence or Fiducial Limits Illustrated in the Case of the Binomial},
+  journal = {Biometrika},
+  volume  = {26},
+  number  = {4},
+  pages   = {404--413},
+  year    = {1934},
+  doi     = {10.2307/2331986}
+}
+
+% ---------------------------------------------------------------------------
+% Safety filters, shielding, control
+% ---------------------------------------------------------------------------
+
+@article{wabersich,
+  author  = {Kim P. Wabersich and Melanie N. Zeilinger},
+  title   = {A Predictive Safety Filter for Learning-Based Control of Constrained Nonlinear Dynamical Systems},
+  journal = {Automatica},
+  volume  = {129},
+  pages   = {109597},
+  year    = {2021},
+  doi     = {10.1016/j.automatica.2021.109597},
+  eprint  = {1812.05506},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{ames,
+  author    = {Aaron D. Ames and Samuel Coogan and Magnus Egerstedt and Gennaro Notomista and Koushil Sreenath and Paulo Tabuada},
+  title     = {Control Barrier Functions: Theory and Applications},
+  booktitle = {Proceedings of the European Control Conference (ECC 2019)},
+  pages     = {3420--3431},
+  year      = {2019},
+  eprint    = {1903.11199},
+  archivePrefix = {arXiv}
+}
+
+@inproceedings{shielding,
+  author    = {Mohammed Alshiekh and Roderick Bloem and R{\"u}diger Ehlers and Bettina K{\"o}nighofer and Scott Niekum and Ufuk Topcu},
+  title     = {Safe Reinforcement Learning via Shielding},
+  booktitle = {Proceedings of the Thirty-Second AAAI Conference on Artificial Intelligence (AAAI-18)},
+  volume    = {32},
+  number    = {1},
+  pages     = {2669--2678},
+  publisher = {AAAI Press},
+  year      = {2018},
+  doi       = {10.1609/aaai.v32i1.11797},
+  eprint    = {1708.08611},
+  archivePrefix = {arXiv}
+}
+
+@article{hsu,
+  author  = {Kai-Chieh Hsu and Haimin Hu and Jaime Fern{\'a}ndez Fisac},
+  title   = {The Safety Filter: A Unified View of Safety-Critical Control in Autonomous Systems},
+  journal = {Annual Review of Control, Robotics, and Autonomous Systems},
+  volume  = {7},
+  pages   = {47--72},
+  year    = {2024},
+  eprint  = {2309.05837},
+  archivePrefix = {arXiv}
+}
+
+% ---------------------------------------------------------------------------
+% Classic security
+% ---------------------------------------------------------------------------
+
+@article{denning,
+  author  = {Dorothy E. Denning},
+  title   = {A Lattice Model of Secure Information Flow},
+  journal = {Communications of the ACM},
+  volume  = {19},
+  number  = {5},
+  pages   = {236--243},
+  year    = {1976},
+  doi     = {10.1145/360051.360056}
+}
+
+@article{saltzer,
+  author  = {Jerome H. Saltzer and Michael D. Schroeder},
+  title   = {The Protection of Information in Computer Systems},
+  journal = {Proceedings of the IEEE},
+  volume  = {63},
+  number  = {9},
+  pages   = {1278--1308},
+  year    = {1975}
+}
+
+@techreport{anderson,
+  author      = {James P. Anderson},
+  title       = {Computer Security Technology Planning Study},
+  institution = {Electronic Systems Division, Air Force Systems Command},
+  address     = {Hanscom Field, Bedford, MA},
+  number      = {ESD-TR-73-51},
+  month       = oct,
+  year        = {1972},
+  note        = {Vols.~I and II}
+}
+
+% ---------------------------------------------------------------------------
+% Software, specifications, documentation, blog posts
+% ---------------------------------------------------------------------------
+
+@misc{inspect,
+  author       = {{UK AI Security Institute}},
+  title        = {Inspect {AI}: Framework for Large Language Model Evaluations},
+  year         = {2024},
+  howpublished = {\url{https://inspect.aisi.org.uk/}},
+  note         = {Software; source at \url{https://github.com/UKGovernmentBEIS/inspect_ai}. Accessed October 2026}
+}
+
+@misc{mcp,
+  author       = {{Model Context Protocol}},
+  title        = {Model Context Protocol Specification},
+  howpublished = {\url{https://modelcontextprotocol.io/specification}},
+  note         = {Accessed October 2026}
+}
+
+@misc{claudehooks,
+  author       = {{Anthropic}},
+  title        = {Hooks Reference -- {Claude Code} Documentation},
+  howpublished = {\url{https://code.claude.com/docs/en/hooks}},
+  note         = {Accessed October 2026}
+}
+
+@misc{owaspllm,
+  author       = {{OWASP Foundation}},
+  title        = {{OWASP} Top 10 for Large Language Model Applications 2025},
+  year         = {2024},
+  howpublished = {\url{https://genai.owasp.org/llm-top-10/}},
+  note         = {See LLM06:2025 Excessive Agency, \url{https://genai.owasp.org/llmrisk/llm062025-excessive-agency/}. Accessed October 2026}
+}
+
+@misc{ruleoftwo,
+  author       = {{Meta AI}},
+  title        = {Agents Rule of Two: A Practical Approach to {AI} Agent Security},
+  month        = oct,
+  year         = {2025},
+  howpublished = {\url{https://ai.meta.com/blog/practical-ai-agent-security/}},
+  note         = {Blog post, 31 October 2025. Accessed October 2026}
+}
+
+@misc{trifecta,
+  author       = {Simon Willison},
+  title        = {The Lethal Trifecta for {AI} Agents: Private Data, Untrusted Content, and External Communication},
+  month        = jun,
+  year         = {2025},
+  howpublished = {\url{https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/}},
+  note         = {Blog post, 16 June 2025. Accessed October 2026}
+}
+
+@misc{invariantgithub,
+  author       = {{Invariant Labs}},
+  title        = {{GitHub MCP} Exploited: Accessing Private Repositories via {MCP}},
+  month        = may,
+  year         = {2025},
+  howpublished = {\url{https://invariantlabs.ai/blog/mcp-github-vulnerability}},
+  note         = {Blog post, 26 May 2025. Accessed October 2026}
+}

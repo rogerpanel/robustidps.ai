@@ -1,0 +1,23 @@
+\section{Introduction}
+\label{sec:intro}
+
+An LLM agent turns text into actions: it reads e-mails, web pages, tickets and logs, then calls tools that send messages, move money, isolate hosts or run commands. Text the agent reads can carry instructions an attacker wrote (indirect prompt injection~\cite{greshake,injecagent,agentdojo}), and a capable attacker can make the agent's next calls whatever the attacker wants~\cite{adaptiveattacks}. Detectors and LLM judges that read the same attacker-influenced text inherit its attack surface~\cite{adaptiveattacks,shadearena}. The tool call, however, is a narrow, structured interface where the action becomes real. A reference monitor placed there~\cite{anderson,saltzer} can judge what is about to happen rather than what was said.
+
+This paper builds and measures such a monitor for agent tool calls. Three observations shape it.
+First, \emph{refusal is not the only safe answer}. Many risky calls become acceptable after a repair (narrowing a target list to the agreed scope, capping a scan rate), and many need a person rather than a refusal. A filter that only allows or denies turns safety into task failure.
+Second, \emph{the danger of a call often lies outside the call}: in what the session has already read (an e-mail an attacker wrote, then the user's files, then a send~\cite{trifecta,ruleoftwo}), or in what the call would take down (isolating the only domain controller). Control theory calls the corresponding device a predictive safety filter~\cite{wabersich,hsu}.
+Third, \emph{human review is the scarce resource}. Asking a person for everything is safe and useless; reducing requests by learning from past decisions is attractive, but a statistical guarantee about reviewers is not a guarantee against an attacker.
+
+\SystemNameCap{} is a fail-closed policy decision point that answers each proposed call with \verdict{allow}, \verdict{modify} (run with corrected arguments), \verdict{ask} (a person approves) or \verdict{deny}. Policies are declarative packs: action tiers by tool, optionally conditioned on argument values; scope; argument rules; clamps and redaction; per-session budgets; typed parsing of network targets, ports and rates; a predictive check of containment effects against the defender's asset inventory; and session information-flow labels. Approval requests can be deferred by a calibrated threshold learned from the tenant's own decisions with a Learn-then-Test guarantee~\cite{ltt}, but only for requests raised by the action tier alone. Every non-allow decision, approval and evaluation is recorded in a hash-chained ledger.
+
+We evaluate \SystemName{} where it can be checked independently. AgentDojo~\cite{agentdojo} ships ground-truth tool calls for its user tasks and attack goals. We replay them without a language model: benign tasks as sessions, and attacks as a fully hijacked agent that has read the injected content and then issues the attack goal's calls, the strongest attacker a tool-call filter can face. Policies are generated from the tool names and descriptions alone, using hint rules written before this evaluation.
+
+\paragraph{Contributions}
+\begin{itemize}
+\item A fail-closed decision contract and policy language for agent tool calls that prefers repair to refusal, with typed network arguments, budgets, predictive effects and session information flow (\S\ref{sec:design}).
+\item An independent evaluation on AgentDojo's ground-truth calls (\S\ref{sec:method}): with description-derived policies, tiers stop all but \AdTiersGoalUnreviewed{} of attack goals from running unreviewed at \AdTiersAsks{} requests per benign task; conservative flow labels close the remainder at \AdConsAsks{} requests (\S\ref{sec:res-agentdojo}).
+\item The finding that calibration is not containment: auto-approving every eligible request would let \DefTiersGoalUnreviewed{} of attack goals through with tiers alone versus \DefConsGoalUnreviewed{} with information flow; and a fix to a power plateau in fixed-sequence Learn then Test that our simulation exposed (\S\ref{sec:res-deferral}).
+\item An analysis of how agent hosts react when a hook fails: OpenHands and Claude Code let the call through on most failures, so we built and verified connectors that block on every error, and server-side approval reuse for stateless hook processes (\S\ref{sec:hosts}).
+\item Policy authoring from evaluation failures, which proposes edits, re-evaluates each on the whole suite and on a held-out suite, and shows why the narrowest fix overfits (\S\ref{sec:authoring}).
+\end{itemize}
+We release the filter, policy packs, labelled suites, replay harness and per-call verdicts (\ArtifactURL).

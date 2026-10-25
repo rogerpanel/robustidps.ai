@@ -9,7 +9,8 @@ with a guarantee chosen by the tenant:
   tools the policy does not classify, denials earlier in the session). From
   past decided approvals (approved = 0, denied = 1), Learn then Test
   (Angelopoulos, Bates, Candes, Jordan and Lei, 2021) picks the threshold:
-  thresholds are tested from the lowest score upwards, and each is accepted
+  thresholds on a grid of score deciles are tested from the lowest upwards,
+  and each is accepted
   only if an exact binomial test shows that, among past requests at or
   below it, the share a person denied is below alpha (at significance
   delta); testing stops at the first threshold that fails.
@@ -153,7 +154,7 @@ def binom_cdf(k: int, n: int, p: float) -> float:
 
 
 def calibrate(scores: list[float], denied: list[bool], alpha: float, min_samples: int,
-              delta: float = 0.1) -> dict[str, Any]:
+              delta: float = 0.1, grid: int = 10) -> dict[str, Any]:
     n = len(scores)
     base = {"n": n, "alpha": alpha, "delta": delta, "min_samples": min_samples,
             "denial_rate": round(sum(denied) / n, 4) if n else None, "method": "learn-then-test"}
@@ -161,27 +162,25 @@ def calibrate(scores: list[float], denied: list[bool], alpha: float, min_samples
         return {**base, "ready": False, "threshold": None, "auto_share": 0.0,
                 "reason": f"{n} decided approvals; {min_samples} needed"}
     pairs = sorted(zip(scores, denied))
-    # Smallest group in which zero denials could be significant: (1 - alpha)^m <= delta. Thresholds with
-    # fewer requests under them cannot pass and are not tested; this depends on the scores only, never on
-    # the outcomes, so the fixed-sequence test stays valid.
+    # Candidate thresholds: the scores at the deciles of the history (a grid fixed by the scores alone, never by the
+    # outcomes, so the fixed-sequence test stays valid), lowest first, keeping only groups large enough that zero
+    # denials could be significant: (1 - alpha)^m <= delta. Testing every score instead would start with the smallest
+    # possible group, whose test is weak, and the sequence stops at its first failure.
     m_star = math.ceil(math.log(delta) / math.log1p(-alpha))
+    cuts = sorted({pairs[min(n - 1, math.ceil(q * n / grid) - 1)][0] for q in range(1, grid + 1)})
     best, best_m, best_k = None, 0, 0
-    m = k = 0
-    i = 0
-    while i < n:
-        s = pairs[i][0]
-        while i < n and pairs[i][0] == s:       # requests with the same score are approved together
-            k += int(pairs[i][1])
-            m += 1
-            i += 1
+    for s in cuts:
+        m = sum(1 for x, _ in pairs if x <= s)       # ties are approved together
         if m < m_star:
             continue
+        k = sum(1 for x, d in pairs if x <= s and d)
         # H0: the denial share among requests scoring <= s is at least alpha. Reject when few were denied.
         if binom_cdf(k, m, alpha) <= delta:
             best, best_m, best_k = s, m, k
         else:
-            break                                # fixed sequence: stop at the first threshold not accepted
+            break                                     # fixed sequence: stop at the first threshold not accepted
     base["min_group"] = m_star
+    base["grid"] = grid
     if best is None:
         return {**base, "ready": False, "threshold": None, "auto_share": 0.0,
                 "reason": "not enough evidence yet that the lowest-risk requests are almost always approved"}

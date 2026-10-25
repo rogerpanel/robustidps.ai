@@ -184,7 +184,8 @@ Learns from the tenant's own decided approvals which 'ask' requests a person
 really needs to see. Each ask gets a transparent risk score (log of the
 predicted blast radius, unknown targets, unclassified tool, earlier denials in
 the session). Learn then Test picks a threshold with fixed-sequence exact
-binomial tests: with probability at least 1 - delta, at most alpha of the
+binomial tests on a grid of score deciles, lowest first (the grid depends on
+the scores only): with probability at least 1 - delta, at most alpha of the
 requests under the threshold are ones a person would deny, assuming future
 requests resemble past ones. Modes: off (default), shadow (still a person;
 records whether it would have been auto-approved), auto (auto-approves under
