@@ -158,6 +158,18 @@ re-run on the whole suite. Two findings from building it:
   the labels; the tool reports both, and held-out results never influence
   the ranking.
 
+## Burden-aware authoring
+
+On the AgentDojo replay, authoring with accepted-verdict labels closed the
+held-out unreviewed attack goal but roughly doubled requests per benign task,
+because "ask" counts as correct for legitimate calls. Each proposal now
+reports its review burden, and a balanced strategy minimises it. Labelling
+only each attack goal's final call (the one that achieves it) removed the
+pressure to ask for preparatory reads: the gap closed at 0.85 instead of 1.66
+requests per benign task. Holding out whole attack goals shows the limit:
+edits do not transfer to goals no training case exhibits; structural rules
+(flow labels) are what cover those.
+
 ## Planned
 
 - Independent evaluation on AgentDojo's ground-truth tool calls (benign

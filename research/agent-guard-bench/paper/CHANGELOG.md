@@ -8,3 +8,6 @@
 ## 2026-10-25: live-model protocol
 - Added the live-model protocol (methodology) and a generated RQ5 section and table that fill in
   from results/live/live_results.json; until runs exist the text states that results are pending.
+
+## 2026-10-26: burden-aware authoring
+- RQ4 rewritten around review burden: balanced strategy, final-goal-call labels, and a held-out-goal split showing that edits do not transfer to unseen goals.

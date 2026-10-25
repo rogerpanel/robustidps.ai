@@ -7,7 +7,9 @@ function Diff({ d, label }: { d: CaseDiff; label: string }) {
     <span className="text-text-secondary">
       {label}: fixes {d.fixed.length}{d.fixed.length ? ` (${d.fixed.join(', ')})` : ''}
       {' · '}<span className={d.broken.length ? 'text-accent-red font-semibold' : ''}>breaks {d.broken.length}{d.broken.length ? ` (${d.broken.join(', ')})` : ''}</span>
-      {' · '}moves {d.changed.length} · exact {Math.round(d.exact_accuracy * 1000) / 10}%
+      {' · '}moves {d.changed.length}
+      {d.burden != null && <> · <span className={d.burden > 0 ? 'text-accent-amber' : ''}>review burden {d.burden > 0 ? '+' : ''}{d.burden}</span></>}
+      {' · '}exact {Math.round(d.exact_accuracy * 1000) / 10}%
     </span>
   )
 }
@@ -18,12 +20,14 @@ export default function SuggestPanel({ r, onUsePolicy }: { r: SuggestResult; onU
     <div className="bg-bg-card rounded-xl p-4 space-y-4 text-xs">
       <div className="space-y-1">
         <h3 className="font-semibold text-sm">
-          Proposed edits for {r.failures} failing case{r.failures === 1 ? '' : 's'} ({r.strategy === 'general' ? 'widest edit that breaks nothing' : 'smallest edit'})
+          Proposed edits for {r.failures} failing case{r.failures === 1 ? '' : 's'} ({r.strategy === 'general' ? 'widest edit that breaks nothing'
+            : r.strategy === 'balanced' ? 'least added review burden' : 'smallest edit'})
         </h3>
         <p className="text-text-secondary">
           {r.policy} on {r.suite}: exact {Math.round(r.exact_accuracy * 1000) / 10}%
           {r.holdout && <> · held out {r.holdout.suite}: {Math.round(r.holdout.exact_accuracy * 1000) / 10}%</>}
           {' · '}{r.candidate_runs} re-runs{r.truncated ? ' (stopped at the limit; fix some cases and run again)' : ''}.
+          {' '}Review burden: legitimate calls (labelled to run) that an edit newly sends to a person or refuses.
           {' '}{r.note}
         </p>
       </div>

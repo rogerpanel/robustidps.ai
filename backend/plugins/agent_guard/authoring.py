@@ -12,8 +12,9 @@ each one, re-run the whole suite and report what it does:
             3 = a group (a file stem, folder, MCP server, limit or rule decision),
             4 = a whole rule removed (wider edits move more future calls)
 
-Candidates are ranked by: fixes the target, breaks nothing, narrowest, fewest
-changes. With a held-out suite, every candidate is also run there, so an edit
+Candidates are ranked by: fixes the target, breaks nothing, then by strategy:
+narrowest (narrow), widest (general), or least added review burden (balanced:
+legitimate calls that newly need a person or are refused). With a held-out suite, every candidate is also run there, so an edit
 that fits the cases it was made from but moves held-out verdicts is visible
 before anyone adopts it. Nothing is applied automatically: the result is a
 proposal (a policy to open, validate and test), because the labels can be
@@ -245,12 +246,23 @@ def _ok(row: dict) -> bool:
     return row["correct"] and row.get("reason_ok") is not False
 
 
+def _stopped(row: dict) -> bool:
+    """A case whose preferred verdict lets the call run, but which now needs a person or is refused."""
+    return row["expect"] in ("allow", "modify") and row["got"] in ("ask", "deny")
+
+
 def _diff(before: dict, after: dict) -> dict:
     b = {r["id"]: r for r in before["rows"]}
     a = {r["id"]: r for r in after["rows"]}
+    newly = sorted(i for i in b if not _stopped(b[i]) and _stopped(a[i]))
+    relieved = sorted(i for i in b if _stopped(b[i]) and not _stopped(a[i]))
     return {"fixed": sorted(i for i in b if not _ok(b[i]) and _ok(a[i])),
             "broken": sorted(i for i in b if _ok(b[i]) and not _ok(a[i])),
-            "changed": sorted(i for i in b if b[i]["got"] != a[i]["got"])}
+            "changed": sorted(i for i in b if b[i]["got"] != a[i]["got"]),
+            # Review burden: legitimate calls (preferred verdict allow or modify) that newly reach a person or are
+            # refused, minus those relieved. Accepted verdict sets can make such calls "correct" while still costing
+            # a reviewer's time, so the burden is reported separately from correctness.
+            "burden": len(newly) - len(relieved), "burden_cases": newly[:50]}
 
 
 def _rank(strategy: str):
@@ -258,12 +270,18 @@ def _rank(strategy: str):
     Held-out results are reported but never used to rank, so the held-out suite stays a fair test."""
     if strategy == "general":
         return lambda e: (len(e["broken"]), -e["breadth"], -len(e["fixed"]), len(e["changed"]))
+    if strategy == "balanced":  # breaks nothing, then adds the least review burden, then fixes the most
+        return lambda e: (len(e["broken"]), e["burden"], -len(e["fixed"]), e["breadth"], len(e["changed"]))
     return lambda e: (len(e["broken"]), e["breadth"], len(e["changed"]), -len(e["fixed"]))
 
 
-def suggest(suite: Suite, policy: Policy, holdout: Suite | None = None, strategy: str = "narrow") -> dict:
-    if strategy not in ("narrow", "general"):
-        raise ValueError("strategy must be 'narrow' or 'general'")
+def suggest(suite: Suite, policy: Policy, holdout: Suite | None = None, strategy: str = "narrow",
+            max_burden: int | None = None) -> dict:
+    """`max_burden`: leave out of the combined proposal any edit that adds more review burden than this."""
+    if strategy not in ("narrow", "general", "balanced"):
+        raise ValueError("strategy must be 'narrow', 'general' or 'balanced'")
+    if max_burden is not None and max_burden < 0:
+        raise ValueError("max_burden must be 0 or more")
     if suite.scope_allow is not None and policy.scope is not None:
         # The suite fixes the scope for its run; fold it into the policy so scope edits can be proposed and shown.
         policy = apply_suite_scope(policy, suite)
@@ -308,7 +326,8 @@ def suggest(suite: Suite, policy: Policy, holdout: Suite | None = None, strategy
     # Combined proposal: the best suggestion per failure that breaks nothing (here or held out), applied together.
     chosen, ops = [], []
     for f in report:
-        best = next((s for s in f["suggestions"] if not s["broken"]), None)
+        best = next((s for s in f["suggestions"] if not s["broken"]
+                     and (max_burden is None or s["burden"] <= max_burden)), None)
         if best is not None:
             chosen.append({"case": f["case"], "description": best["description"]})
             ops.extend(best["ops"])
@@ -326,6 +345,7 @@ def suggest(suite: Suite, policy: Policy, holdout: Suite | None = None, strategy
             combined = None
     return {
         "suite": base["summary"]["suite"], "policy": base["summary"]["policy"], "strategy": strategy,
+        "max_burden": max_burden,
         "exact_accuracy": base["summary"]["exact_accuracy"], "failures": len(failing),
         "holdout": ({"suite": base_hold["summary"]["suite"], "exact_accuracy": base_hold["summary"]["exact_accuracy"]}
                     if base_hold else None),

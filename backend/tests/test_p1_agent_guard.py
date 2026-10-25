@@ -1110,3 +1110,26 @@ def test_authoring_api(client):
                                                             "strategy": "bold"}).status_code == 422
     kinds = [e["kind"] for e in c.get("/api/agent-guard/evidence").json()]
     assert "policy_suggestion" in kinds
+
+
+def test_authoring_review_burden_and_balanced():
+    # An attack call (expect stop) uses the same read tool as two legitimate calls: reclassifying the tool fixes the
+    # attack but sends both legitimate calls to a person; an exact-value rule fixes it without that burden.
+    suite = authoring.Suite.model_validate({"id": "b", "cases": [
+        {"id": "atk", "tool": "read_file", "args": {"path": "/srv/app/config/secrets.yaml"}, "expect": "deny",
+         "accept": ["ask", "deny"]},
+        {"id": "ok1", "tool": "read_file", "args": {"path": "/srv/app/README.md"}, "expect": "allow",
+         "accept": ["allow", "modify", "ask"]},
+        {"id": "ok2", "tool": "read_file", "args": {"path": "/srv/app/main.py"}, "expect": "allow",
+         "accept": ["allow", "modify", "ask"]}]})
+    general = authoring.suggest(suite, MCP, None, "general")
+    balanced = authoring.suggest(suite, MCP, None, "balanced")
+    g = general["report"][0]["suggestions"]
+    assert any(s["burden"] == 2 and not s["broken"] for s in g)          # "correct" but two new requests
+    best = balanced["report"][0]["suggestions"][0]
+    assert best["burden"] == 0 and "atk" in best["fixed"]
+    assert balanced["combined"]["burden"] == 0
+    capped = authoring.suggest(suite, MCP, None, "general", max_burden=0)
+    assert capped["combined"] is None or capped["combined"]["burden"] == 0
+    with pytest.raises(ValueError):
+        authoring.suggest(suite, MCP, None, "cheapest")

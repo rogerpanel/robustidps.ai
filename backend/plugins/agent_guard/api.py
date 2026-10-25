@@ -646,7 +646,8 @@ def evaluate_compare(body: EvaluateBody, customer: dict = Depends(require_api_ke
 class SuggestBody(EvaluateBody):
     holdout_suite_id: str | None = Field(None, description="Built-in suite to check proposals on (never used to rank)")
     holdout_suite: dict[str, Any] | None = None
-    strategy: Literal["narrow", "general"] = "narrow"
+    strategy: Literal["narrow", "general", "balanced"] = "narrow"
+    max_burden: int | None = Field(None, ge=0, description="Leave out edits adding more review burden than this")
 
 
 @router.post("/evaluate/suggest")
@@ -659,7 +660,7 @@ def evaluate_suggest(body: SuggestBody, customer: dict = Depends(require_api_key
     holdout = None
     if body.holdout_suite is not None or body.holdout_suite_id:
         holdout = _suite_from(EvaluateBody(suite_id=body.holdout_suite_id, suite=body.holdout_suite))
-    result = authoring.suggest(suite, policy, holdout, body.strategy)
+    result = authoring.suggest(suite, policy, holdout, body.strategy, body.max_burden)
     rec = evidence.append(db, tenant(customer), "policy_suggestion",
                           {"suite": result["suite"], "policy": result["policy"], "strategy": body.strategy,
                            "holdout": (result["holdout"] or {}).get("suite"), "failures": result["failures"],

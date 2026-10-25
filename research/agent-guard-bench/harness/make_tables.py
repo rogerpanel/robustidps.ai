@@ -78,18 +78,51 @@ def main() -> None:
     # authoring on AgentDojo (mean over the two folds)
     au = ad["authoring"]
 
-    def fold_mean(name, path):
-        vals = []
-        for f in au[name].values():
-            x = f
-            for p in path:
-                x = x[p]
-            vals.append(x)
-        return sum(vals) / len(vals)
-    m["AuSlackGoalBefore"] = pct(fold_mean("slack", ["test_before", "attack_goal_unreviewed"]))
-    m["AuSlackGoalAfter"] = pct(fold_mean("slack", ["test_after", "attack_goal_unreviewed"]))
-    m["AuSlackAsksBefore"] = num(fold_mean("slack", ["test_before", "benign_asks_per_task"]))
-    m["AuSlackAsksAfter"] = num(fold_mean("slack", ["test_after", "benign_asks_per_task"]))
+    # Pooled over suites and both folds: held-out (test) halves, weighted by their tasks and attacks.
+    agg = {}
+    for cfgs in au.values():
+        for cfg, folds in cfgs.items():
+            for f in folds.values():
+                a = agg.setdefault(cfg, {"bt": 0, "at": 0, "u0": 0.0, "u1": 0.0, "q0": 0.0, "q1": 0.0, "g0": 0.0, "g1": 0.0})
+                b0, b1 = f["test_before"], f["test_after"]
+                a["bt"] += b0["benign_tasks"]
+                a["at"] += b0["attacks"]
+                a["u0"] += b0["benign_unattended"] * b0["benign_tasks"]
+                a["u1"] += b1["benign_unattended"] * b1["benign_tasks"]
+                a["q0"] += b0["benign_asks_per_task"] * b0["benign_tasks"]
+                a["q1"] += b1["benign_asks_per_task"] * b1["benign_tasks"]
+                a["g0"] += b0["attack_goal_unreviewed"] * b0["attacks"]
+                a["g1"] += b1["attack_goal_unreviewed"] * b1["attacks"]
+    tags = {"general, every goal call": "GenAll", "balanced, every goal call": "BalAll",
+            "balanced, final goal call": "BalLast", "balanced, final goal call, unseen goals": "BalUnseen"}
+    arows = []
+    for cfg, a in agg.items():
+        t = tags.get(cfg)
+        vals = {"GoalBefore": pct(a["g0"] / a["at"]), "GoalAfter": pct(a["g1"] / a["at"]),
+                "AsksBefore": num(a["q0"] / a["bt"]), "AsksAfter": num(a["q1"] / a["bt"]),
+                "UnattBefore": pct(a["u0"] / a["bt"]), "UnattAfter": pct(a["u1"] / a["bt"])}
+        if t:
+            for k, v in vals.items():
+                m[f"Au{t}{k}"] = v
+        strategy, labels, *rest = [x.strip() for x in cfg.split(",")]
+        split = "unseen goals" if rest else "pairs"
+        arows.append(f"{strategy.capitalize()} & {labels} & {split} & {vals['GoalBefore']} $\\to$ {vals['GoalAfter']} & "
+                     f"{vals['AsksBefore']} $\\to$ {vals['AsksAfter']} & {vals['UnattBefore']} $\\to$ {vals['UnattAfter']} \\\\")
+    (GEN / "table_authoring.tex").write_text(r"""\begin{table*}[t]
+\centering
+\caption{Policy authoring on the AgentDojo replay: edits proposed on one half, measured on the other (both directions, all suites pooled). \emph{Labels}: which attack-goal calls must reach a person. \emph{Split}: held-out attacks may share their goal with training attacks (pairs) or not (unseen goals). Before $\to$ after: unreviewed attack goals, requests per benign task, benign tasks unattended.}
+\label{tab:authoring}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lllccc}
+\toprule
+Strategy & Labels & Split & Unreviewed & Requests & Unattended \\
+\midrule
+""" + "\n".join(arows) + r"""
+\bottomrule
+\end{tabular}
+\end{table*}
+""")
     lat = ad["latency_ms"]
     m["LatMedian"] = f"{lat['median']:.3f}"
     m["LatPNinetyFive"] = f"{lat['p95']:.3f}"

@@ -84,7 +84,9 @@ website share sessions, approvals, the registry and the ledger.
   entry, raise a limit, relax an argument rule, mark a destination internal,
   an argument rule for the exact value, its file stem or folder, or a whole
   MCP server), re-runs the suite for each and reports what it fixes, breaks
-  and moves. "Smallest edit" or "widest edit that breaks nothing"; an
+  and moves, and its review burden (legitimate calls it newly sends to a person
+  or refuses). "Smallest edit", "widest edit that breaks nothing" or "least
+  added review burden" (optionally capped with `max_burden`); an
   optional held-out suite shows how each edit carries over and is never used
   to rank. Nothing is applied: open a proposal as a policy, validate, test.
   `org-coding-preferences` (10 cases) and `org-coding-holdout` (8) are an

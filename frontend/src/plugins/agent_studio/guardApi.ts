@@ -222,12 +222,15 @@ export const guardCompare = (body: { suite_id?: string; suite?: unknown; policy_
   call<CompareResult>('/evaluate/compare', body)
 
 // ── policy authoring from failures ───────────────────────────────────
-export interface CaseDiff { fixed: string[]; broken: string[]; changed: string[]; exact_accuracy: number }
+export interface CaseDiff {
+  fixed: string[]; broken: string[]; changed: string[]; exact_accuracy: number; burden?: number; burden_cases?: string[]
+}
 export interface Suggestion extends CaseDiff {
   description: string; breadth: number; ops: Record<string, unknown>[]; policy: GuardPolicy; holdout?: CaseDiff
 }
 export interface SuggestResult {
-  suite: string; policy: string; strategy: 'narrow' | 'general'; exact_accuracy: number; failures: number
+  suite: string; policy: string; strategy: 'narrow' | 'general' | 'balanced'; max_burden?: number | null
+  exact_accuracy: number; failures: number
   holdout: { suite: string; exact_accuracy: number } | null
   report: { case: string; tool: string; expect: Verdict; got: Verdict; expect_rule: string | null; rules: string[]
             context: string | null; suggestions: Suggestion[]; notes: string[] }[]
@@ -235,7 +238,8 @@ export interface SuggestResult {
   candidate_runs: number; truncated: boolean; suggestion_digest: string; note: string; evidence: { seq: number; hash: string }
 }
 export const guardSuggest = (body: { suite_id?: string; suite?: unknown; policy_id?: string; policy?: unknown
-                                     holdout_suite_id?: string; strategy?: 'narrow' | 'general' }) =>
+                                     holdout_suite_id?: string; strategy?: 'narrow' | 'general' | 'balanced'
+                                     max_burden?: number }) =>
   call<SuggestResult>('/evaluate/suggest', body)
 
 // ── environment model (predictive layer) ──────────────────────────────

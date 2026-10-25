@@ -1,0 +1,17 @@
+\begin{table*}[t]
+\centering
+\caption{Policy authoring on the AgentDojo replay: edits proposed on one half, measured on the other (both directions, all suites pooled). \emph{Labels}: which attack-goal calls must reach a person. \emph{Split}: held-out attacks may share their goal with training attacks (pairs) or not (unseen goals). Before $\to$ after: unreviewed attack goals, requests per benign task, benign tasks unattended.}
+\label{tab:authoring}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular}{lllccc}
+\toprule
+Strategy & Labels & Split & Unreviewed & Requests & Unattended \\
+\midrule
+General & every goal call & pairs & 3.4\% $\to$ 0\% & 0.82 $\to$ 1.66 & 38.1\% $\to$ 24.7\% \\
+Balanced & every goal call & pairs & 3.4\% $\to$ 0\% & 0.82 $\to$ 1.32 & 38.1\% $\to$ 32\% \\
+Balanced & final goal call & pairs & 3.4\% $\to$ 0\% & 0.82 $\to$ 0.85 & 38.1\% $\to$ 38.1\% \\
+Balanced & final goal call & unseen goals & 3.4\% $\to$ 3.4\% & 0.82 $\to$ 0.85 & 38.1\% $\to$ 38.1\% \\
+\bottomrule
+\end{tabular}
+\end{table*}

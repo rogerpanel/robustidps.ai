@@ -34,7 +34,7 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy, onUsePol
   const [cmp, setCmp] = useState<CompareResult | null>(null)
   const [sug, setSug] = useState<SuggestResult | null>(null)
   const [holdoutId, setHoldoutId] = useState('')
-  const [strategy, setStrategy] = useState<'narrow' | 'general'>('narrow')
+  const [strategy, setStrategy] = useState<'narrow' | 'general' | 'balanced'>('narrow')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -108,10 +108,11 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy, onUsePol
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs pt-1 border-t border-bg-primary">
           <span className="font-medium">Propose policy edits from failing cases:</span>
-          <select value={strategy} onChange={(e) => setStrategy(e.target.value as 'narrow' | 'general')}
+          <select value={strategy} onChange={(e) => setStrategy(e.target.value as 'narrow' | 'general' | 'balanced')}
                   className="px-2 py-1 bg-bg-primary border border-bg-card rounded-lg">
             <option value="narrow">smallest edit</option>
             <option value="general">widest edit that breaks nothing</option>
+            <option value="balanced">least added review burden</option>
           </select>
           <label className="flex items-center gap-1.5">check on held-out suite
             <select value={holdoutId} onChange={(e) => setHoldoutId(e.target.value)}
