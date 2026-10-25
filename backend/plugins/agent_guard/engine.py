@@ -32,6 +32,7 @@ from plugins.agent_guard.canonical import (
 from plugins.agent_guard.contract import (
     Decision, Finding, ProposedCall, RISK_OF, SEVERITY,
 )
+from plugins.agent_guard import actions as actionsmod
 from plugins.agent_guard import flow as flowmod
 from plugins.agent_guard.environment import Environment
 from plugins.agent_guard.policy import Policy, project_target, target_in_scope, tool_matches
@@ -147,6 +148,8 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
     tier = policy.tier_for(tool)
     prediction = None
     flow = None
+    typed: list[dict] | None = None
+    charges: list[tuple[str, float]] = []
 
     def finish(verdict: str, modified: dict | None = None) -> Decision:
         if verdict == "deny":
@@ -163,6 +166,8 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
             latency_ms=round((time.perf_counter() - started) * 1000, 3), call_key=key,
             prediction=prediction.report if prediction is not None else None,
             flow=flow.report if flow is not None else None,
+            actions=typed,
+            budget_charges=({b: a for b, a in charges} or None) if verdict == "ask" else None,
         )
 
     if key in state.denied_keys:
@@ -181,9 +186,20 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
     modified = dict(args)
     changed = bool(hidden)
 
+    # Typed actions: network arguments parsed into values; their target arguments skip the string scope check.
+    handled: set[str] = set()
+    if policy.actions:
+        ar = actionsmod.check(tool, modified, policy)
+        findings.extend(ar.findings)
+        changed = changed or ar.changed
+        handled = ar.handled
+        typed = ar.reports or None
+
     if policy.scope and policy.scope.target_args:
         sc = policy.scope
         for arg_key in sc.target_args:
+            if arg_key in handled:
+                continue
             value = args.get(arg_key)
             items = value if isinstance(value, list) else [value]
             targets = [str(v) for v in items
@@ -246,8 +262,8 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
             findings.append(Finding(rule_id=clamp.id, verdict="modify",
                                     reason=f"Capped '{clamp.arg}' from {value} to {modified[clamp.arg]}."))
 
-    # Session budgets: clip to what is left, or stop once exhausted. Charged only if the call is let through.
-    charges: list[tuple[str, float]] = []
+    # Session budgets: clip to what is left, or stop once exhausted. Charged only if the call is let through
+    # (now, or later when a person approves it: the charge travels with the approval).
     for budget in policy.budgets:
         if not tool_matches(tool, budget.tools):
             continue
@@ -306,8 +322,28 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
     return finish(verdict, modified if changed else None)
 
 
+def budget_room(state: SessionState, policy: Policy, charges: dict[str, float] | None) -> str | None:
+    """Why the session's budgets can no longer take these charges (None if they can)."""
+    for budget in policy.budgets:
+        amount = (charges or {}).get(budget.id)
+        if amount is None:
+            continue
+        left = budget.max_total - budget.reserve - state.budget_used.get(budget.id, 0.0)
+        if amount > left + 1e-9:
+            return (f"Budget '{budget.id}' has {max(left, 0):g} left in this session and this call needs {amount:g}; "
+                    "it was spent by other calls since the request.")
+    return None
+
+
+def charge_budgets(state: SessionState, charges: dict[str, float] | None) -> None:
+    for budget_id, amount in (charges or {}).items():
+        state.budget_used[budget_id] = state.budget_used.get(budget_id, 0.0) + float(amount)
+
+
 def commit_let_through(state: SessionState, decision: Decision) -> None:
-    """A call that a person (or calibrated deferral) let through after 'ask': its effects and labels now count."""
+    """A call that a person (or calibrated deferral) let through after 'ask': its effects, budget charges and
+    labels now count."""
+    charge_budgets(state, decision.budget_charges)
     commit_prediction(state, decision.prediction)
     flowmod.commit(state.labels, decision.flow, decision.session_calls or state.calls)
 

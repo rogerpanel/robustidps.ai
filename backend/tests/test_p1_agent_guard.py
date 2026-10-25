@@ -1,5 +1,6 @@
 """Agent Guard: policy evaluation, fail-closed behaviour, adapters and API."""
 import copy
+import ipaddress
 import json
 import time
 
@@ -481,7 +482,7 @@ def test_scope_projection_details():
     pol = scoped_testing(["10.10.0.0/16", "*.lab.example"])
     d = run(pol, "dns_lookup", {"domain": ["web.lab.example", "evil.example"]})
     assert d.decision == "modify" and d.modified_args["domain"] == ["web.lab.example"]
-    assert any(f.rule_id == "scope-projected" for f in d.findings)
+    assert any(f.rule_id.endswith("scope-projected") for f in d.findings)
     d = run(pol, "port_scan", {"cidr": "10.0.0.0/8"})
     assert d.decision == "ask" and d.modified_args["cidr"] == "10.10.0.0/16"
     assert run(pol, "port_scan", {"targets": ["8.8.8.8", "1.1.1.1"]}).decision == "deny"   # nothing in scope
@@ -848,3 +849,115 @@ def test_registry_flow_hints(client):
     gen = cov["generated_policy"]
     assert validation_errors(gen) == []
     assert any(lab["tools"] == ["fetch_inbox"] for lab in gen["flow"]["labels"])
+
+
+# ── typed network actions ───────────────────────────────────────────────
+
+from plugins.agent_guard import actions as typed  # noqa: E402
+
+
+def test_typed_parsing_of_targets_ports_rates():
+    def labels(v):
+        return [t.label() for t in typed.parse_targets(v)]
+    assert labels("10.0.0.1") == ["10.0.0.1"]
+    assert labels("10.0.0.0/30, web.lab.example.") == ["10.0.0.0/30", "web.lab.example"]
+    assert sum(t.net.num_addresses for t in typed.parse_targets("10.0.0.1-10.0.0.4")) == 4
+    assert sum(t.net.num_addresses for t in typed.parse_targets("10.0.0.1-50")) == 50
+    assert labels("10.1.2.*") == ["10.1.2.0/24"]
+    assert labels("[::ffff:169.254.169.254]:80") == ["169.254.169.254"]
+    assert labels("http://user@host.lab.example:8080/x") == ["host.lab.example"]
+    assert labels(["a.example", "b.example:443"]) == ["a.example", "b.example"]
+    assert typed.parse_targets("http://[::ffff:10.0.0.1]/")[0].net == ipaddress.ip_network("10.0.0.1/32")
+    for bad in ("0xa9.0xfe.0xa9.0xfe", "127.1", "2130706433", "010.0.0.1"):
+        with pytest.raises(typed.NonCanonical):
+            typed.parse_targets(bad)
+    with pytest.raises(typed.NonCanonical) as exc:
+        typed.parse_targets("http://0x7f.1/")
+    assert exc.value.reaches == "127.0.0.1"
+    for bad in ("http://a\\@b.example/", "http://%31.2.3.4/", "10.0.0.9-10.0.0.1", "bad host!", "*.*.example",
+                "10.0.0.1-300", {"x": 1}, True):
+        with pytest.raises(ValueError):
+            typed.parse_targets(bad)
+    assert typed.parse_ports("1-1024") == 1024 and typed.parse_ports("T:22,80,U:53") == 3
+    assert typed.parse_ports("-") == 65536 and typed.parse_ports([80, "80", "79-81"]) == 3
+    with pytest.raises(typed.Unparseable):
+        typed.parse_ports("80,ssh")
+    assert typed.parse_rate("100/s") == 100 and typed.parse_rate(5) == 5
+    with pytest.raises(typed.Unparseable):
+        typed.parse_rate("fast")
+
+
+def test_typed_actions_in_packs():
+    pol = scoped_testing(["10.10.0.0/16", "*.lab.example"])
+    d = run(pol, "port_scan", {"targets": "10.10.0.5,8.8.8.8", "rate": 5000, "threads": 64})
+    assert d.decision == "ask" and d.modified_args == {"targets": "10.10.0.5", "rate": 100, "threads": 10}
+    rep = d.actions[0]
+    assert rep["projected"] and rep["dropped"] == ["8.8.8.8"] and rep["n_targets"] == 1
+    assert run(pol, "http_request", {"url": "http://0xa9.0xfe.0xa9.0xfe/"}).decision == "deny"
+    assert run(pol, "http_request", {"url": "gopher://10.10.3.4:6379/_x"}).decision == "deny"
+    assert run(pol, "http_request", {"url": "http://evil.example\\@web.lab.example/"}).decision == "deny"
+    assert run(pol, "port_scan", {"addr": "8.8.8.8"}).decision == "deny"     # less common key still checked
+    assert run(pol, "dns_lookup", {"domain": "web.lab.example."}).decision == "allow"
+    # SOC: mass targets text rules miss are denied; unreadable targets still reach a person as before.
+    assert run(SOC, "block_ip", {"ip": "0.0.0.0/1"}).decision == "deny"
+    assert run(SOC, "block_ip", {"ip": "10.0.0.0/8"}).decision == "deny"
+    assert run(SOC, "block_ip", {"ip": "0x0a000035"}).decision == "deny"
+    assert run(SOC, "block_domain", {"domain": "*.com"}).decision == "deny"
+    assert run(SOC, "block_domain", {"domain": "*.evil-c2.example"}).decision == "ask"
+    assert run(SOC, "isolate_host", {"hostname": "WS-0412"}).decision == "ask"
+    assert run(SOC, "isolate_host", {"host": "Finance Laptop 3"}).decision == "ask"
+    # Coding agents may fetch local dev servers but not cloud metadata, in any spelling, or file:// URLs.
+    assert run(MCP, "fetch", {"url": "http://localhost:3000/"}).decision == "ask"
+    assert run(MCP, "fetch", {"url": "http://[::ffff:a9fe:a9fe]/"}).decision == "deny"
+    assert run(MCP, "webfetch", {"url": "file:///etc/passwd"}).decision == "deny"
+    assert run(MCP, "web_search", {"query": "x"}).decision == "ask"
+
+
+def test_typed_action_validation():
+    data = copy.deepcopy(SOC.model_dump())
+    data["actions"][0]["forbidden"] = ["10.0.0.0/33"]
+    assert validation_errors(data)
+    data = copy.deepcopy(SOC.model_dump())
+    data["actions"].append(copy.deepcopy(data["actions"][0]))
+    assert any("unique" in e for e in validation_errors(data))
+
+
+def test_approved_calls_charge_budgets_and_recheck(client):
+    c, _ = client
+    sid = "budget-approvals"
+    # containment-budget: 10 per session. Use 9 through a person, then two pending requests compete for the last.
+    for i in range(9):
+        d = c.post("/api/agent-guard/check", json={"session_id": sid, "tool_name": "block_ip",
+                                                   "args": {"ip": f"203.0.113.{i + 1}"}}).json()
+        assert d["budget_charges"] == {"containment-budget": 1.0}
+        c.post(f"/api/agent-guard/approvals/{d['approval_id']}/decide", json={"decision": "approve"})
+        ok = c.post("/api/agent-guard/check", json={"session_id": sid, "tool_name": "block_ip",
+                                                    "args": {"ip": f"203.0.113.{i + 1}"},
+                                                    "approval_id": d["approval_id"]}).json()
+        assert ok["decision"] == "allow"
+    assert c.get(f"/api/agent-guard/sessions/{sid}").json()["budget_used"]["containment-budget"] == 9
+    a = c.post("/api/agent-guard/check", json={"session_id": sid, "tool_name": "block_ip", "args": {"ip": "198.51.100.1"}}).json()
+    b = c.post("/api/agent-guard/check", json={"session_id": sid, "tool_name": "block_ip", "args": {"ip": "198.51.100.2"}}).json()
+    for x in (a, b):
+        c.post(f"/api/agent-guard/approvals/{x['approval_id']}/decide", json={"decision": "approve"})
+    first = c.post("/api/agent-guard/check", json={"session_id": sid, "tool_name": "block_ip", "args": {"ip": "198.51.100.1"},
+                                                   "approval_id": a["approval_id"]}).json()
+    second = c.post("/api/agent-guard/check", json={"session_id": sid, "tool_name": "block_ip", "args": {"ip": "198.51.100.2"},
+                                                    "approval_id": b["approval_id"]}).json()
+    assert first["decision"] == "allow"
+    assert second["decision"] == "deny" and second["findings"][0]["rule_id"] == "approval-budget-spent"
+    # The approval was not burned: after a person resets the session it can still be used once.
+    c.post(f"/api/agent-guard/sessions/{sid}/reset", json={})
+    again = c.post("/api/agent-guard/check", json={"session_id": sid, "tool_name": "block_ip", "args": {"ip": "198.51.100.2"},
+                                                   "approval_id": b["approval_id"]}).json()
+    assert again["decision"] == "allow"
+
+
+def test_typed_suites_and_ablation(client):
+    c, _ = client
+    for suite_id in ("typed-actions-testing", "typed-actions-soc"):
+        s = c.post("/api/agent-guard/evaluate", json={"suite_id": suite_id}).json()["summary"]
+        assert s["exact_accuracy"] == 1.0 and s["reason_accuracy"] == 1.0 and not s["invariance_violations"]
+    rows = {t["name"]: t for t in c.post("/api/agent-guard/evaluate/compare",
+                                         json={"suite_id": "typed-actions-soc"}).json()["table"]}
+    assert rows["without typed actions"]["exact_accuracy"] < rows["full policy"]["exact_accuracy"]

@@ -1,8 +1,8 @@
 {
   "id": "soc-triage",
-  "version": "4",
+  "version": "5",
   "name": "SOC alert triage",
-  "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose. With an asset inventory (Environment tab), containment is also checked against its predicted effect: it is denied if a redundancy group would fall below its minimum or too many dependents would be cut off; service effects matched by process name or path go to a person instead. Information flow: alerts, logs, e-mails and attachments are both attacker-influenced and internal, so once a session has read them, sending data outside the organisation (e-mail, webhooks, public sandboxes, unclassified services) goes to a person; messages to internal destinations (Environment tab) are allowed.",
+  "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose. With an asset inventory (Environment tab), containment is also checked against its predicted effect: it is denied if a redundancy group would fall below its minimum or too many dependents would be cut off; service effects matched by process name or path go to a person instead. Information flow: alerts, logs, e-mails and attachments are both attacker-influenced and internal, so once a session has read them, sending data outside the organisation (e-mail, webhooks, public sandboxes, unclassified services) goes to a person; messages to internal destinations (Environment tab) are allowed. Network containment targets are read as values: at most 256 addresses per action (so 10.0.0.0/8 or 0.0.0.0/1 is denied like *), wildcard domains only below a registered domain, numeric IP addresses in disguised forms (hex, integer) are denied, and targets that cannot be read go to a person.",
   "default_tier": "unknown",
   "tiers": {
     "read": {
@@ -339,5 +339,37 @@
       "sensitive",
       "egress"
     ]
-  }
+  },
+  "actions": [
+    {
+      "id": "containment-targets",
+      "description": "Network containment aimed at a bounded, readable set of hosts",
+      "tools": [
+        "isolate*",
+        "unisolate*",
+        "block_ip*",
+        "unblock_ip*",
+        "block_cidr*",
+        "block_domain*",
+        "unblock_domain*"
+      ],
+      "target_args": [
+        "host",
+        "hosts",
+        "ip",
+        "ips",
+        "cidr",
+        "target",
+        "targets",
+        "domain",
+        "domains"
+      ],
+      "max_targets": 256,
+      "on_exceed": "deny",
+      "wildcard_hosts": true,
+      "require_targets": true,
+      "unparseable": "ask",
+      "split_spaces": false
+    }
+  ]
 }

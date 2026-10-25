@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-FILTER_VERSION = "0.3.0"
+FILTER_VERSION = "0.4.0"
 
 Verdict = Literal["allow", "modify", "ask", "deny"]
 Risk = Literal["LOW", "MEDIUM", "HIGH", "UNKNOWN"]
@@ -57,3 +57,7 @@ class Decision(BaseModel):
     deferral: dict[str, Any] | None = Field(None, description="Calibrated-deferral assessment of an 'ask'")
     flow: dict[str, Any] | None = Field(None, description="Session information flow: labels of this call and "
                                                            "of the session, and the flow rules that fired")
+    actions: list[dict[str, Any]] | None = Field(None, description="Typed reading of network arguments: targets, "
+                                                                    "addresses, ports, probes and rates as checked")
+    budget_charges: dict[str, float] | None = Field(None, description="On 'ask': what the call will charge to "
+                                                                       "session budgets if a person approves it")

@@ -125,6 +125,9 @@ def eligible(decision: Decision, policy: Policy) -> tuple[bool, str]:
         return False, "information-flow rules always need a person"
     if not any(r.startswith("tier:") for r in rules):
         return False, "asked by a rule other than the action tier"
+    other = sorted(r for r in rules if not r.startswith("tier:"))
+    if other:  # e.g. a scan over its size limits, an out-of-scope target, an exhausted budget
+        return False, f"rule {other[0]} always needs a person"
     tier = policy.tiers.get(decision.tier)
     if tier is None or tier.reversible is not True:
         return False, "the action tier is not marked reversible"

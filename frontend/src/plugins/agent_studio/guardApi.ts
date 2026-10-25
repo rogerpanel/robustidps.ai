@@ -49,6 +49,13 @@ export interface GuardDecision {
   prediction: GuardPrediction | null
   deferral: GuardDeferral | null
   flow: GuardFlow | null
+  actions: GuardTyped[] | null
+  budget_charges: Record<string, number> | null
+}
+
+export interface GuardTyped {
+  id: string; targets: string[]; n_targets: number | null; ports: number | null; probes: number | null
+  rates: Record<string, number>; projected: boolean; dropped: string[]
 }
 
 export interface FlowSource { tool: string; call: number }
@@ -124,6 +131,8 @@ export interface GuardApproval {
     prediction?: GuardPrediction | null
     deferral?: GuardDeferral | null
     flow?: GuardFlow | null
+    actions?: GuardTyped[] | null
+    budget_charges?: Record<string, number> | null
   }
 }
 export const guardApprovals = (status?: string) =>

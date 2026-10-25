@@ -91,10 +91,33 @@ person once the session has read both untrusted input and sensitive data
 - Coarse by design: labels are per session, not per value, and come from
   which tools ran, never from their results or the agent's reasons.
 
+## Typed actions for network tools
+
+`actions.py`: arguments a pack names are parsed into targets (networks,
+hosts, URLs), port sets and rates, then checked as values. Compared with the
+previous string rules on the two new suites (written alongside the packs):
+
+- Authorised testing (32 cases): the previous pack got 59% exactly. It
+  refused in-scope requests written as ranges, wildcard octets, host:port,
+  a trailing dot or a comma list (false stops 67%); it sent a gopher URL to
+  an internal Redis and `http://evil.example\@web.lab.example/` to a person
+  as in scope (HTTP clients disagree about that host, some reach
+  evil.example); and it could not see ports, rates or unreadable values.
+  The typed pack gets 100%.
+- SOC (12 cases): the previous pack sent 0.0.0.0/1, 10.0.0.0/8, a 65,535
+  address range, `*.com` and internal addresses written in hex or as an
+  integer to a person; they are now denied. Unreadable targets and
+  unrecognised argument names still go to a person, as before, so existing
+  SOC integrations keep working.
+- Coding agents: web requests accept only http and https and never reach
+  cloud metadata in any spelling; localhost stays allowed for dev servers.
+- Shell commands are still not parsed (see "Not adopted").
+- Also fixed with this step: approved and auto-approved calls are charged
+  to session budgets, re-checked when the approval is used; calibrated
+  deferral now only considers asks raised by the action tier alone.
+
 ## Planned
-- **Typed actions for network tools.** Parse common tool arguments into
-  target sets and rates before checking, and deny what cannot be parsed,
-  instead of matching strings.
+
 - **Out-of-process enforcement for in-process hooks.** Host-side hooks act
   only as deny-by-default routers to the guard service (already true for
   the client and gateway; document per framework).

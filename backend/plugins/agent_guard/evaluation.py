@@ -6,7 +6,7 @@ earlier (budgets, the predictive layer, information flow). Inside such a
 session a step that gets 'ask' is treated as approved by a person, so its
 effects and data labels count for the later steps (the worst case for them).
 `expect_rule` optionally names a rule that must be among the reasons for the
-verdict; `reason_accuracy` reports how often it is. Labels
+outcome (the rules behind the verdict, or a repair the call carries); `reason_accuracy` reports how often it is. Labels
 are exact verdicts; for detection metrics, ask and deny count as "stop"
 (positive) and allow and modify as "permit". Cases sharing a `group` differ
 only in names an attacker controls (files, processes, accounts, hosts) or in
@@ -130,11 +130,13 @@ def run(suite: Suite, policy: Policy) -> dict:
         if case.session and d.decision == "ask":
             commit_let_through(store.get("evaluation", sid), d)
         rules = [f.rule_id for f in d.findings if f.verdict == d.decision]
+        # Reasons for the outcome: the rules behind the verdict, plus any repair (modify) the call carries.
+        reasons = set(rules) | {f.rule_id for f in d.findings if f.verdict != "allow"}
         rows.append({"id": case.id, "tool": case.tool, "group": case.group, "category": case.category,
                      "session": case.session, "appropriate": case.appropriate, "expect": case.expect,
                      "got": d.decision, "correct": d.decision == case.expect, "rules": rules,
                      "expect_rule": case.expect_rule,
-                     "reason_ok": None if case.expect_rule is None else case.expect_rule in rules,
+                     "reason_ok": None if case.expect_rule is None else case.expect_rule in reasons,
                      "latency_ms": d.latency_ms})
 
     tp = sum(r["expect"] in STOP and r["got"] in STOP for r in rows)
@@ -227,8 +229,10 @@ def _ablations(policy: Policy) -> dict[str, Policy]:
         out["without prediction"] = policy.model_copy(update={"predictive": None})
     if policy.flow is not None:
         out["without information flow"] = policy.model_copy(update={"flow": None})
+    if policy.actions:
+        out["without typed actions"] = policy.model_copy(update={"actions": []})
     out["tiers only"] = policy.model_copy(update={"scope": None, "arg_rules": [], "clamps": [], "redact": [],
-                                                  "predictive": None, "flow": None})
+                                                  "predictive": None, "flow": None, "actions": []})
     return out
 
 

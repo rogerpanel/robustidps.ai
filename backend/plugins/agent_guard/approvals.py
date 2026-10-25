@@ -55,6 +55,8 @@ def preview(call: ProposedCall, policy: Policy, decision: Decision, clean_args: 
         "prediction": decision.prediction,
         "deferral": decision.deferral,
         "flow": decision.flow,
+        "actions": decision.actions,
+        "budget_charges": decision.budget_charges,
         "policy": f"{policy.id} v{policy.version}",
     }
 

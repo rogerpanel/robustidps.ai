@@ -1,8 +1,8 @@
 {
   "id": "mcp-general",
-  "version": "3",
+  "version": "4",
   "name": "General MCP / coding agent",
-  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files. Information flow: a session that has read untrusted content (web pages, issues, e-mails, messages) and sensitive data (secrets, databases, files under confidential paths, repository contents) may not send data out (requests, posts, issues and pull requests, uploads, network shell commands) without a person.",
+  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files. Information flow: a session that has read untrusted content (web pages, issues, e-mails, messages) and sensitive data (secrets, databases, files under confidential paths, repository contents) may not send data out (requests, posts, issues and pull requests, uploads, network shell commands) without a person. Web requests are read as values: only http and https, and cloud metadata or link-local addresses are denied in any spelling.",
   "default_tier": "unknown",
   "tiers": {
     "read": {
@@ -323,5 +323,42 @@
       "sensitive",
       "egress"
     ]
-  }
+  },
+  "actions": [
+    {
+      "id": "outbound-request",
+      "description": "Web requests: allowed schemes and no cloud metadata endpoints",
+      "tools": [
+        "fetch*",
+        "http*",
+        "web*",
+        "browse*",
+        "*__fetch*"
+      ],
+      "target_args": [
+        "url",
+        "urls",
+        "uri",
+        "endpoint"
+      ],
+      "schemes": [
+        "http",
+        "https"
+      ],
+      "forbidden": [
+        "169.254.0.0/16",
+        "fd00:ec2::254/128",
+        "100.100.100.200/32",
+        "fe80::/10"
+      ],
+      "forbidden_hosts": [
+        "metadata.google.internal",
+        "metadata",
+        "instance-data",
+        "instance-data.ec2.internal",
+        "metadata.azure.internal"
+      ],
+      "require_targets": false
+    }
+  ]
 }

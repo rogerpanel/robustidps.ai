@@ -12,9 +12,10 @@ tabs Test, Approvals, Tool Registry, Evaluate and Evidence.
 | Canonicalise | NFKC; hidden, bidirectional and tag characters removed and reported (hidden text in the tool name is a deny, in arguments an ask); rationale fields such as `reasoning` are ignored by rules |
 | Tier | Tool name (glob) to an action tier with a verdict, e.g. read = allow, reversible containment = ask, irreversible = deny; unknown tools get the pack's default |
 | Scope | Target arguments (hosts, IPs, URLs, CIDRs) must fall inside the agreed scope; with `on_violation: "project"` the call is repaired to its in-scope part (out-of-scope list entries dropped, a range narrowed to the one allowed network inside it) and denied only when nothing in scope remains |
+| Typed actions | For network tools (`actions`), targets, ports and rates are parsed into values first: addresses, CIDRs, ranges (10.0.0.1-50), wildcard octets, hostnames (IDNA, trailing dot), host:port, URLs and lists. Forbidden networks and hosts (metadata, loopback, link-local) are denied in any spelling; numeric IP literals in disguised forms (hex, integer, shortened) and unsupported URL schemes are denied; the scope is checked on networks and lists or ranges are cut to their exact in-scope part; addresses, ports and probes per call are bounded; rates and parallelism are lowered to their limits. What cannot be read is denied (testing, coding) or sent to a person (SOC containment) |
 | Argument rules | Regex rules on argument values (mass targets, shell chaining, credential paths, metadata endpoints) |
 | Clamps and redaction | Numeric caps (e.g. result limits) and removal of secret-bearing arguments become `modify` |
-| Budgets | Per-session running totals (`budgets`): a count of calls or the sum of a numeric argument, with a reserve; amounts over what is left are clipped, exhausted budgets stop the call, non-numeric amounts are denied |
+| Budgets | Per-session running totals (`budgets`): a count of calls or the sum of a numeric argument, with a reserve; amounts over what is left are clipped, exhausted budgets stop the call, non-numeric amounts are denied. A call that needs approval carries its charge (`budget_charges`); it is charged when the approved call is used, after checking the budget again (another call may have spent it meanwhile; the approval is then kept, not burned) |
 | Prediction (L2) | With an asset inventory (Environment tab), containment calls get a predicted effect: which assets or services become unavailable, how many dependents they take down, and how many members of each redundancy group stay up, counting what the session already took down (approved calls included). Unsafe predictions are denied (service effects matched by process name or path go to a person); targets missing from the inventory go to a person |
 | Information flow | Tools carry data labels (`flow`): untrusted (reads content an outsider can influence), sensitive (reads private data), egress (sends data out of the organisation). A session collects the labels of the calls that ran, approved ones included. The Rule of Two: an outbound send from a session that has read both untrusted input and sensitive data goes to a person, with the source of each label in the reason. Destinations in the internal list (Environment tab) are not egress; every destination must be internal, lists are split, and a missing destination counts as external. Tools nothing classifies are assumed to carry every label |
 | Session | Budget of calls; a call identical to one already denied stays denied; after N denials every allowed call needs approval until a person resets the session (which also clears its data labels) |
@@ -77,6 +78,9 @@ website share sessions, approvals, the registry and the ledger.
   (19 steps, 7 sessions) cover the information-flow rules, including
   destination tricks and the public-issue to private-repository to public
   pull request pattern.
+  `typed-actions-testing` (32 cases) and `typed-actions-soc` (12 cases)
+  cover typed network arguments: normalisation, repairs, limits, disguised
+  addresses, schemes and unreadable values.
   `soc-response-actions` (51 cases) adds an analyst label per case: the
   incident context and whether the action is appropriate in it, including
   inappropriate containment that looks reasonable on its own (isolating a
@@ -136,14 +140,15 @@ requests under the threshold are ones a person would deny, assuming future
 requests resemble past ones. Modes: off (default), shadow (still a person;
 records whether it would have been auto-approved), auto (auto-approves under
 the threshold; recorded as `auto_approval` in the ledger). Mode changes need a
-signed-in person. Never auto-approved: refusals, irreversible or unclassified
-tiers, hidden characters, unsafe or unknown predictions, information-flow
-rules, repeated or escalated sessions. Settings and status: `GET/PUT /api/agent-guard/deferral`, and the
+signed-in person. Only asks raised by the action tier alone are eligible: never
+refusals, irreversible or unclassified tiers, hidden characters, unsafe or
+unknown predictions, information-flow rules, typed-action limits, out-of-scope
+targets, exhausted budgets, repeated or escalated sessions. Settings and status: `GET/PUT /api/agent-guard/deferral`, and the
 panel at the top of the Approvals tab. With little history it reports "not
 calibrated" rather than guessing: zero denials among at least
 log(delta)/log(1 - alpha) past requests is the minimum evidence (45 at the
-defaults). Known gap: auto-approved and human-approved calls are not charged
-to session budgets.
+defaults). Auto-approved and human-approved calls are charged to session
+budgets like any other call.
 
 ## Self-test (`integrations/selftest.py`)
 
@@ -155,7 +160,9 @@ It checks connection and token, verdicts of every kind, sticky denial, the
 coding and testing policies, the labelled suite and its reproducibility, the
 comparison, the evidence chain, the environment model, the information-flow
 rules (a send before and after reading an e-mail, session labels, the
-multi-step suite), an approval round trip
+multi-step suite), typed network actions (a mass block written as
+0.0.0.0/1, a budget charge on an approval, a scan list cut to scope with its
+rate lowered, a metadata address in hex, the typed suite), an approval round trip
 (a person approves on the page) and, if installed, the AgentDojo and Inspect
 connectors; prints PASS/FAIL and writes a JSON report.
 
@@ -193,4 +200,7 @@ in the inventory. Calibrated deferral holds only while future requests resemble 
 starts in shadow mode for that reason. Information flow is coarse: it sees which tools ran, not the data
 they returned, so once a session has read untrusted input every later outbound send is treated as possibly
 steered by it (safe, but it asks more often than a value-level tracker would). Write recipients as bare
-addresses: a display name such as `Bob <bob@corp.example>` is not an internal destination.
+addresses: a display name such as `Bob <bob@corp.example>` is not an internal destination. Typed actions read
+the arguments a pack names; shell commands are not parsed (they stay at ask or deny). A pure number such as
+`12345` in a target argument is read as an IP literal and denied, and `*.co.uk`-style wildcards below a public
+suffix are accepted as registered domains.

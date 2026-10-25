@@ -30,7 +30,8 @@ from plugins.agent_guard.adapters import (
 )
 from plugins.agent_guard.contract import FILTER_VERSION, Decision, Finding, ProposedCall
 from plugins.agent_guard.engine import (
-    DecisionLog, SessionStore, canonicalize, commit_let_through, commit_prediction, decide, deny_decision,
+    DecisionLog, SessionStore, budget_room, canonicalize, charge_budgets, commit_let_through, commit_prediction,
+    decide, deny_decision,
 )
 from plugins.agent_guard.evaluation import Suite, builtin_suites, compare as compare_suite, run as run_suite
 from plugins.agent_guard.policy import Policy, builtin_policies, parse_policy, validation_errors
@@ -163,12 +164,21 @@ def _to_runtime_monitor(call: ProposedCall, decision: Decision) -> None:
 def _approved(call: ProposedCall, policy: Policy, tid: str, approval_id: str, db: Session) -> Decision:
     started = time.perf_counter()
     c = canonicalize(call, policy)
+    state = STORE.get(tid, call.session_id)
+    row = approvals.get(db, tid, approval_id)
+    charges = (row.request or {}).get("budget_charges") if row is not None else None
+    if row is not None and row.status == "approved" and row.session_id == call.session_id and row.call_key == c.key:
+        # Re-check budgets at use time: other calls may have spent them since the request. The approval is kept.
+        why = budget_room(state, policy, charges)
+        if why:
+            return deny_decision(call, policy, why, "approval-budget-spent", started).model_copy(
+                update={"call_key": c.key, "approval_id": approval_id})
     ok, reason, approved_args = approvals.consume(db, tid, approval_id, call.session_id, c.key)
     if not ok:
         return deny_decision(call, policy, reason, "approval-not-valid", started).model_copy(
             update={"call_key": c.key, "approval_id": approval_id})
-    state = STORE.get(tid, call.session_id)
     state.calls += 1
+    charge_budgets(state, charges)
     commit_prediction(state, approvals.approved_prediction(db, tid, approval_id))  # the approved effect happens
     flow_report = None
     if policy.flow is not None:  # the approved call's data labels now belong to the session
@@ -229,7 +239,8 @@ def _finish(call: ProposedCall, policy: Policy, tid: str, decision: Decision, db
             run_args = decision.modified_args if decision.modified_args is not None else canonicalize(call, policy).args
             info = decision.deferral or {}
             row = approvals.create(db, tid, call, policy, decision, decision.call_key, run_args,
-                                   extra={"risk_score": info.get("score"),
+                                   extra={"budget_charges": decision.budget_charges,
+                                          "risk_score": info.get("score"),
                                           "deferral_eligible": info.get("eligible"), "deferral": info})
             decision = decision.model_copy(update={"approval_id": row.id})
         except Exception:  # noqa: BLE001 — no approval record means no way to approve: deny

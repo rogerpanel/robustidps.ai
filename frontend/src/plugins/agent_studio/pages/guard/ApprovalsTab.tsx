@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle } from 'lucide
 import { guardApprovals, guardDecideApproval, type GuardApproval } from '../../guardApi'
 import PredictionView from './PredictionView'
 import FlowView from './FlowView'
+import TypedView from './TypedView'
 import DeferralPanel from './DeferralPanel'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -76,6 +77,7 @@ export default function ApprovalsTab({ onCount }: { onCount?: (n: number) => voi
           )}
           {a.preview.prediction && <PredictionView p={a.preview.prediction} />}
           {a.preview.flow && <FlowView f={a.preview.flow} />}
+          <TypedView actions={a.preview.actions} charges={a.preview.budget_charges} />
           {a.preview.deferral && a.preview.deferral.mode !== 'off' && (
             <p className="text-xs text-text-secondary">
               Calibrator: risk score {a.preview.deferral.score}

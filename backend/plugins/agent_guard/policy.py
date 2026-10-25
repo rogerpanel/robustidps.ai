@@ -127,6 +127,45 @@ class Predictive(BaseModel):
     unknown_target: Literal["ask", "allow"] = "ask"
 
 
+class RateLimit(BaseModel):
+    """A numeric argument (rate, concurrency) with a ceiling. `default` is inserted when the argument is
+    absent; set it only for tools that accept the argument."""
+    args: list[str] = Field(..., min_length=1, description="Argument keys; the first present one is checked")
+    max: float = Field(..., gt=0)
+    default: float | None = Field(None, gt=0)
+    on_exceed: Literal["clip", "ask", "deny"] = "clip"
+
+
+class NetworkAction(BaseModel):
+    """Typed reading of a network tool's arguments: targets (IPs, CIDRs, ranges, hosts, URLs, lists),
+    ports and rates are parsed into values and checked as values; what cannot be parsed is denied."""
+    id: str = Field(..., pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$")
+    description: str = ""
+    tools: list[str] = Field(..., min_length=1)
+    target_args: list[str] = Field(..., min_length=1, description="Argument keys (globs) holding targets")
+    port_args: list[str] = Field(default_factory=list)
+    max_targets: int | None = Field(None, ge=1, description="Addresses (a hostname counts as one) per call")
+    max_ports: int | None = Field(None, ge=1)
+    max_probes: int | None = Field(None, ge=1, description="Targets x ports per call")
+    on_exceed: Literal["ask", "deny"] = "deny"
+    rates: list[RateLimit] = Field(default_factory=list)
+    schemes: list[str] = Field(default_factory=lambda: ["http", "https"], description="Allowed URL schemes")
+    forbidden: list[str] = Field(default_factory=list, description="Networks never allowed, whatever the scope")
+    forbidden_hosts: list[str] = Field(default_factory=list, description="Host globs never allowed")
+    wildcard_hosts: bool = Field(False, description="Allow *.example.com (never * or *.tld)")
+    require_targets: bool = Field(True, description="A matching call without any target is stopped")
+    unparseable: Literal["ask", "deny"] = Field("deny", description="Verdict for targets, ports or rates that cannot "
+                                                                     "be read, and for a missing target")
+    split_spaces: bool = Field(True, description="Spaces separate list entries (commas and semicolons always do)")
+
+    @field_validator("forbidden")
+    @classmethod
+    def _networks(cls, v: list[str]) -> list[str]:
+        for entry in v:
+            ipaddress.ip_network(entry, strict=False)
+        return v
+
+
 LABEL_PATTERN = r"^[a-z][a-z0-9_-]{0,31}$"
 
 
@@ -206,6 +245,7 @@ class Policy(BaseModel):
     budgets: list[Budget] = Field(default_factory=list)
     predictive: Predictive | None = None
     flow: Flow | None = None
+    actions: list[NetworkAction] = Field(default_factory=list)
     max_calls_per_session: int | None = Field(None, ge=1, le=100_000)
     escalate_after_denials: int = Field(3, ge=1, le=100,
                                         description="After this many denied attempts in a session, allow becomes ask")
@@ -233,6 +273,9 @@ class Policy(BaseModel):
         n = len(self.tools) + len(self.arg_rules) + len(self.clamps) + len(self.redact) + len(self.budgets)
         if self.flow:
             n += len(self.flow.labels) + len(self.flow.rules)
+        n += len(self.actions)
+        if len({a.id for a in self.actions}) != len(self.actions):
+            raise ValueError("action ids must be unique")
         if n > MAX_RULES:
             raise ValueError(f"too many rules ({n} > {MAX_RULES})")
         return self

