@@ -28,7 +28,8 @@ Modes (per tenant, changed only by a signed-in person):
   auto     eligible asks under the threshold are allowed without a person
 
 Never eligible, whatever the score: anything the rules deny, calls with
-hidden characters, unsafe or unknown-effect predictions, tiers marked not
+hidden characters, unsafe or unknown-effect predictions, information-flow
+rules (an outbound send after untrusted and sensitive reads), tiers marked not
 reversible, repeated or escalated sessions, and calls under an approval
 that was explicitly requested by another rule (repaired calls included).
 """
@@ -120,6 +121,8 @@ def eligible(decision: Decision, policy: Policy) -> tuple[bool, str]:
     blocked = rules & NEVER_AUTO_RULES
     if blocked:
         return False, f"rule {sorted(blocked)[0]} always needs a person"
+    if any(r.startswith("flow:") for r in rules):
+        return False, "information-flow rules always need a person"
     if not any(r.startswith("tier:") for r in rules):
         return False, "asked by a rule other than the action tier"
     tier = policy.tiers.get(decision.tier)

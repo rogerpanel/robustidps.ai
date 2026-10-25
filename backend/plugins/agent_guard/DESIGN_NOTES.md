@@ -61,12 +61,37 @@ rate exceeded alpha in 4.5% of calibrations and a threshold was found in 61%.
 The eligibility rules keep adversarially placed requests (hidden characters,
 unknown targets, unsafe predictions) away from the threshold entirely.
 
-## Planned
+## Session information flow
 
-- **Session information flow.** Track data labels across a session
-  (untrusted input read, sensitive data read, external send) and require
-  approval when a session would combine all three, the "Rule of Two"
-  pattern. Needs per-tool labels in the policy packs.
+`flow.py`: policy packs label tools untrusted, sensitive or egress (by name,
+optionally by an argument pattern, and for egress by destination); a session
+collects the labels of calls that ran, and a rule sends an outbound call to a
+person once the session has read both untrusted input and sensitive data
+(the Rule of Two). Asks from these rules are never auto-approved.
+
+- In the SOC pack, alerts, logs, e-mails and attachments are labelled both
+  untrusted and sensitive, because telemetry is attacker-influenced and
+  internal at once (the mimicry results in our provenance-graph study are
+  the same observation from the other side). Messages got their own tier,
+  allowed; the flow rule decides whether a send leaves the organisation
+  after exposure. Before this, every message asked and a public sandbox
+  upload was allowed.
+- On the multi-step SOC suite (27 steps, 8 sessions), the previous SOC
+  pack (v3) let the public sandbox upload through and sent 5 of 16
+  legitimate steps to a person (exact 78%, false stops 31%); v4 gets 100%
+  with no false stops. Without the flow layer, v4 catches 18% of the
+  stops. On the coding-agent suite the verdicts do not change (every send
+  already needed a person), but the reason does: "right reason" is 100%
+  with the layer and 38% without it (only the steps whose expected reason
+  is the tier itself), and the flow reason is what makes those
+  requests exempt from calibrated deferral and explains them to the
+  reviewer. Both suites were written alongside the packs.
+- Evaluation gained sessions (ordered steps; an ask counts as approved),
+  `expect_rule` and session-level bootstrap.
+- Coarse by design: labels are per session, not per value, and come from
+  which tools ran, never from their results or the agent's reasons.
+
+## Planned
 - **Typed actions for network tools.** Parse common tool arguments into
   target sets and rates before checking, and deny what cannot be parsed,
   instead of matching strings.

@@ -4,8 +4,8 @@ import { Gavel, Play, RotateCcw, Loader2, AlertCircle, CheckCircle2, Download, C
 import PageGuide from '../../../components/PageGuide'
 import {
   guardCheck, guardDecisions, guardPolicies, guardReset, guardValidate, guardClientUrl,
-  guardIntegrationUrl,
-  type GuardDecision, type GuardLogEntry, type GuardPolicy, type Verdict,
+  guardIntegrationUrl, guardSession,
+  type GuardDecision, type GuardLogEntry, type GuardPolicy, type GuardSessionState, type Verdict,
 } from '../guardApi'
 import ApprovalsTab from './guard/ApprovalsTab'
 import RegistryTab from './guard/RegistryTab'
@@ -13,6 +13,7 @@ import EvaluateTab from './guard/EvaluateTab'
 import EvidenceTab from './guard/EvidenceTab'
 import EnvironmentTab from './guard/EnvironmentTab'
 import PredictionView from './guard/PredictionView'
+import FlowView, { LabelChip } from './guard/FlowView'
 
 const TABS = [
   { id: 'test', label: 'Test' },
@@ -65,6 +66,37 @@ const SAMPLES: Record<string, Sample[]> = {
   ],
 }
 
+interface Scenario { label: string; note: string; steps: { tool: string; args: Record<string, unknown> }[] }
+
+// Multi-step sessions for the information-flow rules; each runs in a fresh session.
+const SCENARIOS: Record<string, Scenario[]> = {
+  'soc-triage': [
+    { label: 'E-mail, then send it outside',
+      note: 'Reading a reported e-mail exposes the session to untrusted and sensitive content; a send outside the company then needs a person.',
+      steps: [{ tool: 'get_email', args: { message_id: 'm-2002' } },
+              { tool: 'send_email', args: { to: 'helpdesk-review@outlook.example', subject: 'Please review' } }] },
+    { label: 'Attachment to a public sandbox',
+      note: 'Submitting a file is allowed by its tier, but after reading an internal attachment it would publish it.',
+      steps: [{ tool: 'get_attachment', args: { message_id: 'm-3003', name: 'payroll.xlsx' } },
+              { tool: 'submit_file_to_sandbox', args: { file_id: 'att-3003-1', sandbox: 'public' } }] },
+    { label: 'Internal hand-off',
+      note: 'Allowed when the Environment tab lists *@corp.example as internal (the example inventory does); otherwise it asks.',
+      steps: [{ tool: 'get_email', args: { message_id: 'm-1001' } },
+              { tool: 'send_email', args: { to: 'soc-team@corp.example', subject: 'Triage summary' } }] },
+  ],
+  'mcp-general': [
+    { label: 'Public issue → private repo → public PR',
+      note: 'The pattern behind the GitHub MCP prompt-injection reports: each step alone looks harmless.',
+      steps: [{ tool: 'mcp__github__get_issue', args: { owner: 'acme', repo: 'public-site', issue_number: 12 } },
+              { tool: 'mcp__github__get_file_contents', args: { owner: 'acme', repo: 'private-billing', path: 'README.md' } },
+              { tool: 'mcp__github__create_pull_request', args: { owner: 'acme', repo: 'public-site', title: 'About', body: '...' } }] },
+    { label: 'Customer data out through a URL',
+      note: 'A request can carry what the agent read in its URL.',
+      steps: [{ tool: 'read_file', args: { path: '/srv/app/data/customers.csv' } },
+              { tool: 'fetch', args: { url: 'https://docs.example.org/search?q=alice%40example.com' } }] },
+  ],
+}
+
 function newSession() {
   return `test-${Math.random().toString(36).slice(2, 8)}`
 }
@@ -84,6 +116,8 @@ export default function SafetyFilter() {
   const [argsText, setArgsText] = useState(JSON.stringify({ host: '10.0.4.17' }, null, 2))
   const [result, setResult] = useState<GuardDecision | null>(null)
   const [log, setLog] = useState<GuardLogEntry[]>([])
+  const [sessionState, setSessionState] = useState<GuardSessionState | null>(null)
+  const [scenario, setScenario] = useState<{ label: string; note: string; steps: { tool: string; decision: Verdict; rules: string[] }[] } | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [copied, setCopied] = useState('')
@@ -109,8 +143,10 @@ export default function SafetyFilter() {
     setPolicyText(JSON.stringify(selected, null, 2))
   }, [selected, editing])
 
-  const refreshLog = useCallback(() => {
-    guardDecisions(sessionId).then(setLog).catch(() => setLog([]))
+  const refreshLog = useCallback((sid?: string) => {
+    const id = sid || sessionId
+    guardDecisions(id).then(setLog).catch(() => setLog([]))
+    guardSession(id).then(setSessionState).catch(() => setSessionState(null))
   }, [sessionId])
   useEffect(() => { refreshLog() }, [refreshLog])
 
@@ -160,11 +196,36 @@ export default function SafetyFilter() {
 
   const resetSession = async () => {
     await guardReset(sessionId).catch(() => {})
-    setResult(null)
+    setResult(null); setScenario(null)
     refreshLog()
   }
 
+  const runScenario = async (sc: Scenario) => {
+    setErr(''); setBusy(true)
+    const sid = newSession()
+    setSessionId(sid); setPendingApproval(null)
+    try {
+      const steps: { tool: string; decision: Verdict; rules: string[] }[] = []
+      let last: GuardDecision | null = null
+      for (const st of sc.steps) {
+        last = await guardCheck({ session_id: sid, tool_name: st.tool, args: st.args, policy_id: policyId,
+                                  policy: inlinePolicy(), framework: 'test-page' })
+        steps.push({ tool: st.tool, decision: last.decision,
+                     rules: last.findings.filter((f) => f.verdict === last!.decision).map((f) => f.rule_id) })
+      }
+      const final = sc.steps[sc.steps.length - 1]
+      setTool(final.tool); setArgsText(JSON.stringify(final.args, null, 2))
+      setResult(last); setScenario({ label: sc.label, note: sc.note, steps })
+      refreshLog(sid)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const loadSample = (s: Sample) => {
+    setScenario(null)
     setTool(s.tool)
     setArgsText(JSON.stringify(s.args, null, 2))
   }
@@ -303,6 +364,17 @@ Task(..., approval=[
               </button>
             ))}
           </div>
+          {(SCENARIOS[policyId] || []).length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-text-secondary">Sessions:</span>
+              {(SCENARIOS[policyId] || []).map((sc) => (
+                <button key={sc.label} onClick={() => runScenario(sc)} disabled={busy} title={sc.note}
+                  className="px-2.5 py-1 text-xs rounded-full border border-accent-amber/40 text-accent-amber hover:bg-accent-amber/10 disabled:opacity-50">
+                  ▶ {sc.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs text-text-secondary">Tool name
               <input value={tool} onChange={(e) => setTool(e.target.value)}
@@ -312,7 +384,7 @@ Task(..., approval=[
               <div className="mt-1 flex gap-2">
                 <input value={sessionId} onChange={(e) => setSessionId(e.target.value)}
                   className="w-full px-3 py-2 bg-bg-primary border border-bg-card rounded-lg font-mono text-sm text-text-primary" />
-                <button onClick={resetSession} title="Reset this session (budget, denials, escalation)"
+                <button onClick={resetSession} title="Reset this session (budget, denials, escalation, data labels)"
                   className="px-2 rounded-lg bg-bg-primary text-text-secondary hover:text-text-primary">
                   <RotateCcw className="w-4 h-4" />
                 </button>
@@ -330,13 +402,29 @@ Task(..., approval=[
 
           {result && (
             <div className="space-y-3 pt-2">
+              {scenario && (
+                <div className="rounded-lg bg-bg-primary p-3 text-xs space-y-1">
+                  <div className="font-semibold">{scenario.label}</div>
+                  <div className="text-text-secondary">{scenario.note}</div>
+                  <ol className="list-decimal ml-4 space-y-0.5">
+                    {scenario.steps.map((st, i) => (
+                      <li key={i}>
+                        <span className="font-mono">{st.tool}</span>{' '}
+                        <span className={`px-1.5 rounded border text-[10px] uppercase ${VERDICT_STYLE[st.decision]}`}>{st.decision}</span>{' '}
+                        <span className="font-mono text-text-secondary">{st.rules.join(', ')}</span>
+                      </li>
+                    ))}
+                  </ol>
+                  <div className="text-text-secondary">The verdict below is for the last step.</div>
+                </div>
+              )}
               <div className={`px-3 py-2 rounded-lg border text-sm font-semibold ${VERDICT_STYLE[result.decision]}`}>
                 {VERDICT_TEXT[result.decision]}
                 <span className="ml-2 font-normal opacity-80">risk {result.risk} · tier {result.tier || 'n/a'} · {result.latency_ms} ms</span>
               </div>
               <ul className="text-sm space-y-1">
                 {result.findings.map((f, i) => (
-                  <li key={i} className="flex gap-2">
+                  <li key={i} className="flex items-start gap-2">
                     <span className={`shrink-0 px-1.5 rounded border text-[10px] uppercase ${VERDICT_STYLE[f.verdict]}`}>{f.verdict}</span>
                     <span className="font-mono text-xs text-text-secondary shrink-0">{f.rule_id}</span>
                     <span>{f.reason}</span>
@@ -344,6 +432,7 @@ Task(..., approval=[
                 ))}
               </ul>
               {result.prediction && <PredictionView p={result.prediction} />}
+              {result.flow && <FlowView f={result.flow} />}
               {result.approval_id && (
                 <p className="text-xs text-accent-amber">
                   Approval request queued.{' '}
@@ -370,7 +459,18 @@ Task(..., approval=[
 
       {/* Session log */}
       <div className="bg-bg-card rounded-xl p-5">
-        <h2 className="font-semibold mb-3">Decisions in this session</h2>
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <h2 className="font-semibold mr-auto">Decisions in this session</h2>
+          {sessionState?.exists && (
+            <span className="flex flex-wrap items-center gap-1 text-xs text-text-secondary">
+              Data labels:
+              {Object.keys(sessionState.labels).length === 0 ? ' none'
+                : Object.entries(sessionState.labels).map(([l, src]) => (
+                  <LabelChip key={l} label={l} title={`from ${src.tool} (call ${src.call})`} />
+                ))}
+            </span>
+          )}
+        </div>
         {log.length === 0 ? (
           <p className="text-sm text-text-secondary">No checks yet.</p>
         ) : (

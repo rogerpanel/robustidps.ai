@@ -54,6 +54,7 @@ def preview(call: ProposedCall, policy: Policy, decision: Decision, clean_args: 
         "risk": decision.risk, "agent_id": call.agent_id, "framework": call.framework,
         "prediction": decision.prediction,
         "deferral": decision.deferral,
+        "flow": decision.flow,
         "policy": f"{policy.id} v{policy.version}",
     }
 

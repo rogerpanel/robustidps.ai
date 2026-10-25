@@ -16,7 +16,8 @@ tabs Test, Approvals, Tool Registry, Evaluate and Evidence.
 | Clamps and redaction | Numeric caps (e.g. result limits) and removal of secret-bearing arguments become `modify` |
 | Budgets | Per-session running totals (`budgets`): a count of calls or the sum of a numeric argument, with a reserve; amounts over what is left are clipped, exhausted budgets stop the call, non-numeric amounts are denied |
 | Prediction (L2) | With an asset inventory (Environment tab), containment calls get a predicted effect: which assets or services become unavailable, how many dependents they take down, and how many members of each redundancy group stay up, counting what the session already took down (approved calls included). Unsafe predictions are denied (service effects matched by process name or path go to a person); targets missing from the inventory go to a person |
-| Session | Budget of calls; a call identical to one already denied stays denied; after N denials every allowed call needs approval until a person resets the session |
+| Information flow | Tools carry data labels (`flow`): untrusted (reads content an outsider can influence), sensitive (reads private data), egress (sends data out of the organisation). A session collects the labels of the calls that ran, approved ones included. The Rule of Two: an outbound send from a session that has read both untrusted input and sensitive data goes to a person, with the source of each label in the reason. Destinations in the internal list (Environment tab) are not egress; every destination must be internal, lists are split, and a missing destination counts as external. Tools nothing classifies are assumed to carry every label |
+| Session | Budget of calls; a call identical to one already denied stays denied; after N denials every allowed call needs approval until a person resets the session (which also clears its data labels) |
 
 Fail closed: filter errors, timeouts (`AGENT_GUARD_TIMEOUT_S`, default 2 s),
 oversized arguments, a concurrent check for the same session, malformed hook
@@ -68,6 +69,14 @@ website share sessions, approvals, the registry and the ledger.
   with bootstrap 95% intervals over the cases (fixed seed, so the table and
   its `comparison_digest` are reproducible). The built-in suites are
   regression tests for the built-in packs, not an independent benchmark.
+  Cases that share a `session` run in order in one session (an `ask`
+  step counts as approved), so rules that depend on history are tested;
+  `expect_rule` checks that a verdict was given for the right reason
+  (reported as "right reason"), and intervals then resample whole sessions.
+  `session-flow-soc` (27 steps, 8 sessions) and `session-flow-mcp`
+  (19 steps, 7 sessions) cover the information-flow rules, including
+  destination tricks and the public-issue to private-repository to public
+  pull request pattern.
   `soc-response-actions` (51 cases) adds an analyst label per case: the
   incident context and whether the action is appropriate in it, including
   inappropriate containment that looks reasonable on its own (isolating a
@@ -92,7 +101,8 @@ website share sessions, approvals, the registry and the ledger.
 | GET/POST | `/approvals`, `/approvals/{id}`, `/approvals/{id}/decide` | Approval queue |
 | GET/POST | `/toolsets`, `/toolsets/{name}`, `/toolsets/{name}/pin`, `/toolsets/{name}/verify`, `/toolsets/{name}/coverage` | Tool Registry |
 | GET/POST | `/suites`, `/evaluate`, `/evaluate/compare` | Evaluation, ablations and baselines |
-| GET/PUT/POST | `/environment`, `/environment/validate` | Asset inventory for the predictive layer (PUT: a person) |
+| GET/PUT/POST | `/environment`, `/environment/validate` | Asset inventory for the predictive layer and the internal destinations for information flow (PUT: a person) |
+| GET | `/sessions/{id}` | What the guard holds for a session: calls, denials, budgets used, assets taken down, data labels |
 | GET | `/evidence`, `/evidence/verify`, `/evidence/summary`, `/evidence/export` | Evidence ledger |
 | GET | `/policies`, `/policies/{id}`, `/policies/validate` (POST), `/info`, `/client.py`, `/integrations/{agentdojo,inspect}` | |
 
@@ -127,8 +137,8 @@ requests resemble past ones. Modes: off (default), shadow (still a person;
 records whether it would have been auto-approved), auto (auto-approves under
 the threshold; recorded as `auto_approval` in the ledger). Mode changes need a
 signed-in person. Never auto-approved: refusals, irreversible or unclassified
-tiers, hidden characters, unsafe or unknown predictions, repeated or escalated
-sessions. Settings and status: `GET/PUT /api/agent-guard/deferral`, and the
+tiers, hidden characters, unsafe or unknown predictions, information-flow
+rules, repeated or escalated sessions. Settings and status: `GET/PUT /api/agent-guard/deferral`, and the
 panel at the top of the Approvals tab. With little history it reports "not
 calibrated" rather than guessing: zero denials among at least
 log(delta)/log(1 - alpha) past requests is the minimum evidence (45 at the
@@ -143,7 +153,9 @@ included, no packages needed):
 `python agent_guard_selftest.py --url https://robustidps.ai --token rids_live_... --approval`.
 It checks connection and token, verdicts of every kind, sticky denial, the
 coding and testing policies, the labelled suite and its reproducibility, the
-comparison, the evidence chain, the environment model, an approval round trip
+comparison, the evidence chain, the environment model, the information-flow
+rules (a send before and after reading an e-mail, session labels, the
+multi-step suite), an approval round trip
 (a person approves on the page) and, if installed, the AgentDojo and Inspect
 connectors; prints PASS/FAIL and writes a JSON report.
 
@@ -178,4 +190,7 @@ The guard is deterministic. Its prediction is only as good as the inventory: an 
 has an unknown effect (routed to a person), and dependents and groups are what the defender declares.
 Session state for prediction covers the session; organisation-wide state comes from `available: false`
 in the inventory. Calibrated deferral holds only while future requests resemble the decided ones; it
-starts in shadow mode for that reason.
+starts in shadow mode for that reason. Information flow is coarse: it sees which tools ran, not the data
+they returned, so once a session has read untrusted input every later outbound send is treated as possibly
+steered by it (safe, but it asks more often than a value-level tracker would). Write recipients as bare
+addresses: a display name such as `Bob <bob@corp.example>` is not an internal destination.

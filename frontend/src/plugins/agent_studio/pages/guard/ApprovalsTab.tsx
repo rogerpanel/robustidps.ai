@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { guardApprovals, guardDecideApproval, type GuardApproval } from '../../guardApi'
 import PredictionView from './PredictionView'
+import FlowView from './FlowView'
 import DeferralPanel from './DeferralPanel'
 
 const STATUS_STYLE: Record<string, string> = {
@@ -74,6 +75,7 @@ export default function ApprovalsTab({ onCount }: { onCount?: (n: number) => voi
               Hidden characters were removed from this call: {a.preview.hidden_characters.join(' · ')}</p>
           )}
           {a.preview.prediction && <PredictionView p={a.preview.prediction} />}
+          {a.preview.flow && <FlowView f={a.preview.flow} />}
           {a.preview.deferral && a.preview.deferral.mode !== 'off' && (
             <p className="text-xs text-text-secondary">
               Calibrator: risk score {a.preview.deferral.score}

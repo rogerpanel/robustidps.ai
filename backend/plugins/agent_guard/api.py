@@ -24,12 +24,13 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
 from plugins.agent_guard import approvals, deferral, environment, evidence, registry
+from plugins.agent_guard import flow as flowmod
 from plugins.agent_guard.adapters import (
     call_from_claude_hook, claude_hook_deny, claude_hook_response, openhands_risk,
 )
 from plugins.agent_guard.contract import FILTER_VERSION, Decision, Finding, ProposedCall
 from plugins.agent_guard.engine import (
-    DecisionLog, SessionStore, canonicalize, commit_prediction, decide, deny_decision,
+    DecisionLog, SessionStore, canonicalize, commit_let_through, commit_prediction, decide, deny_decision,
 )
 from plugins.agent_guard.evaluation import Suite, builtin_suites, compare as compare_suite, run as run_suite
 from plugins.agent_guard.policy import Policy, builtin_policies, parse_policy, validation_errors
@@ -140,6 +141,7 @@ def _record(db: Session, tid: str, call: ProposedCall, decision: Decision) -> No
             "tool_name": call.tool_name, "decision": decision.decision, "risk": decision.risk,
             "rules": [f.rule_id for f in decision.findings if f.verdict == decision.decision],
             "call_key": decision.call_key, "approval_id": decision.approval_id,
+            **({"flow_labels": decision.flow.get("session_after", [])} if decision.flow else {}),
             "policy": f"{decision.policy_id} v{decision.policy_version}", "filter_version": decision.filter_version,
         }, f"{decision.decision.upper()} {call.tool_name} ({call.session_id})")
     except Exception:  # noqa: BLE001 — the ledger must not change a decision
@@ -168,11 +170,17 @@ def _approved(call: ProposedCall, policy: Policy, tid: str, approval_id: str, db
     state = STORE.get(tid, call.session_id)
     state.calls += 1
     commit_prediction(state, approvals.approved_prediction(db, tid, approval_id))  # the approved effect happens
+    flow_report = None
+    if policy.flow is not None:  # the approved call's data labels now belong to the session
+        env = _env_for(db, tid)
+        run_args = approved_args if approved_args is not None else c.args
+        flow_report = flowmod.check(c.tool, run_args, policy, env.internal if env else None, state.labels).report
+        flowmod.commit(state.labels, flow_report, state.calls)
     return Decision(decision="allow", risk="MEDIUM", reasons=[reason],
                     findings=[Finding(rule_id="human-approved", verdict="allow", reason=reason)],
                     tool_name=call.tool_name, canonical_tool=c.tool, hidden_characters=c.hidden,
                     session_calls=state.calls, policy_id=policy.id, policy_version=policy.version,
-                    call_key=c.key, approval_id=approval_id,
+                    call_key=c.key, approval_id=approval_id, flow=flow_report,
                     modified_args=approved_args if approved_args is not None and approved_args != call.args else None,
                     latency_ms=round((time.perf_counter() - started) * 1000, 3))
 
@@ -199,7 +207,7 @@ def _deferral(call: ProposedCall, policy: Policy, tid: str, decision: Decision, 
         decision = decision.model_copy(update={
             "decision": "allow", "risk": "MEDIUM", "reasons": [reason],
             "findings": [*decision.findings, Finding(rule_id="calibrated-auto-approval", verdict="allow", reason=reason)]})
-        commit_prediction(state, decision.prediction)
+        commit_let_through(state, decision)
         evidence.append(db, tid, "auto_approval",
                         {"session_id": call.session_id, "tool_name": call.tool_name, "call_key": decision.call_key,
                          "score": score, "threshold": calib["threshold"], "alpha": settings.alpha, "n": calib["n"]},
@@ -385,6 +393,18 @@ async def claude_hook(request: Request, policy_id: str = "soc-triage",
 def decisions(session_id: str | None = None, limit: int = 100,
               customer: dict = Depends(require_api_key)) -> list[dict]:
     return LOG.list(tenant(customer), session_id, max(1, min(limit, 500)))
+
+
+@router.get("/sessions/{session_id}")
+def session_state(session_id: str, customer: dict = Depends(require_api_key)) -> dict:
+    """What the guard holds for a session: call count, denials, budgets used, assets taken down, data labels."""
+    state = STORE.peek(tenant(customer), session_id)
+    if state is None:
+        return {"session_id": session_id, "exists": False, "calls": 0, "denied_attempts": 0,
+                "budget_used": {}, "unavailable": [], "blast": 0, "labels": {}}
+    return {"session_id": session_id, "exists": True, "calls": state.calls, "denied_attempts": state.denied_attempts,
+            "budget_used": dict(state.budget_used), "unavailable": sorted(state.unavailable), "blast": state.blast,
+            "labels": {k: dict(v) for k, v in sorted(state.labels.items())}}
 
 
 @router.post("/sessions/{session_id}/reset")

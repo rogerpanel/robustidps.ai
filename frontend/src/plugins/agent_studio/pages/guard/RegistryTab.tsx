@@ -172,9 +172,10 @@ export default function RegistryTab({ policies, policyId, inlinePolicy, initialT
                   <p className="text-xs text-text-secondary">
                     {coverage.total - coverage.unclassified} of {coverage.total} tools matched by a rule in {coverage.policy_id} v{coverage.policy_version};
                     {' '}{coverage.unclassified} fall to the default tier. Suggestions come from tool names and descriptions; review them.
+                    {' '}Data labels feed the information-flow rules (untrusted input, sensitive data, sends data out); a tool nothing classifies is assumed to do all three.
                   </p>
                   <table className="w-full text-xs">
-                    <thead className="text-text-secondary text-left"><tr><th className="py-1">Tool</th><th>Tier now</th><th>Verdict</th><th>Looks like</th><th>Suggested</th></tr></thead>
+                    <thead className="text-text-secondary text-left"><tr><th className="py-1">Tool</th><th>Tier now</th><th>Verdict</th><th>Looks like</th><th>Suggested</th><th>Data labels</th></tr></thead>
                     <tbody>
                       {coverage.tools.map((t) => (
                         <tr key={t.name} className="border-t border-bg-primary">
@@ -183,6 +184,12 @@ export default function RegistryTab({ policies, policyId, inlinePolicy, initialT
                           <td>{t.decision}</td>
                           <td>{t.effect_hint}</td>
                           <td className="font-mono">{t.suggested_tier || '-'}</td>
+                          <td>
+                            {t.flow_assumed ? <span className="text-accent-amber">assumed: all</span>
+                              : (t.flow_labels || []).length > 0 ? (t.flow_labels || []).join(', ') : <span className="text-text-secondary">none</span>}
+                            {(t.flow_conditional || []).length > 0 && <span className="text-text-secondary"> (+{(t.flow_conditional || []).join(', ')} by argument)</span>}
+                            {(t.suggested_flow || []).length > 0 && <span className="text-accent-blue"> · suggest {(t.suggested_flow || []).join(', ')}</span>}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

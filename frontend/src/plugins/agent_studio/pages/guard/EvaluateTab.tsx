@@ -113,7 +113,7 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
           </div>
           <table className="w-full text-xs">
             <thead className="text-text-secondary text-left">
-              <tr><th className="py-1">Configuration</th><th>Exact verdicts (95% CI)</th><th>Stop recall (95% CI)</th><th>False stops (95% CI)</th><th>Interventions</th><th>of which repairs</th></tr>
+              <tr><th className="py-1">Configuration</th><th>Exact verdicts (95% CI)</th><th>Stop recall (95% CI)</th><th>False stops (95% CI)</th><th>Interventions</th><th>of which repairs</th><th title="Share of cases with an expected rule whose verdict was given for that rule">Right reason</th></tr>
             </thead>
             <tbody>
               {cmp.table.map((r) => (
@@ -124,13 +124,14 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
                   ))}
                   <td>{pct(r.intervention_rate)}</td>
                   <td>{pct(r.repair_rate)}</td>
+                  <td>{pct(r.reason_accuracy)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="text-[11px] text-text-secondary">
             Ablations remove one layer of the policy at a time; baselines need no filter at all. Intervals come from
-            {' '}{cmp.bootstrap.resamples} resamples of the cases with a fixed seed, so the whole table is reproducible
+            {' '}{cmp.bootstrap.resamples} resamples of the cases (whole sessions for multi-step cases) with a fixed seed, so the whole table is reproducible
             (comparison digest <span className="font-mono">{cmp.comparison_digest.slice(0, 16)}</span>, ledger record #{cmp.evidence.seq}). {cmp.note}
           </p>
         </div>
@@ -145,7 +146,9 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
               ['False stops', pct(res.summary.false_stop_rate)],
               ['Name-invariance', res.summary.invariance_violations.length ? `${res.summary.invariance_violations.length} broken` : `${res.summary.groups}/${res.summary.groups} groups`],
               ['Repaired, not stopped', `${pct(res.summary.repair_rate)} of ${pct(res.summary.intervention_rate)} interventions`],
-              ['Mean latency', `${res.summary.mean_latency_ms} ms`],
+              ...(res.summary.reason_accuracy != null
+                ? [['Right reason', `${pct(res.summary.reason_accuracy)}${res.summary.sessions ? ` · ${res.summary.sessions} sessions` : ''}`]]
+                : [['Mean latency', `${res.summary.mean_latency_ms} ms`]]),
             ].map(([k, v]) => (
               <div key={k} className="bg-bg-card rounded-xl p-3">
                 <div className="text-[11px] text-text-secondary">{k}</div>
@@ -213,17 +216,21 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
           <div className="bg-bg-card rounded-xl p-4 overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="text-text-secondary text-left">
-                <tr><th className="py-1">Case</th><th>Tool</th><th>Group</th><th>Expected</th><th>Got</th><th>Rules</th></tr>
+                <tr><th className="py-1">Case</th><th>Session</th><th>Tool</th><th>Group</th><th>Expected</th><th>Got</th><th>Rules</th></tr>
               </thead>
               <tbody>
                 {res.rows.map((r) => (
-                  <tr key={r.id} className={`border-t border-bg-primary ${r.correct ? '' : 'bg-accent-red/10'}`}>
+                  <tr key={r.id} className={`border-t border-bg-primary ${r.correct && r.reason_ok !== false ? '' : 'bg-accent-red/10'}`}>
                     <td className="py-1 font-mono">{r.id}</td>
+                    <td className="text-text-secondary">{r.session || ''}</td>
                     <td className="font-mono">{r.tool}</td>
                     <td className={res.summary.invariance_violations.includes(r.group || '') ? 'text-accent-red' : 'text-text-secondary'}>{r.group || ''}</td>
                     <td>{r.expect}</td>
                     <td className={r.correct ? '' : 'text-accent-red font-semibold'}>{r.got}</td>
-                    <td className="font-mono text-text-secondary">{r.rules.join(', ')}</td>
+                    <td className="font-mono text-text-secondary">
+                      {r.rules.join(', ')}
+                      {r.expect_rule && <span className={r.reason_ok ? 'text-accent-green' : 'text-accent-red'}> (expected {r.expect_rule})</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

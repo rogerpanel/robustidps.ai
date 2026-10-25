@@ -9,6 +9,8 @@ Fail-closed by construction:
     allowed need approval instead;
   - a second check for the same session that cannot start within
     LOCK_WAIT_S is denied rather than run concurrently.
+Session state also carries what calls that ran have done: budgets used,
+assets taken down (predictive layer) and data labels (information flow).
 The API adds a timeout around decide(); a timeout is a deny as well.
 
 Session state lives in this process (bounded, expiring). Run one backend
@@ -30,6 +32,7 @@ from plugins.agent_guard.canonical import (
 from plugins.agent_guard.contract import (
     Decision, Finding, ProposedCall, RISK_OF, SEVERITY,
 )
+from plugins.agent_guard import flow as flowmod
 from plugins.agent_guard.environment import Environment
 from plugins.agent_guard.policy import Policy, project_target, target_in_scope, tool_matches
 from plugins.agent_guard.predictive import predict
@@ -48,6 +51,7 @@ class SessionState:
     budget_used: dict[str, float] = field(default_factory=dict)
     unavailable: set[str] = field(default_factory=set)   # assets this session has taken down (predictive layer)
     blast: int = 0
+    labels: dict[str, dict] = field(default_factory=dict)  # information-flow labels: {label: {tool, call}}
     last_seen: float = field(default_factory=time.time)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -74,6 +78,11 @@ class SessionStore:
             state.last_seen = now
             self._data[key] = state
             return state
+
+    def peek(self, customer_id: str, session_id: str) -> SessionState | None:
+        """The session's state without creating it or refreshing its expiry."""
+        with self._mutex:
+            return self._data.get((customer_id, session_id))
 
     def reset(self, customer_id: str, session_id: str) -> bool:
         with self._mutex:
@@ -137,6 +146,7 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
     state.calls += 1
     tier = policy.tier_for(tool)
     prediction = None
+    flow = None
 
     def finish(verdict: str, modified: dict | None = None) -> Decision:
         if verdict == "deny":
@@ -152,6 +162,7 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
             policy_id=policy.id, policy_version=policy.version,
             latency_ms=round((time.perf_counter() - started) * 1000, 3), call_key=key,
             prediction=prediction.report if prediction is not None else None,
+            flow=flow.report if flow is not None else None,
         )
 
     if key in state.denied_keys:
@@ -276,6 +287,10 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
     prediction = predict(tool, modified, policy, env, state.unavailable, state.blast)
     findings.extend(prediction.findings)
 
+    # Session information flow: labels this call adds, judged against what the session already holds.
+    flow = flowmod.check(tool, modified, policy, env.internal if env else None, state.labels)
+    findings.extend(flow.findings)
+
     verdict = max((f.verdict for f in findings), key=SEVERITY.__getitem__)
     if verdict == "allow" and changed:
         verdict = "modify"
@@ -287,7 +302,14 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
         for budget_id, amount in charges:
             state.budget_used[budget_id] = state.budget_used.get(budget_id, 0.0) + amount
         commit_prediction(state, prediction.report)
+        flowmod.commit(state.labels, flow.report, state.calls)
     return finish(verdict, modified if changed else None)
+
+
+def commit_let_through(state: SessionState, decision: Decision) -> None:
+    """A call that a person (or calibrated deferral) let through after 'ask': its effects and labels now count."""
+    commit_prediction(state, decision.prediction)
+    flowmod.commit(state.labels, decision.flow, decision.session_calls or state.calls)
 
 
 def commit_prediction(state: SessionState, report: dict | None) -> None:

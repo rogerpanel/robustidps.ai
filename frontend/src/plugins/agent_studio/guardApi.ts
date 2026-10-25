@@ -48,6 +48,22 @@ export interface GuardDecision {
   approval_id: string | null
   prediction: GuardPrediction | null
   deferral: GuardDeferral | null
+  flow: GuardFlow | null
+}
+
+export interface FlowSource { tool: string; call: number }
+export interface GuardFlow {
+  tool: string
+  call_labels: string[]
+  label_reasons: Record<string, string>
+  unclassified: boolean
+  session_before: Record<string, FlowSource>
+  session_after: string[]
+  rules: { id: string; verdict: Verdict }[]
+}
+export interface GuardSessionState {
+  session_id: string; exists: boolean; calls: number; denied_attempts: number
+  budget_used: Record<string, number>; unavailable: string[]; blast: number; labels: Record<string, FlowSource>
 }
 
 export interface GuardDeferral {
@@ -83,6 +99,8 @@ export const guardCheck = (body: {
 }) => call<GuardDecision>('/check', body)
 export const guardDecisions = (sessionId: string) =>
   call<GuardLogEntry[]>(`/decisions?session_id=${encodeURIComponent(sessionId)}&limit=50`)
+export const guardSession = (sessionId: string) =>
+  call<GuardSessionState>(`/sessions/${encodeURIComponent(sessionId)}`)
 export const guardReset = (sessionId: string) =>
   call<{ reset: boolean }>(`/sessions/${encodeURIComponent(sessionId)}/reset`, {})
 export const guardClientUrl = `${API}/api/agent-guard/client.py`
@@ -105,6 +123,7 @@ export interface GuardApproval {
     hidden_characters: string[]; reasons: string[]; risk: string; agent_id: string; framework: string; policy: string
     prediction?: GuardPrediction | null
     deferral?: GuardDeferral | null
+    flow?: GuardFlow | null
   }
 }
 export const guardApprovals = (status?: string) =>
@@ -125,7 +144,10 @@ export interface Toolset {
 }
 export interface Coverage {
   policy_id: string; policy_version: string; total: number; unclassified: number
-  tools: { name: string; tier: string; decision: string; explicit: boolean; effect_hint: string; suggested_tier: string | null; hidden: string[] }[]
+  tools: {
+    name: string; tier: string; decision: string; explicit: boolean; effect_hint: string; suggested_tier: string | null; hidden: string[]
+    flow_labels?: string[]; flow_conditional?: string[]; flow_assumed?: boolean; suggested_flow?: string[]
+  }[]
   generated_policy: GuardPolicy
 }
 export const guardToolsets = () => call<Toolset[]>('/toolsets')
@@ -141,6 +163,7 @@ export const guardCoverage = (name: string, version: number, policy_id: string, 
 export interface SuiteCase {
   id: string; tool: string; args: Record<string, unknown>; expect: Verdict; group?: string | null
   category?: string | null; context?: string | null; appropriate?: boolean | null
+  session?: string | null; expect_rule?: string | null
 }
 export interface GuardSuite { id: string; version: string; policy_id: string; description: string; cases: SuiteCase[] }
 export interface EvalResult {
@@ -148,11 +171,15 @@ export interface EvalResult {
     suite: string; policy: string; cases: number; exact_accuracy: number; stop_recall: number | null
     false_stop_rate: number | null; confusion: Record<string, number>; groups: number
     intervention_rate: number | null; repair_rate: number | null
+    reason_accuracy: number | null; sessions: number
     invariance_violations: string[]; mean_latency_ms: number
     appropriateness: Record<'appropriate' | 'inappropriate', { n: number; let_through?: number; to_a_person?: number; denied?: number }> | null
     by_category: Record<string, { n: number; exact_accuracy: number }>
   }
-  rows: { id: string; tool: string; group: string | null; expect: Verdict; got: Verdict; correct: boolean; rules: string[]; latency_ms: number }[]
+  rows: {
+    id: string; tool: string; group: string | null; session: string | null; expect: Verdict; got: Verdict; correct: boolean
+    rules: string[]; expect_rule: string | null; reason_ok: boolean | null; latency_ms: number
+  }[]
   filter_version: string; suite_digest: string; policy_digest: string; result_digest: string
   evidence: { seq: number; hash: string }
   reproduction: { earlier_runs_same_inputs: number; all_match: boolean | null }
@@ -171,7 +198,7 @@ export const guardExportEvidence = () => call<Record<string, unknown>>('/evidenc
 export interface CompareRow {
   name: string; kind: 'policy' | 'ablation' | 'baseline'
   exact_accuracy: number; stop_recall: number | null; false_stop_rate: number | null
-  intervention_rate: number | null; repair_rate: number | null
+  intervention_rate: number | null; repair_rate: number | null; reason_accuracy: number | null
   ci95: { exact_accuracy: [number, number] | null; stop_recall: [number, number] | null; false_stop_rate: [number, number] | null }
   verdicts_digest: string
 }

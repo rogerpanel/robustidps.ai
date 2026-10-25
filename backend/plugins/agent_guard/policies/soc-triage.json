@@ -1,8 +1,8 @@
 {
   "id": "soc-triage",
-  "version": "3",
+  "version": "4",
   "name": "SOC alert triage",
-  "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose. With an asset inventory (Environment tab), containment is also checked against its predicted effect: it is denied if a redundancy group would fall below its minimum or too many dependents would be cut off; service effects matched by process name or path go to a person instead.",
+  "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose. With an asset inventory (Environment tab), containment is also checked against its predicted effect: it is denied if a redundancy group would fall below its minimum or too many dependents would be cut off; service effects matched by process name or path go to a person instead. Information flow: alerts, logs, e-mails and attachments are both attacker-influenced and internal, so once a session has read them, sending data outside the organisation (e-mail, webhooks, public sandboxes, unclassified services) goes to a person; messages to internal destinations (Environment tab) are allowed.",
   "default_tier": "unknown",
   "tiers": {
     "read": {
@@ -14,6 +14,11 @@
       "decision": "allow",
       "description": "Notes, tags, tickets, verdict submission",
       "reversible": true
+    },
+    "notify": {
+      "decision": "allow",
+      "description": "Messages and notifications; sends outside the organisation are checked by the information-flow rules",
+      "reversible": false
     },
     "contain_reversible": {
       "decision": "ask",
@@ -57,6 +62,17 @@
         "submit*"
       ],
       "tier": "annotate"
+    },
+    {
+      "match": [
+        "send_*",
+        "email_*",
+        "forward_*",
+        "notify*",
+        "post_*",
+        "reply_*"
+      ],
+      "tier": "notify"
     },
     {
       "match": [
@@ -229,5 +245,99 @@
     "max_blast_radius": 100,
     "max_session_blast_radius": 250,
     "unknown_target": "ask"
+  },
+  "flow": {
+    "labels": [
+      {
+        "label": "untrusted",
+        "description": "Content an outsider can influence: alerts, logs, e-mails, attachments, web pages, threat-intel results",
+        "tools": [
+          "fetch_alert*",
+          "get_alert*",
+          "list_alerts*",
+          "search*",
+          "query*",
+          "get_email*",
+          "read_email*",
+          "get_attachment*",
+          "fetch_url*",
+          "get_url*",
+          "get_sandbox_report*",
+          "enrich*"
+        ]
+      },
+      {
+        "label": "sensitive",
+        "description": "Internal or private data: telemetry, user and identity records, mailbox content, internal files, secrets",
+        "tools": [
+          "fetch_alert*",
+          "get_alert*",
+          "list_alerts*",
+          "search*",
+          "query*",
+          "get_user*",
+          "lookup_user*",
+          "list_users*",
+          "*identity*",
+          "get_mailbox*",
+          "get_email*",
+          "read_email*",
+          "get_attachment*",
+          "get_file*",
+          "download_file*",
+          "*credential*",
+          "*secret*",
+          "get_customer*"
+        ]
+      },
+      {
+        "label": "egress",
+        "description": "Sends data outside the organisation; destinations in the Environment tab's internal list are exempt",
+        "tools": [
+          "send_*",
+          "email_*",
+          "forward_*",
+          "reply_*",
+          "post_*",
+          "*webhook*",
+          "share_*",
+          "publish*",
+          "upload*",
+          "submit_to_sandbox*",
+          "submit_sample*",
+          "submit_file*",
+          "submit_url*",
+          "notify_external*"
+        ],
+        "destination_args": [
+          "to",
+          "cc",
+          "bcc",
+          "recipient*",
+          "url",
+          "destination*",
+          "channel",
+          "webhook*",
+          "endpoint"
+        ]
+      }
+    ],
+    "rules": [
+      {
+        "id": "rule-of-two",
+        "description": "Sending data out after the session read untrusted input and sensitive data",
+        "sink": "egress",
+        "requires": [
+          "untrusted",
+          "sensitive"
+        ],
+        "on_violation": "ask"
+      }
+    ],
+    "unclassified": [
+      "untrusted",
+      "sensitive",
+      "egress"
+    ]
   }
 }

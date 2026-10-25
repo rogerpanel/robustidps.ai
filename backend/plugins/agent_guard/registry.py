@@ -23,7 +23,8 @@ from sqlalchemy.orm import Session
 from plugins.agent_guard.canonical import clean_text, clean_value
 from plugins.agent_guard.db_models import GuardToolset
 from plugins.agent_guard.evidence import append, digest
-from plugins.agent_guard.policy import Policy
+from plugins.agent_guard import flow as flowmod
+from plugins.agent_guard.policy import Policy, tool_matches
 
 MAX_TOOLS = 500
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,127}$")
@@ -33,6 +34,22 @@ _EXEC = re.compile(r"\b(exec(ute)?|shell|bash|command|terminal|script|eval|run[_
 _DESTROY = re.compile(r"\b(delete|remove|drop|wipe|purge|destroy|truncate|shred|reimage|format)\b", re.I)
 _CHANGE = re.compile(r"\b(write|create|update|edit|modify|set|send|post|upload|move|rename|isolate|block|"
                      r"disable|enable|kill|terminate|quarantine|revoke|reset|assign|deploy|install|transfer)\b", re.I)
+# Data-label hints from a tool's name and description, for the information-flow rules (suggestions only).
+_FLOW_HINTS = {
+    "untrusted": re.compile(r"\b(fetch\w*|brows\w*|scrap\w*|crawl\w*|web ?pages?|websites?|urls?|e-?mails?|inbox|"
+                            r"messages?|chats?|issues?|comments?|pull requests?|feeds?|downloads?)\b", re.I),
+    "sensitive": re.compile(r"\b(secrets?|credentials?|passwords?|tokens?|vault|private|confidential|personal|pii|"
+                            r"customers?|payroll|salar\w*|financ\w*|medical|health|database|sql|records?)\b", re.I),
+    "egress": re.compile(r"\b(send\w*|post(s|ed|ing)?|upload\w*|publish\w*|share\w*|webhooks?|notify\w*|push\w*|"
+                         r"forward\w*|export\w*|create (an? )?(issue|pull request|comment|gist)|comment on)\b", re.I),
+}
+
+
+def flow_hints(tool: dict) -> list[str]:
+    text = f"{tool['name'].replace('_', ' ').replace('-', ' ')} {tool['description']}"
+    return [label for label, rx in _FLOW_HINTS.items() if rx.search(text)]
+
+
 _READ = re.compile(r"\b(get|list|read|search|query|fetch|lookup|describe|show|view|find|inspect|count)\b", re.I)
 
 
@@ -114,9 +131,18 @@ def coverage(tools: list[dict], policy: Policy) -> dict:
         suggested = policy.hint_tiers.get(hint) if not explicit else None
         if not explicit:
             unclassified += 1
-        rows.append({"name": t["name"], "tier": tier, "decision": policy.tiers[tier].decision,
-                     "explicit": explicit, "effect_hint": hint, "suggested_tier": suggested,
-                     "hidden": t.get("hidden", [])})
+        row = {"name": t["name"], "tier": tier, "decision": policy.tiers[tier].decision,
+               "explicit": explicit, "effect_hint": hint, "suggested_tier": suggested,
+               "hidden": t.get("hidden", [])}
+        if policy.flow is not None:
+            labels, assumed = flowmod.call_labels(name, {}, policy)
+            conditional = sorted({lab.label for lab in policy.flow.labels
+                                  if lab.pattern is not None and tool_matches(name, lab.tools)} - set(labels))
+            given = [] if assumed else sorted(labels)
+            row.update({"flow_labels": given, "flow_conditional": conditional, "flow_assumed": assumed,
+                        "suggested_flow": [x for x in flow_hints(t) if x not in given] if (assumed or not given)
+                        else []})
+        rows.append(row)
     return {"policy_id": policy.id, "policy_version": policy.version, "tools": rows,
             "unclassified": unclassified, "total": len(rows)}
 
@@ -128,6 +154,11 @@ def generated_policy(tools: list[dict], policy: Policy, toolset_name: str) -> di
     rules = [{"match": [r["name"].strip().lower()], "tier": r["suggested_tier"]}
              for r in cov["tools"] if r["suggested_tier"]]
     data["tools"] = rules + data["tools"]
+    if data.get("flow"):
+        extra = [{"label": label, "tools": [r["name"].strip().lower()],
+                  "description": f"Suggested from the description of {r['name']}"}
+                 for r in cov["tools"] for label in r.get("suggested_flow", [])]
+        data["flow"]["labels"] = extra + data["flow"]["labels"]
     data["id"] = re.sub(r"[^a-z0-9._-]", "-", f"{policy.id}.{toolset_name}".lower())[:64]
     data["version"] = "1"
     data["name"] = f"{policy.name or policy.id} + {toolset_name}"

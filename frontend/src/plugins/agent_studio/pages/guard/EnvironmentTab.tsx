@@ -55,7 +55,8 @@ export default function EnvironmentTab() {
           actions that would leave a redundancy group below its minimum or cut off more dependents than the policy allows
           (100 per action, 250 per session), and it routes targets missing from the inventory to a person. Only you
           maintain this list; names an attacker chooses in telemetry do not change it. Saving requires a signed-in person
-          and is recorded in the evidence ledger.
+          and is recorded in the evidence ledger. The <code>internal</code> list (networks, *.your-domain, *@your-domain)
+          tells the information-flow rules which destinations are inside the organisation: sending there is not egress.
         </p>
         <textarea value={text} onChange={(e) => { setText(e.target.value); setMsg(null) }} spellCheck={false}
                   className="w-full h-[28rem] px-3 py-2 bg-bg-primary border border-bg-card rounded-lg font-mono text-xs" />

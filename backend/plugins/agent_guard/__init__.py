@@ -27,6 +27,7 @@ Modules:
   environment.py asset inventory and redundancy groups (per tenant) for the predictive layer
   predictive.py L2: predicted effect of a call on the environment; safe if groups and limits hold
   deferral.py   calibrated deferral: Learn-then-Test threshold over the tenant's approval history
+  flow.py       session information flow: untrusted / sensitive / egress labels and the Rule of Two
   api.py        /api/agent-guard/*
 """
 from plugins.agent_guard import db_models  # noqa: F401  (registers the tables for init_db)

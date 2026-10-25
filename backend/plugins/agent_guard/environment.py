@@ -17,11 +17,14 @@ An inventory is JSON:
            {"name": "crm-database", "process": "sqlservr.exe", "path": "C:\\\\Program Files\\\\SQL\\\\sqlservr.exe",
             "group": "crm-db", "dependents": 40}]}]}
 
-`available: false` marks an asset that is already down or contained.
+`available: false` marks an asset that is already down or contained. An optional
+`"internal": ["10.0.0.0/8", "*.corp.example", "*@corp.example"]` lists destinations
+inside the organisation for the information-flow rules (sending there is not egress).
 """
 from __future__ import annotations
 
 import datetime
+import ipaddress
 import json
 import threading
 from typing import Literal
@@ -65,9 +68,19 @@ class Asset(BaseModel):
 class Environment(BaseModel):
     groups: dict[str, Group] = Field(default_factory=dict)
     assets: list[Asset] = Field(default_factory=list, max_length=MAX_ASSETS)
+    internal: list[str] = Field(default_factory=list, max_length=200,
+                                description="Networks, hosts and addresses inside the organisation (10.0.0.0/8, "
+                                            "*.corp.example, *@corp.example); sending data there is not egress "
+                                            "for the information-flow rules")
 
     @model_validator(mode="after")
     def _consistent(self) -> "Environment":
+        for entry in self.internal:
+            if "/" in entry:
+                try:
+                    ipaddress.ip_network(entry, strict=False)
+                except ValueError:
+                    raise ValueError(f"internal: '{entry}' is not a valid network") from None
         names = [a.name.lower() for a in self.assets]
         if len(set(names)) != len(names):
             raise ValueError("asset names must be unique")
@@ -181,4 +194,5 @@ EXAMPLE = {
         {"name": "jdoe", "kind": "account", "role": "user", "dependents": 1},
         {"name": "login.microsoftonline.com", "kind": "domain", "role": "company sign-in (SaaS)", "dependents": 900},
     ],
+    "internal": ["10.0.0.0/8", "*.corp.example", "*@corp.example"],
 }

@@ -1,8 +1,8 @@
 {
   "id": "mcp-general",
-  "version": "2",
+  "version": "3",
   "name": "General MCP / coding agent",
-  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files.",
+  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files. Information flow: a session that has read untrusted content (web pages, issues, e-mails, messages) and sensitive data (secrets, databases, files under confidential paths, repository contents) may not send data out (requests, posts, issues and pull requests, uploads, network shell commands) without a person.",
   "default_tier": "unknown",
   "tiers": {
     "read": {
@@ -171,5 +171,157 @@
     "destroy": "write",
     "exec": "shell",
     "unclear": "unknown"
+  },
+  "flow": {
+    "labels": [
+      {
+        "label": "untrusted",
+        "description": "Content an outsider can influence: web pages, issues, pull requests, comments, e-mails, chat messages",
+        "tools": [
+          "fetch*",
+          "http*",
+          "web*",
+          "browse*",
+          "*__fetch*",
+          "*get_issue*",
+          "*list_issues*",
+          "*search_issues*",
+          "*get_pull_request*",
+          "*list_pull_requests*",
+          "*get_comments*",
+          "*list_comments*",
+          "*read_email*",
+          "*get_email*",
+          "*search_email*",
+          "*read_message*",
+          "*get_message*",
+          "*list_messages*",
+          "*search_messages*",
+          "*channel_history*"
+        ]
+      },
+      {
+        "label": "untrusted",
+        "description": "Shell commands that download content",
+        "tools": [
+          "bash*",
+          "shell*",
+          "exec*",
+          "run*",
+          "terminal*",
+          "*__exec*",
+          "*__run*"
+        ],
+        "args": [
+          "command*",
+          "cmd*",
+          "script*"
+        ],
+        "pattern": "\\b(curl|wget|nc|ncat|netcat|scp|sftp|ftp|rsync|ssh|telnet|git\\s+push|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b"
+      },
+      {
+        "label": "sensitive",
+        "description": "Secrets, databases, repository contents and files under confidential paths",
+        "tools": [
+          "*secret*",
+          "*vault*",
+          "*credential*",
+          "*password*",
+          "*keychain*",
+          "*query*",
+          "*sql*",
+          "*database*",
+          "*customer*",
+          "*payroll*",
+          "*get_file_contents*"
+        ]
+      },
+      {
+        "label": "sensitive",
+        "description": "Files whose path marks them as confidential or as data",
+        "tools": [
+          "read*",
+          "view*",
+          "grep*",
+          "*__read*",
+          "cat*"
+        ],
+        "args": [
+          "path*",
+          "file*"
+        ],
+        "pattern": "(confidential|private|secret|payroll|salar|customer|personal|finance|/hr/|\\.(sql|db|sqlite|csv|xlsx|parquet)$)"
+      },
+      {
+        "label": "egress",
+        "description": "Requests, posts, issues and pull requests, uploads and other outbound sends",
+        "tools": [
+          "fetch*",
+          "http*",
+          "web*",
+          "browse*",
+          "*__fetch*",
+          "*send*",
+          "*post*",
+          "*upload*",
+          "*publish*",
+          "*webhook*",
+          "*create_issue*",
+          "*create_pull_request*",
+          "*add_comment*",
+          "*add_issue_comment*",
+          "*comment_on*",
+          "*push*",
+          "*share*",
+          "*create_gist*"
+        ],
+        "destination_args": [
+          "url",
+          "to",
+          "cc",
+          "bcc",
+          "recipient*",
+          "email*",
+          "webhook*",
+          "endpoint"
+        ]
+      },
+      {
+        "label": "egress",
+        "description": "Shell commands that send data over the network",
+        "tools": [
+          "bash*",
+          "shell*",
+          "exec*",
+          "run*",
+          "terminal*",
+          "*__exec*",
+          "*__run*"
+        ],
+        "args": [
+          "command*",
+          "cmd*",
+          "script*"
+        ],
+        "pattern": "\\b(curl|wget|nc|ncat|netcat|scp|sftp|ftp|rsync|ssh|telnet|git\\s+push|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b"
+      }
+    ],
+    "rules": [
+      {
+        "id": "rule-of-two",
+        "description": "Sending data out after the session read untrusted input and sensitive data",
+        "sink": "egress",
+        "requires": [
+          "untrusted",
+          "sensitive"
+        ],
+        "on_violation": "ask"
+      }
+    ],
+    "unclassified": [
+      "untrusted",
+      "sensitive",
+      "egress"
+    ]
   }
 }

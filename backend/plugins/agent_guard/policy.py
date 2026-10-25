@@ -29,6 +29,23 @@ TierVerdict = Literal["allow", "ask", "deny"]
 HINTS = frozenset({"read", "change", "destroy", "exec", "unclear"})
 
 
+def check_regex(v: str) -> str:
+    if len(v) > MAX_PATTERN:
+        raise ValueError(f"pattern longer than {MAX_PATTERN} characters")
+    try:
+        re.compile(v)
+    except re.error as exc:  # not a ValueError, so pydantic would not report it
+        raise ValueError(f"invalid regular expression: {exc}") from None
+    return v
+
+
+def check_networks(v: list[str]) -> list[str]:
+    for entry in v:
+        if "/" in entry:
+            ipaddress.ip_network(entry, strict=False)
+    return v
+
+
 class Tier(BaseModel):
     decision: TierVerdict
     description: str = ""
@@ -51,13 +68,7 @@ class ArgRule(BaseModel):
     @field_validator("pattern")
     @classmethod
     def _regex(cls, v: str) -> str:
-        if len(v) > MAX_PATTERN:
-            raise ValueError(f"pattern longer than {MAX_PATTERN} characters")
-        try:
-            re.compile(v)
-        except re.error as exc:  # not a ValueError, so pydantic would not report it
-            raise ValueError(f"invalid regular expression: {exc}") from None
-        return v
+        return check_regex(v)
 
 
 class Clamp(BaseModel):
@@ -83,10 +94,7 @@ class Scope(BaseModel):
     @field_validator("allow")
     @classmethod
     def _entries(cls, v: list[str]) -> list[str]:
-        for entry in v:
-            if "/" in entry:
-                ipaddress.ip_network(entry, strict=False)
-        return v
+        return check_networks(v)
 
 
 class Budget(BaseModel):
@@ -119,6 +127,70 @@ class Predictive(BaseModel):
     unknown_target: Literal["ask", "allow"] = "ask"
 
 
+LABEL_PATTERN = r"^[a-z][a-z0-9_-]{0,31}$"
+
+
+class FlowLabel(BaseModel):
+    """Gives matching calls a data label, e.g. untrusted (reads content an outsider can influence), sensitive
+    (reads private data) or egress (sends data outside the organisation)."""
+    label: str = Field(..., pattern=LABEL_PATTERN)
+    description: str = ""
+    tools: list[str] = Field(..., min_length=1)
+    args: list[str] = Field(default_factory=list, description="With pattern: argument key globs to test (default all)")
+    pattern: str | None = Field(None, description="Label only calls with an argument value matching this regex")
+    destination_args: list[str] = Field(default_factory=list,
+                                        description="Argument keys holding destinations (recipients, URLs)")
+    internal: list[str] = Field(default_factory=list,
+                                description="Destinations inside the organisation (CIDRs, host or address globs "
+                                            "such as *.corp.example or *@corp.example); if every destination of a "
+                                            "call is internal, the label is not applied. Adds to the Environment "
+                                            "tab's internal list")
+
+    @field_validator("pattern")
+    @classmethod
+    def _regex(cls, v: str | None) -> str | None:
+        return None if v is None else check_regex(v)
+
+    @field_validator("internal")
+    @classmethod
+    def _entries(cls, v: list[str]) -> list[str]:
+        return check_networks(v)
+
+
+class FlowRule(BaseModel):
+    """Fires on a call carrying `sink` when the session, counting this call, holds every label in `requires`."""
+    id: str = Field(..., pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$")
+    description: str = ""
+    sink: str = Field(..., pattern=LABEL_PATTERN)
+    requires: list[str] = Field(default_factory=list)
+    on_violation: Literal["ask", "deny"] = "ask"
+
+
+class Flow(BaseModel):
+    """Session information flow. Labels accumulate over the calls of a session that are let through
+    (approved ones included); rules judge the next call against them. The default rule is the Rule of Two:
+    a session that has read untrusted input and sensitive data may not send data out without a person."""
+    labels: list[FlowLabel] = Field(..., min_length=1)
+    rules: list[FlowRule] = Field(..., min_length=1)
+    unclassified: list[str] = Field(default_factory=list,
+                                    description="Labels assumed for a tool that neither the tier map nor any label "
+                                                "classifies (fail closed: it could read or send anything)")
+
+    @model_validator(mode="after")
+    def _known_labels(self) -> "Flow":
+        known = {lab.label for lab in self.labels} | set(self.unclassified)
+        for name in self.unclassified:
+            if not re.match(LABEL_PATTERN, name):
+                raise ValueError(f"unclassified: invalid label '{name}'")
+        if len({r.id for r in self.rules}) != len(self.rules):
+            raise ValueError("flow rule ids must be unique")
+        for r in self.rules:
+            for name in [r.sink, *r.requires]:
+                if name not in known:
+                    raise ValueError(f"flow rule '{r.id}' uses label '{name}', which no label entry assigns")
+        return self
+
+
 class Policy(BaseModel):
     id: str = Field(..., pattern=r"^[a-z0-9][a-z0-9._-]{0,63}$")
     version: str = Field(..., min_length=1, max_length=32)
@@ -133,6 +205,7 @@ class Policy(BaseModel):
     scope: Scope | None = None
     budgets: list[Budget] = Field(default_factory=list)
     predictive: Predictive | None = None
+    flow: Flow | None = None
     max_calls_per_session: int | None = Field(None, ge=1, le=100_000)
     escalate_after_denials: int = Field(3, ge=1, le=100,
                                         description="After this many denied attempts in a session, allow becomes ask")
@@ -158,6 +231,8 @@ class Policy(BaseModel):
             if b.reserve >= b.max_total:
                 raise ValueError(f"budget '{b.id}': reserve must be below max_total")
         n = len(self.tools) + len(self.arg_rules) + len(self.clamps) + len(self.redact) + len(self.budgets)
+        if self.flow:
+            n += len(self.flow.labels) + len(self.flow.rules)
         if n > MAX_RULES:
             raise ValueError(f"too many rules ({n} > {MAX_RULES})")
         return self
