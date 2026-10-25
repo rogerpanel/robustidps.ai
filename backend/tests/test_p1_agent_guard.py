@@ -1040,3 +1040,73 @@ def test_openhands_hooks_endpoint(client):
     assert c.get("/api/agent-guard/integrations/openhands-hooks", params={"client_path": "x; rm -rf /"}).status_code == 422
     assert c.get("/api/agent-guard/integrations/openhands-hooks", params={"python": "bash"}).status_code == 422
     assert c.get("/api/agent-guard/integrations/claude-sdk").status_code == 200
+
+
+# ── policy authoring from evaluation failures ────────────────────────────
+
+from plugins.agent_guard import authoring  # noqa: E402
+from plugins.agent_guard.evaluation import builtin_suites as _suites  # noqa: E402
+
+
+def test_conditional_tool_rules():
+    data = copy.deepcopy(MCP.model_dump())
+    data["tools"].insert(0, {"match": ["bash"], "tier": "read", "when": {"command": "git status"}})
+    pol = MCP.model_validate(data)
+    assert run(pol, "bash", {"command": "git status"}).decision == "allow"
+    assert run(pol, "bash", {"command": "git status --porcelain"}).decision == "ask"     # full match only
+    assert run(pol, "bash", {"command": "git status; rm -rf /"}).decision == "deny"     # chaining rule still applies
+    assert run(pol, "bash", {"command": "git status", "reasoning": "x"}).decision == "allow"
+    assert pol.tier_for("bash") == "shell"                 # without arguments a conditional rule never applies
+    bad = copy.deepcopy(data)
+    bad["tools"][0]["when"] = {"reasoning": "safe"}
+    assert any("stated reason" in e for e in validation_errors(bad))
+    bad["tools"][0]["when"] = {"command": "("}
+    assert any("regular expression" in e for e in validation_errors(bad))
+
+
+def test_authoring_narrow_and_general_with_holdout():
+    S = _suites()
+    narrow = authoring.suggest(S["org-coding-preferences"], MCP, S["org-coding-holdout"], "narrow")
+    general = authoring.suggest(S["org-coding-preferences"], MCP, S["org-coding-holdout"], "general")
+    assert narrow["failures"] == general["failures"] == 3
+    for r in (narrow, general):
+        for f in r["report"]:
+            assert f["suggestions"], f["case"]
+            assert all(f["case"] in s["fixed"] for s in f["suggestions"])          # every proposal fixes its case
+        assert r["combined"]["exact_accuracy"] == 1.0 and not r["combined"]["broken"]
+        assert validation_errors(r["combined"]["policy"]) == []
+    # bash git status: the narrow conditional rule breaks nothing; reclassifying all of bash breaks t6
+    t7 = next(f for f in narrow["report"] if f["case"] == "t7")
+    assert "only when 'command' is exactly 'git status'" in t7["suggestions"][0]["description"]
+    assert any(s["broken"] == ["t6"] for s in t7["suggestions"])
+    # the widest non-breaking edits carry over to held-out cases; the narrowest do not all
+    assert general["combined"]["holdout"]["exact_accuracy"] == 1.0
+    assert narrow["combined"]["holdout"]["exact_accuracy"] < 1.0
+    # held-out results never decide the ranking
+    assert authoring.suggest(S["org-coding-preferences"], MCP, None, "general")["suggestion_digest"] \
+        == general["suggestion_digest"]
+
+
+def test_authoring_scope_and_limits():
+    pol = scoped_testing(["10.10.0.0/16"])
+    suite = authoring.Suite.model_validate({"id": "s", "scope_allow": ["10.10.0.0/16"], "cases": [
+        {"id": "a", "tool": "dns_lookup", "args": {"domain": "203.0.113.7"}, "expect": "allow"},
+        {"id": "b", "tool": "port_scan", "args": {"target": "10.10.3.4", "ports": "1-2000"}, "expect": "ask",
+         "expect_rule": "tier:active"},
+        {"id": "c", "tool": "dns_lookup", "args": {"domain": "10.10.0.9"}, "expect": "allow"}]})
+    r = authoring.suggest(suite, pol)
+    a = next(f for f in r["report"] if f["case"] == "a")
+    assert "Add '203.0.113.7' to the scope" in a["suggestions"][0]["description"]
+    assert all(f["case"] != "b" for f in r["report"])            # ask with too many ports is still 'ask'
+
+
+def test_authoring_api(client):
+    c, _ = client
+    r = c.post("/api/agent-guard/evaluate/suggest", json={"suite_id": "org-coding-preferences",
+                                                         "holdout_suite_id": "org-coding-holdout",
+                                                         "strategy": "general"}).json()
+    assert r["failures"] == 3 and r["combined"]["holdout"]["exact_accuracy"] == 1.0 and r["evidence"]["seq"] >= 1
+    assert c.post("/api/agent-guard/evaluate/suggest", json={"suite_id": "org-coding-preferences",
+                                                            "strategy": "bold"}).status_code == 422
+    kinds = [e["kind"] for e in c.get("/api/agent-guard/evidence").json()]
+    assert "policy_suggestion" in kinds

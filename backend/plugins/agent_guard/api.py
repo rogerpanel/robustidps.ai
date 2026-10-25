@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
 from plugins.agent_guard import approvals, deferral, environment, evidence, registry
+from plugins.agent_guard import authoring
 from plugins.agent_guard import flow as flowmod
 from plugins.agent_guard.adapters import (
     call_from_claude_hook, claude_hook_deny, claude_hook_response, openhands_risk,
@@ -638,6 +639,32 @@ def evaluate_compare(body: EvaluateBody, customer: dict = Depends(require_api_ke
                                                         "false_stop_rate")} for r in result["table"]]},
                           f"Compared {result['policy']} on {result['suite']} against "
                           f"{len(result['table']) - 1} ablations and baselines")
+    result["evidence"] = {"seq": rec.seq, "hash": rec.hash}
+    return result
+
+
+class SuggestBody(EvaluateBody):
+    holdout_suite_id: str | None = Field(None, description="Built-in suite to check proposals on (never used to rank)")
+    holdout_suite: dict[str, Any] | None = None
+    strategy: Literal["narrow", "general"] = "narrow"
+
+
+@router.post("/evaluate/suggest")
+def evaluate_suggest(body: SuggestBody, customer: dict = Depends(require_api_key),
+                     db: Session = Depends(get_db)) -> dict:
+    """Policy edits proposed from the suite's failing cases, each re-evaluated on the whole suite (and a held-out
+    suite): what it fixes, breaks and changes. Proposals only; nothing is applied."""
+    suite = _suite_from(body)
+    policy = _resolve_policy(body.policy_id or suite.policy_id or "soc-triage", body.policy)
+    holdout = None
+    if body.holdout_suite is not None or body.holdout_suite_id:
+        holdout = _suite_from(EvaluateBody(suite_id=body.holdout_suite_id, suite=body.holdout_suite))
+    result = authoring.suggest(suite, policy, holdout, body.strategy)
+    rec = evidence.append(db, tenant(customer), "policy_suggestion",
+                          {"suite": result["suite"], "policy": result["policy"], "strategy": body.strategy,
+                           "holdout": (result["holdout"] or {}).get("suite"), "failures": result["failures"],
+                           "suggestion_digest": result["suggestion_digest"]},
+                          f"Proposed policy edits for {result['failures']} failing case(s) of {result['suite']}")
     result["evidence"] = {"seq": rec.seq, "hash": rec.hash}
     return result
 

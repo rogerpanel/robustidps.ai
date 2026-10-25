@@ -10,7 +10,7 @@ tabs Test, Approvals, Tool Registry, Evaluate and Evidence.
 | Layer | Check |
 |---|---|
 | Canonicalise | NFKC; hidden, bidirectional and tag characters removed and reported (hidden text in the tool name is a deny, in arguments an ask); rationale fields such as `reasoning` are ignored by rules |
-| Tier | Tool name (glob) to an action tier with a verdict, e.g. read = allow, reversible containment = ask, irreversible = deny; unknown tools get the pack's default |
+| Tier | Tool name (glob) to an action tier with a verdict, e.g. read = allow, reversible containment = ask, irreversible = deny; unknown tools get the pack's default. A rule can be limited to calls whose arguments fully match regexes (`"when": {"command": "git status"}`); conditions may not test the agent's stated reasons, and other rules (chaining, scope) still apply |
 | Scope | Target arguments (hosts, IPs, URLs, CIDRs) must fall inside the agreed scope; with `on_violation: "project"` the call is repaired to its in-scope part (out-of-scope list entries dropped, a range narrowed to the one allowed network inside it) and denied only when nothing in scope remains |
 | Typed actions | For network tools (`actions`), targets, ports and rates are parsed into values first: addresses, CIDRs, ranges (10.0.0.1-50), wildcard octets, hostnames (IDNA, trailing dot), host:port, URLs and lists. Forbidden networks and hosts (metadata, loopback, link-local) are denied in any spelling; numeric IP literals in disguised forms (hex, integer, shortened) and unsupported URL schemes are denied; the scope is checked on networks and lists or ranges are cut to their exact in-scope part; addresses, ports and probes per call are bounded; rates and parallelism are lowered to their limits. What cannot be read is denied (testing, coding) or sent to a person (SOC containment) |
 | Argument rules | Regex rules on argument values (mass targets, shell chaining, credential paths, metadata endpoints) |
@@ -78,6 +78,18 @@ website share sessions, approvals, the registry and the ledger.
   (19 steps, 7 sessions) cover the information-flow rules, including
   destination tricks and the public-issue to private-repository to public
   pull request pattern.
+  **Policy authoring from failures** (`authoring.py`, `/evaluate/suggest`,
+  "Suggest policy edits" on the Evaluate tab): for each failing case it
+  proposes edits (classify the tool, a condition on an argument, add a scope
+  entry, raise a limit, relax an argument rule, mark a destination internal,
+  an argument rule for the exact value, its file stem or folder, or a whole
+  MCP server), re-runs the suite for each and reports what it fixes, breaks
+  and moves. "Smallest edit" or "widest edit that breaks nothing"; an
+  optional held-out suite shows how each edit carries over and is never used
+  to rank. Nothing is applied: open a proposal as a policy, validate, test.
+  `org-coding-preferences` (10 cases) and `org-coding-holdout` (8) are an
+  example: smallest edits fix the 3 failures but only 1 of 3 held-out
+  twins (held out 75%); widest non-breaking edits reach 100% on both.
   `agent-hosts-mcp` (22 cases) pins how the coding pack treats Claude Code
   and OpenHands tool names.
   `typed-actions-testing` (32 cases) and `typed-actions-soc` (12 cases)
@@ -106,7 +118,7 @@ website share sessions, approvals, the registry and the ledger.
 | POST | `/sessions/{id}/reset` | Person resets a session |
 | GET/POST | `/approvals`, `/approvals/{id}`, `/approvals/{id}/decide` | Approval queue |
 | GET/POST | `/toolsets`, `/toolsets/{name}`, `/toolsets/{name}/pin`, `/toolsets/{name}/verify`, `/toolsets/{name}/coverage` | Tool Registry |
-| GET/POST | `/suites`, `/evaluate`, `/evaluate/compare` | Evaluation, ablations and baselines |
+| GET/POST | `/suites`, `/evaluate`, `/evaluate/compare`, `/evaluate/suggest` | Evaluation, ablations and baselines, policy edits proposed from failures |
 | GET/PUT/POST | `/environment`, `/environment/validate` | Asset inventory for the predictive layer and the internal destinations for information flow (PUT: a person) |
 | GET | `/sessions/{id}` | What the guard holds for a session: calls, denials, budgets used, assets taken down, data labels |
 | GET | `/evidence`, `/evidence/verify`, `/evidence/summary`, `/evidence/export` | Evidence ledger |

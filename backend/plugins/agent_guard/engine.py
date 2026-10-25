@@ -145,7 +145,7 @@ def evaluate(call: ProposedCall, policy: Policy, state: SessionState, env: Envir
                                 reason="Arguments contained hidden characters; they were removed and the cleaned call needs approval."))
 
     state.calls += 1
-    tier = policy.tier_for(tool)
+    tier = policy.tier_for(tool, args)
     prediction = None
     flow = None
     typed: list[dict] | None = None

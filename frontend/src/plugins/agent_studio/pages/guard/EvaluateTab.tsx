@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Play, Loader2, Download, CheckCircle2, AlertTriangle } from 'lucide-react'
 import {
-  guardCompare, guardEvaluate, guardSuites,
-  type CompareResult, type EvalResult, type GuardPolicy, type GuardSuite,
+  guardCompare, guardEvaluate, guardSuggest, guardSuites,
+  type CompareResult, type EvalResult, type GuardPolicy, type GuardSuite, type SuggestResult,
 } from '../../guardApi'
+import SuggestPanel from './SuggestPanel'
 
 interface Props {
   policies: GuardPolicy[]
   policyId: string
   inlinePolicy?: unknown   // the policy edited in the Test tab, if any
+  onUsePolicy?: (p: GuardPolicy) => void
 }
 
 function pct(x: number | null) {
@@ -23,13 +25,16 @@ function download(name: string, data: unknown) {
 }
 
 /** Run a labelled suite against a policy. Deterministic: the result digest identifies suite, policy and verdicts. */
-export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props) {
+export default function EvaluateTab({ policies, policyId, inlinePolicy, onUsePolicy }: Props) {
   const [suites, setSuites] = useState<GuardSuite[]>([])
   const [suiteId, setSuiteId] = useState('')
   const [useEdited, setUseEdited] = useState(false)
   const [customSuite, setCustomSuite] = useState('')
   const [res, setRes] = useState<EvalResult | null>(null)
   const [cmp, setCmp] = useState<CompareResult | null>(null)
+  const [sug, setSug] = useState<SuggestResult | null>(null)
+  const [holdoutId, setHoldoutId] = useState('')
+  const [strategy, setStrategy] = useState<'narrow' | 'general'>('narrow')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -54,8 +59,14 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
     }
   }
 
+  const runSuggest = async () => {
+    setBusy(true); setErr(''); setSug(null)
+    try { setSug(await guardSuggest({ ...request(), holdout_suite_id: holdoutId || undefined, strategy })) }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+  }
+
   const run = async () => {
-    setBusy(true); setErr(''); setRes(null); setCmp(null)
+    setBusy(true); setErr(''); setRes(null); setCmp(null); setSug(null)
     try { setRes(await guardEvaluate(request())) }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
   }
@@ -95,6 +106,26 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
             Compare with baselines and layers
           </button>
         </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs pt-1 border-t border-bg-primary">
+          <span className="font-medium">Propose policy edits from failing cases:</span>
+          <select value={strategy} onChange={(e) => setStrategy(e.target.value as 'narrow' | 'general')}
+                  className="px-2 py-1 bg-bg-primary border border-bg-card rounded-lg">
+            <option value="narrow">smallest edit</option>
+            <option value="general">widest edit that breaks nothing</option>
+          </select>
+          <label className="flex items-center gap-1.5">check on held-out suite
+            <select value={holdoutId} onChange={(e) => setHoldoutId(e.target.value)}
+                    className="px-2 py-1 bg-bg-primary border border-bg-card rounded-lg">
+              <option value="">none</option>
+              {suites.filter((s) => s.id !== suiteId).map((s) => <option key={s.id} value={s.id}>{s.id}</option>)}
+            </select>
+          </label>
+          <button onClick={runSuggest} disabled={busy || !suiteId}
+                  className="px-3 py-1.5 bg-accent-amber/15 text-accent-amber rounded-lg font-medium disabled:opacity-50">
+            Suggest policy edits
+          </button>
+          <span className="text-text-secondary">Try org-coding-preferences with held-out org-coding-holdout.</span>
+        </div>
         {suite && suiteId !== '__custom' && <p className="text-xs text-text-secondary">{suite.description}</p>}
         {suiteId === '__custom' && (
           <textarea value={customSuite} onChange={(e) => setCustomSuite(e.target.value)} spellCheck={false}
@@ -103,6 +134,8 @@ export default function EvaluateTab({ policies, policyId, inlinePolicy }: Props)
         )}
         {err && <p className="text-sm text-accent-red">{err}</p>}
       </div>
+
+      {sug && <SuggestPanel r={sug} onUsePolicy={onUsePolicy} />}
 
       {cmp && (
         <div className="bg-bg-card rounded-xl p-4 space-y-3 overflow-x-auto">

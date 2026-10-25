@@ -131,6 +131,14 @@ def main() -> int:
         c = req("POST", "/api/agent-guard/evaluate/compare", {"suite_id": "soc-response-actions"})
         record("comparison with ablations and baselines", len(c["table"]) >= 5,
                ", ".join(f"{row['name']} {row['exact_accuracy']}" for row in c["table"][:3]))
+        sg = req("POST", "/api/agent-guard/evaluate/suggest", {"suite_id": "org-coding-preferences",
+                                                               "holdout_suite_id": "org-coding-holdout",
+                                                               "strategy": "general"})
+        cb = sg.get("combined") or {}
+        record("policy edits proposed from failing cases", sg["failures"] > 0 and not cb.get("broken")
+               and cb.get("exact_accuracy") == 1.0,
+               f"{sg['failures']} failures; combined edits: suite {cb.get('exact_accuracy')}, held out "
+               f"{(cb.get('holdout') or {}).get('exact_accuracy')}")
         v = req("GET", "/api/agent-guard/evidence/verify")
         record("evidence ledger verifies", v["valid"], f"{v['records']} records")
     except Exception as exc:  # noqa: BLE001

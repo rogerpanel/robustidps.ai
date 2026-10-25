@@ -334,7 +334,7 @@ Task(..., approval=[
         <RegistryTab policies={policies} policyId={policyId} inlinePolicy={editedPolicy}
                      initialToolset={params.get('toolset') || undefined} onUsePolicy={usePolicy} />
       )}
-      {tab === 'evaluate' && <EvaluateTab policies={policies} policyId={policyId} inlinePolicy={editedPolicy} />}
+      {tab === 'evaluate' && <EvaluateTab policies={policies} policyId={policyId} inlinePolicy={editedPolicy} onUsePolicy={usePolicy} />}
       {tab === 'evidence' && <EvidenceTab />}
       {tab === 'environment' && <EnvironmentTab />}
 

@@ -100,7 +100,7 @@ def call_labels(tool: str, args: dict[str, Any], policy: Policy, internal: list[
         ok, why = _applies(lab, tool, args, internal or [])
         if ok and lab.label not in labels:
             labels[lab.label] = why
-    if not matched_any and policy.tier_for(tool) == policy.default_tier and flow.unclassified:
+    if not matched_any and policy.tier_for(tool, args) == policy.default_tier and flow.unclassified:
         return {name: f"{tool} (a tool this pack does not classify)" for name in flow.unclassified}, True
     return labels, False
 

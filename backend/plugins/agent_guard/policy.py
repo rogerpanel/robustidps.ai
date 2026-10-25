@@ -55,6 +55,37 @@ class Tier(BaseModel):
 class ToolRule(BaseModel):
     match: list[str] = Field(..., min_length=1, description="Globs on the lower-cased tool name")
     tier: str
+    when: dict[str, str] = Field(default_factory=dict,
+                                 description="Only for calls whose named arguments fully match these regexes "
+                                             "(e.g. {\"command\": \"git status\"}); all must match")
+
+    @field_validator("when")
+    @classmethod
+    def _patterns(cls, v: dict[str, str]) -> dict[str, str]:
+        if len(v) > 8:
+            raise ValueError("at most 8 argument conditions")
+        from plugins.agent_guard.canonical import RATIONALE_KEYS
+        for key in v:
+            if key.lower() in RATIONALE_KEYS:
+                raise ValueError(f"'{key}' is the agent's stated reason; conditions may not depend on it")
+        for pattern in v.values():
+            check_regex(pattern)
+        return v
+
+    def applies(self, tool: str, args: dict | None) -> bool:
+        if not any(fnmatchcase(tool, p.lower()) for p in self.match):
+            return False
+        if not self.when:
+            return True
+        if args is None:  # without the arguments a conditional rule cannot be shown to apply
+            return False
+        for key, pattern in self.when.items():
+            value = args.get(key)
+            if not isinstance(value, (str, int, float)) or isinstance(value, bool):
+                return False
+            if re.fullmatch(pattern, str(value)) is None:
+                return False
+        return True
 
 
 class ArgRule(BaseModel):
@@ -282,10 +313,11 @@ class Policy(BaseModel):
 
     # ── matching helpers ───────────────────────────────────────────────
 
-    def tier_for(self, tool: str) -> str:
-        """First matching tool rule wins; otherwise the default tier."""
+    def tier_for(self, tool: str, args: dict | None = None) -> str:
+        """First matching tool rule wins; otherwise the default tier. Rules with argument conditions (`when`)
+        apply only when the arguments are given and match."""
         for rule in self.tools:
-            if any(fnmatchcase(tool, p.lower()) for p in rule.match):
+            if rule.applies(tool, args):
                 return rule.tier
         return self.default_tier
 

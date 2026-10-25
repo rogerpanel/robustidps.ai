@@ -134,10 +134,26 @@ Both were checked against the installed SDKs rather than their documentation:
   request for a repeated identical call and lets a recently approved request
   be used once by the next identical call in the same session.
 
+## Policy authoring from evaluation failures
+
+`authoring.py` turns failing labelled cases into proposed policy edits, each
+re-run on the whole suite. Two findings from building it:
+
+- The policy language could not say "allow this one command of an asking
+  tool": a tier applied to every call of a tool. Tool rules now take
+  argument conditions (`when`, full regex match, never on stated reasons).
+- Narrowest edits overfit. On the example (10 labelled cases, 8 held out),
+  the smallest edit per failure fixed every training failure but only one
+  of three held-out twins; choosing the widest edit that breaks no labelled
+  case fixed all three and broke nothing. This is the classic choice
+  between the most specific and the most general hypothesis consistent with
+  the labels; the tool reports both, and held-out results never influence
+  the ranking.
+
 ## Planned
 
-- Policy authoring from evaluation failures: propose a policy change that
-  fixes a failing labelled case and show which other cases it would change.
+- Independent evaluation on AgentDojo's ground-truth tool calls (benign
+  tasks and attack goals), with policies generated from tool descriptions.
 
 ## Not adopted
 
