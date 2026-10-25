@@ -47,6 +47,12 @@ export interface GuardDecision {
   call_key: string
   approval_id: string | null
   prediction: GuardPrediction | null
+  deferral: GuardDeferral | null
+}
+
+export interface GuardDeferral {
+  mode: string; score: number | null; eligible: boolean; reason: string
+  threshold?: number | null; alpha?: number; would_auto_approve?: boolean
 }
 
 export interface GuardPrediction {
@@ -98,6 +104,7 @@ export interface GuardApproval {
     reversible: boolean | null; targets: { arg: string; value: string }[]; n_targets: number
     hidden_characters: string[]; reasons: string[]; risk: string; agent_id: string; framework: string; policy: string
     prediction?: GuardPrediction | null
+    deferral?: GuardDeferral | null
   }
 }
 export const guardApprovals = (status?: string) =>
@@ -193,4 +200,18 @@ export async function guardSaveEnvironment(environment: unknown) {
       : `Error ${res.status}`)
   }
   return data as { version: number; assets: number; groups: number }
+}
+
+// ── calibrated deferral ──────────────────────────────────────────────
+export interface DeferralSettings { mode: 'off' | 'shadow' | 'auto'; alpha: number; delta: number; min_samples: number }
+export interface DeferralCalibration {
+  n: number; alpha: number; delta: number; min_samples: number; denial_rate: number | null; method: string
+  ready: boolean; threshold: number | null; auto_share: number; historical_miss_rate?: number; reason: string
+}
+export const guardDeferral = () => call<{ settings: DeferralSettings; calibration: DeferralCalibration }>('/deferral')
+export async function guardSaveDeferral(settings: DeferralSettings) {
+  const res = await fetch(`${API}/api/agent-guard/deferral`, { method: 'PUT', headers: headers(true), body: JSON.stringify(settings) })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(typeof (data as { detail?: unknown }).detail === 'string' ? (data as { detail: string }).detail : `Error ${res.status}`)
+  return data as { settings: DeferralSettings; calibration: DeferralCalibration }
 }

@@ -150,6 +150,14 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         record("environment", False, str(exc))
 
+    try:
+        dfr = req("GET", "/api/agent-guard/deferral")
+        cal = dfr["calibration"]
+        record("calibrated deferral status", True, f"mode {dfr['settings']['mode']}; "
+               + (f"threshold {cal['threshold']} from {cal['n']} decisions" if cal["ready"] else cal["reason"]))
+    except Exception as exc:  # noqa: BLE001
+        record("calibrated deferral status", False, str(exc))
+
     if args.approval:
         print("\n6. Approval round trip")
         sess = f"selftest-{run}-approval"

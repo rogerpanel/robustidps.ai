@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle2, XCircle, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { guardApprovals, guardDecideApproval, type GuardApproval } from '../../guardApi'
 import PredictionView from './PredictionView'
+import DeferralPanel from './DeferralPanel'
 
 const STATUS_STYLE: Record<string, string> = {
   pending: 'bg-accent-amber/15 text-accent-amber',
@@ -44,6 +45,7 @@ export default function ApprovalsTab({ onCount }: { onCount?: (n: number) => voi
 
   return (
     <div className="space-y-4">
+      <DeferralPanel />
       <div className="flex items-center gap-3">
         <p className="text-sm text-text-secondary mr-auto">
           Each request is bound to its session and its exact arguments, and can be used once. Unanswered requests
@@ -72,6 +74,14 @@ export default function ApprovalsTab({ onCount }: { onCount?: (n: number) => voi
               Hidden characters were removed from this call: {a.preview.hidden_characters.join(' · ')}</p>
           )}
           {a.preview.prediction && <PredictionView p={a.preview.prediction} />}
+          {a.preview.deferral && a.preview.deferral.mode !== 'off' && (
+            <p className="text-xs text-text-secondary">
+              Calibrator: risk score {a.preview.deferral.score}
+              {a.preview.deferral.eligible
+                ? (a.preview.deferral.would_auto_approve ? ' · would be auto-approved' : ` · above the threshold ${a.preview.deferral.threshold ?? '(not calibrated)'}`)
+                : ` · never auto-approved (${a.preview.deferral.reason})`}
+            </p>
+          )}
           <div className="grid md:grid-cols-2 gap-3">
             <div>
               <p className="text-xs text-text-secondary mb-1">Targets ({a.preview.n_targets})</p>

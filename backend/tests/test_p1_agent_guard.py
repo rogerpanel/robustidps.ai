@@ -621,3 +621,66 @@ def test_environment_validation_and_api(client):
                                           "args": {"host": "WS-0412"}, "approval_id": d["approval_id"]})
     assert "ws-0412" in guard_api.STORE.get("cust_a", "e2").unavailable
     assert c.get("/api/agent-guard/evidence", params={"kind": "environment_update"}).json()
+
+
+# ── calibrated deferral ─────────────────────────────────────────────────
+
+def test_learn_then_test_threshold_controls_missed_denials():
+    """With probability >= 1 - delta, the true share of denied requests among those under the threshold <= alpha."""
+    import random
+    from plugins.agent_guard.deferral import binom_cdf, calibrate
+    rng = random.Random(11)
+
+    def p_denied(x):
+        return 0.01 if x < 2 else 0.05 if x < 3 else 0.5
+
+    def true_rate(t):                     # scores ~ Uniform(0, 6): exact denial share among scores <= t
+        if t < 2:
+            return 0.01
+        if t < 3:
+            return (0.02 + 0.05 * (t - 2)) / t
+        return (0.07 + 0.5 * (t - 3)) / t
+
+    alpha, delta, runs, violations, ready = 0.05, 0.1, 200, 0, 0
+    for _ in range(runs):
+        s = [rng.uniform(0, 6) for _ in range(400)]
+        d = [rng.random() < p_denied(x) for x in s]
+        cal = calibrate(s, d, alpha, 50, delta)
+        if cal["ready"]:
+            ready += 1
+            violations += true_rate(cal["threshold"]) > alpha
+    assert ready > runs * 0.5                       # finds a threshold in most runs (power grows with history)
+    assert violations / runs <= delta               # guarantee: failure probability at most delta
+    assert abs(binom_cdf(2, 10, 0.5) - 56 / 1024) < 1e-12
+    assert calibrate([1.0] * 10, [False] * 10, 0.05, 50)["ready"] is False            # too few samples
+    assert calibrate([1.0] * 100, [True] * 100, 0.05, 50)["ready"] is False           # everything denied
+
+
+def test_deferral_modes_api(client):
+    c, who = client
+    from plugins.agent_guard.environment import EXAMPLE
+    c.put("/api/agent-guard/environment", json={"environment": EXAMPLE})
+    ask = {"session_id": "d1", "tool_name": "isolate_host", "args": {"host": "WS-0412"}}
+    d = c.post("/api/agent-guard/check", json=ask).json()
+    assert d["decision"] == "ask" and d["deferral"]["mode"] == "off" and d["deferral"]["eligible"] is True
+    # Build history: 25 routine isolations approved by a person.
+    for i in range(25):
+        a = c.post("/api/agent-guard/check", json={**ask, "session_id": f"h{i}"}).json()
+        c.post(f"/api/agent-guard/approvals/{a['approval_id']}/decide", json={"decision": "approve"})
+    who["source"] = "api_key"
+    assert c.put("/api/agent-guard/deferral", json={"mode": "auto", "alpha": 0.2, "min_samples": 20}).status_code == 403
+    who["source"] = "platform_jwt"
+    r = c.put("/api/agent-guard/deferral", json={"mode": "shadow", "alpha": 0.2, "min_samples": 20}).json()
+    assert r["calibration"]["ready"] is True
+    d = c.post("/api/agent-guard/check", json={**ask, "session_id": "s-shadow"}).json()
+    assert d["decision"] == "ask" and d["deferral"]["would_auto_approve"] is True       # shadow: still a person
+    c.put("/api/agent-guard/deferral", json={"mode": "auto", "alpha": 0.2, "min_samples": 20})
+    d = c.post("/api/agent-guard/check", json={**ask, "session_id": "s-auto"}).json()
+    assert d["decision"] == "allow" and d["findings"][-1]["rule_id"] == "calibrated-auto-approval"
+    assert c.get("/api/agent-guard/evidence", params={"kind": "auto_approval"}).json()
+    # Never eligible: hidden characters, unsafe predictions, unknown targets, irreversible actions.
+    for args, tool in [({"host": "WS-0412​"}, "isolate_host"), ({"host": "DC-01"}, "isolate_host"),
+                       ({"host": "10.77.0.1"}, "isolate_host"), ({"host": "WS-0412"}, "wipe_disk")]:
+        d = c.post("/api/agent-guard/check", json={"session_id": f"n-{tool}-{args['host']}", "tool_name": tool,
+                                                   "args": args}).json()
+        assert d["decision"] != "allow", (tool, args, d["decision"])

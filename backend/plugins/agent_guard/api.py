@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
-from plugins.agent_guard import approvals, environment, evidence, registry
+from plugins.agent_guard import approvals, deferral, environment, evidence, registry
 from plugins.agent_guard.adapters import (
     call_from_claude_hook, claude_hook_deny, claude_hook_response, openhands_risk,
 )
@@ -177,12 +177,52 @@ def _approved(call: ProposedCall, policy: Policy, tid: str, approval_id: str, db
                     latency_ms=round((time.perf_counter() - started) * 1000, 3))
 
 
+def _deferral(call: ProposedCall, policy: Policy, tid: str, decision: Decision, db: Session) -> tuple[Decision, dict]:
+    """Score an 'ask' and apply the tenant's calibrated-deferral mode (off / shadow / auto)."""
+    state = STORE.get(tid, call.session_id)
+    feats = deferral.features(decision, policy, state.denied_attempts)
+    score = deferral.risk_score(feats)
+    ok, why = deferral.eligible(decision, policy)
+    info = {"score": score, "eligible": ok, "reason": why, "features": feats}
+    settings = deferral.load_settings(db, tid)
+    info["mode"] = settings.mode
+    if settings.mode == "off" or not ok:
+        return decision, info
+    calib = deferral.calibrate(*deferral.calibration_data(db, tid), settings.alpha, settings.min_samples,
+                               settings.delta)
+    would = bool(calib["ready"] and score <= calib["threshold"])
+    info.update({"threshold": calib["threshold"], "alpha": settings.alpha, "would_auto_approve": would})
+    if settings.mode == "auto" and would:
+        reason = (f"Auto-approved by calibrated deferral: risk score {score} <= threshold {calib['threshold']} "
+                  f"(at most {settings.alpha:.0%} of auto-approvals would have been denied, "
+                  f"with {1 - settings.delta:.0%} confidence).")
+        decision = decision.model_copy(update={
+            "decision": "allow", "risk": "MEDIUM", "reasons": [reason],
+            "findings": [*decision.findings, Finding(rule_id="calibrated-auto-approval", verdict="allow", reason=reason)]})
+        commit_prediction(state, decision.prediction)
+        evidence.append(db, tid, "auto_approval",
+                        {"session_id": call.session_id, "tool_name": call.tool_name, "call_key": decision.call_key,
+                         "score": score, "threshold": calib["threshold"], "alpha": settings.alpha, "n": calib["n"]},
+                        f"Auto-approved {call.tool_name} ({call.session_id}): score {score} <= {calib['threshold']}")
+    return decision, info
+
+
 def _finish(call: ProposedCall, policy: Policy, tid: str, decision: Decision, db: Session) -> Decision:
-    """Queue an approval for 'ask', then log, ledger and monitor the decision."""
+    """Apply calibrated deferral, queue an approval for 'ask', then log, ledger and monitor the decision."""
+    if decision.decision == "ask" and not decision.approval_id:
+        try:
+            decision, info = _deferral(call, policy, tid, decision, db)
+        except Exception:  # noqa: BLE001 — deferral is an optimisation; on failure the ask stays an ask
+            logger.warning("deferral failed", exc_info=True)
+            info = {"score": None, "eligible": False, "reason": "deferral failed", "mode": "error"}
+        decision = decision.model_copy(update={"deferral": info})
     if decision.decision == "ask" and not decision.approval_id:
         try:
             run_args = decision.modified_args if decision.modified_args is not None else canonicalize(call, policy).args
-            row = approvals.create(db, tid, call, policy, decision, decision.call_key, run_args)
+            info = decision.deferral or {}
+            row = approvals.create(db, tid, call, policy, decision, decision.call_key, run_args,
+                                   extra={"risk_score": info.get("score"),
+                                          "deferral_eligible": info.get("eligible"), "deferral": info})
             decision = decision.model_copy(update={"approval_id": row.id})
         except Exception:  # noqa: BLE001 — no approval record means no way to approve: deny
             logger.warning("approval create failed", exc_info=True)
@@ -570,6 +610,29 @@ def put_environment(body: EnvironmentBody, customer: dict = Depends(require_api_
                      "digest": evidence.digest(json.loads(env.model_dump_json())), "by": _actor(customer)},
                     f"Environment model v{version} saved ({len(env.assets)} assets) by {_actor(customer)}")
     return {"version": version, "assets": len(env.assets), "groups": len(env.groups)}
+
+
+# ── calibrated deferral ──────────────────────────────────────────────
+
+@router.get("/deferral")
+def get_deferral(customer: dict = Depends(require_api_key), db: Session = Depends(get_db)) -> dict:
+    tid = tenant(customer)
+    settings = deferral.load_settings(db, tid)
+    calib = deferral.calibrate(*deferral.calibration_data(db, tid), settings.alpha, settings.min_samples,
+                               settings.delta)
+    return {"settings": settings.model_dump(), "calibration": calib}
+
+
+@router.put("/deferral")
+def put_deferral(body: deferral.DeferralSettings, customer: dict = Depends(require_api_key),
+                 db: Session = Depends(get_db)) -> dict:
+    """Change the deferral mode or target (a person only: 'auto' lets calls run without review)."""
+    _require_person(customer)
+    tid = tenant(customer)
+    deferral.save_settings(db, tid, body, _actor(customer))
+    evidence.append(db, tid, "deferral_settings", {**body.model_dump(), "by": _actor(customer)},
+                    f"Calibrated deferral set to {body.mode} (alpha {body.alpha}) by {_actor(customer)}")
+    return get_deferral(customer, db)
 
 
 # ── evidence ledger ───────────────────────────────────────────────────

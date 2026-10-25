@@ -115,6 +115,26 @@ One stdlib file, also served at `/api/agent-guard/client.py`:
 
 Every failure is a deny: a tool the guard did not approve never runs.
 
+## Calibrated deferral (`deferral.py`)
+
+Learns from the tenant's own decided approvals which 'ask' requests a person
+really needs to see. Each ask gets a transparent risk score (log of the
+predicted blast radius, unknown targets, unclassified tool, earlier denials in
+the session). Learn then Test picks a threshold with fixed-sequence exact
+binomial tests: with probability at least 1 - delta, at most alpha of the
+requests under the threshold are ones a person would deny, assuming future
+requests resemble past ones. Modes: off (default), shadow (still a person;
+records whether it would have been auto-approved), auto (auto-approves under
+the threshold; recorded as `auto_approval` in the ledger). Mode changes need a
+signed-in person. Never auto-approved: refusals, irreversible or unclassified
+tiers, hidden characters, unsafe or unknown predictions, repeated or escalated
+sessions. Settings and status: `GET/PUT /api/agent-guard/deferral`, and the
+panel at the top of the Approvals tab. With little history it reports "not
+calibrated" rather than guessing: zero denials among at least
+log(delta)/log(1 - alpha) past requests is the minimum evidence (45 at the
+defaults). Known gap: auto-approved and human-approved calls are not charged
+to session budgets.
+
 ## Self-test (`integrations/selftest.py`)
 
 Served at `/api/agent-guard/integrations/selftest` (as `agent_guard_selftest.py`).
@@ -157,4 +177,5 @@ backend runs one worker); approvals, registry and ledger are in the database.
 The guard is deterministic. Its prediction is only as good as the inventory: an asset missing from it
 has an unknown effect (routed to a person), and dependents and groups are what the defender declares.
 Session state for prediction covers the session; organisation-wide state comes from `available: false`
-in the inventory. Calibrated deferral is the next research step.
+in the inventory. Calibrated deferral holds only while future requests resemble the decided ones; it
+starts in shadow mode for that reason.

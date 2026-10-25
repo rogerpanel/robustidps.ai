@@ -53,19 +53,20 @@ def preview(call: ProposedCall, policy: Policy, decision: Decision, clean_args: 
         "hidden_characters": decision.hidden_characters, "reasons": decision.reasons,
         "risk": decision.risk, "agent_id": call.agent_id, "framework": call.framework,
         "prediction": decision.prediction,
+        "deferral": decision.deferral,
         "policy": f"{policy.id} v{policy.version}",
     }
 
 
 def create(db: Session, customer_id: str, call: ProposedCall, policy: Policy, decision: Decision,
-           call_key: str, clean_args: dict[str, Any]) -> GuardApproval:
+           call_key: str, clean_args: dict[str, Any], extra: dict[str, Any] | None = None) -> GuardApproval:
     """`clean_args` are the arguments the call will run with if approved (repaired by the policy where it
     repaired them); the reviewer sees exactly these and the approved call runs with exactly these."""
     row = GuardApproval(
         id=uuid.uuid4().hex, customer_id=customer_id, session_id=call.session_id, call_key=call_key,
         status="pending", expires_at=_now() + datetime.timedelta(minutes=ttl_minutes()),
         request={"tool_name": call.tool_name, "args": clean_args, "policy_id": policy.id,
-                 "prediction": decision.prediction,
+                 "prediction": decision.prediction, **(extra or {}),
                  "policy_version": policy.version, "agent_id": call.agent_id, "framework": call.framework},
         preview=preview(call, policy, decision, clean_args))
     db.add(row)

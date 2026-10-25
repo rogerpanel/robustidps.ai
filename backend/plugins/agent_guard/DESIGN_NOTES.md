@@ -48,6 +48,19 @@ are matched by process name, which is deliberately left to a person
 because an attacker could name a process after a critical service to make
 the guard refuse to stop it.
 
+## Calibrated deferral
+
+`deferral.py`: a Learn-then-Test threshold on a transparent risk score, fitted
+to the tenant's own approve/deny history. The guarantee is about the share of
+auto-approved requests a person would have denied (alpha, at confidence
+1 - delta). An earlier draft used conformal risk control with a loss averaged
+over all requests; a simulation test showed that bounds the wrong quantity
+(wrong auto-approvals as a share of all requests, not of auto-approvals), so
+it was replaced. In simulation (400 decisions, alpha 0.05, delta 0.1) the true
+rate exceeded alpha in 4.5% of calibrations and a threshold was found in 61%.
+The eligibility rules keep adversarially placed requests (hidden characters,
+unknown targets, unsafe predictions) away from the threshold entirely.
+
 ## Planned
 
 - **Session information flow.** Track data labels across a session
@@ -57,8 +70,6 @@ the guard refuse to stop it.
 - **Typed actions for network tools.** Parse common tool arguments into
   target sets and rates before checking, and deny what cannot be parsed,
   instead of matching strings.
-- **Calibrated deferral.** Learn when to route to a person from approval outcomes, with a bound on missed
-  unsafe actions at a fixed approval budget.
 - **Out-of-process enforcement for in-process hooks.** Host-side hooks act
   only as deny-by-default routers to the guard service (already true for
   the client and gateway; document per framework).

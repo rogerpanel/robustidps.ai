@@ -54,3 +54,4 @@ class Decision(BaseModel):
     call_key: str = Field("", description="Digest of the canonical call; approvals and sticky denials bind to it")
     approval_id: str | None = Field(None, description="Set on 'ask': poll /approvals/{id}, then repeat the call with it")
     prediction: dict[str, Any] | None = Field(None, description="Predicted effect on the environment (L2), if evaluated")
+    deferral: dict[str, Any] | None = Field(None, description="Calibrated-deferral assessment of an 'ask'")
