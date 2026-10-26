@@ -11,3 +11,7 @@
 
 ## 2026-10-26: burden-aware authoring
 - RQ4 rewritten around review burden: balanced strategy, final-goal-call labels, and a held-out-goal split showing that edits do not transfer to unseen goals.
+
+## 2026-10-26: live-run analysis
+- Paired McNemar tests, attribution of lost tasks and stopped attacks to filter decisions, per-call check time,
+  tokens per run, a utility-versus-attack-success figure; run manifests with file hashes, only verified runs used.

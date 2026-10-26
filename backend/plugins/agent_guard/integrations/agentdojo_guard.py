@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import time
 import uuid
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -104,11 +105,15 @@ class GuardedToolsExecutor(ToolsExecutor):
         last = messages[-1]
         results: list[ChatToolResultMessage] = []
         for tool_call in last["tool_calls"]:
+            t0 = time.perf_counter()
             verdict = self._check(query, tool_call.function, dict(tool_call.args))
+            elapsed_ms = round((time.perf_counter() - t0) * 1000, 3)
             decision = verdict.get("decision")
             self.decisions.append({"tool": tool_call.function, "args": dict(tool_call.args),
                                    "decision": decision, "reasons": verdict.get("reasons", []),
-                                   "session": self._session(query), **self.session_tags})
+                                   "rules": [f.get("rule_id") for f in verdict.get("findings", [])
+                                             if f.get("verdict") == decision],
+                                   "check_ms": elapsed_ms, "session": self._session(query), **self.session_tags})
             if decision == "ask" and self.on_ask == "approve":
                 if self.approved is not None:
                     self.approved(tool_call.function, dict(tool_call.args), self._session(query), verdict)

@@ -254,8 +254,57 @@ def run(a) -> None:
     with OutputLogger(str(logdir), live=None):
         _run_conditions(a, conditions, plan, suites, logdir, out, summary, decisions_path, started,
                         load_attack, benchmark_suite_with_injections, benchmark_suite_without_injections)
+    write_manifest(out)
     print(f"Done in {round(time.time() - started)} s. Results: {out}")
     print("Tokens:", json.dumps({k: dict(v) for k, v in USAGE.items()}))
+
+
+def _sha256(path: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def write_manifest(out: Path) -> dict:
+    """Hashes of the run's result files plus the software that produced them, so results sent elsewhere can be
+    checked to be exactly what this run wrote (and from which code)."""
+    import platform
+    import subprocess
+    from importlib.metadata import PackageNotFoundError, version
+
+    def ver(pkg):
+        try:
+            return version(pkg)
+        except PackageNotFoundError:
+            return None
+    try:
+        commit = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"], capture_output=True, text=True,
+                                timeout=10).stdout.strip() or None
+        dirty = bool(subprocess.run(["git", "-C", str(REPO), "status", "--porcelain", "--", "backend",
+                                     "research/agent-guard-bench/harness"], capture_output=True, text=True,
+                                    timeout=10).stdout.strip())
+    except Exception:  # noqa: BLE001
+        commit, dirty = None, None
+    files = {p.name: _sha256(p) for p in sorted(out.glob("*")) if p.is_file() and p.name != "manifest.json"}
+    manifest = {"files": files, "git_commit": commit, "code_modified": dirty, "python": platform.python_version(),
+                "packages": {k: ver(k) for k in ("agentdojo", "anthropic", "openai")},
+                "written": datetime.datetime.utcnow().isoformat() + "Z"}
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    return manifest
+
+
+def verify_manifest(run_dir: Path) -> str:
+    """'verified', 'no manifest', or what does not match."""
+    mpath = run_dir / "manifest.json"
+    if not mpath.exists():
+        return "no manifest"
+    m = json.loads(mpath.read_text())
+    bad = [name for name, digest in m["files"].items()
+           if not (run_dir / name).exists() or _sha256(run_dir / name) != digest]
+    return "verified" if not bad else "changed after the run: " + ", ".join(bad)
 
 
 def _run_conditions(a, conditions, plan, suites, logdir, out, summary, decisions_path, started,
@@ -316,6 +365,8 @@ def summarize(a) -> None:
         s = json.loads(summ.read_text())
         if s["meta"].get("smoke") and not a.include_smoke:
             continue
+        integrity = verify_manifest(summ.parent)
+        print(f"{summ.parent.name}: {integrity}")
         if s["meta"]["provider"] == "groundtruth" and not a.include_smoke:
             continue                       # the scripted agent only tests the harness
         decisions = defaultdict(list)
@@ -333,7 +384,8 @@ def summarize(a) -> None:
                       and str(d.get("user_task") or "").startswith("user_task")]
             n_benign = max(1, len(u))
             rows.append({
-                "run": summ.parent.name, "provider": s["meta"]["provider"], "model": s["meta"]["model"],
+                "run": summ.parent.name, "integrity": integrity, "provider": s["meta"]["provider"],
+                "model": s["meta"]["model"],
                 "condition": condition, "guard": s["meta"]["guard"], "policy_variant": s["meta"]["policy_variant"],
                 "suites": sorted(per_suite), "filter_version": s["meta"]["filter_version"],
                 "n_tasks": len(u), "n_pairs": len(sa),
@@ -350,6 +402,8 @@ def summarize(a) -> None:
         print(f"{r['model']:28} {r['condition']:14} tasks {r['n_tasks']:3} pairs {r['n_pairs']:4} "
               f"utility {r['utility']} attacked-utility {r['utility_under_attack']} ASR {r['attack_success']}")
     print(f"wrote {LIVE / 'live_results.json'}")
+    import live_analysis
+    live_analysis.main(include_test_runs=a.include_smoke)
 
 
 def main() -> int:

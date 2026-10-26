@@ -8,6 +8,7 @@ manuscript "Calibration Is Not Containment: A Fail-Closed Safety Filter for LLM 
 | `harness/agentdojo_eval.py` | Replays AgentDojo v1.2 ground-truth tool calls (benign tasks; hijacked-agent attacks after the first exposure to injected text) through policies generated from tool descriptions. No language model. |
 | `harness/internal_eval.py` | Built-in labelled suites with ablations, before/after against earlier pack versions, the predictive layer, policy authoring, and the calibrated-deferral simulation. |
 | `harness/live_eval.py` | Live models (Claude, GPT) on AgentDojo without a filter, with the filter unattended, and with every request approved; guard in process or on the deployed site. How to run it on the server: `LIVE_RUNS.md`. |
+| `harness/live_analysis.py` | Paired analysis of live runs (McNemar tests, attribution to filter decisions, overhead); run by `live_eval.py summarize`. |
 | `harness/make_tables.py` | Writes every number and table used in the paper (`paper/generated/`) from `results/*.json`. |
 | `data/agentdojo_trajectories.json` | The replayed trajectories (with AgentDojo version and digest), so the evaluation reruns without AgentDojo. |
 | `data/frozen_policies/` | Earlier versions of the SOC and testing packs, taken from git history, for before/after comparisons. |

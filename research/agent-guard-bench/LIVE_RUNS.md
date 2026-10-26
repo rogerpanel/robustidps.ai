@@ -84,8 +84,11 @@ the filter's refusals stop calls. Together they bracket what real reviewers woul
 ~/agbench/bin/python research/agent-guard-bench/harness/live_eval.py summarize
 ```
 
-writes `research/agent-guard-bench/results/live/live_results.json` and prints a line per model
-and condition. Send me the results folder without the bulky conversation logs:
+writes `research/agent-guard-bench/results/live/live_results.json` and `live_analysis.json`
+(paired tests, attribution of lost tasks and stopped attacks to filter decisions, check times,
+tokens per run) and prints a line per model and condition. It first checks each run against
+the `manifest.json` the run wrote (hashes of its result files, the code revision, package
+versions): a run shows `verified`, or what changed since. Only verified runs enter the paper. Send me the results folder without the bulky conversation logs:
 
 ```bash
 tar czf ~/live-results.tgz -C ~/robustidps.ai/research/agent-guard-bench/results \
