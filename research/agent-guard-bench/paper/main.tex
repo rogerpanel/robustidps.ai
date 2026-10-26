@@ -1,0 +1,21 @@
+% Agent Guard manuscript, journal format (IEEEtran; e.g. IEEE TIFS / TDSC).
+% pdfLaTeX + BibTeX. The anonymous IEEE S&P version is main-conference.tex; both share preamble.tex and content.tex.
+\documentclass[journal]{IEEEtran}
+
+\input{preamble}
+
+\begin{document}
+
+\title{\TitleText}
+
+\author{Roger~Nick~Anaedevha%
+\thanks{R.~N.~Anaedevha is with the National Research Nuclear University MEPhI, Moscow, Russia.}%
+\thanks{Code, policies, replay harness and results: \ArtifactURL.}}
+
+\markboth{Manuscript submitted for review}{Anaedevha: A Fail-Closed Safety Filter for LLM Agent Tool Calls}
+
+\maketitle
+
+\input{content}
+
+\end{document}

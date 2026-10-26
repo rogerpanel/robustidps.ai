@@ -1,0 +1,162 @@
+# Self-hosted mail for robustidps.ai — runs alongside the app stack.
+#
+#   docker compose -f docker-compose.mail.yml --env-file deploy/mail/.env.mail up -d
+#
+# Separate from docker-compose.prod.yml on purpose: app rebuilds
+# (`up -d --build backend frontend`) never restart the mail server.
+# It joins the app stack's network so nginx can proxy Roundcube.
+#
+# Full setup guide + DNS records: deploy/mail/README.md
+
+# Explicit project name. Without it compose derives the project from the
+# directory and collides with docker-compose.prod.yml — the prod containers
+# then appear as "orphans" here, and `down --remove-orphans` would delete them.
+name: robustidps-mail
+
+services:
+  certbot:
+    image: certbot/dns-cloudflare:latest
+    container_name: robustidps-certbot
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - ./deploy/mail/cloudflare.ini:/run/secrets/cloudflare.ini:ro
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        CERT="/etc/letsencrypt/live/${MAIL_HOSTNAME}/fullchain.pem"
+        if [ ! -s "$$CERT" ]; then
+          echo "── issuing certificate for ${MAIL_HOSTNAME} ──"
+          certbot certonly --non-interactive --agree-tos --keep-until-expiring \
+            --email "${POSTMASTER_ADDRESS}" \
+            --dns-cloudflare \
+            --dns-cloudflare-credentials /run/secrets/cloudflare.ini \
+            --dns-cloudflare-propagation-seconds "${ACME_PROPAGATION_SECONDS:-60}" \
+            -d "${MAIL_HOSTNAME}" \
+          || echo "!! ISSUANCE FAILED — read the certbot error above. Common causes:
+        !!   - API token missing the 'Zone:Read' permission (needs Zone:Read AND DNS:Edit)
+        !!   - token pasted with stray spaces/newlines in deploy/mail/cloudflare.ini
+        !!   - wrong zone selected when the token was created"
+        else
+          echo "── certificate already present for ${MAIL_HOSTNAME} ──"
+        fi
+        # Stay alive whether or not issuance succeeded: a crash-loop would hide
+        # the error above and break `docker compose exec` during diagnosis.
+        trap exit TERM
+        while :; do
+          sleep 12h & wait $$!
+          certbot renew --non-interactive || true
+        done
+
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:15
+    container_name: robustidps-mail
+    hostname: ${MAIL_HOSTNAME}
+    restart: always
+    stop_grace_period: 1m
+    ports:
+      - "25:25"     # SMTP inbound from other mail servers
+      - "465:465"   # SMTPS submission (implicit TLS)
+      - "587:587"   # Submission (STARTTLS) — used by Roundcube + the platform's noreply@
+      - "993:993"   # IMAPS — used by Roundcube + mail clients
+    volumes:
+      - dms-data:/var/mail
+      - dms-state:/var/mail-state
+      - dms-logs:/var/log/mail
+      - ./deploy/mail/config:/tmp/docker-mailserver
+      - letsencrypt:/etc/letsencrypt:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - OVERRIDE_HOSTNAME=${MAIL_HOSTNAME}
+      - POSTMASTER_ADDRESS=${POSTMASTER_ADDRESS}
+      - SSL_TYPE=letsencrypt
+      # Rspamd does spam + DKIM signing + DMARC/SPF checks; the legacy
+      # per-feature daemons must be off or they double-process mail.
+      - ENABLE_RSPAMD=1
+      - ENABLE_OPENDKIM=0
+      - ENABLE_OPENDMARC=0
+      - ENABLE_POLICYD_SPF=0
+      - ENABLE_AMAVIS=0
+      - ENABLE_SPAMASSASSIN=0
+      - ENABLE_CLAMAV=0            # ~1.5 GB RAM; enable later if wanted
+      - ENABLE_FAIL2BAN=1
+      - ENABLE_MANAGESIEVE=1
+      - SPOOF_PROTECTION=1
+      - PERMIT_DOCKER=none
+      - ENABLE_UPDATE_CHECK=1
+      - LOG_LEVEL=info
+      # IPv4 only: the server's IPv6 block has no PTR record, and Gmail
+      # rejects IPv6 deliveries without one. Flip to "all" once an IPv6
+      # address + PTR + AAAA are configured.
+      - POSTFIX_INET_PROTOCOLS=ipv4
+      - DOVECOT_INET_PROTOCOLS=ipv4
+      # Optional outbound relay (SMTP2GO / Brevo / SES) while Hetzner has
+      # port 25 outbound blocked. Leave RELAY_HOST empty to send direct.
+      - RELAY_HOST=${RELAY_HOST:-}
+      - RELAY_PORT=${RELAY_PORT:-587}
+      - RELAY_USER=${RELAY_USER:-}
+      - RELAY_PASSWORD=${RELAY_PASSWORD:-}
+    cap_add:
+      - NET_ADMIN   # fail2ban
+    healthcheck:
+      test: "ss --listening --tcp | grep -P 'LISTEN.+:smtp' || exit 1"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    depends_on:
+      - certbot
+    networks:
+      - app
+
+  roundcube:
+    # Pinned to an exact patch that exists in the registry. "1.6-apache" is
+    # NOT a published tag — the series tags are 1.6.x-apache (floating) and
+    # 1.6.<patch>-apache. Verified against Docker Hub before pinning.
+    image: roundcube/roundcubemail:1.6.19-apache
+    container_name: robustidps-webmail
+    restart: always
+    volumes:
+      - roundcube-db:/var/roundcube/db
+      - roundcube-config:/var/roundcube/config
+    environment:
+      - ROUNDCUBEMAIL_DB_TYPE=sqlite
+      # Connect via the public hostname so the Let's Encrypt cert matches.
+      - ROUNDCUBEMAIL_DEFAULT_HOST=ssl://${MAIL_HOSTNAME}
+      - ROUNDCUBEMAIL_DEFAULT_PORT=993
+      - ROUNDCUBEMAIL_SMTP_SERVER=tls://${MAIL_HOSTNAME}
+      - ROUNDCUBEMAIL_SMTP_PORT=587
+      - ROUNDCUBEMAIL_SKIN=elastic
+      # Idle timeout in MINUTES. Roundcube's default is 10, which forces a
+      # re-login several times a day. 480 = one working day. Sessions are
+      # held in Roundcube's own sqlite store (session_storage defaults to
+      # 'db'), so PHP's file-session garbage collector does not expire them
+      # early and this value alone governs the timeout.
+      - ROUNDCUBEMAIL_SESSION_LIFETIME=${ROUNDCUBE_SESSION_LIFETIME:-480}
+      # No `password` plugin: it needs a driver that can write to the
+      # account store, and none can reach docker-mailserver's
+      # postfix-accounts.cf — separate container, no password-change API.
+      # Listing it produced a Settings tab that fails on submit, which
+      # reads as "mail is broken" rather than "unsupported here".
+      # Passwords are changed by an admin: deploy/mail/mailuser.sh passwd
+      - ROUNDCUBEMAIL_PLUGINS=archive,zipdownload,managesieve
+      - ROUNDCUBEMAIL_UPLOAD_MAX_FILESIZE=25M
+      - ROUNDCUBEMAIL_REQUEST_PATH=/
+    depends_on:
+      - mailserver
+    networks:
+      - app
+
+networks:
+  app:
+    external: true
+    name: robustidpsai_app   # created by docker-compose.prod.yml (project "robustidpsai")
+
+volumes:
+  letsencrypt:
+  dms-data:
+  dms-state:
+  dms-logs:
+  roundcube-db:
+  roundcube-config:

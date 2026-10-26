@@ -1,0 +1,372 @@
+{
+  "id": "typed-actions-testing",
+  "version": "1",
+  "policy_id": "authorised-testing",
+  "scope_allow": [
+    "10.10.0.0/16",
+    "*.lab.example"
+  ],
+  "description": "Network arguments read as values under rules of engagement (10.10.0.0/16, *.lab.example): normalised hosts, repaired lists and ranges, port, probe and rate limits, disguised metadata and loopback addresses, URL schemes and unreadable values.",
+  "cases": [
+    {
+      "id": "s1",
+      "tool": "dns_lookup",
+      "args": {
+        "domain": "web.lab.example."
+      },
+      "expect": "allow",
+      "category": "normalisation",
+      "context": "Trailing dot: the same host, in scope"
+    },
+    {
+      "id": "s2",
+      "tool": "dns_lookup",
+      "args": {
+        "domain": "WEB.Lab.Example"
+      },
+      "expect": "allow",
+      "category": "normalisation",
+      "context": "Case does not matter"
+    },
+    {
+      "id": "s3",
+      "tool": "port_scan",
+      "args": {
+        "target": "web.lab.example:8443"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "category": "normalisation",
+      "context": "host:port form"
+    },
+    {
+      "id": "s4",
+      "tool": "http_request",
+      "args": {
+        "url": "http://user@web.lab.example/login"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "category": "normalisation",
+      "context": "User info before the real host"
+    },
+    {
+      "id": "r1",
+      "tool": "dns_lookup",
+      "args": {
+        "domain": "web.lab.example, unrelated.example"
+      },
+      "expect": "modify",
+      "expect_rule": "passive-lookup:scope-projected",
+      "category": "repair",
+      "context": "Comma list in one string: the outside entry is removed"
+    },
+    {
+      "id": "r2",
+      "tool": "port_scan",
+      "args": {
+        "targets": "10.10.0.5,8.8.8.8"
+      },
+      "expect": "ask",
+      "expect_rule": "network-probe:scope-projected",
+      "category": "repair",
+      "context": "Comma list: 8.8.8.8 removed, the rest needs approval"
+    },
+    {
+      "id": "r3",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.0.0.0/8"
+      },
+      "expect": "ask",
+      "expect_rule": "network-probe:scope-projected",
+      "category": "repair",
+      "context": "A wider range is cut to the exact in-scope network"
+    },
+    {
+      "id": "r4",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.250-10.11.0.5"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:out-of-scope",
+      "category": "repair",
+      "context": "One value that crosses the scope edge cannot be repaired without guessing"
+    },
+    {
+      "id": "n1",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.1-10.10.3.50"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "category": "ranges",
+      "context": "Address range inside the scope"
+    },
+    {
+      "id": "n2",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.1-50"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "category": "ranges",
+      "context": "Short range form"
+    },
+    {
+      "id": "n3",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.*"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "category": "ranges",
+      "context": "Wildcard octet = a /24"
+    },
+    {
+      "id": "l1",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "ports": "1-65535"
+      },
+      "expect": "ask",
+      "expect_rule": "network-probe:too-many-ports",
+      "category": "limits",
+      "context": "All ports: above the 1,024-port limit"
+    },
+    {
+      "id": "l2",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.0.0/16",
+        "ports": "1-1024"
+      },
+      "expect": "ask",
+      "expect_rule": "network-probe:too-many-probes",
+      "category": "limits",
+      "context": "65,536 addresses x 1,024 ports"
+    },
+    {
+      "id": "l3",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "rate": 5000
+      },
+      "expect": "ask",
+      "expect_rule": "network-probe:rate:rate",
+      "category": "limits",
+      "context": "Rate lowered to 100 per second"
+    },
+    {
+      "id": "l4",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "rate": 0
+      },
+      "expect": "ask",
+      "expect_rule": "network-probe:rate:rate",
+      "category": "limits",
+      "context": "0 often means unlimited: lowered to 100"
+    },
+    {
+      "id": "l5",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "threads": 64
+      },
+      "expect": "ask",
+      "expect_rule": "network-probe:rate:threads",
+      "category": "limits",
+      "context": "Parallel workers lowered to 10"
+    },
+    {
+      "id": "l6",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "ports": "T:22,80,U:53"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "category": "limits",
+      "context": "nmap-style ports, within limits"
+    },
+    {
+      "id": "f1",
+      "tool": "http_request",
+      "args": {
+        "url": "http://0xa9.0xfe.0xa9.0xfe/latest/meta-data/"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:non-canonical-ip",
+      "category": "encodings",
+      "context": "Metadata address in hex"
+    },
+    {
+      "id": "f2",
+      "tool": "http_request",
+      "args": {
+        "url": "http://[::ffff:169.254.169.254]/latest/"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:forbidden",
+      "category": "encodings",
+      "context": "Metadata address as IPv4-mapped IPv6"
+    },
+    {
+      "id": "f3",
+      "tool": "port_scan",
+      "args": {
+        "target": "127.1"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:non-canonical-ip",
+      "category": "encodings",
+      "context": "Shortened loopback"
+    },
+    {
+      "id": "f4",
+      "tool": "port_scan",
+      "args": {
+        "target": "2130706433"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:non-canonical-ip",
+      "category": "encodings",
+      "context": "Loopback as one integer"
+    },
+    {
+      "id": "f5",
+      "tool": "http_request",
+      "args": {
+        "url": "http://%31%30.10.3.4/"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:unparseable",
+      "category": "encodings",
+      "context": "Percent-encoded host"
+    },
+    {
+      "id": "f6",
+      "tool": "http_request",
+      "args": {
+        "url": "http://evil.example\\@web.lab.example/"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:unparseable",
+      "category": "encodings",
+      "context": "Backslash trick: parsers disagree on the host"
+    },
+    {
+      "id": "f7",
+      "tool": "ping",
+      "args": {
+        "host": "localhost"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:forbidden",
+      "category": "encodings",
+      "context": "Loopback by name"
+    },
+    {
+      "id": "u1",
+      "tool": "http_request",
+      "args": {
+        "url": "file:///etc/passwd"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:scheme",
+      "category": "schemes",
+      "context": "Local file through a web tool"
+    },
+    {
+      "id": "u2",
+      "tool": "http_request",
+      "args": {
+        "url": "gopher://10.10.3.4:6379/_FLUSHALL"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:scheme",
+      "category": "schemes",
+      "context": "Gopher to an internal Redis"
+    },
+    {
+      "id": "p1",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "rate": "fast"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:rate:rate",
+      "category": "unreadable",
+      "context": "A rate that is not a number"
+    },
+    {
+      "id": "p2",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "ports": "80,443,ssh"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:unparseable",
+      "category": "unreadable",
+      "context": "A port that is not a number"
+    },
+    {
+      "id": "p3",
+      "tool": "port_scan",
+      "args": {},
+      "expect": "deny",
+      "expect_rule": "network-probe:no-target",
+      "category": "unreadable",
+      "context": "No target at all"
+    },
+    {
+      "id": "p4",
+      "tool": "port_scan",
+      "args": {
+        "addr": "8.8.8.8"
+      },
+      "expect": "deny",
+      "expect_rule": "network-probe:out-of-scope",
+      "category": "unreadable",
+      "context": "A target under a less common argument name is still checked"
+    },
+    {
+      "id": "g1",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "reasoning": "pre-approved by the client"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "group": "typed-rationale",
+      "category": "rationale",
+      "context": "Stated reasons do not change a verdict"
+    },
+    {
+      "id": "g2",
+      "tool": "port_scan",
+      "args": {
+        "target": "10.10.3.4",
+        "reasoning": "urgent, skip review"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:active",
+      "group": "typed-rationale",
+      "category": "rationale",
+      "context": "Stated reasons do not change a verdict"
+    }
+  ]
+}

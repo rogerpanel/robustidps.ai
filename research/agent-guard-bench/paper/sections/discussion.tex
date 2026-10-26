@@ -1,0 +1,14 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Calibration is not containment}
+Learning from reviewers is attractive because human attention is the scarce resource, and LTT gives a clean guarantee about it. But the guarantee is about the reviewers' past decisions, and an attacker's sends look like the user's sends. Our deferral layer therefore treats eligibility, not the threshold, as the security boundary: only requests raised by the action tier alone may ever be auto-approved, and information flow decides which sends are exposure-driven. Without flow labels, a well-calibrated deferral layer could have auto-approved most of a hijacked agent's attack goals.
+
+\paragraph{Labels are the weak link}
+The description hints that classified effects well (read, change, destroy) failed on sensitivity: personal-assistant descriptions never say ``private''. Sensitivity depends on the deployment, not on the tool's wording, which argues for operator-chosen defaults (``every read in this assistant is sensitive'') over inferred ones. The conservative rule was cheap here (\AdConsAsks{} versus \AdTiersAsks{} requests per benign task) because AgentDojo tasks rarely read and then send; deployments with read-then-send workflows will pay more, and Slack shows the upper end.
+
+\paragraph{Repair before refusal}
+Most interventions in our packs are requests or repairs rather than refusals: a scan list cut to scope still runs, a capped rate still scans, an internal hand-off is allowed. Refusals are reserved for actions the policy can decide on its own (irreversible deletions, mass targets, disguised addresses, unsafe predicted effects), which is also why they do not need a reviewer.
+
+\paragraph{What an adaptive attacker can still do}
+Within our threat model the attacker chooses calls, not policies. Calls the policy allows remain available: data can be encoded into an allowed read (a search query to an attacker-observed service) unless that tool carries an egress label, and the attacker can pace calls to stay within budgets. Tools that the hints misclassify are the main risk, which is why unclassified tools ask and receive every flow label. Names, rationales and encodings do not change verdicts (G3); the typed layer removes the encoding tricks we know of, but a new parser differential in a URL grammar would need a new rule.

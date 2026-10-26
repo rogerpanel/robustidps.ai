@@ -1,0 +1,24 @@
+# fail2ban overrides for the robustidps.ai mailserver.
+#
+# docker-mailserver copies config/fail2ban-jail.cf to
+# /etc/fail2ban/jail.d/user-jail.local at container start (DMS docs,
+# config/security/fail2ban.md, "Custom Files"). setup-mail.sh and
+# apply-fail2ban-whitelist.sh install this file there.
+#
+# Only ignoreip is overridden. DMS's other defaults stand: ban after
+# maxretry 6 failures within findtime 1w, for bantime 1w, on the
+# dovecot, postfix and custom jails.
+
+[DEFAULT]
+# 172.16.0.0/12 is Docker's internal address space. Roundcube connects to
+# IMAP from its container address, so every webmail user's mistyped
+# password counts against that single address. Six within a week banned
+# it and took webmail down for every user at once (2026-10-02,
+# 172.18.0.11 in the dovecot jail).
+#
+# Safe only because Docker forwards external traffic with the real client
+# address preserved (iptables DNAT, not the userland proxy): the
+# mailserver logs external clients as rip=<public address> and the ban
+# lists hold public attacker IPs, so no internet host can arrive from
+# this range. apply-fail2ban-whitelist.sh re-checks that before applying.
+ignoreip = 127.0.0.1/8 172.16.0.0/12

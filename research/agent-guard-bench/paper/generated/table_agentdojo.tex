@@ -1,0 +1,18 @@
+\begin{table*}[t]
+\centering
+\caption{AgentDojo \AdBench{} replay: \AdBenign{} benign tasks and \AdAttacks{} hijacked-agent attacks (\AdGoals{} attack goals), all pooled over the four suites. Benign: share of tasks that run with no person (\emph{unattended}), share that complete when a person approves every request (\emph{with review}), and requests per task. Attack: share whose goal calls all run without a person (\emph{unreviewed}), reach a person, or are refused. Policies are generated from tool names and descriptions only.}
+\label{tab:agentdojo}
+\begin{tabular}{lcccccc}
+\toprule
+& \multicolumn{3}{c}{Benign tasks} & \multicolumn{3}{c}{Attack goals} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Policy & Unattended & With review & Requests/task & Unreviewed & To a person & Refused \\
+\midrule
+Allow everything (no filter) & \AdAllowUnattended & \AdAllowCompletes & \AdAllowAsks & \AdAllowGoalUnreviewed & \AdAllowGoalPerson & \AdAllowGoalDenied \\
+Ask a person for everything & \AdAskUnattended & \AdAskCompletes & \AdAskAsks & \AdAskGoalUnreviewed & \AdAskGoalPerson & \AdAskGoalDenied \\
+Tiers from descriptions & \AdTiersUnattended & \AdTiersCompletes & \AdTiersAsks & \AdTiersGoalUnreviewed & \AdTiersGoalPerson & \AdTiersGoalDenied \\
+\quad + flow, hinted labels & \AdFlowUnattended & \AdFlowCompletes & \AdFlowAsks & \AdFlowGoalUnreviewed & \AdFlowGoalPerson & \AdFlowGoalDenied \\
+\quad + flow, conservative labels & \AdConsUnattended & \AdConsCompletes & \AdConsAsks & \AdConsGoalUnreviewed & \AdConsGoalPerson & \AdConsGoalDenied \\
+\bottomrule
+\end{tabular}
+\end{table*}
