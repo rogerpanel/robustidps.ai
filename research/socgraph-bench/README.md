@@ -92,19 +92,19 @@ Copy the run folders from `bluesec1-agent/traces/` into `results/study/`
 (see `results/README.md` for the protocol) and regenerate the paper's tables:
 
 ```bash
-python scripts/results_to_tex.py --pilot results/pilot-2026-10-10 \
+python3 scripts/results_to_tex.py --pilot results/pilot-2026-10-10 \
     --runs "results/study/*/" --cue-runs "results/cues/*/" --baseline full \
     --sensitivity-exclude linux-service-stopped --out paper
-python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
-python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/cues/*/" --out paper \
+python3 scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
+python3 scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/cues/*/" --out paper \
     --prefix TrCue --table cue_interface.tex --macros cue_trace_macros.tex
-python scripts/sensitivity.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
-python scripts/model_compare.py --pack benchmark/socgraph-21-v1.1.zip \
+python3 scripts/sensitivity.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/study/*/" --out paper
+python3 scripts/model_compare.py --pack benchmark/socgraph-21-v1.1.zip \
     --run "Claude Opus 5.5|v1.1|results/study/r*-full/" \
     --run "Claude Opus 5.5|mimicry|results/cues/*-full-mimicry/" \
     --run "GPT-6 astra|v1.1|results/models/*-gpt-6-astra-v1.1/" \
     --run "GPT-6 astra|mimicry|results/models/*-gpt-6-astra-mimicry/" --out paper
-python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/models/*/" --out paper \
+python3 scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "results/models/*/" --out paper \
     --prefix TrGpt --table gpt_interface.tex --macros gpt_trace_macros.tex
 ```
 
@@ -112,41 +112,41 @@ Then upload `paper/` to Overleaf (or run `latexmk -pdf main.tex` in `paper/`).
 
 ### Testing the remedy (RQ7)
 
-Build the cue-controlled variants, including the name-blind `canon` pack (the build checks that `canon(v1.1)`
-equals `canon(mimicry)` on every task):
+First install the agent into your BlueSec1 clone and build the cue-controlled variants, including the
+name-blind `canon` pack (the build checks that `canon(v1.1)` equals `canon(mimicry)` on every task). The
+server/macOS has `python3`, not `python`:
 
 ```bash
-python scripts/make_variants.py --pack benchmark/socgraph-21-v1.1.zip --out benchmark
+git clone https://github.com/False-Positive-Community/bluesec1-agent.git   # if you do not have it yet
+bash agent/install.sh bluesec1-agent          # pass the path to YOUR clone; installs the --name-rule flag
+(cd bluesec1-agent && uv sync)                # once, to set up the client
+python3 scripts/make_variants.py --pack benchmark/socgraph-21-v1.1.zip --out benchmark
 ```
 
-Run each defence three times per model (Claude shown; for GPT-6 astra add
-`--provider openai --openai-api responses --model gpt-6-astra`):
+Then run everything -- both defences (`canon` and the `name-rule` on mimicry), both models, three repeats
+each -- with one command (keys come from the clone's `.env`):
 
 ```bash
-# name-blind canonicalisation (one pack stands for both v1.1 and mimicry)
-uv run --with anthropic --with jsonschema --env-file .env python -m bluesec1_agent.robust.cli \
-    --pack ../benchmark/socgraph-21-v1.1-canon.zip --label canon --concurrency 4
-# name rule, on the mimicry pack where names mislead
-uv run --with anthropic --with jsonschema --env-file .env python -m bluesec1_agent.robust.cli \
-    --pack ../benchmark/socgraph-21-v1.1-mimicry.zip --name-rule --label namerule-mimicry --concurrency 4
+bash scripts/run_remedy.sh bluesec1-agent
 ```
 
-Copy the run folders into `results/remedy/` (prefix each with the model, e.g. `claude-r1-canon`,
-`gpt-r1-namerule-mimicry`) and build the RQ7 table and macros:
+It writes each run into `results/remedy/<model>-<condition>/` (one timestamped subfolder per repeat), so
+nothing has to be copied or labelled by hand, and prints the exact `remedy.py` command at the end:
 
 ```bash
-python scripts/remedy.py --out paper \
+python3 scripts/remedy.py --out paper \
     --cond "Claude Opus 5.5|v1.1|results/study/r*-full/" \
     --cond "Claude Opus 5.5|mimicry|results/cues/*-full-mimicry/" \
-    --cond "Claude Opus 5.5|canon|results/remedy/claude-*-canon/" \
-    --cond "Claude Opus 5.5|name-rule|results/remedy/claude-*-namerule-mimicry/" \
+    --cond "Claude Opus 5.5|canon|results/remedy/claude-canon/*/" \
+    --cond "Claude Opus 5.5|name-rule|results/remedy/claude-namerule-mimicry/*/" \
     --cond "GPT-6 astra|v1.1|results/models/*-gpt-6-astra-v1.1/" \
     --cond "GPT-6 astra|mimicry|results/models/*-gpt-6-astra-mimicry/" \
-    --cond "GPT-6 astra|canon|results/remedy/gpt-*-canon/" \
-    --cond "GPT-6 astra|name-rule|results/remedy/gpt-*-namerule-mimicry/"
+    --cond "GPT-6 astra|canon|results/remedy/gpt-canon/*/" \
+    --cond "GPT-6 astra|name-rule|results/remedy/gpt-namerule-mimicry/*/"
 ```
 
-Until those runs exist, `remedy.py` writes a pending table and the paper still compiles.
+Options: `REPEATS=3`, `MODELS="claude gpt"`, `GPT_MODEL=gpt-6-astra`, `CONCURRENCY=4` (environment variables
+to `run_remedy.sh`). Until the runs exist, `remedy.py` writes a pending table and the paper still compiles.
 
 ## Reproducibility notes
 
