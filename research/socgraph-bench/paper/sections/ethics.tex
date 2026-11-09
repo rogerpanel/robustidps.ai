@@ -40,8 +40,11 @@ repeated. A large model was used because the task requires multi-step tool use o
 models are the planned next comparison. Experiments ran on the provider's hosted infrastructure; local
 computation (graph building, scoring, the agent loop) ran on a 4-vCPU cloud server.
 
-\paragraph{In preparing this work} % TODO(author): confirm this statement reflects your actual use before submission.
-Generative AI (an LLM-based coding assistant) was used to help implement the software, run and check analyses,
-and draft and edit the manuscript. All outputs were inspected and validated by the authors, who are responsible
-for the content, including the accuracy of every number (each is generated from the released traces) and the
-completeness of the literature review.
+\paragraph{In preparing this work} % AUTHOR: confirm this matches your actual division of labour before submitting.
+The authors conceived and directed the study, designed the benchmark, specified the ground-truth rule, ran all
+model experiments and verified the results. A general-purpose LLM-based coding assistant was used as a tool
+throughout: to write and refactor the agent, the benchmark and its variant builders and the analysis scripts;
+to set up, run and debug the experiment harnesses; and to draft and edit this manuscript. Every reported number
+is produced from the released traces by the released scripts; the authors validated all generated code, text and
+figures and are solely responsible for the content. The assistant generated no experimental result or
+measurement.
