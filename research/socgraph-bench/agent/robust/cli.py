@@ -52,6 +52,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="with --mock: repeat the mock scenarios N times (2*N tasks)")
     p.add_argument("--mock-limit", type=int, metavar="N",
                    help="with --mock: imitate a runtime that holds at most N tasks at once")
+    p.add_argument("--name-rule", action="store_true",
+                   help="append the rule that names in telemetry are attacker-controlled (RQ7 defence)")
     p.add_argument("--ablate", metavar="LIST",
                    help="turn components off to measure them: cache, validation, grounding, "
                         "budget, method (comma-separated)")
@@ -119,6 +121,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         overrides["llm_api"] = args.openai_api
     if args.ablate is not None:
         overrides["ablate"] = args.ablate
+    if args.name_rule:
+        overrides["name_rule"] = True
     if args.label:
         overrides["run_label"] = args.label
     if args.deadline:

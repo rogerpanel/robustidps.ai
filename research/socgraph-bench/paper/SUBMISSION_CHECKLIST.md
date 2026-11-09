@@ -21,12 +21,36 @@ Triage" (`\TitleText` in `preamble.tex`; also in `../README.md` and `../CITATION
 
 - [x] `\documentclass[conference,compsoc]{IEEEtran}` (`main-conference.tex`), US letter.
 - [x] At most 13 pages of text; references and appendices at most 5 more; 18 in total.
-  Current build: body ends on page 13, references start on page 14, 18 pages in total.
+  Current build (after the Nov 2026 review fixes and RQ7, with the remedy table still *pending*):
+  body ends on page 13 (within the hard limit), references start on page 13, **19 pages in total** --
+  one over the 18-page soft limit. Close it in the final pass once the RQ7 runs land: the real
+  `tables/remedy.tex` replaces the one-line placeholder and the RQ7 `\else` text is removed, and if
+  still over, drop the minimal-prompt figure (Appendix A) or tighten Table 1.
   Re-check after every edit: `latexmk -pdf main-conference.tex`, then `pdfinfo`.
 - [x] Everything after page 13 is references or a labelled appendix.
 - [x] No margin, font or spacing changes; no packages that override compsoc.
 - [ ] IEEEtran.cls version 1.8b: Overleaf's "IEEE Demo Template for Computer Society
   Conferences" ships it; compile there once before submitting.
+
+## November 2026 readiness-review response
+
+- [x] Anonymity: Appendix engineering/ethics "the author" -> "the authors" (singular revealed a single author).
+- [x] Statistics: added an exact task-clustered paired permutation test alongside Fisher, in
+  `results_to_tex.py` and `model_compare.py`. Reported honestly -- the first model's mimicry effect is
+  suggestive but not significant clustered ($p=0.125$, 4 tasks); the second model's survives ($p=0.031$) and
+  the difference-in-differences interval excludes zero. The exact Fisher *and* clustered $p$ are both given.
+- [x] Per-platform split: Windows/Linux miss counts show the effect is entirely on Linux for both models.
+- [x] Related work: added code-model renaming attacks (Yefet et al. 2020; Risse \& Bohme 2024), positioning
+  this as the first such study for LLM triage over provenance.
+- [x] **Experiment C (remedy)**: built `scripts/make_variants.py` `canon` pack (name-blind canonicalisation;
+  the build verifies canon(v1.1)==canon(mimicry)), the `--name-rule` agent flag, `scripts/remedy.py`, and the
+  RQ7 paper section (pending until the server runs land; see README "Testing the remedy").
+- [ ] **Run experiment C on the server** (both models, three repeats of `canon` and `name-rule-on-mimicry`),
+  then `python scripts/remedy.py ...` and recompile; fill in RQ7 and close the 1-page overflow.
+- [ ] Experiments A (telemetry prompt injection) and B (adaptive renaming) from the review are **not built**:
+  they construct injected instructions and search for evasive names. If a reviewer insists, discuss scope;
+  the limitations section already frames mimicry as a lower bound and names A/B as the next step.
+- [ ] Re-run `latexmk` on Overleaf with IEEEtran 1.8b after experiment C; confirm <= 18 pages total.
 
 ## Anonymity
 

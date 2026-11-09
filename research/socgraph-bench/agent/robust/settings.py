@@ -65,6 +65,7 @@ class RobustSettings(BaseSettings):
     deadline: datetime.datetime | None = Field(None, alias="ROBUST_DEADLINE")
     # Ablation: comma-separated components to turn off (see ABLATIONS); label names the run.
     ablate: str = Field("", alias="ROBUST_ABLATE")
+    name_rule: bool = Field(False, alias="ROBUST_NAME_RULE")  # append the names-are-untrusted rule (RQ7)
     run_label: str | None = Field(None, alias="ROBUST_LABEL", max_length=120)
     lease_stop_minutes: float = Field(6.0, alias="ROBUST_LEASE_STOP_MINUTES", ge=0)
     finish_minutes: float = Field(2.0, alias="ROBUST_FINISH_MINUTES", ge=0)

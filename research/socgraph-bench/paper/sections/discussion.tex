@@ -2,9 +2,12 @@
 \label{sec:discussion}
 
 \paragraph{Cost is a first-class objective} In the Windows pilot, wasted tool calls cost almost as much reward
-as imperfect answers, and on the full benchmark they still cost about 0.06 of reward. Accuracy-only evaluation would hide this. For a SOC, every lookup has a latency and,
-with metered model APIs, a price; budgets and spending discipline belong in the agent, and efficiency belongs
-in the benchmark.
+as imperfect answers, and on the full benchmark they still cost about 0.06 of reward; accuracy-only evaluation
+would hide this. For a SOC, every lookup has a latency and, with metered model APIs, a price, so budgets and
+spending discipline belong in the agent and efficiency in the benchmark. Efficiency instructions are not free,
+though: the method prompt's rule not to look up the host named in the alert saved calls and, by the same token,
+withheld the identifier the response had to name. Such prompt trade-offs interact with what the tool interface
+returns, and their cost appears only in per-call traces, not in aggregate scores.
 
 \paragraph{Prompted method beats mechanical guards, for a strong model} The cache, validation, grounding
 check and budgets need no model change, run in constant time per call and apply unchanged to any model behind
@@ -32,10 +35,6 @@ grounding check that accepts any string seen in the evidence cannot catch it; on
 seen in identifier fields would have caught all of them, at no cost. More generally, a guard should be derived
 from the interface's types, not from a list of anticipated mistakes, and its effect measured on traces.
 
-\paragraph{Prompts trade quality and cost through the interface} The method prompt's instruction not to look
-up the host named in the alert saved calls and, by the same token, withheld the identifier the response had
-to name. Efficiency instructions are not free: they interact with what the tool interface returns, and their
-cost appears only in per-call traces, not in aggregate scores.
 
 \paragraph{Benchmarks built from attack recordings need cue control} Public recordings are made to be found:
 they carry dataset names, lab host names and operator-chosen file names that announce an attack. An agent
@@ -67,13 +66,9 @@ test: text written for the agent itself~\cite{greshake2023indirect,debenedetti20
 third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An
 agent that over-reports would show a high false-positive rate on exactly the tasks where analysts most need help.
 
-\paragraph{Contracts and model policies can conflict} Runtimes fix their interfaces, and model providers fix
-their usage policies. A field named \texttt{reasoning}, described as a trace of the model's thinking, was
-enough to have every request declined. Agent builders should treat rationale fields as statements of action
-(what a call checks) and read model reasoning from the channels the provider offers for it.
-
-\paragraph{Towards deployment} The same agent and safeguards run against the competition runtime, the local
-benchmark and, through \ReviewUI, a human reviewer who can inspect every
-call, its stated purpose and the submission. That reviewability is a prerequisite for using such an agent to
-assist, rather than replace, an analyst.
+\paragraph{Contracts and model policies can conflict} A runtime field named \texttt{reasoning}, described as a
+trace of the model's thinking, was enough to have every request declined by the provider's policy
+(Appendix~\ref{app:engineering}); agent builders should treat rationale fields as statements of action and read
+model reasoning from the channels the provider offers. Throughout, the agent's calls, their stated purposes and
+its submissions are logged for a human reviewer, a prerequisite for assisting rather than replacing an analyst.
 \fi

@@ -110,6 +110,44 @@ python scripts/trace_stats.py --pack benchmark/socgraph-21-v1.1.zip --runs "resu
 
 Then upload `paper/` to Overleaf (or run `latexmk -pdf main.tex` in `paper/`).
 
+### Testing the remedy (RQ7)
+
+Build the cue-controlled variants, including the name-blind `canon` pack (the build checks that `canon(v1.1)`
+equals `canon(mimicry)` on every task):
+
+```bash
+python scripts/make_variants.py --pack benchmark/socgraph-21-v1.1.zip --out benchmark
+```
+
+Run each defence three times per model (Claude shown; for GPT-6 astra add
+`--provider openai --openai-api responses --model gpt-6-astra`):
+
+```bash
+# name-blind canonicalisation (one pack stands for both v1.1 and mimicry)
+uv run --with anthropic --with jsonschema --env-file .env python -m bluesec1_agent.robust.cli \
+    --pack ../benchmark/socgraph-21-v1.1-canon.zip --label canon --concurrency 4
+# name rule, on the mimicry pack where names mislead
+uv run --with anthropic --with jsonschema --env-file .env python -m bluesec1_agent.robust.cli \
+    --pack ../benchmark/socgraph-21-v1.1-mimicry.zip --name-rule --label namerule-mimicry --concurrency 4
+```
+
+Copy the run folders into `results/remedy/` (prefix each with the model, e.g. `claude-r1-canon`,
+`gpt-r1-namerule-mimicry`) and build the RQ7 table and macros:
+
+```bash
+python scripts/remedy.py --out paper \
+    --cond "Claude Opus 5.5|v1.1|results/study/r*-full/" \
+    --cond "Claude Opus 5.5|mimicry|results/cues/*-full-mimicry/" \
+    --cond "Claude Opus 5.5|canon|results/remedy/claude-*-canon/" \
+    --cond "Claude Opus 5.5|name-rule|results/remedy/claude-*-namerule-mimicry/" \
+    --cond "GPT-6 astra|v1.1|results/models/*-gpt-6-astra-v1.1/" \
+    --cond "GPT-6 astra|mimicry|results/models/*-gpt-6-astra-mimicry/" \
+    --cond "GPT-6 astra|canon|results/remedy/gpt-*-canon/" \
+    --cond "GPT-6 astra|name-rule|results/remedy/gpt-*-namerule-mimicry/"
+```
+
+Until those runs exist, `remedy.py` writes a pending table and the paper still compiles.
+
 ## Reproducibility notes
 
 - The benchmark is fixed: `benchmark/SHA256SUMS` pins the zip. It can also be

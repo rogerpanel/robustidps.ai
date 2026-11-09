@@ -105,6 +105,11 @@ Problem-space attacks constrain such perturbations to transformations that prese
 semantics~\cite{pierazzi2020problemspace}. On the data side, models can succeed by exploiting shortcuts,
 features that correlate with the label in a benchmark but not in deployment~\cite{geirhos2020shortcut};
 spurious correlations are one of the common pitfalls of machine learning in security~\cite{arp2022dosdonts}.
+Identifiers are a known shortcut for code models: adversarial variable renaming flips a learned model's
+prediction while preserving program semantics~\cite{yefet2020adversarial}, and renaming is among the reasons
+machine-learning vulnerability detectors fail to generalise~\cite{risse2024limits}. We ask whether an
+LLM triage agent reasoning over provenance evidence has the same weakness for the names in telemetry, which to
+our knowledge has not been measured before.
 LLM agents add a further attack surface: text they read through tools can carry instructions
 (indirect prompt injection~\cite{greshake2023indirect}), which AgentDojo~\cite{debenedetti2024agentdojo}
 evaluates for tool-using agents. Telemetry is such a channel, since command lines and file names are chosen by

@@ -25,7 +25,7 @@ from .catalog import ToolCatalog
 from .drivers import run_claude, run_openai, run_openai_responses
 from .investigation import Investigation
 from .metrics import compute
-from .prompt import MINIMAL_PROMPT, SYSTEM_PROMPT
+from .prompt import MINIMAL_PROMPT, NAME_RULE, SYSTEM_PROMPT
 from .settings import ABLATIONS, RobustSettings
 
 CAPACITY_WAIT_SECONDS = 5.0
@@ -205,6 +205,8 @@ class RobustAgent:
                 use_budget="budget" not in ablations,
             )
             system = MINIMAL_PROMPT if "method" in ablations else SYSTEM_PROMPT
+            if self.s.name_rule:
+                system = f"{system}\n\n{NAME_RULE}"
             if self.s.provider == "anthropic":
                 result = await run_claude(inv, self.llm, model=self.s.anthropic_model,
                                           effort=self.s.anthropic_effort,

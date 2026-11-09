@@ -14,7 +14,7 @@ Table~\ref{tab:ablation} reports the full configuration and the five ablations o
 with \ResStudyRepeats{} repeats per configuration; Table~\ref{tab:effects} gives paired task-level effects,
 \ifconf the artifact a breakdown by operating system and expected verdict and the per-task matrix,\else
 Table~\ref{tab:breakdown} a breakdown by operating system and expected verdict, Table~\ref{tab:pertask} the
-per-task matrix\fi{} and Table~\ref{tab:safeguards} what happened at the tool interface. Repeat~1 was rescored from
+per-task matrix\fi{} and \ifconf the artifact\else Table~\ref{tab:safeguards}\fi{} what happened at the tool interface. Repeat~1 was rescored from
 v1.0 (\S\ref{sec:experiments}); all \ResPairedRepeats{} repeats have per-task results and traces.
 
 \input{tables/results_ablation}
@@ -50,7 +50,7 @@ citations outside $\mathcal L\cup N$.
 \input{tables/sensitivity}
 \fi
 
-Table~\ref{tab:sensitivity} rescores the full agent's \TrFullSubmissions{} submissions under alternative rules,
+\ifconf A sensitivity analysis (artifact) rescores\else Table~\ref{tab:sensitivity} rescores\fi{} the full agent's \TrFullSubmissions{} submissions under alternative rules,
 without new model calls. Accepting hostnames raises Windows quality from \SensOfficialWindows{} to
 \SensHostnamesWindows{}; treating lineage relations as neutral raises benign quality from \SensOfficialBenign{}
 to \SensRelationsBenign{}; with both, overall quality rises from \SensOfficialAll{} to \SensBothAll{} and Linux
@@ -95,7 +95,7 @@ paired difference lies within $\pm0.004$ and every interval contains zero (Table
 per-configuration error counts on that task are consistent with one common rate: with the pooled 7 errors in 17
 runs, two or more errors in three runs has probability of about 0.37 and none about 0.20.
 
-Table~\ref{tab:safeguards} shows why the safeguards had nothing to win. In \TrFullTasks{} full-agent tasks the
+The tool-interface counts (\ifconf artifact\else Table~\ref{tab:safeguards}\fi) show why the safeguards had nothing to win. In \TrFullTasks{} full-agent tasks the
 cache answered \TrFullCache{} calls, validation refused \TrFullValidation{} malformed calls (a search query
 shorter than the schema's minimum, a submission serialised as an invalid JSON string), the grounding check
 fired \TrFullGrounding{} time (an invented host identifier, \texttt{host-workstation5}, which the agent then
@@ -141,9 +141,9 @@ Table~\ref{tab:cues} reports the full agent on the two cue-controlled variants, 
 \paragraph{Label cues do not carry the verdicts} Removing the source field and the lab host and domain names
 (\emph{blind}) changed nothing measurable: reward \ResBlindReward{} against \ResCueBaseReward{} (paired
 difference \ResBlindPairedReward{}, 95\% CI \ResBlindPairedRewardCI{}) and \ResBlindMissed{} missed attacks
-against \ResCueBaseMissed{}, all of them on the twin task. References to the source recording fell from
-\TrAllSourceCuePct\% of submissions to \TrCueAllSourceCuePct\%. Although the agent quoted the source field, it
-did not depend on it.
+against \ResCueBaseMissed{}, all on the twin task. References to the source recording fell from
+\TrAllSourceCuePct\% of submissions to \TrCueAllSourceCuePct\%: the agent quoted the source field but did not
+depend on it.
 
 \paragraph{Attacker-chosen names do} Renaming the operator's artefacts (\emph{mimicry}) lowered reward to
 \ResMimicryReward{} (paired difference \ResMimicryPairedReward{}, 95\% CI \ResMimicryPairedRewardCI{}) and
@@ -216,14 +216,35 @@ The second model's verdicts on \emph{mimicry} were identical in all three repeat
 \McGptWindowsBaseMissed{}~$\to$~\McGptWindowsMimicryMissed{}).
 
 \paragraph{Cost and interface} \McModelB{} used more tool calls (\McGptBaseCalls{} against \McClaudeBaseCalls{}
-per task, efficiency \McGptBaseEfficiency{} against \McClaudeBaseEfficiency{}) but fewer output tokens
-(\McGptBaseOutTokens{} against \McClaudeBaseOutTokens{}). Unlike the first model, it named hosts by their
-entity identifier in every report, so the hostname loss of \S\ref{sec:study} is specific to the first model and
-its prompt; and the hard budget refused \TrGptFullMimicryGptAstraBudgetTime{} calls in investigations that
-ran past 30 calls under \emph{mimicry}, a safeguard that never fired for the first model.
+per task) but fewer output tokens (\McGptBaseOutTokens{} against \McClaudeBaseOutTokens{}); it named hosts by
+their entity identifier, so the hostname loss of \S\ref{sec:study} is specific to the first model's prompt, and
+the hard budget refused \TrGptFullMimicryGptAstraBudgetTime{} calls under \emph{mimicry}, a safeguard that never
+fired for the first model.
 
 \ifconf\else
 \input{tables/verdict_matrix}
+\fi
+
+\subsection{Does the recommended remedy work? (RQ7)}
+\label{sec:remedy}
+\S\ref{sec:models} shows the failure; here we test the fix the paper recommends (\S\ref{sec:exp-remedy}):
+name-blind canonicalisation, which maps operator-chosen names to stable tokens so the v1.1 and \emph{mimicry}
+inputs coincide and the agent must decide from behaviour; a system-prompt rule that names are attacker-controlled;
+and the typed grounding check of \S\ref{sec:study}, which we already report would have flagged all
+\TrAllHostByName{} hostname citations\ifnum\ResRemedyAvailable=1{} (Table~\ref{tab:remedy})\fi.
+\ifnum\ResRemedyAvailable=1
+\input{tables/remedy}
+Canonicalisation recovers \ResClaudeCanonRecovered{} of the first model's renaming-induced misses and
+\ResGptCanonRecovered{} of the second model's, at a false-positive rate of \ResClaudeCanonFpr{} and
+\ResGptCanonFpr{} respectively (against the mimicry miss rate, \ResClaudeCanonVsMimicryClusterP{} and
+\ResGptCanonVsMimicryClusterP{}, task-clustered). Where canonicalisation does not recover an attack, the agent
+could not decide it from behaviour alone, which is the ambiguity of \S\ref{sec:models} measured directly rather
+than asserted. The name rule, a prompt-only change, recovers \ResClaudeNameRuleRecovered{} and
+\ResGptNameRuleRecovered{}. The remedy is therefore partial: canonicalisation removes the name shortcut and
+restores every attack whose behaviour is decisive, but the genuinely dual-use cases need evidence the provenance
+graph does not carry.
+\else
+The runs for this subsection are specified in \S\ref{sec:experiments}; their results will be added here.
 \fi
 
 \ifconf\else

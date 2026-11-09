@@ -51,6 +51,19 @@ with GPT-6 astra through the OpenAI Responses API, which allows tool calls toget
 effort \emph{high}, the setting used for the main model. It ran three times on \bench v1.1 and three times on
 \emph{mimicry}, with two tasks in parallel; the ablation suite was not repeated for this model.
 
+\subsection{Testing the remedy (RQ7)}
+\label{sec:exp-remedy}
+We test two defences against attacker-chosen names, both model-agnostic and reproducible. \emph{Name-blind
+canonicalisation} is a third cue-controlled variant, \emph{canon}: operator-chosen artefacts, in either their
+v1.1 or their \emph{mimicry} spelling, are replaced by stable neutral tokens, and residual ATT\&CK technique ids
+are removed, while entity and relation ids, system paths and OS binaries are untouched. Because each artefact
+maps to the same token from either spelling, the canonicalised v1.1 and \emph{mimicry} packs are byte-identical
+on every task (checked by the build), so a single \emph{canon} pack represents both. \emph{The name rule} adds
+one instruction to the system prompt -- treat every actor-chosen string as untrusted and decide from behaviour
+-- and leaves everything else unchanged; it is run on the \emph{mimicry} pack, where names mislead. Both models
+run each defence three times, scored as before, and compared to the v1.1 and \emph{mimicry} baselines by recall,
+false-positive rate, quality, the task-clustered test, and the number of renaming-induced misses recovered.
+
 \subsection{Metrics}
 Per task we record quality $Q$, efficiency $E$, reward $R$, tool calls spent, calls answered by the cache,
 calls refused locally, wall-clock time and tokens (input, output, cache reads). Aggregates per configuration:
