@@ -54,12 +54,15 @@ Triage" (`\TitleText` in `preamble.tex`; also in `../README.md` and `../CITATION
 - [x] **Regenerated the RQ7 `recovered` column** with the fixed `scripts/remedy.py` (task-level numerator and
   denominator): Claude recovers 0/3 of its mimicry-missed tasks under both defences, GPT 2/8 under
   canonicalisation and 0/8 under the name rule. Recall, FPR, quality and clustered $p$ were unaffected.
-- [~] **Experiment D (open-weight model, RQ6)**: harness built -- `scripts/run_openmodel.sh` runs the same agent
-  with any open-weight model on an OpenAI-compatible tool-calling endpoint (v1.1 + mimicry, three repeats), and
-  `scripts/model_compare.py` now accepts a third `--run` model (two-model output verified byte-identical; the
-  difference-in-differences stays on the Claude/GPT pair). Pending the server run: set `OPEN_MODEL` and the
-  endpoint in the clone's `.env`, run, then regenerate `tables/models.tex`/`models_macros.tex` and add one RQ6
-  sentence. See README "Adding a third, open-weight model".
+- [x] **Experiment D (open-weight model, RQ6)**: ran **DeepSeek-V3.2** (open-weight, via an OpenAI-compatible
+  endpoint, same agent), v1.1 + mimicry, three repeats, under `scripts/run_openmodel.sh`. It is a weaker detector
+  (v1.1 recall 0.600, misses 18/45) and, like GPT, clears attacks as authorised testing (17/18 of its base misses
+  cite test cues); its mimicry reward drop is small and **not significant** ($-0.030$, CI $[-0.128,+0.051]$), but
+  the **Linux-localised** miss pattern recurs (Linux 7/21$\to$13/21, Windows does not rise). Table~1 is now three
+  models and RQ6 has an honest paragraph; the shortcut recurs across all three families, clear (GPT) $\to$
+  suggestive (Claude) $\to$ small (DeepSeek). `model_compare.py` three-model output verified; DiD stays on the
+  Claude/GPT pair. A first run with Llama 3.3 70B was discarded -- it could not drive the tools (3 aborts,
+  ~4 calls/task), so its scores measured tool-use failure, not the shortcut. (Llama runs remain on disk.)
 - [ ] Experiments A (telemetry prompt injection) and B (adaptive renaming) are **deliberately not built**. Both
   would require authoring working injection payloads and an automated evasion-string search -- offensive tooling
   that does not belong in this defensive research repo. Mimicry (RQ5) is already reported as a *lower bound* on
@@ -99,9 +102,10 @@ The PC includes provenance-graph and ML-security researchers whose work the pape
 (e.g. authors of NoDoze/RapSheet, of the provenance mimicry attack, of the PIDS evaluation
 study, and of problem-space attacks). Expect scrutiny of:
 
-- **Model generality.** Addressed: Claude Opus 5.5 (Anthropic API) and GPT-6 astra (OpenAI
-  Responses API) on v1.1 and `mimicry` (RQ6, Table 4, Fig. 3). The ablation itself is single-model;
-  an open-weight model would strengthen this further.
+- **Model generality.** Addressed: three model families -- Claude Opus 5.5 (Anthropic API), GPT-6 astra
+  (OpenAI Responses API), and DeepSeek-V3.2 (open-weight, OpenAI-compatible endpoint) -- on v1.1 and `mimicry`
+  (RQ6, Table 1). The shortcut recurs in all three, concentrated on dual-use Linux. The ablation itself is
+  single-model.
 - **Benchmark size.** 21 tasks, 15 attacks. The paper reports paired intervals and limits;
   more tasks would strengthen RQ5 in particular.
 - **Adversary strength.** Mimicry is lexical only; structural mimicry and prompt injection

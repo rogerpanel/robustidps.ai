@@ -179,10 +179,10 @@ The runs on the \emph{blind} and \emph{mimicry} variants (\S\ref{sec:variants}) 
 \S\ref{sec:experiments}; their results will be added to this subsection.
 \fi
 
-\subsection{A second model: GPT-6 astra (RQ6)}
+\subsection{A second and third model (RQ6)}
 \label{sec:models}
 
-Table~\ref{tab:models}\ifconf\else{} and Fig.~\ref{fig:models}\fi compare the two models under the same agent.
+Table~\ref{tab:models}\ifconf\else{} and Fig.~\ref{fig:models}\fi compare the three models under the same agent.
 
 \paragraph{Neither model raises false alarms; both clear attacks} Specificity was 1.0 in every run: no model
 called a benign task malicious. All errors are attacks cleared as benign, the costly direction for a SOC.
@@ -193,12 +193,10 @@ task-clustered \McMissClusterP{}),
 with recall \McGptBaseRecall{} against \McClaudeBaseRecall{} and MCC \McGptBaseMcc{} against
 \McClaudeBaseMcc{}. The paired difference in reward, \McDiffRewardBase{} (95\% CI \McDiffRewardBaseCI{}),
 is concentrated in four Windows tasks (\ifconf per-task verdicts are in the artifact\else Table~\ref{tab:verdictmatrix}\fi). The traces give the reason: in
-\McGptBaseCueMisses{} of its misses, \McModelB{} justified the benign verdict by test artefacts, for example
-a firewall rule named ``atomic testing'' added and deleted seconds later (``consistent with a controlled
-firewall test, not an attack'') or a service binary path set to print \texttt{T1543.003 Test} and then
-restored. The first model read the same artefacts as attack evidence (``the account name matches Atomic Red
-Team test tooling''). One label cue, opposite conclusions: whether a recorded technique test counts as an
-attack is a judgement the telemetry does not settle, and models settle it differently.
+\McGptBaseCueMisses{} of its misses, \McModelB{} justified the benign verdict by test artefacts (a firewall rule
+named ``atomic testing'' added and deleted seconds later, read as ``a controlled firewall test, not an
+attack''), while the first model read the same artefacts as attack evidence. One label cue, opposite
+conclusions: whether a recorded technique test counts as an attack is a judgement the telemetry does not settle.
 
 \paragraph{Renaming hurts the second model more} Under \emph{mimicry}, \McModelB{} missed
 \McGptMimicryMissed{} attacks (recall \McGptMimicryRecall{}), including the dual-use Linux tasks the first model
@@ -213,10 +211,17 @@ The second model's verdicts on \emph{mimicry} were identical in all three repeat
 \McGptWindowsBaseMissed{}~$\to$~\McGptWindowsMimicryMissed{}).
 
 \paragraph{Cost and interface} \McModelB{} used more tool calls (\McGptBaseCalls{} against \McClaudeBaseCalls{}
-per task) but fewer output tokens (\McGptBaseOutTokens{} against \McClaudeBaseOutTokens{}); it named hosts by
-their entity identifier, so the hostname loss of \S\ref{sec:study} is specific to the first model's prompt, and
-the hard budget refused \TrGptFullMimicryGptAstraBudgetTime{} calls under \emph{mimicry}, a safeguard that never
-fired for the first model.
+per task); it named hosts by their entity identifier, so the hostname loss of \S\ref{sec:study} is specific to
+the first model's prompt.
+
+\paragraph{A third, open-weight model} \McModelC{}, run through an OpenAI-compatible endpoint under the same
+agent, is a weaker detector: on v1.1 it missed \McDeepseekVBaseMissed{} attacks (recall \McDeepseekVBaseRecall{})
+with no false alarm, and like \McModelB{} cleared attacks as authorised testing (\McDeepseekVBaseCueMisses{} of
+its base misses cite test cues). Under \emph{mimicry} its reward drop was \McDeepseekVMimicryDrop{} (95\% CI
+\McDeepseekVMimicryDropCI{}), not significant and bounded below by that low baseline, yet the misses still rise
+on Linux (\McDeepseekVLinuxBaseMissed{}~$\to$~\McDeepseekVLinuxMimicryMissed{}) and not on Windows. The shortcut
+thus recurs across all three model families, from clear (\McModelB{}) through suggestive (\McModelA{}) to small
+(\McModelC{}).
 
 \ifconf\else
 \input{tables/verdict_matrix}
