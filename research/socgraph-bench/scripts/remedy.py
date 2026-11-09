@@ -130,6 +130,7 @@ def main() -> None:
              "share of benign tasks flagged; \\emph{recovered} is attack tasks missed under mimicry on average "
              "but caught under the defence, over the tasks mimicry missed. Means over three repeats.}",
              "\\label{tab:remedy}",
+             "\\resizebox{\\columnwidth}{!}{%",
              "\\begin{tabular}{@{}llrrrr@{}}\\toprule",
              "Model & Condition & Recall & FPR & Quality & Recovered\\\\\\midrule"]
     for m in models:
@@ -160,7 +161,7 @@ def main() -> None:
             macros[f"Res{key}Quality"] = f"{x['quality']:.3f}"
         if m != models[-1]:
             lines.append("\\midrule")
-    lines += ["\\bottomrule\\end{tabular}\\end{table}"]
+    lines += ["\\bottomrule\\end{tabular}}\\end{table}"]
     (args.out / "tables" / "remedy.tex").write_text("\n".join(lines) + "\n")
     write_macros(args.out / "remedy_macros.tex", macros)
     print(f"wrote remedy table and {len(macros)} macros for models {models}")

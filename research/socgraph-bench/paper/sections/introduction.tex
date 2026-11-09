@@ -83,9 +83,10 @@ regenerates all tables and plots from run folders\ifconf{} (\ArtifactURL)\fi.
 
 \ifnum\ResCueAvailable=1
 \paragraph{Take-home} We ask whether an LLM agent's verdict on provenance evidence can be trusted when the
-attacker writes part of that evidence. With two frontier models it cannot be by default: neither raised a
-single false alarm, but renaming artefacts without changing behaviour raised missed attacks from
-\McClaudeBaseMissed{} to \McClaudeMimicryMissed{} and from \McGptBaseMissed{} to \McGptMimicryMissed{}. With
+attacker writes part of that evidence. Across three models it cannot be by default: none raised a false alarm,
+yet renaming artefacts without changing behaviour raised the frontier models' missed attacks from
+\McClaudeBaseMissed{} to \McClaudeMimicryMissed{} and from \McGptBaseMissed{} to \McGptMimicryMissed{}, with the
+same Linux-localised pattern in an open-weight model. With
 Claude Opus 5.5 the call-level safeguards changed nothing measurable, while the prompted investigation method
 cut tool calls by about 30\%. For researchers, benchmarks built from public attack recordings need cue-controlled variants to
 measure investigation rather than name reading; for AI security engineers, the analyst's method and a rule that

@@ -1,8 +1,8 @@
 \section{Prompts}
 \label{app:prompts}
 \ifconf
-Fig.~\ref{fig:minprompt} gives the minimal prompt used by the \emph{no method} ablation. The investigation-method
-prompt of the full configuration (81 lines) is in the artifact (\texttt{agent/robust/prompt.py}); its parts are
+The minimal prompt used by the \emph{no method} ablation and the investigation-method
+prompt of the full configuration (81 lines) are in the artifact (\texttt{agent/robust/prompt.py}); the latter's parts are
 summarised in \S\ref{sec:method}, and the instruction discussed in \S\ref{sec:study} reads ``Do not look up
 what you already know: the host and user named in the alert, the relation that only says a process runs on
 that host''. Field names refer to the aliases presented to the model (\S\ref{sec:alias}).
@@ -22,6 +22,7 @@ the released code (\texttt{agent/robust/prompt.py}). Field names refer to the al
 \end{figure*}
 \fi
 
+\ifconf\else
 \begin{figure*}[!t]
 \centering
 \begin{minipage}{0.92\textwidth}
@@ -30,6 +31,7 @@ the released code (\texttt{agent/robust/prompt.py}). Field names refer to the al
 \caption{Minimal system prompt (\emph{no method} ablation).}
 \label{fig:minprompt}
 \end{figure*}
+\fi
 
 \ifconf
 \section{Artifact}
@@ -87,6 +89,12 @@ executed, so retrying spends nothing. One task's failure is contained to that ta
 
 \ifconf
 \input{sections/ethics}
+
+\section{Cross-model comparison figure}
+\label{app:models}
+Fig.~\ref{fig:models} visualises the three-model comparison of Table~\ref{tab:models} (\S\ref{sec:models}):
+reward and recall under renaming, and the Windows/Linux split of the induced misses.
+\input{figures/models_fig}
 
 \section{Task list}
 \label{app:tables}

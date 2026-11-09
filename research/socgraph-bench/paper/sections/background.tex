@@ -69,7 +69,9 @@ suites~\cite{bhatt2023cyberseceval,bhatt2024cyberseceval2,wan2024cyberseceval3} 
 insecure-code generation and cyberattack helpfulness; CTIBench~\cite{alam2024ctibench} evaluates
 cyber threat intelligence knowledge and reasoning; Cybench~\cite{zhang2025cybench} and NYU CTF
 Bench~\cite{shao2024nyuctf} evaluate capture-the-flag solving, and PentestGPT~\cite{deng2024pentestgpt}
-automates penetration testing. Surveys map LLM use across security tasks~\cite{xu2025llm4security}. Closest to our setting,
+automates penetration testing. Surveys map LLM use across security tasks~\cite{xu2025llm4security}, and foundation models that fuse
+state-space and transformer backbones have been proposed for zero-shot threat intelligence~\cite{anaedevha2026cyberseclllm}.
+Closest to our setting,
 ExCyTIn-Bench~\cite{wu2026excytin} evaluates LLM agents on cyber threat investigation, answering
 investigation questions by querying security logs. \bench differs in four respects: its evidence is an
 endpoint provenance graph built from public Windows and Linux recordings and accessed through a fixed graph
@@ -98,7 +100,9 @@ LLM security benchmarks~\cite{bhatt2023cyberseceval,zhang2025cybench} & -- & par
 \end{table}
 
 \subsection{Adversarial robustness, evasion and shortcuts}
-Learned security systems face adaptive adversaries and spurious signals. Mimicry attacks hide malicious
+Learned security systems face adaptive adversaries and spurious signals, which has driven intrusion detectors
+that resist poisoned training sequences~\cite{anaedevha2026mambashield} and that bound their generalisation
+error through PAC-Bayesian analysis~\cite{anaedevha2026pacbayes}. Mimicry attacks hide malicious
 behaviour inside sequences that look normal to host-based detectors~\cite{wagner2002mimicry}, and the same
 idea defeats provenance-graph detectors by making attack subgraphs resemble benign ones~\cite{goyal2023mimicry}.
 Problem-space attacks constrain such perturbations to transformations that preserve the program's

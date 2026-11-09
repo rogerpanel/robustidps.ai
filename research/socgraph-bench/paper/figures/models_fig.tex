@@ -1,45 +1,46 @@
-% Two models on SOCGraph-21: radar of detection and cost metrics on v1.1 (plus recall
-% under mimicry), and reward and recall per pack. Data: data/models_radar.csv and
-% data/models_bars.csv, written by scripts/model_compare.py.
-\pgfplotstableread[col sep=comma]{data/models_bars.csv}\modelbars
-\begin{figure*}[!t]
+% Three-model comparison, self-contained vector pgfplots (no external data file).
+% Claude Opus 5.5, GPT-6 astra and DeepSeek-V3.2 under the same agent on SOCGraph-21 v1.1 and the
+% mimicry variant. Bar heights and error bars are the means and standard deviations in Table~\ref{tab:models}
+% (models_macros.tex); panel (c) uses the Windows/Linux miss counts from model_compare.py.
+\definecolor{cleanbar}{HTML}{3B6FB6}   % v1.1 (operator names present)
+\definecolor{renamedbar}{HTML}{D1662A} % mimicry (attacker-renamed)
+\begin{figure*}[t]
 \centering
+\pgfplotsset{
+  modelbars/.style={
+    ybar, bar width=5.5pt, enlarge x limits=0.28,
+    width=0.37\textwidth, height=4.1cm,
+    symbolic x coords={Claude,GPT,DeepSeek}, xtick=data,
+    x tick label style={font=\footnotesize}, tick align=outside,
+    ylabel style={font=\footnotesize, yshift=-2pt}, y tick label style={font=\scriptsize},
+    title style={font=\footnotesize, yshift=-3pt},
+    error bars/y dir=both, error bars/y explicit,
+    error bars/error bar style={line width=0.5pt,black},
+    axis lines=left, ymajorgrids, grid style={black!10},
+  },
+}
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}
-\begin{polaraxis}[
-  width=0.33\textwidth, ymin=0, ymax=1, ytick={0.25,0.5,0.75,1},
-  yticklabels={}, xtick={0,60,120,180,240,300},
-  xticklabels={Accuracy, Recall, Specificity, Quality, Efficiency, {Recall\\(mimicry)}},
-  xticklabel style={font=\scriptsize, align=center}, grid style={gray!30},
-  legend style={font=\scriptsize, at={(0.5,-0.22)}, anchor=north, legend columns=2, draw=none},
-]
-\addplot+[mark=*, mark size=1.2pt, thick, color=cA, fill=cA, fill opacity=0.12]
-  table[x=angle, y=Claude, col sep=comma] {data/models_radar.csv};
-\addplot+[mark=square*, mark size=1.2pt, thick, color=cB, fill=cB, fill opacity=0.12]
-  table[x=angle, y=Gpt, col sep=comma] {data/models_radar.csv};
-\legend{\McModelA, \McModelB}
-\end{polaraxis}
-\end{tikzpicture}\hspace{0.06\textwidth}%
-\begin{tikzpicture}
-\begin{axis}[
-  ybar, bar width=6pt, width=0.44\textwidth, height=4.4cm, ymin=0, ymax=1.05,
-  ylabel={Mean over three repeats}, ylabel style={font=\scriptsize},
-  xtick=data, xticklabels={{\bench v1.1}, {\emph{mimicry}}}, enlarge x limits=0.45,
-  tick label style={font=\scriptsize}, ymajorgrids, grid style={gray!25},
-  legend style={font=\scriptsize, at={(0.5,1.04)}, anchor=south, legend columns=2, draw=none},
-]
-\addplot[fill=cA, draw=none, error bars/.cd, y dir=both, y explicit]
-  table[x expr=\coordindex, y=Claude_recall, y error=Claude_recall_sd] {\modelbars};
-\addplot[fill=cA!45, draw=none, error bars/.cd, y dir=both, y explicit]
-  table[x expr=\coordindex, y=Claude_reward, y error=Claude_reward_sd] {\modelbars};
-\addplot[fill=cB, draw=none, error bars/.cd, y dir=both, y explicit]
-  table[x expr=\coordindex, y=Gpt_recall, y error=Gpt_recall_sd] {\modelbars};
-\addplot[fill=cB!45, draw=none, error bars/.cd, y dir=both, y explicit]
-  table[x expr=\coordindex, y=Gpt_reward, y error=Gpt_reward_sd] {\modelbars};
-\legend{Claude recall, Claude reward, GPT recall, GPT reward}
-\end{axis}
-\end{tikzpicture}
-\caption{Two models with the same agent. Left: detection and cost metrics on \bench v1.1, with attack
-recall under \emph{mimicry} as the sixth axis (rings at 0.25, 0.5, 0.75 and 1; larger is better on every axis). Right: attack recall and
-reward per pack (error bars: standard deviation over repeats).}
+\begin{groupplot}[group style={group size=3 by 1, horizontal sep=1.15cm}, modelbars]
+\nextgroupplot[ylabel={Reward}, ymin=0, ymax=0.95, title={(a) Reward},
+  legend style={at={(0.5,1.30)}, anchor=south, legend columns=2, font=\scriptsize, draw=none, /tikz/every even column/.append style={column sep=6pt}}]
+\addplot+[fill=cleanbar,draw=cleanbar!55!black] coordinates {(Claude,0.775)+-(0,0.012) (GPT,0.684)+-(0,0.024) (DeepSeek,0.525)+-(0,0.057)};
+\addplot+[fill=renamedbar,draw=renamedbar!55!black] coordinates {(Claude,0.694)+-(0,0.038) (GPT,0.511)+-(0,0.002) (DeepSeek,0.495)+-(0,0.017)};
+\legend{v1.1 (names present), mimicry (renamed)}
+\nextgroupplot[ylabel={Recall (attacks caught)}, ymin=0, ymax=1.05, title={(b) Recall}]
+\addplot+[fill=cleanbar,draw=cleanbar!55!black] coordinates {(Claude,0.956)+-(0,0.038) (GPT,0.778)+-(0,0.038) (DeepSeek,0.600)+-(0,0.067)};
+\addplot+[fill=renamedbar,draw=renamedbar!55!black] coordinates {(Claude,0.800)+-(0,0.067) (GPT,0.467)+-(0,0.000) (DeepSeek,0.511)+-(0,0.038)};
+\nextgroupplot[ylabel={Extra attacks missed under mimicry}, ymin=-3, ymax=13, title={(c) Where the misses appear},
+  legend style={at={(0.5,1.30)}, anchor=south, legend columns=2, font=\scriptsize, draw=none, /tikz/every even column/.append style={column sep=6pt}}]
+\addplot+[fill=black!60,draw=black] coordinates {(Claude,7) (GPT,12) (DeepSeek,6)};
+\addplot+[fill=black!18,draw=black] coordinates {(Claude,0) (GPT,2) (DeepSeek,-2)};
+\legend{Linux (10 tasks), Windows (11 tasks)}
+\end{groupplot}
+\end{tikzpicture}}
+\caption{All three models under the same agent on \bench v1.1 and the \emph{mimicry} variant (means over three
+repeats; error bars $\pm$ one standard deviation). Renaming attacker-chosen artefacts, with behaviour unchanged,
+lowers both (a)~reward and (b)~recall for every model. (c)~The extra attacks missed under \emph{mimicry} (mimicry
+minus v1.1 miss counts, summed over three repeats) fall almost entirely on the dual-use Linux tasks rather than
+Windows, for all three model families. Values are those of Table~\ref{tab:models}.}
 \label{fig:models}
 \end{figure*}
