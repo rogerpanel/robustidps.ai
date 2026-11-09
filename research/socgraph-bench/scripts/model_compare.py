@@ -133,6 +133,32 @@ def fisher(a: int, b: int, c: int, d: int) -> float:
                         if p(x) <= p0 * (1 + 1e-9)))
 
 
+def task_miss_rate(runs: list[dict[str, Any]]) -> tuple[dict[str, float], dict[str, str]]:
+    """Per malicious task: mean miss fraction over repeats, and its platform."""
+    acc: dict[str, list[float]] = {}
+    plat: dict[str, str] = {}
+    for run in runs:
+        for r in run["rows"]:
+            if r.get("expected_verdict") != "malicious":
+                continue
+            acc.setdefault(r["task_id"], []).append(float(r.get("verdict") != "malicious"))
+            plat[r["task_id"]] = r.get("platform")
+    return {t: statistics.mean(v) for t, v in acc.items()}, plat
+
+
+def signflip_cluster_p(diffs: list[float]) -> float:
+    """Exact task-clustered paired permutation test on per-task differences (see results_to_tex.py)."""
+    import itertools
+    d = [x for x in diffs if abs(x) > 1e-12]
+    k = len(d)
+    if k == 0:
+        return 1.0
+    obs = abs(sum(d))
+    hits = sum(abs(sum(s * x for s, x in zip(signs, d))) >= obs - 1e-12
+               for signs in itertools.product((1, -1), repeat=k))
+    return min(1.0, hits / 2 ** k)
+
+
 def stability(runs: list[dict[str, Any]]) -> float:
     verdicts: dict[str, set] = {}
     for run in runs:
@@ -240,6 +266,21 @@ def main() -> None:
                 f0, n0 = sum(x["fn"] for x in x0), sum(x["malicious"] for x in x0)
                 f1, n1 = sum(x["fn"] for x in x1), sum(x["malicious"] for x in x1)
                 macros[f"Mc{mkey(m)}MimicryMissP"] = pval(fisher(f1, n1 - f1, f0, n0 - f0))
+                # Task-clustered paired test, and the Windows/Linux split of the misses.
+                v0, plat = task_miss_rate(groups[(m, "v1.1")])
+                v1, _ = task_miss_rate(groups[(m, "mimicry")])
+                tasks = sorted(set(v0) & set(v1))
+                reps0 = len(groups[(m, "v1.1")])
+                reps1 = len(groups[(m, "mimicry")])
+                cp = signflip_cluster_p([v1[t] - v0[t] for t in tasks])
+                macros[f"Mc{mkey(m)}MimicryMissClusterP"] = pval(cp)
+                macros[f"Mc{mkey(m)}MimicryMissClusterTasks"] = str(
+                    sum(abs(v1[t] - v0[t]) > 1e-12 for t in tasks))
+                for pf in ("windows", "linux"):
+                    tt = [t for t in tasks if plat.get(t) == pf]
+                    pk = mkey(m) + pf.capitalize()
+                    macros[f"Mc{pk}BaseMissed"] = f"{round(sum(v0[t] for t in tt) * reps0)}/{len(tt) * reps0}"
+                    macros[f"Mc{pk}MimicryMissed"] = f"{round(sum(v1[t] for t in tt) * reps1)}/{len(tt) * reps1}"
             mean, lo, hi = boot_did(rew[(a, "mimicry")], rew[(a, "v1.1")],
                                     rew[(b, "mimicry")], rew[(b, "v1.1")])
             macros["McDiD"] = f"{mean:+.3f}"
@@ -249,6 +290,10 @@ def main() -> None:
         fb = sum(x["fn"] for x in metrics[(b, "v1.1")])
         nb = sum(x["malicious"] for x in metrics[(b, "v1.1")])
         macros["McMissP"] = pval(fisher(fa, na - fa, fb, nb - fb))
+        va, _ = task_miss_rate(groups[(a, "v1.1")])
+        vb, _ = task_miss_rate(groups[(b, "v1.1")])
+        shared = sorted(set(va) & set(vb))
+        macros["McMissClusterP"] = pval(signflip_cluster_p([va[t] - vb[t] for t in shared]))
 
     # Per-task verdict matrix
     head = " & ".join(f"\\rotatebox{{70}}{{{m.split()[0]}, {c}}}" for m in models for c in conds

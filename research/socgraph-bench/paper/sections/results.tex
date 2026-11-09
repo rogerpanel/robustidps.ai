@@ -147,10 +147,18 @@ did not depend on it.
 
 \paragraph{Attacker-chosen names do} Renaming the operator's artefacts (\emph{mimicry}) lowered reward to
 \ResMimicryReward{} (paired difference \ResMimicryPairedReward{}, 95\% CI \ResMimicryPairedRewardCI{}) and
-verdict accuracy to \ResMimicryAccuracy{}; missed attacks rose from \ResCueBaseMissed{} to \ResMimicryMissed{}
-(Fisher exact test \ResMimicryMissedP{}), while no benign task was flagged. The misses fall on three Linux tasks:
-\texttt{linux-account-created} was cleared in all three runs, \texttt{linux-ld-preload-hijack} in two and
-\texttt{linux-kernel-module} in one. The traces show the mechanism. On v1.1 and \emph{blind},
+verdict accuracy to \ResMimicryAccuracy{}; missed attacks rose from \ResCueBaseMissed{} to \ResMimicryMissed{},
+while no benign task was flagged. Treating the \ResMimicryRepeats{} runs as independent (Fisher exact test)
+gives \ResMimicryMissedP{}, but the three repeats of a task are correlated, so this is optimistic; a
+task-clustered paired permutation test, which treats each task as one unit (sign-flip over the per-task
+difference in miss rate, \S\ref{sec:method}), gives \ResMimicryMissedClusterP{}. The effect for this model is
+therefore suggestive, not conclusive: it concentrates on \ResMimicryMissedClusterTasks{} of the fifteen
+malicious tasks, and with so few tasks moving no clustered test could reach significance. All the misses are on
+Linux (\McClaudeLinuxBaseMissed{} of the Linux attack runs missed on v1.1, \McClaudeLinuxMimicryMissed{} under
+\emph{mimicry}; Windows unchanged at \McClaudeWindowsMimicryMissed{}): \texttt{linux-account-created} was
+cleared in all three runs, \texttt{linux-ld-preload-hijack} in two and \texttt{linux-kernel-module} in one. The
+stronger, task-clustered evidence comes from the second model and from the difference in differences across
+both models (\S\ref{sec:models}). The traces show the mechanism. On v1.1 and \emph{blind},
 \TrFullNameCue{} of \TrFullMalTaskSubs{} reports on malicious tasks name an operator-chosen artefact as
 evidence (for the account task: ``the account name matches Atomic Red Team test tooling''); under
 \emph{mimicry}, \TrCueFullMimicryNameCue{} do. Facing the same \texttt{sudo useradd}, now of an account called
@@ -183,7 +191,8 @@ Table~\ref{tab:models} and Fig.~\ref{fig:models} compare the two models under th
 called a benign task malicious. All errors are attacks cleared as benign, the costly direction for a SOC.
 
 \paragraph{The second model misses more attacks, for a different reason} On \bench v1.1, \McModelB{} missed
-\McGptBaseMissed{} attacks against \McClaudeBaseMissed{} for \McModelA{} (Fisher exact test \McMissP{}),
+\McGptBaseMissed{} attacks against \McClaudeBaseMissed{} for \McModelA{} (Fisher exact test \McMissP{},
+task-clustered \McMissClusterP{}),
 with recall \McGptBaseRecall{} against \McClaudeBaseRecall{} and MCC \McGptBaseMcc{} against
 \McClaudeBaseMcc{}. The paired difference in reward, \McDiffRewardBase{} (95\% CI \McDiffRewardBaseCI{}),
 is concentrated in four Windows tasks (\ifconf per-task verdicts are in the artifact\else Table~\ref{tab:verdictmatrix}\fi). The traces give the reason: in
@@ -195,11 +204,16 @@ Team test tooling''). One label cue, opposite conclusions: whether a recorded te
 attack is a judgement the telemetry does not settle, and models settle it differently.
 
 \paragraph{Renaming hurts the second model more} Under \emph{mimicry}, \McModelB{} missed
-\McGptMimicryMissed{} attacks (recall \McGptMimicryRecall{}; against its own v1.1 runs, \McGptMimicryMissP{}),
-including the dual-use Linux tasks the first model also missed and Windows tasks it did not. The drop in reward,
-\McGptMimicryDrop{} (95\% CI \McGptMimicryDropCI{}), exceeds the first model's \McClaudeMimicryDrop{} by
-\McDiD{} (difference in differences, 95\% CI \McDiDCI{}). The second model's verdicts on \emph{mimicry} were
-identical in all three repeats (stability \McGptMimicryStable{}): the misses are systematic, not noise.
+\McGptMimicryMissed{} attacks (recall \McGptMimicryRecall{}), including the dual-use Linux tasks the first model
+also missed and Windows tasks it did not. Against its own v1.1 runs this is \McGptMimicryMissP{} unclustered
+(Fisher) and \McGptMimicryMissClusterP{} by the task-clustered permutation test, which moves
+\McGptMimicryMissClusterTasks{} tasks: unlike the first model, the second model's within-model effect survives
+clustering. The drop in reward, \McGptMimicryDrop{} (95\% CI \McGptMimicryDropCI{}), exceeds the first model's
+\McClaudeMimicryDrop{} by \McDiD{} (difference in differences, 95\% CI \McDiDCI{}, the interval excludes zero).
+The second model's verdicts on \emph{mimicry} were identical in all three repeats (stability
+\McGptMimicryStable{}): the misses are systematic, not noise. The Linux concentration is shared
+(\McGptLinuxBaseMissed{}~$\to$~\McGptLinuxMimicryMissed{} of the Linux runs; Windows
+\McGptWindowsBaseMissed{}~$\to$~\McGptWindowsMimicryMissed{}).
 
 \paragraph{Cost and interface} \McModelB{} used more tool calls (\McGptBaseCalls{} against \McClaudeBaseCalls{}
 per task, efficiency \McGptBaseEfficiency{} against \McClaudeBaseEfficiency{}) but fewer output tokens

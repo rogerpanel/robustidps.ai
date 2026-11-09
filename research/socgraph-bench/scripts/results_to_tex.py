@@ -169,6 +169,39 @@ def sign_test(k: int, n: int) -> float:
     return min(1.0, 2 * tail)
 
 
+def task_miss_diffs(group, base) -> list[float]:
+    """Per malicious task, the mean miss fraction (benign verdict on a malicious task) under `group`
+    minus under `base`, averaged over paired repeats. The task is the unit; repeats are averaged."""
+    pairs = _pairs(group, base)
+    per: dict[str, list[float]] = {}
+    for run, ref in pairs:
+        ref_rows = {x["task_id"]: x for x in ref["rows"]}
+        for x in run["rows"]:
+            t = x["task_id"]
+            if x.get("expected_verdict") == "malicious" and t in ref_rows:
+                miss = float(x.get("verdict") != "malicious")
+                base_miss = float(ref_rows[t].get("verdict") != "malicious")
+                per.setdefault(t, []).append(miss - base_miss)
+    return [statistics.mean(v) for v in per.values()]
+
+
+def signflip_cluster_p(diffs: list[float]) -> float:
+    """Exact task-clustered paired permutation (randomisation) test. Under the sharp null that the
+    condition has no effect, each task's mean difference is equally likely + or -; we enumerate all
+    2^k sign assignments of the non-zero per-task differences and return the two-sided p-value for
+    the mean. With only k non-zero tasks the smallest attainable p is 2/2^k, so a real effect that
+    moves few tasks cannot reach significance -- which is the point of clustering by task."""
+    import itertools
+    d = [x for x in diffs if abs(x) > 1e-12]
+    k = len(d)
+    if k == 0:
+        return 1.0
+    obs = abs(sum(d))
+    hits = sum(abs(sum(s * x for s, x in zip(signs, d))) >= obs - 1e-12
+               for signs in itertools.product((1, -1), repeat=k))
+    return min(1.0, hits / 2 ** k)
+
+
 def ci(d: dict[str, Any] | None, nd: int = 3) -> str:
     if d is None:
         return "--"
@@ -497,9 +530,12 @@ def cue_tables(cue_runs: list[dict[str, Any]], base_runs: list[dict[str, Any]], 
                        f"Res{k}Calls": fmt(_mean(ov(g, "mean_tool_calls")), 2),
                        f"Res{k}Missed": f"{mw}/{m}", f"Res{k}Repeats": str(len(g))})
         if d:
+            cdiffs = task_miss_diffs(g, base)
             macros.update({f"Res{k}PairedReward": f"{d['mean']:+.3f}",
                            f"Res{k}PairedRewardCI": f"[{d['lo']:+.3f}, {d['hi']:+.3f}]",
-                           f"Res{k}MissedP": _pval(fisher_exact(mw, m - mw, bmw, bm - bmw))})
+                           f"Res{k}MissedP": _pval(fisher_exact(mw, m - mw, bmw, bm - bmw)),
+                           f"Res{k}MissedClusterP": _pval(signflip_cluster_p(cdiffs)),
+                           f"Res{k}MissedClusterTasks": str(sum(abs(x) > 1e-12 for x in cdiffs))})
     lines += ["\\bottomrule\\end{tabular}\\end{table*}"]
     write(out / "tables" / "results_cues.tex", "\n".join(lines) + "\n")
     macros["ResCueAvailable"] = "1"

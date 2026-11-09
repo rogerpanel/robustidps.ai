@@ -23,7 +23,14 @@ one component:
 rules (Appendix~\ref{app:prompts}).
 \end{itemize}
 Because LLM outputs vary between runs, each configuration is run three times on all 21 tasks, and we report
-means with standard deviations across repeats. A single command runs the full configuration followed by the
+means with standard deviations across repeats. Paired differences between conditions use a bootstrap 95\%
+confidence interval over tasks (the unit that varies; repeats are averaged within a task). For counts of missed
+attacks we report two tests: a Fisher exact test on the pooled runs, which treats the three repeats of a task as
+independent and is therefore optimistic, and a task-clustered paired permutation test that is the honest unit of
+analysis -- for each malicious task we take its mean miss rate under each condition, and under the sharp null
+that the condition has no effect we enumerate all $2^{k}$ sign assignments of the $k$ non-zero per-task
+differences, reporting the two-sided $p$ for the mean. With few tasks moving, the smallest attainable clustered
+$p$ is $2/2^{k}$, so a real effect on a handful of tasks cannot reach significance; we say so where it applies. A single command runs the full configuration followed by the
 five ablations on the same tasks. The first repeat was made with \bench v1.0 and rescored on v1.1
 (\S\ref{sec:benchmark}); since the graphs are identical and scores depend only on the submission and the
 number of calls, rescoring from the stored traces is exact. One run is excluded: in the first repeat of
