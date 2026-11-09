@@ -27,11 +27,13 @@ a check of which tasks carry a difference; mean-reward tables alone credited thr
 not do.
 \fi
 
+\ifconf\else
 \paragraph{Guards must check the failure that actually occurs} The most frequent identifier error was not an
 invented id but a real value of the wrong type -- a hostname where the host's entity id belonged. A grounding
 check that accepts any string in the evidence cannot catch it; one that accepts only values seen in identifier
 fields would have caught all of them at no cost. A guard should be derived from the interface's types, not a
 list of anticipated mistakes, and its effect measured on traces.
+\fi
 
 
 \ifconf\else

@@ -17,10 +17,10 @@ cues changed nothing measurable, but renaming attacker-chosen artefacts without 
 (\texttt{rootkit.ko} to \texttt{hidmon.ko}, \texttt{atomic\_user1} to \texttt{jsmith}) raised missed attacks
 from \ResCueBaseMissed{} to \ResMimicryMissed{}: on dual-use Linux behaviour the verdict rested on names the
 attacker chose. GPT-6 astra (OpenAI Responses API) under the same agent missed \McGptBaseMissed{} attacks and
-\McGptMimicryMissed{} under renaming (difference in differences \McDiD{}, 95\% CI \McDiDCI{}). Neither model raised a false alarm; the errors
-were silent misses. Two lightweight defences -- erasing names before the agent reads the graph, and a prompt rule
-to distrust them -- did not restore accuracy, so the loss is genuine ambiguity in the provenance graph, not a
-labelling bug. LLM triage agents should be evaluated on cue-controlled variants such as ours, and a benign verdict
+\McGptMimicryMissed{} under renaming (difference in differences \McDiD{}, 95\% CI \McDiDCI{}); a third,
+open-weight model (DeepSeek-V3.2) showed the same Linux-localised pattern. No model raised a false alarm;
+the errors were silent misses. Two lightweight defences -- erasing names, and a prompt rule to distrust them --
+did not restore accuracy: the loss is genuine graph ambiguity, not a labelling bug. LLM triage agents should be evaluated on cue-controlled variants such as ours, and a benign verdict
 trusted only when it cites behaviour, not attacker-chosen names.
 \else
 \ We define an ablation protocol that isolates each safeguard's contribution.
