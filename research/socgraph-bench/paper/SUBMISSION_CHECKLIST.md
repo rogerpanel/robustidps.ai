@@ -51,10 +51,9 @@ Triage" (`\TitleText` in `preamble.tex`; also in `../README.md` and `../CITATION
   restores accuracy** -- canonicalisation recovers little (Claude slightly worse without the real names; GPT
   partly recovers, not significant), the prompt name rule changes almost nothing, FPR stays 0, and no condition
   reaches clean-name recall. RQ7, abstract, discussion, limitations and conclusion rewritten to match.
-- [ ] **Regenerate the RQ7 `recovered` column** with the fixed `scripts/remedy.py` (now task-level numerator
-  *and* denominator; the committed `remedy_macros.tex`/`tables/remedy.tex` still carry the old cell-denominator
-  `recovered` values, e.g. 0/9, 2/24). Pull, `python3 scripts/remedy.py --out paper ...`, recompile. Everything
-  else (recall, FPR, quality, clustered $p$) is final and unaffected.
+- [x] **Regenerated the RQ7 `recovered` column** with the fixed `scripts/remedy.py` (task-level numerator and
+  denominator): Claude recovers 0/3 of its mimicry-missed tasks under both defences, GPT 2/8 under
+  canonicalisation and 0/8 under the name rule. Recall, FPR, quality and clustered $p$ were unaffected.
 - [ ] Experiments A (telemetry prompt injection) and B (adaptive renaming) from the review are **not built**:
   they construct injected instructions and search for evasive names. If a reviewer insists, discuss scope;
   the limitations section already frames mimicry as a lower bound and names A/B as the next step.
