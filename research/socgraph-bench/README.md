@@ -148,6 +148,23 @@ python3 scripts/remedy.py --out paper \
 Options: `REPEATS=3`, `MODELS="claude gpt"`, `GPT_MODEL=gpt-6-astra`, `CONCURRENCY=4` (environment variables
 to `run_remedy.sh`). Until the runs exist, `remedy.py` writes a pending table and the paper still compiles.
 
+### Adding a third, open-weight model (RQ6)
+
+To test whether the name-shortcut effect generalises beyond the two closed models, run the *same* agent with an
+open-weight model served behind any OpenAI-compatible endpoint that supports tool calling (vLLM, Together,
+Fireworks, OpenRouter, a local server, ...). This is the ordinary OpenAI-compatible path -- no change to the
+agent and no attack content. Put the endpoint and key in the clone's `.env` (`LLM_BASE_URL`, `LLM_API_KEY`),
+then:
+
+```bash
+OPEN_MODEL="Qwen/Qwen3-72B-Instruct" bash scripts/run_openmodel.sh bluesec1-agent
+```
+
+It runs the model on v1.1 and `mimicry`, three repeats each, into `results/openmodel/<model-tag>-{v1.1,mimicry}/`,
+and prints the exact `model_compare.py` command with all three models at the end (`model_compare.py` accepts any
+number of `--run` models; the difference-in-differences stays on the Claude/GPT primary pair). Options:
+`MODEL_TAG`, `MODEL_NAME`, `REPEATS=3`, `CONCURRENCY=4`, `REASONING_EFFORT` (environment variables).
+
 ## Reproducibility notes
 
 - The benchmark is fixed: `benchmark/SHA256SUMS` pins the zip. It can also be

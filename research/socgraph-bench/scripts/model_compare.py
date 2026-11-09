@@ -8,7 +8,10 @@
         --run "GPT-6 astra|mimicry|results/models/*-gpt-6-astra-mimicry/" \
         --out paper
 
-Each --run is MODEL|CONDITION|GLOB over run folders (repeats). Writes
+Each --run is MODEL|CONDITION|GLOB over run folders (repeats). Any number of
+models may be passed (>=2): every model with a v1.1 and a mimicry run gets its
+own mimicry-effect macros, while the pairwise comparison and the
+difference-in-differences use the first two models (the primary pair). Writes
 tables/models.tex (detection and cost metrics, mean +- sd over repeats),
 tables/verdict_matrix.tex (correct verdicts per task and condition),
 data/models_radar.csv and data/models_bars.csv (figure data), and
@@ -205,6 +208,7 @@ def main() -> None:
         groups[(model, cond)] = load(pat)
     models = list(dict.fromkeys(m for m, _ in groups))
     conds = list(dict.fromkeys(c for _, c in groups))
+    nmodels_word = {1: "One", 2: "Two", 3: "Three", 4: "Four"}.get(len(models), str(len(models)))
     metrics = {k: [run_metrics(r["rows"]) for r in v] for k, v in groups.items()}
 
     (args.out / "tables").mkdir(parents=True, exist_ok=True)
@@ -214,7 +218,7 @@ def main() -> None:
             ("f1", "F1", 3), ("mcc", "MCC", 3), ("calls", "Calls", 1),
             ("out_tokens", "Out tok.", 0)]
     lines = ["\\begin{table*}[!t]\\centering\\footnotesize\\setlength{\\tabcolsep}{3.5pt}",
-             "\\caption{Two models on \\bench v1.1 and on the \\emph{mimicry} variant, same agent and "
+             "\\caption{" + nmodels_word + " models on \\bench v1.1 and on the \\emph{mimicry} variant, same agent and "
              "settings (full configuration, reasoning effort \\emph{high}). Means $\\pm$ standard "
              "deviation over three repeats. Detection metrics take \\emph{malicious} as the positive "
              "class: recall is the share of attacks caught, specificity the share of benign tasks "
@@ -250,37 +254,42 @@ def main() -> None:
     # Paired effects
     rew = {k: per_task(v, "reward") for k, v in groups.items()}
     cor = {k: per_task(v, "correct") for k, v in groups.items()}
-    if len(models) == 2 and "v1.1" in conds:
+    # Per-model mimicry effect, for every model that has both packs (any number of models).
+    if "v1.1" in conds and "mimicry" in conds:
+        for m in models:
+            if (m, "v1.1") not in metrics or (m, "mimicry") not in metrics:
+                continue
+            mean, lo, hi = boot_diff(rew[(m, "mimicry")], rew[(m, "v1.1")])
+            macros[f"Mc{mkey(m)}MimicryDrop"] = f"{mean:+.3f}"
+            macros[f"Mc{mkey(m)}MimicryDropCI"] = f"[{lo:+.3f}, {hi:+.3f}]"
+            x0 = metrics[(m, "v1.1")]
+            x1 = metrics[(m, "mimicry")]
+            f0, n0 = sum(x["fn"] for x in x0), sum(x["malicious"] for x in x0)
+            f1, n1 = sum(x["fn"] for x in x1), sum(x["malicious"] for x in x1)
+            macros[f"Mc{mkey(m)}MimicryMissP"] = pval(fisher(f1, n1 - f1, f0, n0 - f0))
+            # Task-clustered paired test, and the Windows/Linux split of the misses.
+            v0, plat = task_miss_rate(groups[(m, "v1.1")])
+            v1, _ = task_miss_rate(groups[(m, "mimicry")])
+            tasks = sorted(set(v0) & set(v1))
+            reps0 = len(groups[(m, "v1.1")])
+            reps1 = len(groups[(m, "mimicry")])
+            cp = signflip_cluster_p([v1[t] - v0[t] for t in tasks])
+            macros[f"Mc{mkey(m)}MimicryMissClusterP"] = pval(cp)
+            macros[f"Mc{mkey(m)}MimicryMissClusterTasks"] = str(
+                sum(abs(v1[t] - v0[t]) > 1e-12 for t in tasks))
+            for pf in ("windows", "linux"):
+                tt = [t for t in tasks if plat.get(t) == pf]
+                pk = mkey(m) + pf.capitalize()
+                macros[f"Mc{pk}BaseMissed"] = f"{round(sum(v0[t] for t in tt) * reps0)}/{len(tt) * reps0}"
+                macros[f"Mc{pk}MimicryMissed"] = f"{round(sum(v1[t] for t in tt) * reps1)}/{len(tt) * reps1}"
+    # Pairwise comparison and difference-in-differences for the primary pair (first two models).
+    if len(models) >= 2 and "v1.1" in conds:
         a, b = models[1], models[0]
         for c in conds:
             mean, lo, hi = boot_diff(rew[(a, c)], rew[(b, c)])
             macros[f"McDiffReward{ckey(c)}"] = f"{mean:+.3f}"
             macros[f"McDiffReward{ckey(c)}CI"] = f"[{lo:+.3f}, {hi:+.3f}]"
         if "mimicry" in conds:
-            for m in models:
-                mean, lo, hi = boot_diff(rew[(m, "mimicry")], rew[(m, "v1.1")])
-                macros[f"Mc{mkey(m)}MimicryDrop"] = f"{mean:+.3f}"
-                macros[f"Mc{mkey(m)}MimicryDropCI"] = f"[{lo:+.3f}, {hi:+.3f}]"
-                x0 = metrics[(m, "v1.1")]
-                x1 = metrics[(m, "mimicry")]
-                f0, n0 = sum(x["fn"] for x in x0), sum(x["malicious"] for x in x0)
-                f1, n1 = sum(x["fn"] for x in x1), sum(x["malicious"] for x in x1)
-                macros[f"Mc{mkey(m)}MimicryMissP"] = pval(fisher(f1, n1 - f1, f0, n0 - f0))
-                # Task-clustered paired test, and the Windows/Linux split of the misses.
-                v0, plat = task_miss_rate(groups[(m, "v1.1")])
-                v1, _ = task_miss_rate(groups[(m, "mimicry")])
-                tasks = sorted(set(v0) & set(v1))
-                reps0 = len(groups[(m, "v1.1")])
-                reps1 = len(groups[(m, "mimicry")])
-                cp = signflip_cluster_p([v1[t] - v0[t] for t in tasks])
-                macros[f"Mc{mkey(m)}MimicryMissClusterP"] = pval(cp)
-                macros[f"Mc{mkey(m)}MimicryMissClusterTasks"] = str(
-                    sum(abs(v1[t] - v0[t]) > 1e-12 for t in tasks))
-                for pf in ("windows", "linux"):
-                    tt = [t for t in tasks if plat.get(t) == pf]
-                    pk = mkey(m) + pf.capitalize()
-                    macros[f"Mc{pk}BaseMissed"] = f"{round(sum(v0[t] for t in tt) * reps0)}/{len(tt) * reps0}"
-                    macros[f"Mc{pk}MimicryMissed"] = f"{round(sum(v1[t] for t in tt) * reps1)}/{len(tt) * reps1}"
             mean, lo, hi = boot_did(rew[(a, "mimicry")], rew[(a, "v1.1")],
                                     rew[(b, "mimicry")], rew[(b, "v1.1")])
             macros["McDiD"] = f"{mean:+.3f}"
@@ -348,6 +357,7 @@ def main() -> None:
             w.writerow([round(360 * i / len(axes), 2), name] + vals)
     macros["McModelA"] = models[0]
     macros["McModelB"] = models[1] if len(models) > 1 else ""
+    macros["McModelC"] = models[2] if len(models) > 2 else ""
     text = ["% Generated by scripts/model_compare.py; do not edit by hand."]
     text += [f"\\providecommand{{\\{k}}}{{}}\\renewcommand{{\\{k}}}{{{v}}}" for k, v in sorted(macros.items())]
     (args.out / "models_macros.tex").write_text("\n".join(text) + "\n")

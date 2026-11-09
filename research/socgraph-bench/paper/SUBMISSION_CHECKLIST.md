@@ -54,9 +54,18 @@ Triage" (`\TitleText` in `preamble.tex`; also in `../README.md` and `../CITATION
 - [x] **Regenerated the RQ7 `recovered` column** with the fixed `scripts/remedy.py` (task-level numerator and
   denominator): Claude recovers 0/3 of its mimicry-missed tasks under both defences, GPT 2/8 under
   canonicalisation and 0/8 under the name rule. Recall, FPR, quality and clustered $p$ were unaffected.
-- [ ] Experiments A (telemetry prompt injection) and B (adaptive renaming) from the review are **not built**:
-  they construct injected instructions and search for evasive names. If a reviewer insists, discuss scope;
-  the limitations section already frames mimicry as a lower bound and names A/B as the next step.
+- [~] **Experiment D (open-weight model, RQ6)**: harness built -- `scripts/run_openmodel.sh` runs the same agent
+  with any open-weight model on an OpenAI-compatible tool-calling endpoint (v1.1 + mimicry, three repeats), and
+  `scripts/model_compare.py` now accepts a third `--run` model (two-model output verified byte-identical; the
+  difference-in-differences stays on the Claude/GPT pair). Pending the server run: set `OPEN_MODEL` and the
+  endpoint in the clone's `.env`, run, then regenerate `tables/models.tex`/`models_macros.tex` and add one RQ6
+  sentence. See README "Adding a third, open-weight model".
+- [ ] Experiments A (telemetry prompt injection) and B (adaptive renaming) are **deliberately not built**. Both
+  would require authoring working injection payloads and an automated evasion-string search -- offensive tooling
+  that does not belong in this defensive research repo. Mimicry (RQ5) is already reported as a *lower bound* on
+  evasion and §9 names A/B as future work; if a reviewer presses for an adaptive attack, that is a follow-up
+  study with its own ethics/disclosure section, not a deadline add-on. The rebuttal should argue that a
+  lower-bound attack *strengthens* the shortcut-reliance claim rather than weakening it.
 - [x] Re-ran `latexmk` locally after experiment C: conference 17 pages (text ends p.13), journal 21 pages, both
   clean (no undefined/multiply-defined). Still compile once on Overleaf with IEEEtran 1.8b before submitting.
 
