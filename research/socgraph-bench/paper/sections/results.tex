@@ -123,16 +123,13 @@ script from the run folders, and this subsection will report them.
 \label{sec:cues}
 % The model comparison (RQ6) floats are declared here so that they are placed within the body.
 \input{tables/models}
-\input{figures/models_fig}
-The study's traces show that the agent does read label cues. Of the \TrAllSubmissions{} submissions,
-\TrAllSourceCue{} (\TrAllSourceCuePct\%) justify the verdict partly by the source recording, calling the
-activity a simulation or naming the attack dataset from the alert's source field. Most of these are correct
-malicious verdicts (\TrAllSourceCueRight{}). The other \TrAllSourceCueWrong{} are every wrong verdict of the
-study (the seven cleared \texttt{linux-service-stopped} runs and the cleared \texttt{firewall-rule-added} run).
-In these the agent named the source only as a caveat (``the alert source is a Splunk attack-simulation
-dataset, so the label is a judgement call'') and decided from the graph, where it saw no lasting effect. The
-cue therefore did not override the evidence when the two disagreed; whether it helped where they agreed is what
-the cue-controlled variants test.
+\ifconf\else\input{figures/models_fig}\fi
+The study's traces show the agent does read label cues: of \TrAllSubmissions{} submissions, \TrAllSourceCue{}
+(\TrAllSourceCuePct\%) justify the verdict partly by the source recording, most of them correct malicious
+verdicts (\TrAllSourceCueRight{}). The other \TrAllSourceCueWrong{} are every wrong verdict of the study; there
+the agent named the source only as a caveat and decided from the graph, where it saw no lasting effect. The cue
+did not override the evidence when the two disagreed; whether it helped where they agreed is what the
+cue-controlled variants test.
 \ifnum\ResCueAvailable=1
 \input{tables/results_cues}
 
@@ -185,7 +182,7 @@ The runs on the \emph{blind} and \emph{mimicry} variants (\S\ref{sec:variants}) 
 \subsection{A second model: GPT-6 astra (RQ6)}
 \label{sec:models}
 
-Table~\ref{tab:models} and Fig.~\ref{fig:models} compare the two models under the same agent.
+Table~\ref{tab:models}\ifconf\else{} and Fig.~\ref{fig:models}\fi compare the two models under the same agent.
 
 \paragraph{Neither model raises false alarms; both clear attacks} Specificity was 1.0 in every run: no model
 called a benign task malicious. All errors are attacks cleared as benign, the costly direction for a SOC.
@@ -234,15 +231,21 @@ and the typed grounding check of \S\ref{sec:study}, which we already report woul
 \TrAllHostByName{} hostname citations\ifnum\ResRemedyAvailable=1{} (Table~\ref{tab:remedy})\fi.
 \ifnum\ResRemedyAvailable=1
 \input{tables/remedy}
-Canonicalisation recovers \ResClaudeCanonRecovered{} of the first model's renaming-induced misses and
-\ResGptCanonRecovered{} of the second model's, at a false-positive rate of \ResClaudeCanonFpr{} and
-\ResGptCanonFpr{} respectively (against the mimicry miss rate, \ResClaudeCanonVsMimicryClusterP{} and
-\ResGptCanonVsMimicryClusterP{}, task-clustered). Where canonicalisation does not recover an attack, the agent
-could not decide it from behaviour alone, which is the ambiguity of \S\ref{sec:models} measured directly rather
-than asserted. The name rule, a prompt-only change, recovers \ResClaudeNameRuleRecovered{} and
-\ResGptNameRuleRecovered{}. The remedy is therefore partial: canonicalisation removes the name shortcut and
-restores every attack whose behaviour is decisive, but the genuinely dual-use cases need evidence the provenance
-graph does not carry.
+Neither lightweight defence restores clean-name accuracy (Table~\ref{tab:remedy}). \emph{Canonicalisation}, which
+deletes operator-chosen names so the v1.1 and \emph{mimicry} inputs coincide and the agent must decide from
+behaviour, recovers \ResClaudeCanonRecovered{} of the first model's renaming-hidden attack tasks and
+\ResGptCanonRecovered{} of the second's (miss rate against \emph{mimicry}, \ResClaudeCanonVsMimicryClusterP{} and
+\ResGptCanonVsMimicryClusterP{}, task-clustered; neither significant). Its effect splits by how each model used
+names (Table~\ref{tab:remedy}): the first model, whose accuracy rested on the \emph{real} names, is no better
+without them and in fact a little worse, while the second, which \emph{mimicry} actively misled, regains some
+ground but stays below its clean-name recall. The \emph{name rule}, a one-line system-prompt instruction to treat
+names as attacker-controlled, does less still: it recovers \ResClaudeNameRuleRecovered{} and
+\ResGptNameRuleRecovered{} and leaves recall essentially unchanged. No defence raised a false alarm (FPR
+\ResClaudeCanonFpr{} throughout). The loss is thus not a naming-hygiene bug a token swap or prompt line removes:
+once the operator-chosen cue is gone, the dual-use Linux cases (\S\ref{sec:models}) are genuinely under-determined
+by the graph, so an agent that must still answer either guesses or leans on whatever names remain. Closing them
+correctly needs behavioural evidence the graph does not carry -- a second data source or detection beyond
+provenance -- which we leave to future work.
 \else
 The runs for this subsection are specified in \S\ref{sec:experiments}; their results will be added here.
 \fi

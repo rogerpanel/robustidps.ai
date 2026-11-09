@@ -127,8 +127,8 @@ def main() -> None:
              "\\emph{Canonicalisation} maps operator-chosen names to stable tokens before the agent reads the "
              "graph (so the v1.1 and mimicry inputs coincide); \\emph{name rule} adds a prompt rule that names "
              "are attacker-controlled, on the mimicry pack. Recall is the share of attacks caught, FPR the "
-             "share of benign tasks flagged; \\emph{recovered} is attacks missed under mimicry but caught here. "
-             "Means over three repeats.}",
+             "share of benign tasks flagged; \\emph{recovered} is attack tasks missed under mimicry on average "
+             "but caught under the defence, over the tasks mimicry missed. Means over three repeats.}",
              "\\label{tab:remedy}",
              "\\begin{tabular}{@{}llrrrr@{}}\\toprule",
              "Model & Condition & Recall & FPR & Quality & Recovered\\\\\\midrule"]
@@ -141,8 +141,12 @@ def main() -> None:
             recovered = "--"
             if c in ("canon", "name-rule") and (m, "mimicry") in met:
                 mm = met[(m, "mimicry")]
-                rec = sum(1 for t in x["caught"] if x["caught"][t] > 0.5 and mm["caught"].get(t, 1) < 0.5)
-                recovered = f"{rec}/{mm['missed']}"
+                # Task-level: of the attack tasks missed under mimicry on average, how many
+                # the defence now catches on average. Numerator and denominator are both task
+                # counts, so the fraction is self-consistent (cf. the cell-level recall column).
+                missed_tasks = [t for t in mm["caught"] if mm["caught"][t] < 0.5]
+                rec = sum(1 for t in missed_tasks if x["caught"].get(t, 0.0) > 0.5)
+                recovered = f"{rec}/{len(missed_tasks)}"
                 macros[f"Res{key}Recovered"] = recovered
                 # clustered paired test of miss rate vs mimicry
                 tasks = sorted(set(x["miss_by_task"]) & set(mm["miss_by_task"]))

@@ -21,11 +21,11 @@ Triage" (`\TitleText` in `preamble.tex`; also in `../README.md` and `../CITATION
 
 - [x] `\documentclass[conference,compsoc]{IEEEtran}` (`main-conference.tex`), US letter.
 - [x] At most 13 pages of text; references and appendices at most 5 more; 18 in total.
-  Current build (after the Nov 2026 review fixes and RQ7, with the remedy table still *pending*):
-  body ends on page 13 (within the hard limit), references start on page 13, **19 pages in total** --
-  one over the 18-page soft limit. Close it in the final pass once the RQ7 runs land: the real
-  `tables/remedy.tex` replaces the one-line placeholder and the RQ7 `\else` text is removed, and if
-  still over, drop the minimal-prompt figure (Appendix A) or tighten Table 1.
+  Current build (after the Nov 2026 review fixes **and the landed RQ7 runs**): text ends on page 13 and
+  references start on page 13 (within the hard limit), **17 pages in total** (within the 18-page soft limit).
+  Room was made by moving the RQ6 two-model figure (Fig. 3; Table 4 keeps the numbers) and three discussion
+  paragraphs to the journal build only (`\ifconf\else`), the task list to the artifact in the conference build,
+  and by tightening the RQ7, discussion, limitations and conclusion prose.
   Re-check after every edit: `latexmk -pdf main-conference.tex`, then `pdfinfo`.
 - [x] Everything after page 13 is references or a labelled appendix.
 - [x] No margin, font or spacing changes; no packages that override compsoc.
@@ -45,12 +45,21 @@ Triage" (`\TitleText` in `preamble.tex`; also in `../README.md` and `../CITATION
 - [x] **Experiment C (remedy)**: built `scripts/make_variants.py` `canon` pack (name-blind canonicalisation;
   the build verifies canon(v1.1)==canon(mimicry)), the `--name-rule` agent flag, `scripts/remedy.py`, and the
   RQ7 paper section (pending until the server runs land; see README "Testing the remedy").
-- [ ] **Run experiment C on the server** (both models, three repeats of `canon` and `name-rule-on-mimicry`),
-  then `python scripts/remedy.py ...` and recompile; fill in RQ7 and close the 1-page overflow.
+- [x] **Ran experiment C on the server** (both models, three repeats each of `canon` and
+  `name-rule-on-mimicry`); summaries under `results/remedy/<model>-<condition>/`. RQ7 is filled with the real
+  numbers (Table 4 `tab:remedy`, `remedy_macros.tex`) and the honest finding: **neither lightweight defence
+  restores accuracy** -- canonicalisation recovers little (Claude slightly worse without the real names; GPT
+  partly recovers, not significant), the prompt name rule changes almost nothing, FPR stays 0, and no condition
+  reaches clean-name recall. RQ7, abstract, discussion, limitations and conclusion rewritten to match.
+- [ ] **Regenerate the RQ7 `recovered` column** with the fixed `scripts/remedy.py` (now task-level numerator
+  *and* denominator; the committed `remedy_macros.tex`/`tables/remedy.tex` still carry the old cell-denominator
+  `recovered` values, e.g. 0/9, 2/24). Pull, `python3 scripts/remedy.py --out paper ...`, recompile. Everything
+  else (recall, FPR, quality, clustered $p$) is final and unaffected.
 - [ ] Experiments A (telemetry prompt injection) and B (adaptive renaming) from the review are **not built**:
   they construct injected instructions and search for evasive names. If a reviewer insists, discuss scope;
   the limitations section already frames mimicry as a lower bound and names A/B as the next step.
-- [ ] Re-run `latexmk` on Overleaf with IEEEtran 1.8b after experiment C; confirm <= 18 pages total.
+- [x] Re-ran `latexmk` locally after experiment C: conference 17 pages (text ends p.13), journal 21 pages, both
+  clean (no undefined/multiply-defined). Still compile once on Overleaf with IEEEtran 1.8b before submitting.
 
 ## Anonymity
 
