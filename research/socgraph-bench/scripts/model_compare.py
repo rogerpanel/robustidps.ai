@@ -60,8 +60,10 @@ def load(glob_pat: str) -> list[dict[str, Any]]:
         p = Path(folder) / "summary.json"
         if p.is_file():
             s = json.loads(p.read_text())
+            # Freshly written runs do not record their own trace_folder; the per-task trace JSONs sit next to
+            # summary.json, so fall back to the folder that matched the glob.
             runs.append({"repeat": s.get("repeat"), "rows": s["task_rows"],
-                         "trace_folder": s.get("trace_folder")})
+                         "trace_folder": s.get("trace_folder") or folder})
     if not runs:
         raise SystemExit(f"no runs match {glob_pat}")
     return runs
