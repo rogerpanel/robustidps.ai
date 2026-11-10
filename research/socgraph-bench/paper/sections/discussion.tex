@@ -74,11 +74,13 @@ Evaluations on public recordings should report a mimicry condition; ours costs a
 answers unchanged.
 \fi
 
+\ifconf\else
 \paragraph{Label cues cut both ways} The two models disagreed about what a recorded test means. Claude Opus
 5.5 read Atomic Red Team artefacts as attack evidence, GPT-6 astra as proof of an authorised exercise, and each
 was consistent across repeats. Neither reading is supported by the telemetry alone, which records no
 authorisation. Benchmarks built from technique tests therefore measure, in part, how a model resolves this
 ambiguity, and their cue-controlled variants are needed to separate that from investigation skill.
+\fi
 
 % Shortened in the conference build (page limit); full text in the journal build. The attacker-controlled-names
 % takeaway is carried by RQ7 (\S\ref{sec:remedy}) and the conclusion in the conference build.
