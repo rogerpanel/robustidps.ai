@@ -35,8 +35,9 @@ detection~\cite{wagner2002mimicry,goyal2023mimicry}.
 This paper makes the following contributions.
 
 \begin{enumerate}
-\item \textbf{A grounded, budget-aware investigation agent} (\S\ref{sec:method}). Every tool call passes through
-local safeguards that answer repeated, malformed, ungrounded or over-budget calls without spending a runtime call
+\item \textbf{A grounded, budget-aware investigation agent} (\S\ref{sec:method}). Tools are derived from the
+runtime's advertised catalog, and every tool call passes through local safeguards that answer repeated,
+malformed, ungrounded or over-budget calls without spending a runtime call
 -- a response cache, schema validation, a grounding check, and soft and hard budgets -- and tasks run in parallel
 under a limit the agent learns from refusals. We also report a model-side refusal of requests to externalise
 reasoning, and a field-aliasing fix for it.
@@ -63,8 +64,9 @@ identifier.
 \item \textbf{A shortcut and evasion analysis} (\S\ref{sec:cues}). Removing label cues left performance
 unchanged, but renaming attacker-chosen artefacts without changing behaviour raised missed attacks from
 \ResCueBaseMissed{} to \ResMimicryMissed{} and cut reward by \ResMimicryPairedReward{} (95\% CI
-\ResMimicryPairedRewardCI{}): on dual-use Linux behaviour the verdict rested on names, and the cheapest evasion --
-a renaming intruder -- was cleared. GPT-6 astra missed more under the same agent (\McGptBaseMissed{} against
+\ResMimicryPairedRewardCI{}): on dual-use Linux behaviour (creating an account, loading a self-built kernel
+module, preloading a library) the verdict rested on names, and the cheapest evasion -- a renaming intruder --
+was cleared. GPT-6 astra missed more under the same agent (\McGptBaseMissed{} against
 \McClaudeBaseMissed{}) and lost significantly more under renaming (difference in differences \McDiD{}, 95\% CI
 \McDiDCI{}), reading the same cue the opposite way.
 \fi
@@ -78,10 +80,10 @@ of that evidence? Across three models, not by default: none raised a false alarm
 renaming raised the frontier models' missed attacks from \McClaudeBaseMissed{} to \McClaudeMimicryMissed{} and
 from \McGptBaseMissed{} to \McGptMimicryMissed{}, with the same Linux-localised pattern in an open-weight model.
 With Claude Opus 5.5 the call-level safeguards changed nothing measurable, while the prompted investigation method
-cut tool calls by about 30\%. The lessons: benchmarks from public recordings need cue-controlled variants to
-measure investigation rather than name reading; the analyst's method and a rule that benign verdicts cite
-behaviour outweigh mechanical guards; and a benign verdict justified by names alone should be reviewed as possible
-evasion.
+cut tool calls by about 30\%. For researchers, benchmarks from public recordings need cue-controlled variants to
+measure investigation rather than name reading; for AI security engineers, the analyst's method and a rule that
+benign verdicts cite behaviour outweigh mechanical guards; for SOC analysts, a benign verdict justified by names
+alone should be reviewed as possible evasion.
 \fi
 
 The paper proceeds through related work (\S\ref{sec:background}), the task (\S\ref{sec:problem}), the agent
