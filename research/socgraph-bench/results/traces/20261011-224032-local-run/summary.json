@@ -1,0 +1,777 @@
+{
+  "run_id": "local-run",
+  "tasks": 21,
+  "completed": 21,
+  "mean_quality": 0.8743,
+  "mean_efficiency": 0.6021,
+  "mean_reward": 0.8052,
+  "mean_tool_calls": 8.67,
+  "task_results": [
+    {
+      "task_id": "logon-script-persistence",
+      "completion_reason": "terminated",
+      "total_reward": 0.8643,
+      "steps_taken": 7,
+      "tool_calls": 7,
+      "quality_score": 0.9167,
+      "efficiency_score": 0.7143,
+      "wall_time_seconds": 20.33
+    },
+    {
+      "task_id": "hta-startup-folder",
+      "completion_reason": "terminated",
+      "total_reward": 0.8426,
+      "steps_taken": 11,
+      "tool_calls": 11,
+      "quality_score": 0.9268,
+      "efficiency_score": 0.5455,
+      "wall_time_seconds": 21.88
+    },
+    {
+      "task_id": "lsass-dump-comsvcs",
+      "completion_reason": "terminated",
+      "total_reward": 0.9429,
+      "steps_taken": 7,
+      "tool_calls": 7,
+      "quality_score": 1.0,
+      "efficiency_score": 0.7143,
+      "wall_time_seconds": 23.12
+    },
+    {
+      "task_id": "service-binpath-hijack",
+      "completion_reason": "terminated",
+      "total_reward": 0.8232,
+      "steps_taken": 10,
+      "tool_calls": 10,
+      "quality_score": 0.8947,
+      "efficiency_score": 0.6,
+      "wall_time_seconds": 24.36
+    },
+    {
+      "task_id": "bits-download",
+      "completion_reason": "terminated",
+      "total_reward": 0.84,
+      "steps_taken": 5,
+      "tool_calls": 5,
+      "quality_score": 0.875,
+      "efficiency_score": 0.8,
+      "wall_time_seconds": 36.26
+    },
+    {
+      "task_id": "run-key-and-beacon",
+      "completion_reason": "terminated",
+      "total_reward": 0.9,
+      "steps_taken": 10,
+      "tool_calls": 10,
+      "quality_score": 1.0,
+      "efficiency_score": 0.5,
+      "wall_time_seconds": 41.62
+    },
+    {
+      "task_id": "firewall-rule-added",
+      "completion_reason": "terminated",
+      "total_reward": 0.7885,
+      "steps_taken": 9,
+      "tool_calls": 9,
+      "quality_score": 0.8871,
+      "efficiency_score": 0.4444,
+      "wall_time_seconds": 42.24
+    },
+    {
+      "task_id": "lsass-query-by-svchost",
+      "completion_reason": "terminated",
+      "total_reward": 1.0,
+      "steps_taken": 3,
+      "tool_calls": 3,
+      "quality_score": 1.0,
+      "efficiency_score": 1.0,
+      "wall_time_seconds": 47.26
+    },
+    {
+      "task_id": "w32time-runtime-key",
+      "completion_reason": "terminated",
+      "total_reward": 0.95,
+      "steps_taken": 4,
+      "tool_calls": 4,
+      "quality_score": 1.0,
+      "efficiency_score": 0.75,
+      "wall_time_seconds": 54.47
+    },
+    {
+      "task_id": "python-http-server",
+      "completion_reason": "terminated",
+      "total_reward": 0.8769,
+      "steps_taken": 13,
+      "tool_calls": 13,
+      "quality_score": 1.0,
+      "efficiency_score": 0.3846,
+      "wall_time_seconds": 55.82
+    },
+    {
+      "task_id": "gpsvc-service-host",
+      "completion_reason": "terminated",
+      "total_reward": 0.825,
+      "steps_taken": 6,
+      "tool_calls": 6,
+      "quality_score": 0.9167,
+      "efficiency_score": 0.5,
+      "wall_time_seconds": 57.72
+    },
+    {
+      "task_id": "linux-shadow-read",
+      "completion_reason": "terminated",
+      "total_reward": 0.7763,
+      "steps_taken": 16,
+      "tool_calls": 16,
+      "quality_score": 0.9,
+      "efficiency_score": 0.3125,
+      "wall_time_seconds": 75.5
+    },
+    {
+      "task_id": "linux-wiper-shred",
+      "completion_reason": "terminated",
+      "total_reward": 0.7858,
+      "steps_taken": 8,
+      "tool_calls": 8,
+      "quality_score": 0.8495,
+      "efficiency_score": 0.625,
+      "wall_time_seconds": 77.3
+    },
+    {
+      "task_id": "linux-kernel-module",
+      "completion_reason": "terminated",
+      "total_reward": 0.8206,
+      "steps_taken": 8,
+      "tool_calls": 8,
+      "quality_score": 0.8871,
+      "efficiency_score": 0.625,
+      "wall_time_seconds": 80.98
+    },
+    {
+      "task_id": "linux-account-created",
+      "completion_reason": "terminated",
+      "total_reward": 0.7175,
+      "steps_taken": 13,
+      "tool_calls": 13,
+      "quality_score": 0.8182,
+      "efficiency_score": 0.3846,
+      "wall_time_seconds": 106.2
+    },
+    {
+      "task_id": "linux-ld-preload-hijack",
+      "completion_reason": "terminated",
+      "total_reward": 0.6795,
+      "steps_taken": 14,
+      "tool_calls": 14,
+      "quality_score": 0.7671,
+      "efficiency_score": 0.4286,
+      "wall_time_seconds": 109.31
+    },
+    {
+      "task_id": "linux-service-stopped",
+      "completion_reason": "terminated",
+      "total_reward": 0.8273,
+      "steps_taken": 8,
+      "tool_calls": 8,
+      "quality_score": 0.8944,
+      "efficiency_score": 0.625,
+      "wall_time_seconds": 110.98
+    },
+    {
+      "task_id": "linux-sudoers-nopasswd",
+      "completion_reason": "terminated",
+      "total_reward": 0.5763,
+      "steps_taken": 14,
+      "tool_calls": 14,
+      "quality_score": 0.6613,
+      "efficiency_score": 0.3571,
+      "wall_time_seconds": 115.6
+    },
+    {
+      "task_id": "linux-motd-tmp-cleanup",
+      "completion_reason": "terminated",
+      "total_reward": 0.75,
+      "steps_taken": 4,
+      "tool_calls": 4,
+      "quality_score": 0.75,
+      "efficiency_score": 1.0,
+      "wall_time_seconds": 123.54
+    },
+    {
+      "task_id": "linux-dpkg-service-start",
+      "completion_reason": "terminated",
+      "total_reward": 0.6611,
+      "steps_taken": 6,
+      "tool_calls": 6,
+      "quality_score": 0.7083,
+      "efficiency_score": 0.6667,
+      "wall_time_seconds": 126.14
+    },
+    {
+      "task_id": "linux-motd-discovery",
+      "completion_reason": "terminated",
+      "total_reward": 0.6611,
+      "steps_taken": 6,
+      "tool_calls": 6,
+      "quality_score": 0.7083,
+      "efficiency_score": 0.6667,
+      "wall_time_seconds": 128.64
+    }
+  ],
+  "peak_parallel_tasks": 4,
+  "config": {
+    "label": "no grounding",
+    "ablations": [
+      "grounding"
+    ],
+    "ablation_meaning": {
+      "grounding": "no warning for submitted ids never seen in evidence"
+    },
+    "provider": "anthropic",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "concurrency": 4,
+    "soft_budget": 12,
+    "max_tool_calls": 30,
+    "runtime": "LocalClient"
+  },
+  "metrics": {
+    "overall": {
+      "tasks": 21,
+      "completed": 21,
+      "mean_quality": 0.8743,
+      "mean_efficiency": 0.6021,
+      "mean_reward": 0.8052,
+      "mean_tool_calls": 8.6667,
+      "verdict_accuracy": 1.0,
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.0,
+      "mean_wall_seconds": 23.4952,
+      "calls_saved_by_cache": 0,
+      "calls_refused_locally": 2,
+      "tokens_input": 488,
+      "tokens_output": 32660,
+      "tokens_cache_read": 789018,
+      "llm_calls": 122
+    },
+    "by_platform": {
+      "linux": {
+        "tasks": 10,
+        "completed": 10,
+        "mean_quality": 0.7944,
+        "mean_efficiency": 0.5691,
+        "mean_reward": 0.7256,
+        "mean_tool_calls": 9.7,
+        "verdict_accuracy": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "mean_wall_seconds": 27.86,
+        "calls_saved_by_cache": 0,
+        "calls_refused_locally": 0,
+        "tokens_input": 268,
+        "tokens_output": 17293,
+        "tokens_cache_read": 429462,
+        "llm_calls": 67
+      },
+      "windows": {
+        "tasks": 11,
+        "completed": 11,
+        "mean_quality": 0.947,
+        "mean_efficiency": 0.6321,
+        "mean_reward": 0.8776,
+        "mean_tool_calls": 7.7273,
+        "verdict_accuracy": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0,
+        "mean_wall_seconds": 19.5273,
+        "calls_saved_by_cache": 0,
+        "calls_refused_locally": 2,
+        "tokens_input": 220,
+        "tokens_output": 15367,
+        "tokens_cache_read": 359556,
+        "llm_calls": 55
+      }
+    },
+    "by_expected_verdict": {
+      "benign": {
+        "tasks": 6,
+        "completed": 6,
+        "mean_quality": 0.8472,
+        "mean_efficiency": 0.7639,
+        "mean_reward": 0.8079,
+        "mean_tool_calls": 4.8333,
+        "verdict_accuracy": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": null,
+        "mean_wall_seconds": 15.2167,
+        "calls_saved_by_cache": 0,
+        "calls_refused_locally": 0,
+        "tokens_input": 104,
+        "tokens_output": 5686,
+        "tokens_cache_read": 151650,
+        "llm_calls": 26
+      },
+      "malicious": {
+        "tasks": 15,
+        "completed": 15,
+        "mean_quality": 0.8852,
+        "mean_efficiency": 0.5374,
+        "mean_reward": 0.8041,
+        "mean_tool_calls": 10.2,
+        "verdict_accuracy": 1.0,
+        "false_positive_rate": null,
+        "false_negative_rate": 0.0,
+        "mean_wall_seconds": 26.8067,
+        "calls_saved_by_cache": 0,
+        "calls_refused_locally": 2,
+        "tokens_input": 384,
+        "tokens_output": 26974,
+        "tokens_cache_read": 637368,
+        "llm_calls": 96
+      }
+    }
+  },
+  "task_rows": [
+    {
+      "task_id": "logon-script-persistence",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.9167,
+      "efficiency": 0.7143,
+      "reward": 0.8643,
+      "calls": 7,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 20.1,
+      "usage": {
+        "input": 24,
+        "output": 1230,
+        "cache_read": 37636,
+        "cache_write": 2273,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "hta-startup-folder",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.9268,
+      "efficiency": 0.5455,
+      "reward": 0.8426,
+      "calls": 11,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 21.7,
+      "usage": {
+        "input": 24,
+        "output": 1638,
+        "cache_read": 43471,
+        "cache_write": 5019,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "lsass-dump-comsvcs",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 1.0,
+      "efficiency": 0.7143,
+      "reward": 0.9429,
+      "calls": 7,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 23.0,
+      "usage": {
+        "input": 20,
+        "output": 1317,
+        "cache_read": 32621,
+        "cache_write": 3113,
+        "llm_calls": 5
+      }
+    },
+    {
+      "task_id": "service-binpath-hijack",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.8947,
+      "efficiency": 0.6,
+      "reward": 0.8232,
+      "calls": 10,
+      "saved": 0,
+      "refused_locally": 1,
+      "wall_seconds": 24.2,
+      "usage": {
+        "input": 24,
+        "output": 1892,
+        "cache_read": 38406,
+        "cache_write": 4484,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "bits-download",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.875,
+      "efficiency": 0.8,
+      "reward": 0.84,
+      "calls": 5,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 13.1,
+      "usage": {
+        "input": 16,
+        "output": 1036,
+        "cache_read": 23730,
+        "cache_write": 2057,
+        "llm_calls": 4
+      }
+    },
+    {
+      "task_id": "run-key-and-beacon",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 1.0,
+      "efficiency": 0.5,
+      "reward": 0.9,
+      "calls": 10,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 17.4,
+      "usage": {
+        "input": 16,
+        "output": 1531,
+        "cache_read": 23829,
+        "cache_write": 3230,
+        "llm_calls": 4
+      }
+    },
+    {
+      "task_id": "firewall-rule-added",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.8871,
+      "efficiency": 0.4444,
+      "reward": 0.7885,
+      "calls": 9,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 21.9,
+      "usage": {
+        "input": 24,
+        "output": 1554,
+        "cache_read": 40226,
+        "cache_write": 2875,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "lsass-query-by-svchost",
+      "platform": "windows",
+      "expected_verdict": "benign",
+      "verdict": "benign",
+      "completion": "terminated",
+      "quality": 1.0,
+      "efficiency": 1.0,
+      "reward": 1.0,
+      "calls": 3,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 11.1,
+      "usage": {
+        "input": 12,
+        "output": 666,
+        "cache_read": 16592,
+        "cache_write": 1071,
+        "llm_calls": 3
+      }
+    },
+    {
+      "task_id": "w32time-runtime-key",
+      "platform": "windows",
+      "expected_verdict": "benign",
+      "verdict": "benign",
+      "completion": "terminated",
+      "quality": 1.0,
+      "efficiency": 0.75,
+      "reward": 0.95,
+      "calls": 4,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 12.8,
+      "usage": {
+        "input": 12,
+        "output": 917,
+        "cache_read": 16294,
+        "cache_write": 1046,
+        "llm_calls": 3
+      }
+    },
+    {
+      "task_id": "python-http-server",
+      "platform": "windows",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 1.0,
+      "efficiency": 0.3846,
+      "reward": 0.8769,
+      "calls": 13,
+      "saved": 0,
+      "refused_locally": 1,
+      "wall_seconds": 33.9,
+      "usage": {
+        "input": 32,
+        "output": 2587,
+        "cache_read": 61376,
+        "cache_write": 5655,
+        "llm_calls": 8
+      }
+    },
+    {
+      "task_id": "gpsvc-service-host",
+      "platform": "windows",
+      "expected_verdict": "benign",
+      "verdict": "benign",
+      "completion": "terminated",
+      "quality": 0.9167,
+      "efficiency": 0.5,
+      "reward": 0.825,
+      "calls": 6,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 15.6,
+      "usage": {
+        "input": 16,
+        "output": 999,
+        "cache_read": 25375,
+        "cache_write": 1100,
+        "llm_calls": 4
+      }
+    },
+    {
+      "task_id": "linux-shadow-read",
+      "platform": "linux",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.9,
+      "efficiency": 0.3125,
+      "reward": 0.7763,
+      "calls": 16,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 28.2,
+      "usage": {
+        "input": 24,
+        "output": 2129,
+        "cache_read": 36767,
+        "cache_write": 3747,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "linux-wiper-shred",
+      "platform": "linux",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.8495,
+      "efficiency": 0.625,
+      "reward": 0.7858,
+      "calls": 8,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 22.8,
+      "usage": {
+        "input": 24,
+        "output": 1620,
+        "cache_read": 36818,
+        "cache_write": 2372,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "linux-kernel-module",
+      "platform": "linux",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.8871,
+      "efficiency": 0.625,
+      "reward": 0.8206,
+      "calls": 8,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 25.2,
+      "usage": {
+        "input": 24,
+        "output": 1818,
+        "cache_read": 39704,
+        "cache_write": 5097,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "linux-account-created",
+      "platform": "linux",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.8182,
+      "efficiency": 0.3846,
+      "reward": 0.7175,
+      "calls": 13,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 48.5,
+      "usage": {
+        "input": 36,
+        "output": 2043,
+        "cache_read": 62685,
+        "cache_write": 4468,
+        "llm_calls": 9
+      }
+    },
+    {
+      "task_id": "linux-ld-preload-hijack",
+      "platform": "linux",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.7671,
+      "efficiency": 0.4286,
+      "reward": 0.6795,
+      "calls": 14,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 32.0,
+      "usage": {
+        "input": 28,
+        "output": 2479,
+        "cache_read": 47403,
+        "cache_write": 5433,
+        "llm_calls": 7
+      }
+    },
+    {
+      "task_id": "linux-service-stopped",
+      "platform": "linux",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.8944,
+      "efficiency": 0.625,
+      "reward": 0.8273,
+      "calls": 8,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 30.0,
+      "usage": {
+        "input": 32,
+        "output": 1886,
+        "cache_read": 50809,
+        "cache_write": 4750,
+        "llm_calls": 8
+      }
+    },
+    {
+      "task_id": "linux-sudoers-nopasswd",
+      "platform": "linux",
+      "expected_verdict": "malicious",
+      "verdict": "malicious",
+      "completion": "terminated",
+      "quality": 0.6613,
+      "efficiency": 0.3571,
+      "reward": 0.5763,
+      "calls": 14,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 40.1,
+      "usage": {
+        "input": 36,
+        "output": 2214,
+        "cache_read": 61887,
+        "cache_write": 4031,
+        "llm_calls": 9
+      }
+    },
+    {
+      "task_id": "linux-motd-tmp-cleanup",
+      "platform": "linux",
+      "expected_verdict": "benign",
+      "verdict": "benign",
+      "completion": "terminated",
+      "quality": 0.75,
+      "efficiency": 1.0,
+      "reward": 0.75,
+      "calls": 4,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 12.6,
+      "usage": {
+        "input": 16,
+        "output": 872,
+        "cache_read": 22882,
+        "cache_write": 523,
+        "llm_calls": 4
+      }
+    },
+    {
+      "task_id": "linux-dpkg-service-start",
+      "platform": "linux",
+      "expected_verdict": "benign",
+      "verdict": "benign",
+      "completion": "terminated",
+      "quality": 0.7083,
+      "efficiency": 0.6667,
+      "reward": 0.6611,
+      "calls": 6,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 19.9,
+      "usage": {
+        "input": 24,
+        "output": 1080,
+        "cache_read": 35361,
+        "cache_write": 2282,
+        "llm_calls": 6
+      }
+    },
+    {
+      "task_id": "linux-motd-discovery",
+      "platform": "linux",
+      "expected_verdict": "benign",
+      "verdict": "benign",
+      "completion": "terminated",
+      "quality": 0.7083,
+      "efficiency": 0.6667,
+      "reward": 0.6611,
+      "calls": 6,
+      "saved": 0,
+      "refused_locally": 0,
+      "wall_seconds": 19.3,
+      "usage": {
+        "input": 24,
+        "output": 1152,
+        "cache_read": 35146,
+        "cache_write": 1884,
+        "llm_calls": 6
+      }
+    }
+  ]
+}

@@ -1,0 +1,99 @@
+\section{Prompts}
+\label{app:prompts}
+\ifconf
+The minimal prompt used by the \emph{no method} ablation and the investigation-method
+prompt of the full configuration (81 lines) are in the artifact (\texttt{agent/robust/prompt.py}); the latter's parts are
+summarised in \S\ref{sec:method}, and the instruction discussed in \S\ref{sec:study} reads ``Do not look up
+what you already know: the host and user named in the alert, the relation that only says a process runs on
+that host''. Field names refer to the aliases presented to the model (\S\ref{sec:alias}).
+\else
+Fig.~\ref{fig:prompt} reproduces the investigation-method system prompt used by the full configuration, and
+Fig.~\ref{fig:minprompt} the minimal prompt used by the \emph{no method} ablation. Both are taken verbatim from
+the released code (\texttt{agent/robust/prompt.py}). Field names refer to the aliases presented to the model
+(\S\ref{sec:alias}).
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}{0.92\textwidth}
+\VerbatimInput[fontsize=\scriptsize, baselinestretch=\PromptStretch, frame=single, framesep=2mm]{prompts/method_prompt.txt}
+\end{minipage}
+\caption{Investigation-method system prompt (full configuration).}
+\label{fig:prompt}
+\end{figure*}
+\fi
+
+\ifconf\else
+\begin{figure*}[!t]
+\centering
+\begin{minipage}{0.92\textwidth}
+\VerbatimInput[fontsize=\scriptsize, frame=single, framesep=2mm]{prompts/minimal_prompt.txt}
+\end{minipage}
+\caption{Minimal system prompt (\emph{no method} ablation).}
+\label{fig:minprompt}
+\end{figure*}
+\fi
+
+\ifconf
+\section{Artifact}
+\label{app:repro}
+The anonymised artifact, \ArtifactURL, contains the agent, the benchmark and its variants, the traces of
+every run, and the scripts that regenerate every table, figure and number in this paper byte for byte; its
+README gives the commands. The agent's tests run against the competition's public reference client.
+\else
+\section{Reproducing the tables}
+\label{app:repro}
+Every table and plot in \S\ref{sec:benchmark} and \S\ref{sec:results} is generated from the released files:
+\begin{itemize}
+\item \texttt{scripts/benchmark\_to\_tex.py} writes the task and type tables and the benchmark statistics from
+the benchmark zip;
+\item \texttt{scripts/results\_to\_tex.py} writes the pilot, ablation, breakdown and per-task tables, the
+figure data and the numbers quoted in the text from the run folders.
+\end{itemize}
+\fi
+
+\section{Engineering notes}
+\label{app:engineering}
+\ifconf
+Two engineering details that any agent built for a fixed, budget-scored runtime may meet are documented in the
+artifact (\S\ref{app:repro}) and summarised here. \emph{Policy-compatible rationale fields}: a required
+free-text \texttt{reasoning} field combined with a prompt asking the model to state its hypotheses read, to a
+recent frontier model, as a request to externalise internal reasoning and was declined on the first call of
+every task; presenting the field to the model as \texttt{purpose}/\texttt{summary} and mapping it back to
+\texttt{reasoning} before validation resolves the conflict without changing the runtime contract.
+\emph{Parallel execution with a learned limit}: $W$ workers lease tasks behind reserved slots, and the pool
+lowers its concurrency to the number in flight when the runtime refuses a lease, so a time-boxed run uses the
+available parallelism without exceeding the active-task limit. Refused calls execute nothing, so bounded retries
+with backoff spend no budget, and one task's failure is contained to that task.
+\else
+\emph{Policy-compatible rationale fields.} The runtime requires a free-text field named \texttt{reasoning} on
+every evidence call and in the submission. In early runs with a recent frontier model, the first request of
+every task was declined before any output, with the refusal category \texttt{reasoning\_extraction}: a prompt
+asking the model to ``state its hypotheses'' together with a required field called \texttt{reasoning} described
+as the ``investigation trace'' read as a request to externalise the model's internal reasoning, which the
+provider's usage policy declines. The fix keeps the runtime contract intact: the instruction to state
+hypotheses was removed from the first message (the method still asks the model to consider them), the agent
+presents the field to the model as \texttt{purpose} (``one short sentence naming what this call checks'') and
+the submission's field as \texttt{summary} (``a short incident summary''), and maps both back to
+\texttt{reasoning} before validation and sending; the model's actual reasoning is read from its summarised
+thinking blocks. After the change, all tasks of a mock run completed where all had previously been refused. Any
+agent built for a fixed runtime contract can meet the same conflict, and a field rename is enough to resolve it.
+
+\emph{Parallel execution with a learned limit.} Budget-scored evaluations are often time-boxed. The agent runs
+$W$ workers that each lease and investigate tasks. Before leasing, a worker reserves a slot, so no more leases
+are attempted than the current limit allows. If the runtime refuses a lease because of its active-task limit
+while other workers are busy, the pool lowers its limit to the number of tasks in flight and the worker waits
+for a free slot; refusals while nothing else runs are waited out with a bounded number of retries. Short
+operation-capacity or rate-limit refusals on tool calls are retried with backoff; a refused call was not
+executed, so retrying spends nothing. One task's failure is contained to that task.
+\fi
+
+\ifconf
+\input{sections/ethics}
+
+\section{Task list}
+\label{app:tables}
+The 21 tasks of \bench -- task id, platform, verdict, ATT\&CK technique, alert title, graph size and
+ground-truth core count -- are listed in the benchmark zip and the artifact (\S\ref{app:repro}); their technique
+distribution and class balance are in \S\ref{sec:benchmark}. The tool-interface counts and the scoring
+sensitivity analysis are generated by \texttt{scripts/results\_to\_tex.py} and are likewise in the artifact.
+\fi

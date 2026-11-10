@@ -1,0 +1,181 @@
+syntax = "proto3";
+
+package robustidps.edge.v1;
+
+// EdgeAgent — long-running detection sidecar deployed alongside an
+// inspected interface. Speaks gRPC up to the RobustIDPS control plane.
+service EdgeAgent {
+  // Stream completed flow records up to the control plane as they close
+  // (FIN/RST observed) or hit the idle/active timeout. Server-streaming.
+  rpc StreamFlows(StreamRequest) returns (stream FlowRecord);
+
+  // Synchronous request for current agent counters (packets seen,
+  // flows assembled, blocks pushed, etc.).
+  rpc GetStats(StatsRequest) returns (AgentStats);
+
+  // Push a config update (e.g. updated block list, new BPF filter,
+  // new severity threshold). Returns the post-update state.
+  rpc UpdateConfig(ConfigUpdate) returns (ConfigAck);
+
+  // Single-flow classification helper. Used by the control plane for
+  // ad-hoc "what would this agent classify this flow as?" lookups.
+  rpc ClassifyFlow(FlowRecord) returns (Verdict);
+
+  // Stream a model artefact (ONNX bytes + optional labels JSON) to the
+  // agent in chunks. The agent writes the body to a temp file, verifies
+  // the SHA-256 against the header, and atomically hot-swaps the running
+  // classifier on success. Streams up the negotiated `ApplyAck` once the
+  // last chunk has been processed.
+  //
+  // The chunk-stream design keeps a single 10–100 MB model upload from
+  // requiring a special "large messages" gRPC config — every chunk
+  // stays under the default 4 MiB message ceiling.
+  rpc ApplyModelUpdate(stream ModelChunk) returns (ApplyAck);
+
+  // Trigger an in-process reload of an artefact already on disk
+  // (e.g. distributed via NFS / S3 / a shared model registry). Cheaper
+  // than ApplyModelUpdate for sites where the control plane and the
+  // agent share storage.
+  rpc RefreshModel(RefreshModelRequest) returns (ApplyAck);
+}
+
+// First chunk in an ApplyModelUpdate stream MUST set `header` and leave
+// `bytes` empty. Subsequent chunks MUST leave `header` unset and populate
+// `bytes` with up to ~3 MiB of payload each. The final chunk MUST set
+// `finalize = true` (may also include the last payload bytes).
+message ModelChunk {
+  ModelHeader header = 1;
+  bytes bytes = 2;
+  bool finalize = 3;
+}
+
+message ModelHeader {
+  // Logical artefact name — e.g. "student_int8.onnx". Used in logging
+  // and to derive the on-disk filename.
+  string artifact_name = 1;
+  // Total expected payload size in bytes. The agent rejects the upload
+  // if the actual byte total doesn't match.
+  uint64 total_bytes = 2;
+  // Hex-encoded SHA-256 of the payload. Integrity-checked before the
+  // hot-swap. Empty disables the check (not recommended in production).
+  string sha256 = 3;
+  // Optional labels JSON content. Written alongside the model so the
+  // OnnxClassifier can resolve class indices to display strings on
+  // hot-reload. Empty leaves the existing labels.json untouched.
+  string labels_json = 4;
+  // Subdirectory under the agent's model dir to land in. Empty = root.
+  // Sanitised: '/' is allowed, '..' is rejected.
+  string subpath = 5;
+}
+
+message ApplyAck {
+  bool accepted = 1;
+  string message = 2;
+  uint64 received_bytes = 3;
+  string applied_artifact_path = 4;
+  // True iff the agent successfully re-instantiated its classifier
+  // against the new artefact. A false here with `accepted = true` means
+  // "model file received and persisted, but reload failed — running on
+  // previous classifier" and is recoverable via RefreshModel.
+  bool reload_succeeded = 5;
+  // SHA-256 the agent computed on the received bytes (for the operator
+  // to cross-check against the source).
+  string computed_sha256 = 6;
+}
+
+message RefreshModelRequest {
+  // Absolute path to the ONNX model on the agent's filesystem.
+  string model_path = 1;
+  // Absolute path to the labels JSON on the agent's filesystem.
+  string labels_path = 2;
+}
+
+message StreamRequest {
+  // Caller identifier; used in agent logs for correlation.
+  string caller_id = 1;
+  // If true, agent flushes any in-flight flows and emits them right away
+  // rather than waiting for natural close / timeout.
+  bool flush_on_subscribe = 2;
+}
+
+message StatsRequest {}
+
+message ConfigUpdate {
+  // Replace the IP block-list. Empty list clears it.
+  repeated string block_ips = 1;
+  // BPF filter expression (e.g. "tcp or udp"). Empty string means
+  // "no filter — accept everything".
+  string bpf_filter = 2;
+  // Severity threshold (low | medium | high | critical). Flows below
+  // this severity are not streamed upstream.
+  string min_severity = 3;
+}
+
+message ConfigAck {
+  bool accepted = 1;
+  string message = 2;
+  uint32 effective_block_count = 3;
+  string effective_bpf_filter = 4;
+  string effective_min_severity = 5;
+}
+
+message AgentStats {
+  string agent_id = 1;
+  string hostname = 2;
+  string interface = 3;
+  string mode = 4;                       // "live" | "pcap-replay"
+  uint64 packets_seen = 5;
+  uint64 packets_decoded = 6;
+  uint64 packets_skipped = 7;
+  uint64 flows_open = 8;
+  uint64 flows_emitted = 9;
+  uint64 verdicts_benign = 10;
+  uint64 verdicts_low = 11;
+  uint64 verdicts_medium = 12;
+  uint64 verdicts_high = 13;
+  uint64 verdicts_critical = 14;
+  uint64 uptime_seconds = 15;
+  uint32 active_block_count = 16;
+}
+
+// A completed (or in-progress) bidirectional flow plus the agent's
+// local verdict. Matches the 77 CICIDS2018-style numeric features
+// produced by the agent-features crate.
+message FlowRecord {
+  // 5-tuple.
+  string src_ip = 1;
+  string dst_ip = 2;
+  uint32 src_port = 3;
+  uint32 dst_port = 4;
+  uint32 protocol = 5;
+
+  // Timing (microseconds since epoch).
+  uint64 first_ts_us = 6;
+  uint64 last_ts_us = 7;
+
+  // Counters.
+  uint64 fwd_packets = 8;
+  uint64 bwd_packets = 9;
+  uint64 fwd_bytes = 10;
+  uint64 bwd_bytes = 11;
+
+  // The 77 CICIDS2018-style numeric features in canonical order
+  // (see agent_features::columns::FEATURE_COLUMNS).
+  repeated double features = 12;
+
+  // Local-classifier verdict (set only when emitted upstream).
+  Verdict verdict = 13;
+}
+
+message Verdict {
+  // "Benign" or one of the 33 attack class names from SurrogateIDS.
+  string predicted_label = 1;
+  // 0.0 - 1.0
+  double confidence = 2;
+  // "benign" | "low" | "medium" | "high" | "critical"
+  string severity = 3;
+  // True when this flow's source matched the active block list.
+  bool source_blocked = 4;
+  // Free-form one-liner reason from the local classifier.
+  string reason = 5;
+}

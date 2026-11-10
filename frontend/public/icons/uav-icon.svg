@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RobustUAVs.ai — coordinated UAV swarm shield">
+  <!-- ============================================================
+       RobustUAVs.ai identity mark.
+       Design brief: hand-drawn 5-lane paired-arrow swarm sketch
+       (spiral notebook, blue biro). The essence to preserve:
+         - Multiple horizontal flight lanes (fleet tiers)
+         - Paired arrows converging head-to-head (>-<) = coordinated
+           handoff / bidirectional swarm link
+       Sibling relationship to /icons/icon.svg (RobustIDPS):
+         - Same 512x512 rounded-square dark-slate base (#0F172A, rx=96)
+         - Same accent palette (blue #3B82F6, orange #F97316)
+         - Same shield silhouette wrapping the mark so the two brands
+           read as one platform family
+       ============================================================ -->
+  <rect width="512" height="512" rx="96" fill="#0F172A"/>
+
+  <!-- Outer shield (matches RobustIDPS silhouette exactly) -->
+  <g transform="translate(256 256)">
+    <path d="M0-160 L130-110 L130 40 Q130 120 0 170 Q-130 120 -130 40 L-130-110 Z"
+          fill="none" stroke="#3B82F6" stroke-width="14" stroke-linejoin="round"/>
+    <path d="M0-140 L110-95 L110 35 Q110 105 0 150 Q-110 105 -110 35 L-110-95 Z"
+          fill="#3B82F6" fill-opacity="0.10"/>
+  </g>
+
+  <!-- Swarm mark: 4 horizontal flight lanes + paired-arrow coordination points.
+       Coordinates use raw 512x512 space so the arrows sit inside the shield.
+       Lanes ordered top->bottom to echo the sketch's row layout. -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- Lane 1: single left-pointing lead scout -->
+    <line x1="185" y1="160" x2="335" y2="160" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <path d="M185 160 l16 -9 M185 160 l16 9" fill="none" stroke="#3B82F6" stroke-width="10"/>
+
+    <!-- Lane 2: paired convergence >-<  (coordinated handoff) -->
+    <line x1="175" y1="205" x2="245" y2="205" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <line x1="270" y1="205" x2="345" y2="205" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <!-- right-arrow head on left segment -->
+    <path d="M245 205 l-16 -9 M245 205 l-16 9" fill="none" stroke="#F97316" stroke-width="10"/>
+    <!-- left-arrow head on right segment -->
+    <path d="M270 205 l16 -9 M270 205 l16 9" fill="none" stroke="#F97316" stroke-width="10"/>
+
+    <!-- Lane 3: mid-lane bidirectional link -->
+    <line x1="165" y1="256" x2="230" y2="256" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <line x1="285" y1="256" x2="355" y2="256" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <path d="M230 256 l-16 -9 M230 256 l-16 9" fill="none" stroke="#F97316" stroke-width="10"/>
+    <path d="M285 256 l16 -9 M285 256 l16 9" fill="none" stroke="#F97316" stroke-width="10"/>
+    <!-- Central swarm node -->
+    <circle cx="257" cy="256" r="10" fill="#F97316"/>
+
+    <!-- Lane 4: second paired handoff (slightly wider spacing = larger squadron) -->
+    <line x1="170" y1="307" x2="235" y2="307" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <line x1="280" y1="307" x2="350" y2="307" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <path d="M235 307 l-16 -9 M235 307 l-16 9" fill="none" stroke="#F97316" stroke-width="10"/>
+    <path d="M280 307 l16 -9 M280 307 l16 9" fill="none" stroke="#F97316" stroke-width="10"/>
+
+    <!-- Lane 5: single right-pointing return path (mirror of lane 1) -->
+    <line x1="180" y1="352" x2="330" y2="352" stroke="#3B82F6" stroke-width="10" opacity="0.9"/>
+    <path d="M330 352 l-16 -9 M330 352 l-16 9" fill="none" stroke="#3B82F6" stroke-width="10"/>
+  </g>
+
+  <!-- Small "AI dots" constellation across the top of the shield,
+       matching the RobustIDPS triad but scaled to a 5-node UAV swarm -->
+  <g fill="#3B82F6">
+    <circle cx="200" cy="120" r="6"/>
+    <circle cx="228" cy="105" r="6"/>
+    <circle cx="256" cy="98"  r="7"/>
+    <circle cx="284" cy="105" r="6"/>
+    <circle cx="312" cy="120" r="6"/>
+  </g>
+  <g stroke="#3B82F6" stroke-width="2.5" opacity="0.45" fill="none">
+    <path d="M200 120 L228 105 L256 98 L284 105 L312 120"/>
+  </g>
+</svg>

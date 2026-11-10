@@ -1,0 +1,126 @@
+{
+ "stats": {
+  "tasks": 21,
+  "windows_malicious": 8,
+  "windows_benign": 3,
+  "linux_malicious": 7,
+  "linux_benign": 3,
+  "entities_min": 47,
+  "entities_max": 1602,
+  "entities_median": 174,
+  "relations_min": 75,
+  "relations_max": 3951,
+  "relations_median": 265,
+  "entity_types": 10,
+  "relation_types": 16,
+  "techniques": 15
+ },
+ "entity_types": [
+  [
+   "linux_process",
+   3338
+  ],
+  [
+   "windows_file",
+   1034
+  ],
+  [
+   "linux_file",
+   1006
+  ],
+  [
+   "windows_process",
+   543
+  ],
+  [
+   "registry_key",
+   361
+  ],
+  [
+   "network_connection",
+   297
+  ],
+  [
+   "linux_user",
+   42
+  ],
+  [
+   "host",
+   23
+  ],
+  [
+   "windows_user",
+   23
+  ],
+  [
+   "named_pipe",
+   7
+  ]
+ ],
+ "relation_types": [
+  [
+   "runs_process",
+   3881
+  ],
+  [
+   "executed_file",
+   3176
+  ],
+  [
+   "linux_process_create",
+   3147
+  ],
+  [
+   "loaded_image",
+   1837
+  ],
+  [
+   "accessed_process",
+   726
+  ],
+  [
+   "deleted_file",
+   704
+  ],
+  [
+   "created_registry_key",
+   282
+  ],
+  [
+   "connected_to",
+   205
+  ],
+  [
+   "wrote_file",
+   142
+  ],
+  [
+   "set_registry_value",
+   137
+  ],
+  [
+   "accepted_connection_from",
+   122
+  ],
+  [
+   "logged_on_to",
+   70
+  ],
+  [
+   "win_process_create",
+   29
+  ],
+  [
+   "resolves_to",
+   7
+  ],
+  [
+   "connected_to_pipe",
+   7
+  ],
+  [
+   "deleted_registry_key",
+   4
+  ]
+ ]
+}

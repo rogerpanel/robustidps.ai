@@ -1,0 +1,34 @@
+\section{Scope and Threats to Validity}
+\label{sec:limitations}
+
+\paragraph{Benchmark scale and ground truth} \bench has 21 lab-recorded tasks, one technique per recording, so
+results do not establish performance on enterprise-scale, multi-host campaigns; the graph builder and selectors
+apply unchanged to further recordings and corpora~\cite{darpa_tc,landauer2023maintainable,grimmer2023lidds}.
+Ground truth follows a stated rule applied through published selectors; other analysts could draw the core set
+differently~\cite{jiang2025orthrus,bilot2025simpler}. Both answer versions and the rescoring tool are released,
+so the rule can be changed and every run re-evaluated, as we did for v1.1.
+
+\paragraph{Models and variance} Each condition has three repeats; paired task-level intervals resolve reward
+differences of about $\pm0.02$, and the task-clustered permutation tests show which effects rest on too few
+tasks to be conclusive (\S\ref{sec:models}). The ablation uses one model at one effort level, so the null effect
+of the safeguards is model-specific; every call is traced.
+
+\paragraph{Contamination and adversary strength} The recordings are public and may have been seen in
+training~\cite{sainz2023contamination}; the tasks re-express them as graphs with opaque identifiers and new
+alerts, and the \emph{blind} variant removes their label cues without changing results. Mimicry renames strings
+only and is not optimised against the agent, so its effect is a lower bound on evasion. Two stronger adversaries
+-- instructions planted in attacker-controlled telemetry fields (indirect prompt
+injection~\cite{greshake2023indirect,debenedetti2024agentdojo}) and an adaptive search over benign-looking
+names~\cite{yefet2020adversarial} -- are the next step; we leave both unbuilt, as a working injection set and an
+evasion-name optimiser are offensive artefacts for a separate study. Since an unoptimised renaming already
+evades, either can only raise the miss rate, so we bound the reliance on names from below, not above. RQ7 shows
+that neither canonicalisation nor a prompt rule restores the renamed attacks, which are under-determined by the
+graph, not merely mislabelled.
+
+\paragraph{Protocol} The prompt and safeguards were fixed before the study runs, and results are broken down
+per class and platform~\cite{arp2022dosdonts}. All results are on \bench with our scorer, not on the official
+competition tasks.
+
+\ifconf\else
+\input{sections/ethics}
+\fi

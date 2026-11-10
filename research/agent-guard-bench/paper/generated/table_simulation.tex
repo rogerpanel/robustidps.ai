@@ -1,0 +1,20 @@
+\begin{table}[t]
+\centering
+\caption{Learn then Test ($\alpha=0.05$, $\delta=0.1$), \SimRuns{} simulated histories per size: share of runs that find a threshold (\emph{ready}), share in which the true denial rate under it exceeds $\alpha$ (\emph{violated}), and the auto-approved share. The best threshold auto-approves \SimOptimal{}.}
+\label{tab:simulation}
+\setlength{\tabcolsep}{3pt}
+\small
+\begin{tabular}{rccccc}
+\toprule
+& \multicolumn{2}{c}{Every score} & \multicolumn{3}{c}{Decile grid} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-6}
+History & Ready & Violated & Ready & Violated & Auto share \\
+\midrule
+100 & 37\% & 3.4\% & 20\% & 0.9\% & 51\% \\
+200 & 64\% & 3.8\% & 53\% & 0.1\% & 41\% \\
+400 & 64\% & 2.7\% & 79\% & 0.2\% & 45\% \\
+800 & 66\% & 3.2\% & 82\% & 0.1\% & 47\% \\
+1600 & 63\% & 4.6\% & 98\% & 0.1\% & 49\% \\
+\bottomrule
+\end{tabular}
+\end{table}

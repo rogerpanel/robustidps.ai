@@ -1,0 +1,11 @@
+\begin{table}[t]\centering\footnotesize
+\caption{Scoring sensitivity: mean quality of the full agent's 63 submissions rescored under alternative rules (no new model calls).}
+\label{tab:sensitivity}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lrrrrr@{}}\toprule
+Scoring rule & All & Windows & Linux & Malicious & Benign\\\midrule
+Official (v1.1) & 0.836 & 0.930 & 0.733 & 0.837 & 0.836\\
++ lineage relations neutral & 0.855 & 0.934 & 0.769 & 0.837 & 0.903\\
++ hostnames accepted & 0.876 & 0.973 & 0.769 & 0.892 & 0.836\\
++ both & 0.895 & 0.977 & 0.806 & 0.892 & 0.903\\
+\bottomrule\end{tabular}}\end{table}

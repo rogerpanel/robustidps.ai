@@ -1,0 +1,233 @@
+{
+  "id": "soc-triage",
+  "version": "3",
+  "name": "SOC alert triage",
+  "description": "Investigation queries run freely, notes and tickets are allowed, reversible containment needs an analyst's approval, irreversible actions and shell access are denied. Targets are judged by type, never by the names attackers choose. With an asset inventory (Environment tab), containment is also checked against its predicted effect: it is denied if a redundancy group would fall below its minimum or too many dependents would be cut off; service effects matched by process name or path go to a person instead.",
+  "default_tier": "unknown",
+  "tiers": {
+    "read": {
+      "decision": "allow",
+      "description": "Queries and lookups that change nothing",
+      "reversible": true
+    },
+    "annotate": {
+      "decision": "allow",
+      "description": "Notes, tags, tickets, verdict submission",
+      "reversible": true
+    },
+    "contain_reversible": {
+      "decision": "ask",
+      "description": "Containment an analyst can undo (isolate, block, disable)",
+      "reversible": true
+    },
+    "contain_irreversible": {
+      "decision": "deny",
+      "description": "Deletes, wipes, reimages and arbitrary command execution",
+      "reversible": false
+    },
+    "unknown": {
+      "decision": "ask",
+      "description": "Tools this pack does not classify"
+    }
+  },
+  "tools": [
+    {
+      "match": [
+        "search*",
+        "get_*",
+        "list_*",
+        "query*",
+        "lookup*",
+        "describe*",
+        "enrich*",
+        "fetch_alert*",
+        "read_*"
+      ],
+      "tier": "read"
+    },
+    {
+      "match": [
+        "add_note*",
+        "comment*",
+        "tag_*",
+        "create_ticket*",
+        "update_ticket*",
+        "assign*",
+        "finish_investigation",
+        "submit*"
+      ],
+      "tier": "annotate"
+    },
+    {
+      "match": [
+        "isolate*",
+        "unisolate*",
+        "quarantine*",
+        "block_*",
+        "unblock_*",
+        "disable_account*",
+        "enable_account*",
+        "suspend*",
+        "kill_process*",
+        "revoke_session*",
+        "reset_password*"
+      ],
+      "tier": "contain_reversible"
+    },
+    {
+      "match": [
+        "delete*",
+        "wipe*",
+        "reimage*",
+        "purge*",
+        "drop_*",
+        "shred*",
+        "shell*",
+        "bash*",
+        "exec*",
+        "run_command*",
+        "powershell*"
+      ],
+      "tier": "contain_irreversible"
+    }
+  ],
+  "arg_rules": [
+    {
+      "id": "mass-target",
+      "description": "Containment aimed at everything at once",
+      "tools": [
+        "isolate*",
+        "quarantine*",
+        "block_*",
+        "disable_account*",
+        "kill_process*",
+        "suspend*",
+        "revoke_session*",
+        "reset_password*"
+      ],
+      "args": [
+        "host*",
+        "ip*",
+        "target*",
+        "user*",
+        "account*",
+        "cidr*",
+        "indicator*"
+      ],
+      "pattern": "^\\s*(\\*|all|any|everyone|0\\.0\\.0\\.0/0|::/0)\\s*$",
+      "decision": "deny"
+    }
+  ],
+  "clamps": [
+    {
+      "id": "result-cap",
+      "tools": [
+        "search*",
+        "query*",
+        "list_*"
+      ],
+      "arg": "limit",
+      "max": 500
+    },
+    {
+      "id": "result-cap-max",
+      "tools": [
+        "search*",
+        "query*",
+        "list_*"
+      ],
+      "arg": "max_results",
+      "max": 500
+    }
+  ],
+  "redact": [
+    {
+      "id": "no-secrets-in-args",
+      "args": [
+        "password",
+        "passwd",
+        "secret*",
+        "api_key",
+        "apikey",
+        "token",
+        "*_token",
+        "private_key"
+      ]
+    }
+  ],
+  "max_calls_per_session": 200,
+  "escalate_after_denials": 3,
+  "hint_tiers": {
+    "read": "read",
+    "change": "contain_reversible",
+    "destroy": "contain_irreversible",
+    "exec": "contain_irreversible",
+    "unclear": "unknown"
+  },
+  "budgets": [
+    {
+      "id": "containment-budget",
+      "description": "Containment actions per session",
+      "tools": [
+        "isolate*",
+        "quarantine*",
+        "block_*",
+        "disable_account*",
+        "kill_process*",
+        "suspend*",
+        "revoke_session*",
+        "reset_password*"
+      ],
+      "max_total": 10,
+      "when_exhausted": "deny"
+    }
+  ],
+  "predictive": {
+    "effects": [
+      {
+        "tools": [
+          "isolate*",
+          "unisolate*"
+        ],
+        "makes_unavailable": "host",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "disable_account*",
+          "revoke_session*",
+          "reset_password*",
+          "suspend*"
+        ],
+        "makes_unavailable": "account",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "block_ip*"
+        ],
+        "makes_unavailable": "ip",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "block_domain*"
+        ],
+        "makes_unavailable": "domain",
+        "on_violation": "deny"
+      },
+      {
+        "tools": [
+          "kill_process*",
+          "quarantine_file*",
+          "quarantine*"
+        ],
+        "makes_unavailable": "service",
+        "on_violation": "ask"
+      }
+    ],
+    "max_blast_radius": 100,
+    "max_session_blast_radius": 250,
+    "unknown_target": "ask"
+  }
+}

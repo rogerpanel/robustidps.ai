@@ -1,0 +1,52 @@
+% Ethics considerations and generative AI usage (IEEE S&P / SaTML requirements).
+% In the body of the journal build, in the appendix of the conference build.
+\section{Ethics Considerations}
+\label{sec:ethics}
+\paragraph{Data and human subjects} \bench is derived solely from public, permissively licensed recordings made
+by their publishers in lab environments (OTRF Security-Datasets, MIT; Splunk attack\_data, Apache-2.0). They
+contain lab host and account names and no personal data; no human subjects were involved and no new data was
+collected.
+
+\paragraph{Live systems} No live system was measured, tested or accessed. All investigations ran against a
+local runtime serving the recorded graphs; the only external service used was the model provider's API, under
+its terms of use.
+
+\paragraph{Tools and attacks} The agent is defensive: it reads telemetry and recommends responses, and takes no
+action on systems. The mimicry variant shows that renaming attacker-chosen artefacts can lead an LLM
+investigation agent to clear real attacks. Renaming tools and accounts is long-standing intruder tradecraft,
+so publishing the result gives attackers little they lack, while defenders learn not to trust names and how to
+measure that. Mitigations follow from the analysis: require behaviour-based justification for clearing an
+alert, check grounding against identifier types, and evaluate on cue-controlled data. The finding concerns how
+investigation agents weigh names, not a flaw in a specific deployed product, so no vulnerability disclosure
+process applied.
+
+\paragraph{Availability} Code (MIT), the benchmark and its variants (with the upstream licences), the traces of
+every tool call, and the scripts that regenerate every table are released with the paper\ifconf; an
+anonymised version for review is at \ArtifactURL\fi.
+
+\section{Generative AI Usage}
+\label{sec:genai}
+\paragraph{As object of study} The agent under study is driven by Claude Opus 5.5 (\texttt{claude-opus-5-5})
+through the Anthropic API, and, for the model comparison, by GPT-6 astra (\texttt{gpt-6-astra}) through the
+OpenAI Responses API. The models are closed, and later versions may behave differently; we pin the model
+identifiers, run three repeats per condition to measure variance, and release the trace of every call so that
+results can be inspected without re-running the model.
+
+\paragraph{Footprint} Across all recorded runs -- the ablation study, the cue-controlled, three-model and RQ7
+remedy experiments, and the preliminary runs that preceded them -- the agent ran 82 times over 1{,}677 task
+investigations, making 10{,}784 model calls with 2.6\,M output tokens, 51.0\,M prompt tokens served from the
+providers' caches and 11.1\,M uncached input tokens, across three models (Claude Opus 5.5, GPT-6 astra and
+DeepSeek-V3.2; a weaker open model, Llama~3.3~70B, was piloted and discarded). The per-call accounting of every
+run is in the released traces. Queries were kept low by prompt caching, a per-task call budget, a small
+benchmark, and offline rescoring: when the ground truth was revised, earlier runs were rescored from their traces
+instead of being repeated. Experiments ran on the providers' hosted inference; local computation (graph building,
+scoring, the agent loop) ran on a small cloud server.
+
+\paragraph{In preparing this work} % AUTHOR: confirm this matches your actual division of labour before submitting.
+The authors conceived and directed the study, designed the benchmark, specified the ground-truth rule, ran all
+model experiments and verified the results. A general-purpose LLM-based coding assistant was used as a tool
+throughout: to write and refactor the agent, the benchmark and its variant builders and the analysis scripts;
+to set up, run and debug the experiment harnesses; and to draft and edit this manuscript. Every reported number
+is produced from the released traces by the released scripts; the authors validated all generated code, text and
+figures and are solely responsible for the content. The assistant generated no experimental result or
+measurement.

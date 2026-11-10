@@ -1,0 +1,451 @@
+{
+  "id": "mcp-general",
+  "version": "5",
+  "name": "General MCP / coding agent",
+  "description": "Reads are allowed, writes and network fetches need approval, shell commands with chaining or redirection are denied, and credential files are off limits. Agents may not change agent, IDE or MCP configuration files. Information flow: a session that has read untrusted content (web pages, issues, e-mails, messages) and sensitive data (secrets, databases, files under confidential paths, repository contents) may not send data out (requests, posts, issues and pull requests, uploads, network shell commands) without a person. Web requests are read as values: only http and https, and cloud metadata or link-local addresses are denied in any spelling. Claude Code (MultiEdit, NotebookEdit, TodoWrite) and OpenHands tools are covered by name: file_editor:view, the task tracker and browser state reads are allowed; file edits, apply_patch and browser navigation, clicks and typing need approval.",
+  "default_tier": "unknown",
+  "tiers": {
+    "read": {
+      "decision": "allow",
+      "description": "Reading files, listing, searching",
+      "reversible": true
+    },
+    "write": {
+      "decision": "ask",
+      "description": "Creating or changing files and resources",
+      "reversible": true
+    },
+    "network": {
+      "decision": "ask",
+      "description": "Outbound requests",
+      "reversible": true
+    },
+    "shell": {
+      "decision": "ask",
+      "description": "Command execution",
+      "reversible": false
+    },
+    "unknown": {
+      "decision": "ask",
+      "description": "Tools this pack does not classify"
+    }
+  },
+  "tools": [
+    {
+      "match": [
+        "todowrite",
+        "todoread",
+        "exitplanmode",
+        "ls"
+      ],
+      "tier": "read"
+    },
+    {
+      "match": [
+        "multiedit*",
+        "notebookedit*"
+      ],
+      "tier": "write"
+    },
+    {
+      "match": [
+        "file_editor:view",
+        "planning_file_editor:view",
+        "str_replace_editor:view",
+        "task_tracker:*",
+        "browser_get_state*",
+        "browser_get_content*",
+        "browser_list_tabs*",
+        "browser_get_storage*",
+        "browser_scroll*",
+        "browser_go_back*",
+        "browser_switch_tab*",
+        "browser_close_tab*",
+        "browser_start_recording*",
+        "browser_stop_recording*"
+      ],
+      "tier": "read"
+    },
+    {
+      "match": [
+        "file_editor:create",
+        "file_editor:str_replace",
+        "file_editor:insert",
+        "file_editor:undo_edit",
+        "planning_file_editor:create",
+        "planning_file_editor:str_replace",
+        "planning_file_editor:insert",
+        "planning_file_editor:undo_edit",
+        "str_replace_editor:create",
+        "str_replace_editor:str_replace",
+        "str_replace_editor:insert",
+        "str_replace_editor:undo_edit",
+        "apply_patch*",
+        "browser_set_storage*"
+      ],
+      "tier": "write"
+    },
+    {
+      "match": [
+        "browser_navigate*",
+        "browser_click*",
+        "browser_type*"
+      ],
+      "tier": "network"
+    },
+    {
+      "match": [
+        "read*",
+        "get_*",
+        "list*",
+        "search*",
+        "glob*",
+        "grep*",
+        "view*",
+        "*__read*",
+        "*__list*",
+        "*__search*",
+        "*__get_*"
+      ],
+      "tier": "read"
+    },
+    {
+      "match": [
+        "write*",
+        "edit*",
+        "create*",
+        "update*",
+        "delete*",
+        "move*",
+        "rename*",
+        "*__write*",
+        "*__edit*",
+        "*__create*",
+        "*__update*",
+        "*__delete*"
+      ],
+      "tier": "write"
+    },
+    {
+      "match": [
+        "fetch*",
+        "http*",
+        "web*",
+        "browse*",
+        "*__fetch*"
+      ],
+      "tier": "network"
+    },
+    {
+      "match": [
+        "bash*",
+        "shell*",
+        "exec*",
+        "run*",
+        "terminal*",
+        "*__exec*",
+        "*__run*"
+      ],
+      "tier": "shell"
+    }
+  ],
+  "arg_rules": [
+    {
+      "id": "shell-chaining",
+      "description": "Command chaining, substitution or redirection",
+      "tools": [
+        "bash*",
+        "shell*",
+        "exec*",
+        "run*",
+        "terminal*",
+        "*__exec*",
+        "*__run*"
+      ],
+      "args": [
+        "command*",
+        "cmd*",
+        "script*"
+      ],
+      "pattern": "[;&|`<>]|\\$\\(",
+      "decision": "deny"
+    },
+    {
+      "id": "credential-files",
+      "description": "Paths to credentials and keys",
+      "args": [
+        "*"
+      ],
+      "pattern": "(^|[/\\\\~])(\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker)([/\\\\]|$)|(^|[/\\\\])(id_rsa|id_ed25519|\\.env|\\.netrc|shadow)$",
+      "decision": "deny"
+    },
+    {
+      "id": "agent-config-write",
+      "description": "Changes to agent, IDE or MCP configuration and hook files (the path agents use to grant themselves permissions)",
+      "tools": [
+        "write*",
+        "edit*",
+        "create*",
+        "update*",
+        "delete*",
+        "move*",
+        "rename*",
+        "*__write*",
+        "*__edit*",
+        "*__create*",
+        "*__update*",
+        "*__delete*",
+        "bash*",
+        "shell*",
+        "exec*",
+        "run*",
+        "terminal*",
+        "*__exec*",
+        "*__run*",
+        "file_editor:create",
+        "file_editor:str_replace",
+        "file_editor:insert",
+        "file_editor:undo_edit",
+        "planning_file_editor:create",
+        "planning_file_editor:str_replace",
+        "planning_file_editor:insert",
+        "planning_file_editor:undo_edit",
+        "str_replace_editor:create",
+        "str_replace_editor:str_replace",
+        "str_replace_editor:insert",
+        "str_replace_editor:undo_edit",
+        "apply_patch*",
+        "multiedit*",
+        "notebookedit*"
+      ],
+      "args": [
+        "*"
+      ],
+      "pattern": "(\\.claude|\\.cursor|\\.codex|\\.hermes|\\.openhands|\\.gemini)[/\\\\]|\\.vscode[/\\\\]settings\\.json|(^|[/\\\\\\s])\\.?mcp\\.json|claude_desktop_config\\.json",
+      "decision": "deny"
+    }
+  ],
+  "redact": [
+    {
+      "id": "no-secrets-in-args",
+      "args": [
+        "password",
+        "passwd",
+        "secret*",
+        "api_key",
+        "apikey",
+        "token",
+        "*_token",
+        "private_key"
+      ]
+    }
+  ],
+  "max_calls_per_session": 500,
+  "escalate_after_denials": 3,
+  "hint_tiers": {
+    "read": "read",
+    "change": "write",
+    "destroy": "write",
+    "exec": "shell",
+    "unclear": "unknown"
+  },
+  "flow": {
+    "labels": [
+      {
+        "label": "untrusted",
+        "description": "Content an outsider can influence: web pages, issues, pull requests, comments, e-mails, chat messages",
+        "tools": [
+          "fetch*",
+          "http*",
+          "web*",
+          "browse*",
+          "*__fetch*",
+          "*get_issue*",
+          "*list_issues*",
+          "*search_issues*",
+          "*get_pull_request*",
+          "*list_pull_requests*",
+          "*get_comments*",
+          "*list_comments*",
+          "*read_email*",
+          "*get_email*",
+          "*search_email*",
+          "*read_message*",
+          "*get_message*",
+          "*list_messages*",
+          "*search_messages*",
+          "*channel_history*",
+          "browser_get_content*",
+          "browser_get_state*",
+          "browser_navigate*"
+        ]
+      },
+      {
+        "label": "untrusted",
+        "description": "Shell commands that download content",
+        "tools": [
+          "bash*",
+          "shell*",
+          "exec*",
+          "run*",
+          "terminal*",
+          "*__exec*",
+          "*__run*"
+        ],
+        "args": [
+          "command*",
+          "cmd*",
+          "script*"
+        ],
+        "pattern": "\\b(curl|wget|nc|ncat|netcat|scp|sftp|ftp|rsync|ssh|telnet|git\\s+push|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b"
+      },
+      {
+        "label": "sensitive",
+        "description": "Secrets, databases, repository contents and files under confidential paths",
+        "tools": [
+          "*secret*",
+          "*vault*",
+          "*credential*",
+          "*password*",
+          "*keychain*",
+          "*query*",
+          "*sql*",
+          "*database*",
+          "*customer*",
+          "*payroll*",
+          "*get_file_contents*"
+        ]
+      },
+      {
+        "label": "sensitive",
+        "description": "Files whose path marks them as confidential or as data",
+        "tools": [
+          "read*",
+          "view*",
+          "grep*",
+          "*__read*",
+          "cat*",
+          "file_editor:view",
+          "planning_file_editor:view",
+          "str_replace_editor:view"
+        ],
+        "args": [
+          "path*",
+          "file*"
+        ],
+        "pattern": "(confidential|private|secret|payroll|salar|customer|personal|finance|/hr/|\\.(sql|db|sqlite|csv|xlsx|parquet)$)"
+      },
+      {
+        "label": "egress",
+        "description": "Requests, posts, issues and pull requests, uploads and other outbound sends",
+        "tools": [
+          "fetch*",
+          "http*",
+          "web*",
+          "browse*",
+          "*__fetch*",
+          "*send*",
+          "*post*",
+          "*upload*",
+          "*publish*",
+          "*webhook*",
+          "*create_issue*",
+          "*create_pull_request*",
+          "*add_comment*",
+          "*add_issue_comment*",
+          "*comment_on*",
+          "*push*",
+          "*share*",
+          "*create_gist*",
+          "browser_navigate*",
+          "browser_click*",
+          "browser_type*"
+        ],
+        "destination_args": [
+          "url",
+          "to",
+          "cc",
+          "bcc",
+          "recipient*",
+          "email*",
+          "webhook*",
+          "endpoint"
+        ]
+      },
+      {
+        "label": "egress",
+        "description": "Shell commands that send data over the network",
+        "tools": [
+          "bash*",
+          "shell*",
+          "exec*",
+          "run*",
+          "terminal*",
+          "*__exec*",
+          "*__run*"
+        ],
+        "args": [
+          "command*",
+          "cmd*",
+          "script*"
+        ],
+        "pattern": "\\b(curl|wget|nc|ncat|netcat|scp|sftp|ftp|rsync|ssh|telnet|git\\s+push|Invoke-WebRequest|Invoke-RestMethod|iwr|irm)\\b"
+      }
+    ],
+    "rules": [
+      {
+        "id": "rule-of-two",
+        "description": "Sending data out after the session read untrusted input and sensitive data",
+        "sink": "egress",
+        "requires": [
+          "untrusted",
+          "sensitive"
+        ],
+        "on_violation": "ask"
+      }
+    ],
+    "unclassified": [
+      "untrusted",
+      "sensitive",
+      "egress"
+    ]
+  },
+  "actions": [
+    {
+      "id": "outbound-request",
+      "description": "Web requests: allowed schemes and no cloud metadata endpoints",
+      "tools": [
+        "fetch*",
+        "http*",
+        "web*",
+        "browse*",
+        "*__fetch*",
+        "browser_navigate*"
+      ],
+      "target_args": [
+        "url",
+        "urls",
+        "uri",
+        "endpoint"
+      ],
+      "schemes": [
+        "http",
+        "https"
+      ],
+      "forbidden": [
+        "169.254.0.0/16",
+        "fd00:ec2::254/128",
+        "100.100.100.200/32",
+        "fe80::/10"
+      ],
+      "forbidden_hosts": [
+        "metadata.google.internal",
+        "metadata",
+        "instance-data",
+        "instance-data.ec2.internal",
+        "metadata.azure.internal"
+      ],
+      "require_targets": false
+    }
+  ]
+}

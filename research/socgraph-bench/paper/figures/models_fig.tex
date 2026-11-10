@@ -1,0 +1,45 @@
+% Three-model comparison, self-contained vector pgfplots (no external data file).
+% Claude Opus 5.5, GPT-6 astra and DeepSeek-V3.2 under the same agent on SOCGraph-21 v1.1 and the
+% mimicry variant. Bar heights and error bars are the means and standard deviations in Table~\ref{tab:models}
+% (models_macros.tex); panel (c) uses the Windows/Linux miss counts from model_compare.py.
+\definecolor{cleanbar}{HTML}{3B6FB6}   % v1.1 (operator names present)
+\definecolor{renamedbar}{HTML}{D1662A} % mimicry (attacker-renamed)
+\begin{figure*}[t]
+\centering
+\pgfplotsset{
+  modelbars/.style={
+    ybar, bar width=5.5pt, enlarge x limits=0.28,
+    width=0.37\textwidth, height=2.7cm,
+    symbolic x coords={Claude,GPT,DeepSeek}, xtick=data,
+    x tick label style={font=\footnotesize}, tick align=outside,
+    ylabel style={font=\footnotesize, yshift=-2pt}, y tick label style={font=\scriptsize},
+    title style={font=\footnotesize, yshift=-3pt},
+    error bars/y dir=both, error bars/y explicit,
+    error bars/error bar style={line width=0.5pt,black},
+    axis lines=left, ymajorgrids, grid style={black!10},
+  },
+}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=3 by 1, horizontal sep=1.15cm}, modelbars]
+\nextgroupplot[ylabel={Reward}, ymin=0, ymax=0.95, title={(a) Reward},
+  legend style={at={(0.5,1.30)}, anchor=south, legend columns=2, font=\scriptsize, draw=none, /tikz/every even column/.append style={column sep=6pt}}]
+\addplot+[fill=cleanbar,draw=cleanbar!55!black] coordinates {(Claude,0.775)+-(0,0.012) (GPT,0.684)+-(0,0.024) (DeepSeek,0.525)+-(0,0.057)};
+\addplot+[fill=renamedbar,draw=renamedbar!55!black] coordinates {(Claude,0.694)+-(0,0.038) (GPT,0.511)+-(0,0.002) (DeepSeek,0.495)+-(0,0.017)};
+\legend{v1.1 (names present), mimicry (renamed)}
+\nextgroupplot[ylabel={Recall (attacks caught)}, ymin=0, ymax=1.05, title={(b) Recall}]
+\addplot+[fill=cleanbar,draw=cleanbar!55!black] coordinates {(Claude,0.956)+-(0,0.038) (GPT,0.778)+-(0,0.038) (DeepSeek,0.600)+-(0,0.067)};
+\addplot+[fill=renamedbar,draw=renamedbar!55!black] coordinates {(Claude,0.800)+-(0,0.067) (GPT,0.467)+-(0,0.000) (DeepSeek,0.511)+-(0,0.038)};
+\nextgroupplot[ylabel={Extra attacks missed under mimicry}, ymin=-3, ymax=13, title={(c) Where the misses appear},
+  legend style={at={(0.5,1.30)}, anchor=south, legend columns=2, font=\scriptsize, draw=none, /tikz/every even column/.append style={column sep=6pt}}]
+\addplot+[fill=black!60,draw=black] coordinates {(Claude,7) (GPT,12) (DeepSeek,6)};
+\addplot+[fill=black!18,draw=black] coordinates {(Claude,0) (GPT,2) (DeepSeek,-2)};
+\legend{Linux (10 tasks), Windows (11 tasks)}
+\end{groupplot}
+\end{tikzpicture}}
+\caption{All three models under the same agent on \bench v1.1 and the \emph{mimicry} variant (means over three
+repeats; error bars $\pm$1\,s.d.). Behaviour-preserving renaming lowers (a)~reward and (b)~recall for every model,
+and (c)~the extra attacks missed under \emph{mimicry} (mimicry minus v1.1 miss counts) fall almost entirely on the
+dual-use Linux tasks, not Windows. Values are those of Table~\ref{tab:models}.}
+\label{fig:models}
+\end{figure*}

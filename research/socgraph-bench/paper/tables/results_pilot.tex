@@ -1,0 +1,20 @@
+\begin{table}[t]\centering\footnotesize
+\caption{Pilot run on the 11 Windows tasks (Claude Opus 5.5, effort \emph{high}, full configuration). Quality is 0 for a wrong verdict, so every verdict here was correct.}
+\label{tab:pilot}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}llrrrr@{}}\toprule
+Task & Expected & Quality & Effic. & Reward & Calls\\\midrule
+\texttt{logon-script-persistence} & malicious & 0.917 & 0.714 & 0.864 & 7\\
+\texttt{lsass-dump-comsvcs} & malicious & 1.000 & 0.714 & 0.943 & 7\\
+\texttt{service-binpath-hijack} & malicious & 0.922 & 0.600 & 0.849 & 10\\
+\texttt{hta-startup-folder} & malicious & 0.922 & 0.500 & 0.830 & 12\\
+\texttt{firewall-rule-added} & malicious & 0.887 & 0.667 & 0.828 & 6\\
+\texttt{bits-download} & malicious & 0.929 & 0.800 & 0.891 & 5\\
+\texttt{run-key-and-beacon} & malicious & 0.908 & 0.625 & 0.840 & 8\\
+\texttt{lsass-query-by-svchost} & benign & 1.000 & 1.000 & 1.000 & 3\\
+\texttt{python-http-server} & malicious & 0.922 & 0.455 & 0.822 & 11\\
+\texttt{w32time-runtime-key} & benign & 1.000 & 0.750 & 0.950 & 4\\
+\texttt{gpsvc-service-host} & benign & 0.850 & 0.429 & 0.753 & 7\\
+\midrule
+Mean & & 0.933 & 0.659 & 0.870 & 7.27\\
+\bottomrule\end{tabular}}\end{table}

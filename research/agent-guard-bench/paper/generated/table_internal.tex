@@ -1,0 +1,22 @@
+\begin{table}[t]
+\centering
+\caption{Built-in labelled suites (written alongside the packs; regression tests, not an independent benchmark): exact-verdict accuracy of the full pack, of tiers alone, and the single layer whose removal costs most.}
+\label{tab:internal}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrccl}
+\toprule
+Suite & Cases & Full & Tiers only & Costliest removal \\
+\midrule
+Agent hosts (coding) & 22 & 100\% & 59\% & argument rules (68\%) \\
+Authorised testing & 14 & 100\% & 64\% & scope (71\%) \\
+Coding / MCP & 22 & 100\% & 64\% & argument rules (64\%) \\
+Flow sessions (coding) & 19 & 100\% & 100\% & none \\
+Flow sessions (SOC) & 27 & 100\% & 67\% & information flow (67\%) \\
+SOC response actions & 51 & 100\% & 80\% & prediction (92\%) \\
+SOC triage & 33 & 100\% & 85\% & clamps and redaction (94\%) \\
+Typed actions (SOC) & 12 & 100\% & 50\% & typed actions (50\%) \\
+Typed actions (testing) & 32 & 100\% & 53\% & typed actions (59\%) \\
+\bottomrule
+\end{tabular}}
+\end{table}

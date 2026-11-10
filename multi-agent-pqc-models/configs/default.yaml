@@ -1,0 +1,54 @@
+# Multi-Agent PQC-IDS — Default Training Configuration
+# =====================================================
+
+# Data
+data:
+  csv_path: "data/pqc_ids_dataset.csv"       # Path to CSV dataset
+  feature_cols: 83                            # Number of input features
+  attack_label_col: "label"                   # Column name for attack labels
+  pqc_label_col: "pqc_algorithm"             # Column name for PQC algorithm labels
+  val_split: 0.2                              # Validation split ratio
+  test_split: 0.1                             # Test split ratio
+  random_seed: 42
+
+# Model
+model:
+  dropout: 0.1
+  traffic_hidden: [128, 64]
+  pqc_hidden: [128, 64]
+  anomaly_bottleneck: 16
+
+# Training
+training:
+  epochs: 100
+  batch_size: 256
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler: "cosine"                         # cosine | step | plateau
+  scheduler_params:
+    T_max: 100                                # For cosine
+    step_size: 30                             # For step
+    gamma: 0.1                                # For step
+    patience: 10                              # For plateau
+    factor: 0.5                               # For plateau
+
+# Loss weights (multi-task)
+loss:
+  attack_weight: 1.0                          # Cross-entropy for attack classification
+  pqc_weight: 0.5                             # Cross-entropy for PQC identification
+  recon_weight: 0.3                           # MSE for autoencoder reconstruction
+  diversity_weight: 0.1                       # Agent diversity regularisation
+
+# Checkpointing
+checkpoint:
+  save_dir: "checkpoints"
+  save_every: 10                              # Save every N epochs
+  save_best: true                             # Save best validation model
+  metric: "val_attack_f1"                     # Metric for best model selection
+
+# Logging
+logging:
+  log_dir: "logs"
+  log_every: 10                               # Log every N batches
+  use_tensorboard: false
+  verbose: true

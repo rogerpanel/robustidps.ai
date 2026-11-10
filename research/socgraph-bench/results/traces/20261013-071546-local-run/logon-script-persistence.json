@@ -1,0 +1,238 @@
+{
+  "task_id": "logon-script-persistence",
+  "model": "gpt-6-astra",
+  "alert": {
+    "alert_text": {
+      "title": "User environment registry value written by reg.exe",
+      "severity": "medium",
+      "summary": "reg.exe wrote a value under HKCU\\Environment on workstation5.",
+      "host": "workstation5",
+      "trigger_entities": [
+        "proc-55d9f85e37"
+      ],
+      "detected_at": "2020-10-20T02:47:08.745Z",
+      "source": "OTRF Security-Datasets SDWIN-201019224718"
+    }
+  },
+  "tools": [
+    {
+      "name": "search",
+      "description": "Find entities and relations whose id or attributes contain a substring."
+    },
+    {
+      "name": "get_entity",
+      "description": "Read one entity and the ids of its incoming and outgoing relations."
+    },
+    {
+      "name": "get_relation",
+      "description": "Read one relation, including the entities it connects."
+    },
+    {
+      "name": "get_ad_object_info",
+      "description": "Read one Active Directory object and its navigation references."
+    },
+    {
+      "name": "finish_investigation",
+      "description": "Submit the final BlueSec1 verdict and discovered response artifacts."
+    }
+  ],
+  "steps": [
+    {
+      "type": "tool_call",
+      "tool": "get_entity",
+      "arguments": {
+        "entity_id": "proc-55d9f85e37",
+        "reasoning": "Inspect reg.exe command and relations to distinguish environment configuration from execution hijacking."
+      },
+      "status": "ok",
+      "spent_so_far": 1,
+      "result": "{\"status\":\"ok\",\"result\":{\"entity_id\":\"proc-55d9f85e37\",\"type\":\"windows_process\",\"process_guid\":\"{39e4a257-4fac-5f8e-0208-000000000700}\",\"image\":\"C:\\\\Windows\\\\System32\\\\reg.exe\",\"command_line\":\"REG.exe  ADD HKCU\\\\Environment /v UserInitMprLogonScript /t REG_SZ /d C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat /f\",\"user\":\"WORKSTATION5\\\\wardog\",\"integrity_level\":\"High\",\"process_id\":\"8684\",\"company\":\"Microsoft Corporation\",\"product\":\"Microsoft® Windows® Operating System\",\"description\":\"Registry Console Tool\",\"original_file_name\":\"reg.exe\",\"current_directory\":\"C:\\\\Users\\\\wardog\\\\\",\"sha256\":\"4ED2A27860FA154415F65452FF1F94BD6AF762982E2F3470030C504DC3C8A354\",\"start_time\":\"2020-10-20T02:47:08.745Z\",\"hostname\":\"workstation5\",\"user_entity_id\":\"user-4dfd9c5b8a\",\"end_time\":\"2020-10-20T02:47:08.761Z\",\"outgoing\":{\"executed_file\":[\"rel-e738db057b\"],\"loaded_image\":[\"rel-70a1ef163f\",\"rel-66521f81b6\",\"rel-365632933c\",\"rel-b1ffe25691\",\"rel-7a299f7277\",\"rel-31a86e3f87\",\"rel-8bcc1d89fc\",\"rel-26bb0a97ad\",\"rel-b3a41af208\"],\"created_registry_key\":[\"rel-ec4a0b2b7f\"],\"set_registry_value\":[\"rel-6fe7526599\"]},\"incoming\":{\"runs_process\":[\"rel-dba2b064e6\"],\"win_process_create\":[\"rel-41cc1628c0\"],\"accessed_process\":[\"rel-1c0c1c8598\",\"rel-a1851a472a\",\"rel-cadef443fd\"]}},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "thinking",
+      "text": "**Developing hypotheses for logon scripts**\n\nI need to form hypotheses regarding different logon scripts. This involves considering a malicious logon script's persistence, a legitimate admin logon script, and an authorized emulation artifact like art.bat. It’s important not to make any assumptions while I'm exploring this. Additionally, I need to ensure that the parent and registry values are independent of one another as I dig deeper into this topic."
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_relation",
+      "arguments": {
+        "relation_id": "rel-41cc1628c0",
+        "reasoning": "Identify the launcher and whether the registry change came from authorized administration."
+      },
+      "status": "ok",
+      "spent_so_far": 2,
+      "result": "{\"status\":\"ok\",\"result\":{\"relation_id\":\"rel-41cc1628c0\",\"type\":\"win_process_create\",\"source\":\"proc-23dc9b1636\",\"target\":\"proc-55d9f85e37\",\"timestamp\":\"2020-10-20T02:47:08.745Z\"},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_relation",
+      "arguments": {
+        "relation_id": "rel-6fe7526599",
+        "reasoning": "Confirm the logon-script persistence value and identify the registry artifact to remove."
+      },
+      "status": "ok",
+      "spent_so_far": 3,
+      "result": "{\"status\":\"ok\",\"result\":{\"relation_id\":\"rel-6fe7526599\",\"type\":\"set_registry_value\",\"source\":\"proc-55d9f85e37\",\"target\":\"reg-35300c4876\",\"timestamp\":\"2020-10-20T02:47:08.761Z\",\"value_data\":\"C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat\"},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_entity",
+      "arguments": {
+        "entity_id": "proc-23dc9b1636",
+        "reasoning": "Inspect the parent command and adjacent activity for payload creation or legitimate logon-script deployment."
+      },
+      "status": "ok",
+      "spent_so_far": 4,
+      "result": "{\"status\":\"ok\",\"result\":{\"entity_id\":\"proc-23dc9b1636\",\"type\":\"windows_process\",\"process_guid\":\"{39e4a257-4eb6-5f8e-0008-000000000700}\",\"image\":\"C:\\\\windows\\\\system32\\\\cmd.exe\",\"hostname\":\"workstation5\",\"command_line\":\"\\\"C:\\\\windows\\\\system32\\\\cmd.exe\\\" \",\"process_id\":\"8836\",\"outgoing\":{\"wrote_file\":[\"rel-b13d1b82a4\"],\"loaded_image\":[\"rel-a972b6b997\"],\"win_process_create\":[\"rel-41cc1628c0\"],\"accessed_process\":[\"rel-1c0c1c8598\"]},\"incoming\":{\"runs_process\":[\"rel-c3ddb7abcd\"],\"accessed_process\":[\"rel-9ad2245c50\",\"rel-6a5799fc0b\",\"rel-d9174a81e5\",\"rel-2491ee7d64\",\"rel-8e8eb51049\"]}},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_entity",
+      "arguments": {
+        "entity_id": "reg-35300c4876",
+        "reasoning": "Identify the precise autostart value and any referenced payload or cleanup evidence."
+      },
+      "status": "ok",
+      "spent_so_far": 5,
+      "result": "{\"status\":\"ok\",\"result\":{\"entity_id\":\"reg-35300c4876\",\"type\":\"registry_key\",\"path\":\"HKU\\\\S-1-5-21-3940915590-64593676-1414006259-500\\\\Environment\\\\UserInitMprLogonScript\",\"value_data\":\"C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat\",\"outgoing\":{},\"incoming\":{\"set_registry_value\":[\"rel-6fe7526599\"]}},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_relation",
+      "arguments": {
+        "relation_id": "rel-b13d1b82a4",
+        "reasoning": "Identify the script written by the parent and inspect available payload evidence."
+      },
+      "status": "ok",
+      "spent_so_far": 6,
+      "result": "{\"status\":\"ok\",\"result\":{\"relation_id\":\"rel-b13d1b82a4\",\"type\":\"wrote_file\",\"source\":\"proc-23dc9b1636\",\"target\":\"file-a78c2b28d6\",\"timestamp\":\"2020-10-20T02:46:45.192Z\"},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_entity",
+      "arguments": {
+        "entity_id": "file-a78c2b28d6",
+        "reasoning": "Inspect the dropped logon script to establish its behavior and deletion target."
+      },
+      "status": "ok",
+      "spent_so_far": 7,
+      "result": "{\"status\":\"ok\",\"result\":{\"entity_id\":\"file-a78c2b28d6\",\"type\":\"windows_file\",\"path\":\"C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat\",\"created\":\"2020-10-20 02:46:45.192\",\"outgoing\":{},\"incoming\":{\"wrote_file\":[\"rel-b13d1b82a4\"]}},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_relation",
+      "arguments": {
+        "relation_id": "rel-dba2b064e6",
+        "reasoning": "Resolve the compromised workstation entity ID required for host isolation."
+      },
+      "status": "ok",
+      "spent_so_far": 8,
+      "result": "{\"status\":\"ok\",\"result\":{\"relation_id\":\"rel-dba2b064e6\",\"type\":\"runs_process\",\"source\":\"host-1078c04d1d\",\"target\":\"proc-55d9f85e37\"},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "finish_investigation",
+      "arguments": {
+        "submission": {
+          "verdict": "malicious",
+          "ir_artifacts": [
+            {
+              "entity_id": "host-1078c04d1d",
+              "kind": "host_to_isolate"
+            },
+            {
+              "entity_id": "user-4dfd9c5b8a",
+              "kind": "identity_to_rotate"
+            },
+            {
+              "entity_id": "reg-35300c4876",
+              "kind": "persistence_to_remove"
+            },
+            {
+              "entity_id": "file-a78c2b28d6",
+              "kind": "file_to_delete"
+            },
+            {
+              "entity_id": "proc-23dc9b1636",
+              "kind": "process_observed"
+            },
+            {
+              "entity_id": "proc-55d9f85e37",
+              "kind": "process_observed"
+            }
+          ],
+          "reasoning": "The activity established user-logon persistence on workstation5. At 02:46:45 UTC, cmd.exe wrote C:\\Users\\wardog\\AppData\\Local\\Temp\\art.bat. At 02:47:08 UTC, that same process launched elevated reg.exe as WORKSTATION5\\wardog to set HKCU\\Environment\\UserInitMprLogonScript to the batch file; the registry-write event confirms success. The newly dropped temporary script registered for automatic logon execution supports malicious persistence rather than an ordinary environment-variable change. No evidence of authorized deployment was present in the inspected chain. Script contents and subsequent execution were not observed."
+        }
+      },
+      "status": "terminal",
+      "spent_so_far": 9,
+      "result": "{\"status\":\"ok\",\"result\":{\"message\":\"Report accepted\",\"local_score_detail\":{\"recall\":1.0,\"precision\":1.0,\"missed_core\":[]}},\"error\":null}",
+      "reward": 0.0
+    }
+  ],
+  "submission": {
+    "verdict": "malicious",
+    "ir_artifacts": [
+      {
+        "entity_id": "host-1078c04d1d",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user-4dfd9c5b8a",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "reg-35300c4876",
+        "kind": "persistence_to_remove"
+      },
+      {
+        "entity_id": "file-a78c2b28d6",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "proc-23dc9b1636",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "proc-55d9f85e37",
+        "kind": "process_observed"
+      }
+    ],
+    "reasoning": "The activity established user-logon persistence on workstation5. At 02:46:45 UTC, cmd.exe wrote C:\\Users\\wardog\\AppData\\Local\\Temp\\art.bat. At 02:47:08 UTC, that same process launched elevated reg.exe as WORKSTATION5\\wardog to set HKCU\\Environment\\UserInitMprLogonScript to the batch file; the registry-write event confirms success. The newly dropped temporary script registered for automatic logon execution supports malicious persistence rather than an ordinary environment-variable change. No evidence of authorized deployment was present in the inspected chain. Script contents and subsequent execution were not observed."
+  },
+  "calls_spent": 9,
+  "calls_saved_by_cache": 0,
+  "usage": {
+    "input": 1870,
+    "output": 966,
+    "cache_read": 20952,
+    "cache_write": 0,
+    "llm_calls": 6
+  },
+  "wall_seconds": 36.0,
+  "task_meta": {
+    "platform": "windows",
+    "expected_verdict": "malicious",
+    "attack": "T1037.001",
+    "source": "OTRF Security-Datasets SDWIN-201019224718"
+  },
+  "ablations": [],
+  "result": {
+    "task_id": "logon-script-persistence",
+    "completion_reason": "terminated",
+    "total_reward": 0.9111,
+    "steps_taken": 9,
+    "tool_calls": 9,
+    "quality_score": 1.0,
+    "efficiency_score": 0.5556,
+    "wall_time_seconds": 36.41
+  }
+}

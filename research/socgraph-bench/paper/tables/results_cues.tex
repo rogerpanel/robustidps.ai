@@ -1,0 +1,9 @@
+\begin{table*}[t]\centering\footnotesize\setlength{\tabcolsep}{4pt}
+\caption{Shortcuts and evasion: the full agent on \bench v1.1 and on its cue-controlled variants (same graphs, identifiers and answers). Means $\pm$ standard deviation over repeats; $\Delta$Reward is the paired per-task difference to v1.1 with a bootstrap 95\% interval over tasks; \emph{Missed attacks}: malicious task runs judged benign.}
+\label{tab:cues}
+\begin{tabular}{@{}lrrrrrrrr@{}}\toprule
+Condition & $n$ & Quality & Efficiency & Reward & Verdict acc. & Calls/task & $\Delta$Reward [95\% CI] & Missed attacks\\\midrule
+SOCGraph-21 v1.1 & 3 & 0.836\,$\pm$\,0.013 & 0.626\,$\pm$\,0.019 & 0.775\,$\pm$\,0.012 & 0.968\,$\pm$\,0.027 & 8.22\,$\pm$\,0.22 & -- & 2/45\\
+\emph{blind} & 3 & 0.836\,$\pm$\,0.006 & 0.586\,$\pm$\,0.013 & 0.769\,$\pm$\,0.007 & 0.952\,$\pm$\,0.000 & 9.00\,$\pm$\,0.21 & -0.006 [-0.037, +0.015] & 3/45\\
+\emph{mimicry} & 3 & 0.754\,$\pm$\,0.044 & 0.572\,$\pm$\,0.005 & 0.694\,$\pm$\,0.038 & 0.857\,$\pm$\,0.048 & 9.22\,$\pm$\,0.15 & -0.081 [-0.179, -0.007] & 9/45\\
+\bottomrule\end{tabular}\end{table*}

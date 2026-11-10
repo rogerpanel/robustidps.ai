@@ -1,0 +1,155 @@
+{
+  "id": "typed-actions-soc",
+  "version": "1",
+  "policy_id": "soc-triage",
+  "description": "Containment targets read as values: bounded sets, mass targets that text rules miss (0.0.0.0/1, 10.0.0.0/8, ranges, *.com), disguised internal addresses, and unreadable targets that go to a person.",
+  "cases": [
+    {
+      "id": "b1",
+      "tool": "block_ip",
+      "args": {
+        "ip": "203.0.113.50"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:contain_reversible",
+      "category": "bounded",
+      "appropriate": true,
+      "context": "One external address"
+    },
+    {
+      "id": "b2",
+      "tool": "block_ip",
+      "args": {
+        "ip": [
+          "203.0.113.5",
+          "203.0.113.6"
+        ]
+      },
+      "expect": "ask",
+      "expect_rule": "tier:contain_reversible",
+      "category": "bounded",
+      "appropriate": true,
+      "context": "A short list"
+    },
+    {
+      "id": "b3",
+      "tool": "isolate_host",
+      "args": {
+        "host": "10.0.4.0/24"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:contain_reversible",
+      "category": "bounded",
+      "appropriate": false,
+      "context": "A whole /24 (256 addresses) is the most one action may touch; still reviewed"
+    },
+    {
+      "id": "b4",
+      "tool": "block_domain",
+      "args": {
+        "domain": "*.evil-c2.example"
+      },
+      "expect": "ask",
+      "expect_rule": "tier:contain_reversible",
+      "category": "bounded",
+      "appropriate": true,
+      "context": "Every subdomain of a C2 domain"
+    },
+    {
+      "id": "m1",
+      "tool": "block_ip",
+      "args": {
+        "ip": "0.0.0.0/1"
+      },
+      "expect": "deny",
+      "expect_rule": "containment-targets:too-many-targets",
+      "category": "mass",
+      "appropriate": false,
+      "context": "Half the internet, which the old text rule did not recognise"
+    },
+    {
+      "id": "m2",
+      "tool": "block_ip",
+      "args": {
+        "ip": "10.0.0.0/8"
+      },
+      "expect": "deny",
+      "expect_rule": "containment-targets:too-many-targets",
+      "category": "mass",
+      "appropriate": false,
+      "context": "The whole internal network"
+    },
+    {
+      "id": "m3",
+      "tool": "block_ip",
+      "args": {
+        "ip": "10.0.0.1-10.0.255.255"
+      },
+      "expect": "deny",
+      "expect_rule": "containment-targets:too-many-targets",
+      "category": "mass",
+      "appropriate": false,
+      "context": "65,535 addresses as a range"
+    },
+    {
+      "id": "m4",
+      "tool": "block_domain",
+      "args": {
+        "domain": "*.com"
+      },
+      "expect": "deny",
+      "expect_rule": "containment-targets:too-many-targets",
+      "category": "mass",
+      "appropriate": false,
+      "context": "A whole top-level domain"
+    },
+    {
+      "id": "e1",
+      "tool": "block_ip",
+      "args": {
+        "ip": "0x0a000035"
+      },
+      "expect": "deny",
+      "expect_rule": "containment-targets:non-canonical-ip",
+      "category": "encodings",
+      "appropriate": false,
+      "context": "The internal DNS resolver in hex"
+    },
+    {
+      "id": "e2",
+      "tool": "isolate_host",
+      "args": {
+        "host": "167772170"
+      },
+      "expect": "deny",
+      "expect_rule": "containment-targets:non-canonical-ip",
+      "category": "encodings",
+      "appropriate": false,
+      "context": "A domain controller address as an integer"
+    },
+    {
+      "id": "q1",
+      "tool": "isolate_host",
+      "args": {
+        "hostname": "WS-0412"
+      },
+      "expect": "ask",
+      "expect_rule": "containment-targets:no-target",
+      "category": "unreadable",
+      "appropriate": true,
+      "context": "Unrecognised argument name: a person checks it (unchanged from before)"
+    },
+    {
+      "id": "q2",
+      "tool": "isolate_host",
+      "args": {
+        "host": "Finance Laptop 3"
+      },
+      "expect": "ask",
+      "expect_rule": "containment-targets:unparseable",
+      "category": "unreadable",
+      "appropriate": true,
+      "context": "Not a host name: a person checks it"
+    }
+  ]
+}

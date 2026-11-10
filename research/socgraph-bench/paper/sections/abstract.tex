@@ -1,0 +1,19 @@
+\begin{abstract}
+LLM agents are being built to investigate security alerts by walking provenance evidence through tools:
+which process started which, what it wrote, where it connected. In this adversarial setting an agent must be
+right for the right reasons, at bounded cost, on telemetry an attacker partly controls. We present a
+budget-aware investigation agent and \bench: 21 provenance-graph tasks (15 attacks, 6 benign look-alikes) with
+behaviour-preserving cue-controlled variants, evaluated on Claude Opus 5.5 (Anthropic API), GPT-6 astra (OpenAI
+Responses API), and -- for the open-weight comparison -- DeepSeek-V3.2 (via an OpenAI-compatible endpoint).
+Renaming attacker-chosen artefacts raised missed attacks from \ResCueBaseMissed{} to \ResMimicryMissed{} (Claude
+Opus 5.5) and from \McGptBaseMissed{} to \McGptMimicryMissed{} (GPT-6 astra; difference in differences \McDiD{},
+95\% CI \McDiDCI{}), with the same Linux-localised pattern in DeepSeek-V3.2. No model raised a false alarm -- the
+misses were silent -- and neither canonicalising names away nor a prompt rule restored accuracy. LLM triage
+agents should be evaluated on cue-controlled variants such as ours, and a benign verdict trusted only when it
+cites behaviour, not attacker-chosen names. Agent, benchmark, variants and traces are released.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Security operations, provenance graphs, LLM agents, adversarial robustness, mimicry evasion, shortcut learning,
+tool use, benchmark.
+\end{IEEEkeywords}

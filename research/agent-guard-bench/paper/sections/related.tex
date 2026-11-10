@@ -1,0 +1,17 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Detectors and judges}
+Guard models classify prompts and responses~\cite{llamaguard}; LlamaFirewall combines an injection detector with a chain-of-thought alignment check~\cite{llamafirewall}; GuardAgent~\cite{guardagent} and ShieldAgent~\cite{shieldagent} reason over safety policies with an LLM, and Task Shield checks each action against the user's task~\cite{taskshield}. MELON re-runs the trajectory with the user prompt masked and blocks actions that do not depend on it~\cite{melon}. These read model-generated or attacker-influenced text and can be evaded adaptively~\cite{adaptiveattacks}; monitors for covert sabotage remain far from reliable~\cite{shadearena}. \SystemNameCap{} is deterministic over canonicalised calls and could take such a judge's score as one more input.
+
+\paragraph{Deterministic policies for agents}
+Progent enforces programmable least-privilege policies on tool calls~\cite{progent}; AgentSpec provides a runtime enforcement language with triggers, predicates and enforcement actions~\cite{agentspec}; Conseca generates context-specific policies for an agent's task~\cite{conseca}. We share the premise that policy belongs outside the model, and add typed argument semantics, session budgets, predicted effects on an inventory, repair before refusal, calibrated deferral with an explicit eligibility boundary, authoring from labelled failures, and an analysis of how hosts fail when the enforcement point fails.
+
+\paragraph{Isolation and information flow}
+CaMeL~\cite{camel} isolates untrusted data from the planner and enforces capabilities on values; IsolateGPT isolates apps from each other~\cite{isolategpt}; FIDES~\cite{fides} and f-secure~\cite{fsecure} apply information-flow control to agent contexts. Our flow layer is coarser (per session, from tool labels) and needs no change to the agent; it is the Rule of Two~\cite{ruleoftwo} made enforceable and auditable at the tool boundary.
+
+\paragraph{Evaluation}
+AgentDojo~\cite{agentdojo}, InjecAgent~\cite{injecagent} and AgentHarm~\cite{agentharm} evaluate agents and defences with live models; ToolEmu emulates tools with an LM~\cite{toolemu}. Replaying ground-truth calls isolates the filter from the model: it measures what the filter does to a given sequence of calls, which complements, not replaces, live evaluation.
+
+\paragraph{Safety filters and deferral}
+Our predictive layer and repair-before-refusal follow predictive safety filters~\cite{wabersich,hsu}, control barrier functions~\cite{ames} and shielding~\cite{shielding}; our deferral uses LTT~\cite{ltt}, related to conformal risk control~\cite{crc} and learning to defer~\cite{madras,mozannar,knowno}. Provenance-graph detectors are known to fall to mimicry~\cite{goyal}, which motivates our name-invariance goal.

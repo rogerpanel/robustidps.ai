@@ -1,0 +1,20 @@
+\section{Threat Model and Goals}
+\label{sec:threat}
+
+\paragraph{Setting}
+A tenant (an organisation or a user) runs one or more agents in a host (Claude Code, OpenHands, an SDK application, an MCP client or a custom loop). The host forwards every proposed tool call to \SystemName{}, a service outside the agent's process, and obeys the verdict. Policies, the asset inventory, approvals and the evidence ledger live in the service. People decide approval requests through a signed-in interface; agents authenticate with API keys that cannot approve, reset sessions or change settings.
+
+\paragraph{Adversary}
+The adversary controls content the agent reads and, in the worst case, every tool call the agent proposes: we model a fully hijacked (or misaligned) agent. The adversary knows the policy language and the built-in packs, can choose argument spellings (encodings, list tricks, parser differentials) and can repeat calls. The adversary cannot modify the service, its policies or its ledger, cannot sign in as a person, and does not control the host process. The agent may read its own environment, including the API key it uses.
+
+\paragraph{Out of scope}
+Harm done through text alone (persuading the user without a tool call); vulnerabilities inside tool implementations; covert channels inside calls the policy allows (for example, data encoded in an allowed search query to an attacker-observed service); and a compromised host. A tool-call filter cannot see what a tool returns before it runs, so it judges calls, not results.
+
+\paragraph{Goals}
+\begin{itemize}
+\item[G1] \emph{Complete mediation, as far as the host allows.} Every call is judged before it runs; where a host's hook semantics would let a call through on failure, the connector compensates (\S\ref{sec:hosts}).
+\item[G2] \emph{Fail closed.} Errors, timeouts, oversized or malformed input, unreadable arguments, concurrent checks and invalid approvals yield \verdict{deny}.
+\item[G3] \emph{Name invariance.} Verdicts depend on action types and targets, never on names an attacker chooses or on the agent's stated reasons.
+\item[G4] \emph{Bounded burden.} Prefer repair to refusal, and ask a person only when the policy cannot decide.
+\item[G5] \emph{Verifiable results.} Decisions are deterministic given the policy, inventory and session; evaluations carry digests that anyone can recompute.
+\end{itemize}

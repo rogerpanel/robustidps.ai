@@ -1,0 +1,263 @@
+{
+  "id": "authorised-testing",
+  "version": "3",
+  "name": "Authorised security testing (rules of engagement)",
+  "description": "Every target must be inside the agreed scope: calls naming targets outside it are repaired to their in-scope part (out-of-scope list entries dropped, a broader range narrowed to the allowed network inside it) or denied when nothing in scope remains. Passive lookups are allowed, active probing needs approval and is capped per session, and destructive or code-execution tools are denied. Fill scope.allow with the networks and hosts in your rules of engagement; with an empty list every target is out of scope. Targets, ports and rates are read as values: lists and ranges reaching outside the scope are cut to their exact in-scope part, metadata, loopback and link-local addresses are denied in any spelling (hex, integer, IPv4-mapped IPv6), only http and https URLs are accepted, scans above 4,096 addresses, 1,024 ports or 65,536 probes need a person, and rates above 100 per second or 10 parallel workers are lowered. A probe whose targets cannot be read, or that names none in a recognised argument, is denied.",
+  "default_tier": "unknown",
+  "tiers": {
+    "passive": {
+      "decision": "allow",
+      "description": "Lookups that send nothing to the target",
+      "reversible": true
+    },
+    "active": {
+      "decision": "ask",
+      "description": "Probes that touch the target",
+      "reversible": true
+    },
+    "destructive": {
+      "decision": "deny",
+      "description": "Code execution or changes on the target",
+      "reversible": false
+    },
+    "unknown": {
+      "decision": "ask",
+      "description": "Tools this pack does not classify"
+    }
+  },
+  "tools": [
+    {
+      "match": [
+        "whois*",
+        "dns_*",
+        "lookup*",
+        "search*",
+        "get_*",
+        "list_*",
+        "read_*"
+      ],
+      "tier": "passive"
+    },
+    {
+      "match": [
+        "*scan*",
+        "probe*",
+        "crawl*",
+        "fuzz*",
+        "http_request*",
+        "fetch*",
+        "ping*",
+        "traceroute*"
+      ],
+      "tier": "active"
+    },
+    {
+      "match": [
+        "exploit*",
+        "*payload*",
+        "delete*",
+        "write_*",
+        "upload*",
+        "shell*",
+        "bash*",
+        "exec*",
+        "run_command*"
+      ],
+      "tier": "destructive"
+    }
+  ],
+  "arg_rules": [
+    {
+      "id": "metadata-endpoint",
+      "description": "Cloud instance metadata endpoints are never in scope",
+      "args": [
+        "target*",
+        "host*",
+        "url*",
+        "ip*",
+        "address*"
+      ],
+      "pattern": "169\\.254\\.169\\.254|metadata\\.google\\.internal|fd00:ec2::254",
+      "decision": "deny"
+    }
+  ],
+  "scope": {
+    "target_args": [
+      "target",
+      "targets",
+      "host",
+      "hostname",
+      "ip",
+      "url",
+      "domain",
+      "address",
+      "cidr"
+    ],
+    "allow": [],
+    "on_violation": "project"
+  },
+  "redact": [
+    {
+      "id": "no-secrets-in-args",
+      "args": [
+        "password",
+        "passwd",
+        "secret*",
+        "api_key",
+        "apikey",
+        "token",
+        "*_token",
+        "private_key"
+      ]
+    }
+  ],
+  "max_calls_per_session": 300,
+  "escalate_after_denials": 3,
+  "hint_tiers": {
+    "read": "passive",
+    "change": "active",
+    "destroy": "destructive",
+    "exec": "destructive",
+    "unclear": "unknown"
+  },
+  "budgets": [
+    {
+      "id": "active-probe-budget",
+      "description": "Active probes per session",
+      "tools": [
+        "*scan*",
+        "probe*",
+        "crawl*",
+        "fuzz*",
+        "http_request*",
+        "fetch*",
+        "ping*",
+        "traceroute*"
+      ],
+      "max_total": 50,
+      "when_exhausted": "deny"
+    }
+  ],
+  "actions": [
+    {
+      "id": "network-probe",
+      "description": "Scans, probes and requests: bounded targets, ports and rates",
+      "tools": [
+        "*scan*",
+        "probe*",
+        "ping*",
+        "traceroute*",
+        "fuzz*",
+        "crawl*",
+        "http_request*",
+        "fetch*"
+      ],
+      "target_args": [
+        "target",
+        "targets",
+        "host",
+        "hosts",
+        "hostname",
+        "hostnames",
+        "ip",
+        "ips",
+        "addr",
+        "address",
+        "addresses",
+        "url",
+        "urls",
+        "uri",
+        "endpoint",
+        "domain",
+        "domains",
+        "cidr",
+        "network",
+        "networks",
+        "range"
+      ],
+      "port_args": [
+        "port",
+        "ports"
+      ],
+      "max_targets": 4096,
+      "max_ports": 1024,
+      "max_probes": 65536,
+      "on_exceed": "ask",
+      "rates": [
+        {
+          "args": [
+            "rate",
+            "max_rate",
+            "rps",
+            "pps",
+            "requests_per_second"
+          ],
+          "max": 100,
+          "on_exceed": "clip"
+        },
+        {
+          "args": [
+            "threads",
+            "concurrency",
+            "workers",
+            "parallelism"
+          ],
+          "max": 10,
+          "on_exceed": "clip"
+        }
+      ],
+      "schemes": [
+        "http",
+        "https"
+      ],
+      "forbidden": [
+        "169.254.0.0/16",
+        "fd00:ec2::254/128",
+        "100.100.100.200/32",
+        "fe80::/10",
+        "127.0.0.0/8",
+        "::1/128",
+        "0.0.0.0/8",
+        "224.0.0.0/4",
+        "255.255.255.255/32",
+        "ff00::/8"
+      ],
+      "forbidden_hosts": [
+        "metadata.google.internal",
+        "metadata",
+        "instance-data",
+        "instance-data.ec2.internal",
+        "metadata.azure.internal",
+        "localhost",
+        "*.localhost"
+      ],
+      "require_targets": true
+    },
+    {
+      "id": "passive-lookup",
+      "description": "Lookups that send nothing to the target: scope and forbidden hosts still apply",
+      "tools": [
+        "whois*",
+        "dns_*",
+        "lookup*"
+      ],
+      "target_args": [
+        "domain",
+        "domains",
+        "host",
+        "hostname",
+        "ip",
+        "target",
+        "name"
+      ],
+      "forbidden_hosts": [
+        "metadata.google.internal",
+        "metadata",
+        "instance-data",
+        "instance-data.ec2.internal",
+        "metadata.azure.internal"
+      ],
+      "require_targets": false
+    }
+  ]
+}

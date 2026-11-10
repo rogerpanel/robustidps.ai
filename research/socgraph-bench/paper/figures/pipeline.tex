@@ -1,0 +1,37 @@
+% Benchmark construction pipeline (TikZ, vector). Included by sections/benchmark.tex.
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  >={Latex[length=1.6mm,width=1.3mm]},
+  bx/.style={draw=cA!70!black, fill=cA!9, rounded corners=1.5pt, align=center,
+             text width=#1, minimum height=10mm, inner sep=1.5pt, line width=0.5pt},
+  bx/.default=24mm,
+  src/.style={draw=black!65, fill=black!6, rounded corners=1.5pt, align=center,
+              text width=22mm, minimum height=7mm, inner sep=1.5pt, line width=0.5pt},
+  res/.style={draw=cB!75!black, fill=cB!9, rounded corners=1.5pt, align=center,
+              text width=25mm, minimum height=7.5mm, inner sep=1.5pt, line width=0.5pt},
+  arr/.style={->, line width=0.7pt, black!70}]
+% row 1: public recordings -> parse -> graph
+\node[src] (o) at (1.2,0.45) {OTRF datasets\\[-1pt]Windows Sysmon};
+\node[src] (s) at (1.2,-0.45) {Splunk attack\_data\\[-1pt]Sysmon for Linux};
+\node[bx=25mm] (p) at (4.05,0) {\textbf{Parse, filter}\\JSON, XML (no DTD);\\drop self-telemetry};
+\node[bx] (g) at (6.95,0) {\textbf{Graph builder}\\process, file, socket,\\account, host};
+% row 2: selectors -> tasks / answers -> cue variants
+\node[bx] (sel) at (6.95,-1.9) {\textbf{Scenario selectors}\\alert, core set,\\acceptable, anchors};
+\node[res] (t) at (4.05,-1.45) {\texttt{tasks/} (agent)\\[-1pt]alert + graph};
+\node[res] (a) at (4.05,-2.35) {\texttt{answers/} (scorer)\\[-1pt]ground truth};
+\node[bx=22mm, draw=black!65, fill=white, densely dashed] (v) at (1.2,-1.45)
+  {\textbf{Cue variants}\\\emph{blind}, \emph{mimicry}:\\strings renamed};
+\draw[arr] (o.east) -- (p.west |- o.east);
+\draw[arr] (s.east) -- (p.west |- s.east);
+\draw[arr] (p) -- (g);
+\draw[arr] (g) -- (sel);
+\draw[arr] (sel.west |- t.east) -- (t.east);
+\draw[arr] (sel.west |- a.east) -- (a.east);
+\draw[arr] (t) -- (v.east |- t.west);
+\end{tikzpicture}
+\caption{Construction of \bench from public recordings. Agents see only \texttt{tasks/}; the scorer uses
+\texttt{answers/}. The cue-controlled variants rename strings in the tasks and keep graphs and answers.}
+\label{fig:pipeline}
+\end{figure}

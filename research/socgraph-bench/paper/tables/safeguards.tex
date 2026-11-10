@@ -1,0 +1,12 @@
+\begin{table*}[t]\centering\footnotesize
+\caption{What happened at the tool interface, summed over all repeats: calls answered by the cache, calls refused locally by schema validation, by the grounding check and by the budget or deadline, and malformed calls the runtime rejected (each spent a call). Tokens and model calls are means per task; \emph{Host by id/name}: correct malicious submissions naming the host by its entity id, or by its hostname.}
+\label{tab:safeguards}
+\begin{tabular}{@{}lrrrrrrrrrr@{}}\toprule
+Configuration & Tasks & Cache & Valid. & Ground. & Budget & Runtime rej. & Output tok. & Cache-read tok. & Model calls & Host by id/name\\\midrule
+full & 63 & 0 & 5 & 1 & 0 & 0 & 1{,}550 & 35{,}544 & 5.79 & 4/29\\
+no cache & 63 & 0 & 4 & 1 & 0 & 0 & 1{,}547 & 38{,}281 & 5.86 & 7/28\\
+no validation & 42 & 0 & 0 & 0 & 0 & 5 & 1{,}556 & 37{,}808 & 5.81 & 6/20\\
+no grounding & 63 & 0 & 8 & 0 & 0 & 0 & 1{,}576 & 37{,}146 & 5.73 & 7/28\\
+no budget & 63 & 1 & 7 & 0 & 0 & 0 & 1{,}627 & 40{,}162 & 6.11 & 8/29\\
+no method & 63 & 0 & 12 & 0 & 0 & 0 & 2{,}024 & 32{,}241 & 6.57 & 16/10\\
+\bottomrule\end{tabular}\end{table*}

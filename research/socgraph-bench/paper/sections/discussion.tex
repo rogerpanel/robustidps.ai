@@ -1,0 +1,105 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Cost is a first-class objective} \ifconf
+In the Windows pilot wasted tool calls cost almost as much reward as
+imperfect answers, and on the full benchmark about 0.06 of reward; accuracy-only evaluation hides this. Every
+lookup has latency and, with metered APIs, a price, so budgets belong in the agent and efficiency in the
+benchmark. Efficiency instructions are not free: the method prompt's rule not to look up the host named in the
+alert saved calls but withheld the identifier the response had to name -- a trade-off visible only in per-call
+traces, not aggregate scores.
+\else
+Accuracy alone is a misleading measure of an investigation agent. In the Windows pilot the reward lost to wasted
+tool calls was almost as large as the reward lost to imperfect answers, and on the full benchmark wasted calls
+still cost about $0.06$ of reward -- a penalty that an accuracy-only evaluation hides completely. The reason is
+operational: in a real SOC every lookup carries latency, and on a metered model API every lookup also carries a
+price, so the discipline of spending belongs inside the agent and the measurement of that discipline belongs
+inside the benchmark. Efficiency, however, is not free to ask for. The method prompt's instruction not to re-fetch
+the host already named in the alert saved calls, but by the same stroke it withheld the one identifier the final
+report was required to name. Trade-offs of this kind never surface in an aggregate score; they are visible only
+when one reads the per-call trace of a single task.
+\fi
+
+\paragraph{Prompted method beats mechanical guards, for a strong model} \ifconf
+The cache, validation, grounding
+check and budgets need no model change and apply unchanged to any model behind the driver interface. We expected
+them to matter; with Claude Opus 5.5 none moved reward measurably, because the guards had little to act on -- in
+63 tasks the full agent repeated no call, sent five malformed ones and invented one identifier, and never reached
+the hard cap. What moved efficiency was the investigation method in the prompt (start from the trigger, keep
+competing hypotheses, stop when settled), cutting calls by about 30\% at unchanged quality. The order of work for
+practitioners is therefore method first, guards as insurance: the guards cost nothing measurable, and their value
+lies in cases this study rarely produced -- weaker models, adversarial telemetry, and runtimes that do not
+validate inputs (the one malformed call that reached the v1.0 runtime crashed it, \S\ref{sec:benchmark}) -- which
+\bench does not yet provoke.
+\else
+The cache, schema validation, grounding check and budgets require no change to the model and apply unchanged to
+anything behind the driver interface, so we expected them to carry much of the agent's quality and efficiency.
+With Claude Opus 5.5 they did not: none moved reward by a measurable amount, simply because they had almost nothing
+to act on. Across 63 tasks the full agent repeated no call, issued only five malformed ones, invented a single
+identifier, and never approached the hard cap. What actually made the agent efficient was the investigation method
+written into the prompt -- start from the triggering event, hold competing hypotheses open, and stop once the
+evidence settles them -- which cut tool calls by roughly 30\% at unchanged quality. For a practitioner the order of
+work therefore inverts the usual intuition: write down the analyst's method first, and add the mechanical guards as
+insurance. The guards remain worth keeping, because they cost nothing measurable and because their value lies
+precisely in the situations this study rarely produced -- weaker or cheaper models, adversarial text in the
+telemetry, and runtimes that do not validate their own inputs (the single malformed call that reached the v1.0
+runtime crashed it, \S\ref{sec:benchmark}). A benchmark that provokes those situations is future work.
+\fi
+
+\ifconf\else
+\paragraph{Variance is concentrated in ambiguous tasks} Run-to-run variation hardly affected tasks with a clear
+answer, but one ambiguous task flipped between verdicts and alone produced reward differences of the size one
+might attribute to a component. Ablations of LLM agents therefore need repeats, paired per-task comparisons and
+a check of which tasks carry a difference; mean-reward tables alone credited three safeguards with harm they did
+not do.
+\fi
+
+\ifconf\else
+\paragraph{Guards must check the failure that actually occurs} The most frequent identifier error was not an
+invented id but a real value of the wrong type -- a hostname where the host's entity id belonged. A grounding
+check that accepts any string in the evidence cannot catch it; one that accepts only values seen in identifier
+fields would have caught all of them at no cost. A guard should be derived from the interface's types, not a
+list of anticipated mistakes, and its effect measured on traces.
+\fi
+
+
+\ifconf\else
+\paragraph{Benchmarks built from attack recordings need cue control} Public recordings are made to be found:
+they carry dataset names, lab host names and operator-chosen file names that announce an attack, so an agent
+that reads them can be right for the wrong reason -- the shortcut-learning failure known from supervised
+models~\cite{geirhos2020shortcut,arp2022dosdonts}, now in an agent that reads text. Our variants separate two
+cues with opposite results: the agent quoted the dataset name but did not need it, yet did need the operator's
+names (on the nine attack tasks whose reports cited such names it cleared 6 of 27 runs once renamed).
+Evaluations on public recordings should report a mimicry condition; ours costs a string substitution and leaves
+answers unchanged.
+\fi
+
+\ifconf\else
+\paragraph{Label cues cut both ways} The two models disagreed about what a recorded test means. Claude Opus
+5.5 read Atomic Red Team artefacts as attack evidence, GPT-6 astra as proof of an authorised exercise, and each
+was consistent across repeats. Neither reading is supported by the telemetry alone, which records no
+authorisation. Benchmarks built from technique tests therefore measure, in part, how a model resolves this
+ambiguity, and their cue-controlled variants are needed to separate that from investigation skill.
+\fi
+
+% Shortened in the conference build (page limit); full text in the journal build. The attacker-controlled-names
+% takeaway is carried by RQ7 (\S\ref{sec:remedy}) and the conclusion in the conference build.
+\ifconf\else
+\paragraph{Names are attacker-controlled input} The renamings that evaded the agent are those an intruder makes
+anyway, and the behaviour they hid is dual-use: creating an account, building and loading a kernel module,
+running a program with a preloaded library. A defender's agent should treat every name in telemetry as
+attacker-controlled, justify a benign verdict by behaviour and context (who normally does this on this host,
+whether a change record exists, whether the module is signed) rather than by the absence of alarming words, and
+be evaluated against renaming as a matter of course. The same channel carries a stronger threat that we did not
+test: text written for the agent itself~\cite{greshake2023indirect,debenedetti2024agentdojo}.
+
+\paragraph{Benign tasks deserve equal weight} Clearing benign activity is most of the work in real SOCs. A
+third of \bench is benign, and the twin tasks make it impossible to score well by keying on alert text. An
+agent that over-reports would show a high false-positive rate on exactly the tasks where analysts most need help.
+
+\paragraph{Contracts and model policies can conflict} A runtime field named \texttt{reasoning}, described as a
+trace of the model's thinking, was enough to have every request declined by the provider's policy
+(Appendix~\ref{app:engineering}); agent builders should treat rationale fields as statements of action and read
+model reasoning from the channels the provider offers. Throughout, the agent's calls, their stated purposes and
+its submissions are logged for a human reviewer, a prerequisite for assisting rather than replacing an analyst.
+\fi

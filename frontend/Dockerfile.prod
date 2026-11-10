@@ -1,0 +1,24 @@
+# Stage 1: Build the React app
+FROM node:18-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Stage 2: Pre-compress assets with Brotli + gzip for nginx static serving
+FROM alpine:3.19 AS compress
+RUN apk add --no-cache brotli gzip findutils
+COPY --from=build /app/dist /dist
+# Pre-compress JS, CSS, HTML, SVG, JSON for nginx gzip_static / brotli_static
+RUN find /dist -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.svg" -o -name "*.json" -o -name "*.xml" \) \
+    -exec sh -c 'brotli -q 11 -o "$1.br" "$1" && gzip -9 -k "$1"' _ {} \;
+
+# Stage 3: Serve with nginx + Brotli support
+FROM nginx:1.27-alpine
+# NOTE: nginx-mod-http-brotli removed — not reliably available on alpine
+# and brotli directives in nginx.conf crash nginx if module is missing.
+COPY --from=compress /dist /usr/share/nginx/html
+# nginx.conf is mounted via docker-compose
+EXPOSE 80 443
+CMD ["nginx", "-g", "daemon off;"]

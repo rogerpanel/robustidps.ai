@@ -1,0 +1,27 @@
+\begin{table*}[t]\centering\scriptsize
+\caption{The 21 tasks of \bench. Graph size is entities/relations; \emph{Core} is the number of core entities (malicious) or legitimacy anchors (benign) in the ground truth.}
+\label{tab:tasks}
+\begin{tabular}{@{}lllllrr@{}}\toprule
+Task & OS & Verdict & ATT\&CK & Alert title & Graph & Core\\\midrule
+\texttt{lsass-dump-comsvcs} & Win & malicious & T1003.001 & Process opened LSASS with full access & 88/115 & 5\\
+\texttt{logon-script-persistence} & Win & malicious & T1037.001 & User environment registry value written by reg.exe & 47/75 & 6\\
+\texttt{service-binpath-hijack} & Win & malicious & T1543.003 & Service configuration changed with sc.exe & 157/219 & 6\\
+\texttt{hta-startup-folder} & Win & malicious & T1218.005 & mshta.exe executed an HTA file & 338/717 & 6\\
+\texttt{firewall-rule-added} & Win & malicious & T1562.004 & Inbound firewall rule added from the command line & 174/365 & 4\\
+\texttt{python-http-server} & Win & malicious & T1059 & Interpreter from a user profile started a network service & 300/633 & 6\\
+\texttt{bits-download} & Win & malicious & T1197 & BITS transfer job started from the command line & 186/247 & 4\\
+\texttt{run-key-and-beacon} & Win & malicious & T1547.001 & Autostart Run key value set by PowerShell & 74/87 & 5\\
+\texttt{lsass-query-by-svchost} & Win & benign & - & Process opened a handle to LSASS & 186/247 & 2\\
+\texttt{w32time-runtime-key} & Win & benign & - & Registry value written under a path matching '\textbackslash{}Run' & 300/633 & 3\\
+\texttt{gpsvc-service-host} & Win & benign & - & New service host process started as SYSTEM & 174/365 & 2\\
+\texttt{linux-shadow-read} & Lin & malicious & T1003.008 & Credential file read by a script run with sudo & 50/76 & 6\\
+\texttt{linux-wiper-shred} & Lin & malicious & T1485 & shred overwrote a system directory & 317/672 & 7\\
+\texttt{linux-kernel-module} & Lin & malicious & T1547.006 & Kernel module loaded with insmod & 78/142 & 6\\
+\texttt{linux-account-created} & Lin & malicious & T1136.001 & Local account created & 76/127 & 5\\
+\texttt{linux-sudoers-nopasswd} & Lin & malicious & T1548.003 & Passwordless sudo rule written & 141/245 & 5\\
+\texttt{linux-ld-preload-hijack} & Lin & malicious & T1574.006 & Freshly compiled binary executed as root from a home directory & 150/265 & 8\\
+\texttt{linux-service-stopped} & Lin & malicious & T1489 & Service state changed by systemctl as root & 1602/3951 & 5\\
+\texttt{linux-dpkg-service-start} & Lin & benign & - & Service state changed by systemctl as root & 1602/3951 & 3\\
+\texttt{linux-motd-discovery} & Lin & benign & - & Session discovery command run as root & 317/672 & 3\\
+\texttt{linux-motd-tmp-cleanup} & Lin & benign & - & Files deleted by rm as root & 317/672 & 3\\
+\bottomrule\end{tabular}\end{table*}

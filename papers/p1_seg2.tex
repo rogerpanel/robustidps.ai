@@ -1,0 +1,442 @@
+% === START SEGMENT 2 ===
+
+%% ----------------------------------------------------------------
+%%  SECTION III — SYSTEM ARCHITECTURE
+%% ----------------------------------------------------------------
+\section{System Architecture}
+\label{sec:architecture}
+
+This section presents the end-to-end architecture of RobustIDPS, which
+integrates a multi-branch surrogate intrusion detection ensemble with a
+continual-learning--reinforcement-learning (CL-RL) unified framework and an
+autonomous response pipeline.  Fig.~\ref{fig:architecture} provides a
+high-level overview of the system.
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.95\columnwidth}{\vspace{4cm}\centering\textit{System Architecture Diagram}}}
+\caption{Overall architecture of RobustIDPS showing the 7-branch surrogate
+ensemble, CL-RL unified framework, and autonomous response pipeline.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{SurrogateIDS: 7-Branch Ensemble}
+\label{sec:surrogate}
+
+The detection backbone, termed \textit{SurrogateIDS}, comprises seven
+parallel branch networks whose predictions are fused to yield both a
+classification decision and a calibrated uncertainty estimate.  Each branch
+$b_j$, $j\in\{1,\dots,7\}$, receives the same 83-dimensional input feature
+vector $\mathbf{x}\in\mathbb{R}^{83}$ extracted from raw network traffic and
+processes it through three fully connected hidden layers of dimensions
+$[512,\,256,\,128]$.  Every hidden layer is followed by Batch
+Normalisation~\cite{ioffe2015batch}, a ReLU activation, and Dropout with
+probability $p=0.3$:
+\begin{equation}
+  \mathbf{h}_j^{(\ell)} = \mathrm{Dropout}\!\bigl(
+    \mathrm{ReLU}\!\bigl(
+      \mathrm{BN}\!\bigl(
+        \mathbf{W}_j^{(\ell)}\,\mathbf{h}_j^{(\ell-1)}
+        + \mathbf{b}_j^{(\ell)}
+      \bigr)
+    \bigr),\; p
+  \bigr),
+  \label{eq:branch}
+\end{equation}
+where $\mathbf{h}_j^{(0)}=\mathbf{x}$.  The seven branch outputs
+$\{\mathbf{h}_j^{(3)}\}_{j=1}^{7}$, each of dimension~128, are
+concatenated to form a 896-dimensional representation that is projected
+through a shared fusion layer:
+\begin{equation}
+  \mathbf{z} = \mathrm{ReLU}\!\bigl(
+    \mathbf{W}_{\mathrm{fuse}}\,
+    [\mathbf{h}_1^{(3)};\,\dots;\,\mathbf{h}_7^{(3)}]
+    + \mathbf{b}_{\mathrm{fuse}}
+  \bigr),\quad
+  \mathbf{W}_{\mathrm{fuse}}\in\mathbb{R}^{256\times 896},
+  \label{eq:fusion}
+\end{equation}
+yielding $\mathbf{z}\in\mathbb{R}^{256}$.  A final linear classifier maps
+$\mathbf{z}$ to 34 output classes (one benign class and 33 distinct attack
+categories):
+\begin{equation}
+  \hat{\mathbf{y}} = \mathrm{softmax}\!\bigl(
+    \mathbf{W}_c\,\mathbf{z} + \mathbf{b}_c
+  \bigr),\quad
+  \mathbf{W}_c\in\mathbb{R}^{34\times 256}.
+  \label{eq:classifier}
+\end{equation}
+
+\subsection{MC-Dropout Uncertainty Quantification}
+\label{sec:mcdropout}
+
+At inference time we retain dropout in stochastic mode and perform
+$T=20$ forward passes through the ensemble.  Let
+$\hat{\mathbf{y}}^{(t)}$ denote the softmax output of the $t$-th pass.
+The mean predictive distribution is
+$\bar{\mathbf{y}}=\frac{1}{T}\sum_{t=1}^{T}\hat{\mathbf{y}}^{(t)}$.
+We quantify epistemic uncertainty via \emph{predictive entropy}
+\begin{equation}
+  \mathcal{H}[\bar{\mathbf{y}}]
+  = -\sum_{c=1}^{34}\bar{y}_c\,\log\bar{y}_c,
+  \label{eq:pred_entropy}
+\end{equation}
+and \emph{mutual information}
+\begin{equation}
+  \mathcal{I}
+  = \mathcal{H}[\bar{\mathbf{y}}]
+    - \frac{1}{T}\sum_{t=1}^{T}\mathcal{H}[\hat{\mathbf{y}}^{(t)}].
+  \label{eq:mi}
+\end{equation}
+Samples whose mutual information exceeds a calibrated threshold are
+flagged as out-of-distribution, triggering the continual learning module
+described in Section~\ref{sec:ewc}.
+
+\subsection{SDE-TGNN for Temporal Network Dynamics}
+\label{sec:sde_tgnn}
+
+To capture the continuous-time evolution of host-level communication
+graphs we employ a Stochastic Differential Equation--Temporal Graph
+Neural Network (SDE-TGNN).  The latent state
+$\mathbf{h}(t)\in\mathbb{R}^{d}$ of each node evolves according to the
+It\^{o} SDE
+\begin{equation}
+  \mathrm{d}\mathbf{h}
+  = f_\theta(\mathbf{h},t)\,\mathrm{d}t
+    + g_\phi(\mathbf{h},t)\,\mathrm{d}\mathbf{W},
+  \label{eq:sde}
+\end{equation}
+where $f_\theta\colon\mathbb{R}^{d}\times\mathbb{R}\to\mathbb{R}^{d}$
+is a drift network, $g_\phi\colon\mathbb{R}^{d}\times\mathbb{R}\to
+\mathbb{R}^{d\times d}$ is a diffusion network, and $\mathbf{W}$ is a
+standard Wiener process.  The graph attention mechanism aggregates
+neighbour states at each integration step, enabling the model to detect
+subtle lateral-movement patterns that unfold across irregular time
+intervals.
+
+
+%% ----------------------------------------------------------------
+%%  SECTION IV — METHODOLOGY
+%% ----------------------------------------------------------------
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Continual Learning with Elastic Weight Consolidation}
+\label{sec:ewc}
+
+Network intrusion landscapes evolve over time as adversaries introduce
+novel attack variants.  To mitigate catastrophic forgetting while
+accommodating new traffic distributions, we adopt Elastic Weight
+Consolidation (EWC)~\cite{kirkpatrick2017overcoming} augmented with
+experience replay.
+
+\subsubsection{EWC Loss Formulation}
+When training on a new task~$\mathcal{T}_t$, the overall loss is
+\begin{equation}
+  \mathcal{L}(\theta)
+  = \mathcal{L}_{\mathrm{CE}}(\theta)
+    + \frac{\lambda}{2}\sum_{k}F_k\bigl(\theta_k - \theta_k^{*}\bigr)^{2},
+  \label{eq:ewc}
+\end{equation}
+where $\mathcal{L}_{\mathrm{CE}}$ is the cross-entropy loss on the
+current task, $\theta^{*}$ are the optimal parameters from the preceding
+task, $F_k$ is the $k$-th diagonal element of the Fisher Information
+Matrix (FIM), and $\lambda$ controls the consolidation strength.
+
+\subsubsection{Experience Replay}
+We maintain a fixed-capacity replay buffer
+$\mathcal{M}$ of size $|\mathcal{M}|=5000$ samples, updated via
+reservoir sampling~\cite{vitter1985random} so that each previously
+observed class retains approximately equal representation.  At every
+training step a mini-batch is drawn uniformly from $\mathcal{M}$ and
+mixed with the current-task batch to compute
+$\mathcal{L}_{\mathrm{CE}}$.
+
+\subsubsection{Online Fisher Estimation}
+Computing the full FIM after each task is prohibitively expensive.
+Instead, we maintain an exponential moving average:
+\begin{equation}
+  \hat{F}^{(t)}
+  = \alpha\,\hat{F}^{(t-1)} + (1-\alpha)\,\tilde{F}^{(t)},
+  \quad \alpha=0.5,
+  \label{eq:fisher_ema}
+\end{equation}
+where $\tilde{F}^{(t)}$ is the empirical Fisher computed on a
+representative subset of task-$t$ data.  This formulation smoothly
+discounts older consolidation signals and is well suited to the
+streaming setting of network monitoring.
+
+\begin{algorithm}[t]
+\DontPrintSemicolon
+\SetAlgoLined
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input{Current task data $\mathcal{D}_t$; previous parameters
+$\theta^{*}$; Fisher estimate $\hat{F}^{(t-1)}$; replay buffer
+$\mathcal{M}$; EWC weight $\lambda$; EMA coefficient $\alpha$}
+\Output{Updated parameters $\theta$; updated $\hat{F}^{(t)}$;
+updated $\mathcal{M}$}
+Initialise $\theta \leftarrow \theta^{*}$\;
+\For{each mini-batch $(\mathbf{X}_t,\mathbf{y}_t)$ from
+$\mathcal{D}_t$}{
+  Sample replay batch $(\mathbf{X}_r,\mathbf{y}_r)\sim\mathcal{M}$\;
+  $\mathcal{L}_{\mathrm{CE}}\leftarrow
+    \mathrm{CE}(\theta;\mathbf{X}_t,\mathbf{y}_t)
+    + \mathrm{CE}(\theta;\mathbf{X}_r,\mathbf{y}_r)$\;
+  $\mathcal{L}_{\mathrm{EWC}}\leftarrow
+    \frac{\lambda}{2}\sum_k \hat{F}_k^{(t-1)}
+    (\theta_k-\theta_k^{*})^2$\;
+  $\mathcal{L}\leftarrow
+    \mathcal{L}_{\mathrm{CE}}+\mathcal{L}_{\mathrm{EWC}}$\;
+  $\theta\leftarrow\theta-\eta\,\nabla_\theta\mathcal{L}$\;
+  Update $\mathcal{M}$ via reservoir sampling with
+  $(\mathbf{X}_t,\mathbf{y}_t)$\;
+}
+Compute empirical Fisher $\tilde{F}^{(t)}$ on subset of
+$\mathcal{D}_t$\;
+$\hat{F}^{(t)}\leftarrow\alpha\,\hat{F}^{(t-1)}
+  +(1-\alpha)\,\tilde{F}^{(t)}$\;
+$\theta^{*}\leftarrow\theta$\;
+\Return $\theta,\;\hat{F}^{(t)},\;\mathcal{M}$\;
+\caption{EWC with Experience Replay and Online Fisher Estimation}
+\label{alg:ewc}
+\end{algorithm}
+
+\subsection{Constrained RL Response Agent}
+\label{sec:cpo}
+
+Once the SurrogateIDS ensemble produces a prediction and uncertainty
+estimate, an autonomous response agent selects a defensive action.  We
+formalise this as a Constrained Markov Decision Process (CMDP).
+
+\subsubsection{CMDP Formulation}
+The CMDP is defined by the tuple
+$(\mathcal{S},\mathcal{A},P,R,C,d_0,\gamma)$, where $\mathcal{S}$ is
+the state space, $\mathcal{A}$ is the action space, $P$ denotes
+transition dynamics, $R$ is the reward function, $C$ is a cost function,
+$d_0$ is the initial state distribution, and $\gamma=0.99$ is the
+discount factor.
+
+\paragraph{State space.}
+The state $\mathbf{s}\in\mathbb{R}^{55}$ is a concatenation of: (i)~the
+34-dimensional softmax output $\hat{\mathbf{y}}$, (ii)~the 7-branch
+pre-fusion embeddings reduced to 14~dimensions via PCA, (iii)~predictive
+entropy, mutual information, and five contextual features (traffic rate,
+session duration, protocol type encoding, source reputation score,
+historical alert count), and (iv)~the previous action one-hot encoding
+of dimension~5, yielding $34+14+7+5=55$ dimensions in total, after accounting for uncertainty signals within the contextual block.
+
+\paragraph{Action space.}
+The discrete action set is
+$\mathcal{A}=\{\textsc{Monitor},\,\textsc{RateLimit},\,
+\textsc{Reset},\,\textsc{Block},\,\textsc{Quarantine}\}$
+with associated severity costs
+$\mathbf{c}=[0,\,0.5,\,1,\,2,\,5]$.
+
+\subsubsection{Constrained Policy Optimisation (CPO)}
+The agent maximises expected cumulative reward subject to a safety
+constraint on cumulative cost:
+\begin{align}
+  \max_{\pi}\;&\;
+    \mathbb{E}_{\pi}\!\Bigl[\sum_{t=0}^{\infty}\gamma^t\,
+    R(s_t,a_t)\Bigr], \label{eq:cpo_obj}\\
+  \text{s.t.}\;&\;
+    \mathbb{E}_{\pi}\!\Bigl[\sum_{t=0}^{\infty}\gamma^t\,
+    C(s_t,a_t)\Bigr] \le \varepsilon. \label{eq:cpo_constraint}
+\end{align}
+The constraint threshold $\varepsilon$ is calibrated so that the
+false-positive blocking rate remains below $0.1\%$ on the validation
+set.  We solve~\eqref{eq:cpo_obj}--\eqref{eq:cpo_constraint} using the
+CPO algorithm~\cite{achiam2017constrained}, which performs trust-region
+updates on a surrogate objective while projecting the policy back into
+the feasible set at each iteration.
+
+\paragraph{Policy network.}
+The policy $\pi_\psi$ is parameterised by a two-hidden-layer network
+$[256,\,128]$ with ReLU activations, mapping the 55-dimensional state to
+a categorical distribution over five actions:
+\begin{equation}
+  \pi_\psi(a\mid s)
+  = \mathrm{softmax}\!\bigl(
+    \mathbf{W}_2\,\mathrm{ReLU}(
+      \mathbf{W}_1\,\mathbf{s}+\mathbf{b}_1)
+    +\mathbf{b}_2
+  \bigr).
+  \label{eq:policy}
+\end{equation}
+
+\begin{algorithm}[t]
+\DontPrintSemicolon
+\SetAlgoLined
+\SetKwInOut{Input}{Input}\SetKwInOut{Output}{Output}
+\Input{Initial policy $\pi_\psi$; value network $V_\omega$; cost
+value network $V_\omega^C$; constraint threshold $\varepsilon$;
+trust-region radius $\delta$; discount $\gamma$}
+\Output{Trained policy $\pi_\psi$}
+\For{episode $= 1,2,\dots$}{
+  Collect trajectory $\tau=\{(s_t,a_t,r_t,c_t)\}$ under $\pi_\psi$\;
+  Compute advantages $\hat{A}_t$ and cost advantages $\hat{A}_t^C$
+  via GAE($\lambda$)\;
+  Estimate constraint value
+  $J_C(\pi_\psi)\approx\frac{1}{|\tau|}
+    \sum_t\gamma^t c_t$\;
+  Compute surrogate objective
+  $L(\psi)=\frac{1}{|\tau|}\sum_t
+    \frac{\pi_\psi(a_t|s_t)}{\pi_{\psi_{\mathrm{old}}}(a_t|s_t)}
+    \hat{A}_t$\;
+  Compute surrogate cost
+  $L_C(\psi)=\frac{1}{|\tau|}\sum_t
+    \frac{\pi_\psi(a_t|s_t)}{\pi_{\psi_{\mathrm{old}}}(a_t|s_t)}
+    \hat{A}_t^C$\;
+  \eIf{$J_C(\pi_\psi)\le\varepsilon$}{
+    $\psi\leftarrow\arg\max_{\psi'}L(\psi')$ s.t.\
+    $\overline{D}_{\mathrm{KL}}(\pi_{\psi_{\mathrm{old}}}\|
+      \pi_{\psi'})\le\delta$\;
+  }{
+    Project: $\psi\leftarrow\arg\max_{\psi'}L(\psi')$ s.t.\
+    $L_C(\psi')\le\varepsilon - J_C$ and
+    $\overline{D}_{\mathrm{KL}}\le\delta$\;
+  }
+  Update $V_\omega,\;V_\omega^C$ by regression on returns\;
+}
+\Return $\pi_\psi$\;
+\caption{Constrained Policy Optimisation (CPO) for Response Agent}
+\label{alg:cpo}
+\end{algorithm}
+
+\subsection{Unified Fisher Information Framework}
+\label{sec:unified_fisher}
+
+A central contribution of RobustIDPS is the \emph{unified Fisher
+information framework} that couples the detection and response modules
+through a single regularisation signal.  Let $\hat{F}_k^{\mathrm{det}}$
+denote the diagonal Fisher element for parameter~$k$ of the
+SurrogateIDS ensemble (Section~\ref{sec:ewc}), and let
+$[F_\pi]_{kk}$ denote the corresponding diagonal element of
+the policy Fisher for parameters shared between the two modules.  We
+define the unified Fisher estimate as
+\begin{equation}
+  \hat{F}_k^{\mathrm{unified}}
+  = \beta\,\hat{F}_k^{\mathrm{det}}
+    + (1-\beta)\,[F_\pi]_{kk},
+  \quad \beta=0.7.
+  \label{eq:unified_fisher}
+\end{equation}
+The weighting $\beta=0.7$ biases consolidation toward preserving
+detection accuracy---the primary objective of an IDPS---while still
+allowing sufficient plasticity for the RL policy to adapt its response
+strategy to evolving threat landscapes.  Equation~\eqref{eq:unified_fisher}
+replaces $F_k$ in~\eqref{eq:ewc} during joint training, thereby
+preventing catastrophic interference between the detection and response
+objectives.
+
+\subsection{Adversarial Robustness}
+\label{sec:adversarial}
+
+We evaluate and harden RobustIDPS against six representative
+adversarial attack strategies that span gradient-based, optimisation-based,
+geometry-based, and stochastic perturbation categories:
+\begin{enumerate}
+  \item \textbf{FGSM}~\cite{goodfellow2015explaining}: single-step
+    perturbation with $\varepsilon=0.1$.
+  \item \textbf{PGD}~\cite{madry2018towards}: iterative projected
+    gradient descent with $\varepsilon=0.1$, step size $\alpha=0.01$,
+    and 40 iterations.
+  \item \textbf{C\&W}~\cite{carlini2017towards}: $\ell_2$ optimisation
+    attack with confidence parameter $\kappa=0$ and 50 iterations.
+  \item \textbf{DeepFool}~\cite{moosavi2016deepfool}: minimal-norm
+    perturbation with a maximum of 30 iterations.
+  \item \textbf{Gaussian noise}: additive isotropic noise with standard
+    deviation $\sigma=0.1$.
+  \item \textbf{Label masking}: stochastic label corruption with flip
+    probability $p_{\mathrm{flip}}=0.1$, simulating poisoning attacks on
+    the training pipeline.
+\end{enumerate}
+
+\subsubsection{Adversarial Training Procedure}
+During each training epoch we generate adversarial examples on-the-fly
+using PGD (the strongest first-order attack in our suite) and augment
+the training batch:
+\begin{equation}
+  \tilde{\mathbf{x}} = \Pi_{\mathcal{B}_\varepsilon(\mathbf{x})}
+  \!\bigl(\mathbf{x} + \alpha\,\mathrm{sign}(
+    \nabla_{\mathbf{x}}\mathcal{L}_{\mathrm{CE}}(\theta;\mathbf{x},y)
+  )\bigr),
+  \label{eq:pgd_step}
+\end{equation}
+where $\Pi_{\mathcal{B}_\varepsilon}$ denotes projection onto the
+$\ell_\infty$ ball of radius $\varepsilon$.  The loss is computed over
+both clean and adversarial samples with equal weighting, following the
+min-max formulation of~\cite{madry2018towards}:
+\begin{equation}
+  \min_\theta\;\mathbb{E}_{(\mathbf{x},y)\sim\mathcal{D}}
+  \Bigl[\max_{\|\boldsymbol{\delta}\|_\infty\le\varepsilon}
+    \mathcal{L}_{\mathrm{CE}}(\theta;\mathbf{x}+\boldsymbol{\delta},y)
+  \Bigr].
+  \label{eq:adv_train}
+\end{equation}
+
+\subsection{Byzantine-Resilient Federated Learning}
+\label{sec:federated}
+
+In realistic multi-site deployments, raw traffic data cannot be
+centralised due to privacy regulations.  RobustIDPS therefore supports
+federated training across $N$ participating sites while tolerating up to
+$f<N/3$ Byzantine nodes.
+
+\subsubsection{Aggregation Strategies}
+We implement and compare three aggregation protocols:
+\begin{itemize}
+  \item \textbf{FedAvg}~\cite{mcmahan2017communication}: vanilla
+    weighted averaging of client updates.
+  \item \textbf{FedProx}~\cite{li2020federated}: FedAvg augmented with
+    a proximal regularisation term weighted by $\mu=0.01$ to handle
+    statistical heterogeneity.
+  \item \textbf{FedGTD}: a game-theoretic aggregation scheme in which
+    client contributions are weighted by a trust score derived from
+    historical validation performance.
+\end{itemize}
+
+\subsubsection{Byzantine Detection}
+Before aggregation, the server projects all client gradient updates into
+a low-dimensional subspace of dimension $d_{\mathrm{proj}}=10$ and
+computes pairwise cosine similarities.  Any client whose mean similarity
+to the remaining clients falls below the threshold $\tau=0.3$ is flagged
+as potentially Byzantine and excluded from the current round.  The
+surviving gradients are combined via coordinate-wise trimmed mean,
+discarding the highest and lowest values at each coordinate.
+
+\subsubsection{Differential Privacy}
+To provide formal privacy guarantees, each client clips its gradient
+update to norm $S$ and adds calibrated Gaussian noise:
+\begin{equation}
+  \tilde{\mathbf{g}}_i
+  = \mathrm{clip}(\mathbf{g}_i,\,S)
+    + \mathcal{N}\!\bigl(\mathbf{0},\,\sigma_{\mathrm{DP}}^2 S^2
+    \mathbf{I}\bigr),
+  \label{eq:dp}
+\end{equation}
+achieving $(\epsilon_{\mathrm{DP}},\delta)$-differential privacy per
+round via the moments accountant~\cite{abadi2016deep}.
+
+\subsubsection{Stochastic Game Dynamics and Nash Equilibrium}
+We model the interaction between the federated defender and an adaptive
+adversary as a continuous-time stochastic game.  Let
+$\mathbf{v}(t)\in\mathbb{R}^{m}$ denote the joint strategy profile.
+Its dynamics are governed by an SDE with Poisson jumps:
+\begin{equation}
+  \mathrm{d}\mathbf{v}
+  = \mu(\mathbf{v},t)\,\mathrm{d}t
+    + \sigma(\mathbf{v},t)\,\mathrm{d}\mathbf{W}
+    + \int_{\mathbb{R}^m}\!\mathbf{J}(\mathbf{v},\mathbf{z})\,
+      \widetilde{N}(\mathrm{d}t,\mathrm{d}\mathbf{z}),
+  \label{eq:jump_sde}
+\end{equation}
+where $\widetilde{N}$ is a compensated Poisson random measure capturing
+sudden strategy shifts (e.g., new zero-day exploits).  Under mild
+Lipschitz conditions on $\mu$ and $\sigma$, the strategy profile
+converges to a Nash equilibrium in the mean-square sense, ensuring that
+the federated defence remains robust even against strategically adaptive
+adversaries.  A formal convergence proof is provided in the
+supplementary material.
+
+% === END SEGMENT 2 ===

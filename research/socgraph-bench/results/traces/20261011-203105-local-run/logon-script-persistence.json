@@ -1,0 +1,220 @@
+{
+  "task_id": "logon-script-persistence",
+  "model": "claude-opus-5-5",
+  "alert": {
+    "alert_text": {
+      "title": "User environment registry value written by reg.exe",
+      "severity": "medium",
+      "summary": "reg.exe wrote a value under HKCU\\Environment on workstation5.",
+      "host": "workstation5",
+      "trigger_entities": [
+        "proc-55d9f85e37"
+      ],
+      "detected_at": "2020-10-20T02:47:08.745Z",
+      "source": "OTRF Security-Datasets SDWIN-201019224718"
+    }
+  },
+  "tools": [
+    {
+      "name": "search",
+      "description": "Find entities and relations whose id or attributes contain a substring."
+    },
+    {
+      "name": "get_entity",
+      "description": "Read one entity and the ids of its incoming and outgoing relations."
+    },
+    {
+      "name": "get_relation",
+      "description": "Read one relation, including the entities it connects."
+    },
+    {
+      "name": "get_ad_object_info",
+      "description": "Read one Active Directory object and its navigation references."
+    },
+    {
+      "name": "finish_investigation",
+      "description": "Submit the final BlueSec1 verdict and discovered response artifacts."
+    }
+  ],
+  "steps": [
+    {
+      "type": "thinking",
+      "text": "This looks like the UserInitMprLogonScript registry value under HKCU\\Environment, a known logon script persistence technique mapping to T1037.001. I should identify the trigger entity responsible for this."
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_entity",
+      "arguments": {
+        "entity_id": "proc-55d9f85e37",
+        "reasoning": "Inspect the reg.exe process command line and its relations"
+      },
+      "status": "ok",
+      "spent_so_far": 1,
+      "result": "{\"status\":\"ok\",\"result\":{\"entity_id\":\"proc-55d9f85e37\",\"type\":\"windows_process\",\"process_guid\":\"{39e4a257-4fac-5f8e-0208-000000000700}\",\"image\":\"C:\\\\Windows\\\\System32\\\\reg.exe\",\"command_line\":\"REG.exe  ADD HKCU\\\\Environment /v UserInitMprLogonScript /t REG_SZ /d C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat /f\",\"user\":\"WORKSTATION5\\\\wardog\",\"integrity_level\":\"High\",\"process_id\":\"8684\",\"company\":\"Microsoft Corporation\",\"product\":\"Microsoft® Windows® Operating System\",\"description\":\"Registry Console Tool\",\"original_file_name\":\"reg.exe\",\"current_directory\":\"C:\\\\Users\\\\wardog\\\\\",\"sha256\":\"4ED2A27860FA154415F65452FF1F94BD6AF762982E2F3470030C504DC3C8A354\",\"start_time\":\"2020-10-20T02:47:08.745Z\",\"hostname\":\"workstation5\",\"user_entity_id\":\"user-4dfd9c5b8a\",\"end_time\":\"2020-10-20T02:47:08.761Z\",\"outgoing\":{\"executed_file\":[\"rel-e738db057b\"],\"loaded_image\":[\"rel-70a1ef163f\",\"rel-66521f81b6\",\"rel-365632933c\",\"rel-b1ffe25691\",\"rel-7a299f7277\",\"rel-31a86e3f87\",\"rel-8bcc1d89fc\",\"rel-26bb0a97ad\",\"rel-b3a41af208\"],\"created_registry_key\":[\"rel-ec4a0b2b7f\"],\"set_registry_value\":[\"rel-6fe7526599\"]},\"incoming\":{\"runs_process\":[\"rel-dba2b064e6\"],\"win_process_create\":[\"rel-41cc1628c0\"],\"accessed_process\":[\"rel-1c0c1c8598\",\"rel-a1851a472a\",\"rel-cadef443fd\"]}},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "thinking",
+      "text": "This looks like Atomic Red Team's T1037.001 technique, so I should check the parent process and registry value relationship, and look for references to art.bat."
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_relation",
+      "arguments": {
+        "relation_id": "rel-41cc1628c0",
+        "reasoning": "Identify the parent process that launched reg.exe"
+      },
+      "status": "ok",
+      "spent_so_far": 2,
+      "result": "{\"status\":\"ok\",\"result\":{\"relation_id\":\"rel-41cc1628c0\",\"type\":\"win_process_create\",\"source\":\"proc-23dc9b1636\",\"target\":\"proc-55d9f85e37\",\"timestamp\":\"2020-10-20T02:47:08.745Z\"},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_relation",
+      "arguments": {
+        "relation_id": "rel-6fe7526599",
+        "reasoning": "Get the registry key entity for the logon script value"
+      },
+      "status": "ok",
+      "spent_so_far": 3,
+      "result": "{\"status\":\"ok\",\"result\":{\"relation_id\":\"rel-6fe7526599\",\"type\":\"set_registry_value\",\"source\":\"proc-55d9f85e37\",\"target\":\"reg-35300c4876\",\"timestamp\":\"2020-10-20T02:47:08.761Z\",\"value_data\":\"C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat\"},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "search",
+      "arguments": {
+        "query": "art.bat",
+        "reasoning": "Find the art.bat logon script file and any writer"
+      },
+      "status": "ok",
+      "spent_so_far": 4,
+      "result": "{\"status\":\"ok\",\"result\":{\"page\":1,\"total\":4,\"has_more\":false,\"results\":[{\"entity_id\":\"file-a78c2b28d6\",\"type\":\"windows_file\",\"path\":\"C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat\"},{\"entity_id\":\"reg-35300c4876\",\"type\":\"registry_key\",\"path\":\"HKU\\\\S-1-5-21-3940915590-64593676-1414006259-500\\\\Environment\\\\UserInitMprLogonScript\",\"value_data\":\"C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat\"},{\"entity_id\":\"proc-55d9f85e37\",\"type\":\"windows_process\",\"image\":\"C:\\\\Windows\\\\System32\\\\reg.exe\",\"command_line\":\"REG.exe  ADD HKCU\\\\Environment /v UserInitMprLogonScript /t REG_SZ /d C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat /f\",\"hostname\":\"workstation5\",\"user\":\"WORKSTATION5\\\\wardog\",\"start_time\":\"2020-10-20T02:47:08.745Z\"},{\"relation_id\":\"rel-6fe7526599\",\"type\":\"set_registry_value\",\"source\":\"proc-55d9f85e37\",\"target\":\"reg-35300c4876\",\"timestamp\":\"2020-10-20T02:47:08.761Z\",\"value_data\":\"C:\\\\Users\\\\wardog\\\\AppData\\\\Local\\\\Temp\\\\art.bat\"}]},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_entity",
+      "arguments": {
+        "entity_id": "proc-23dc9b1636",
+        "reasoning": "Inspect the parent process command line and its origin"
+      },
+      "status": "ok",
+      "spent_so_far": 5,
+      "result": "{\"status\":\"ok\",\"result\":{\"entity_id\":\"proc-23dc9b1636\",\"type\":\"windows_process\",\"process_guid\":\"{39e4a257-4eb6-5f8e-0008-000000000700}\",\"image\":\"C:\\\\windows\\\\system32\\\\cmd.exe\",\"hostname\":\"workstation5\",\"command_line\":\"\\\"C:\\\\windows\\\\system32\\\\cmd.exe\\\" \",\"process_id\":\"8836\",\"outgoing\":{\"wrote_file\":[\"rel-b13d1b82a4\"],\"loaded_image\":[\"rel-a972b6b997\"],\"win_process_create\":[\"rel-41cc1628c0\"],\"accessed_process\":[\"rel-1c0c1c8598\"]},\"incoming\":{\"runs_process\":[\"rel-c3ddb7abcd\"],\"accessed_process\":[\"rel-9ad2245c50\",\"rel-6a5799fc0b\",\"rel-d9174a81e5\",\"rel-2491ee7d64\",\"rel-8e8eb51049\"]}},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "thinking",
+      "text": "It looks like a file, probably art.bat, got written—I'll take a quick look to confirm it's correct."
+    },
+    {
+      "type": "tool_call",
+      "tool": "get_relation",
+      "arguments": {
+        "relation_id": "rel-b13d1b82a4",
+        "reasoning": "Confirm whether cmd.exe wrote the art.bat logon script"
+      },
+      "status": "ok",
+      "spent_so_far": 6,
+      "result": "{\"status\":\"ok\",\"result\":{\"relation_id\":\"rel-b13d1b82a4\",\"type\":\"wrote_file\",\"source\":\"proc-23dc9b1636\",\"target\":\"file-a78c2b28d6\",\"timestamp\":\"2020-10-20T02:46:45.192Z\"},\"error\":null}",
+      "reward": 0.0
+    },
+    {
+      "type": "thinking",
+      "text": "The account wardog looks like the local admin SID-500, which fits this being a persistence emulation the user executed themselves, so I'll note it as the observed identity while isolating the host."
+    },
+    {
+      "type": "tool_call",
+      "tool": "finish_investigation",
+      "arguments": {
+        "submission": {
+          "verdict": "malicious",
+          "reasoning": "I'm treating this as malicious: it is logon script persistence (T1037.001). On workstation5, an interactive cmd.exe (proc-23dc9b1636) running as WORKSTATION5\\wardog first wrote C:\\Users\\wardog\\AppData\\Local\\Temp\\art.bat at 02:46:45. At 02:47:08 it launched reg.exe (proc-55d9f85e37) at High integrity with 'REG ADD HKCU\\Environment /v UserInitMprLogonScript /d ...\\Temp\\art.bat /f'. That set HKU\\<SID-500>\\Environment\\UserInitMprLogonScript to point at the batch file, so the script runs at every logon for that user. The file name and the way it was done match an Atomic Red Team simulation (dataset SDWIN-201019224718). It is still a real persistence change that needs removing. I didn't check what art.bat contains or whether it has run yet.",
+          "ir_artifacts": [
+            {
+              "entity_id": "reg-35300c4876",
+              "kind": "persistence_to_remove"
+            },
+            {
+              "entity_id": "file-a78c2b28d6",
+              "kind": "file_to_delete"
+            },
+            {
+              "entity_id": "proc-55d9f85e37",
+              "kind": "process_observed"
+            },
+            {
+              "entity_id": "proc-23dc9b1636",
+              "kind": "process_observed"
+            },
+            {
+              "entity_id": "user-4dfd9c5b8a",
+              "kind": "identity_observed"
+            }
+          ]
+        }
+      },
+      "status": "terminal",
+      "spent_so_far": 7,
+      "result": "{\"status\":\"ok\",\"result\":{\"message\":\"Report accepted\",\"local_score_detail\":{\"recall\":0.833,\"precision\":1.0,\"missed_core\":[\"host-1078c04d1d\"]}},\"error\":null}",
+      "reward": 0.0
+    }
+  ],
+  "submission": {
+    "verdict": "malicious",
+    "reasoning": "I'm treating this as malicious: it is logon script persistence (T1037.001). On workstation5, an interactive cmd.exe (proc-23dc9b1636) running as WORKSTATION5\\wardog first wrote C:\\Users\\wardog\\AppData\\Local\\Temp\\art.bat at 02:46:45. At 02:47:08 it launched reg.exe (proc-55d9f85e37) at High integrity with 'REG ADD HKCU\\Environment /v UserInitMprLogonScript /d ...\\Temp\\art.bat /f'. That set HKU\\<SID-500>\\Environment\\UserInitMprLogonScript to point at the batch file, so the script runs at every logon for that user. The file name and the way it was done match an Atomic Red Team simulation (dataset SDWIN-201019224718). It is still a real persistence change that needs removing. I didn't check what art.bat contains or whether it has run yet.",
+    "ir_artifacts": [
+      {
+        "entity_id": "reg-35300c4876",
+        "kind": "persistence_to_remove"
+      },
+      {
+        "entity_id": "file-a78c2b28d6",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "proc-55d9f85e37",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "proc-23dc9b1636",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "user-4dfd9c5b8a",
+        "kind": "identity_observed"
+      }
+    ]
+  },
+  "calls_spent": 7,
+  "calls_saved_by_cache": 0,
+  "usage": {
+    "input": 12,
+    "output": 1330,
+    "cache_read": 31487,
+    "cache_write": 2640,
+    "llm_calls": 5
+  },
+  "wall_seconds": 20.9,
+  "task_meta": {
+    "platform": "windows",
+    "expected_verdict": "malicious",
+    "attack": "T1037.001",
+    "source": "OTRF Security-Datasets SDWIN-201019224718"
+  },
+  "ablations": [
+    "budget"
+  ],
+  "result": {
+    "task_id": "logon-script-persistence",
+    "completion_reason": "terminated",
+    "total_reward": 0.9,
+    "steps_taken": 7,
+    "tool_calls": 7,
+    "quality_score": 0.9545,
+    "efficiency_score": 0.7143,
+    "wall_time_seconds": 20.99
+  }
+}

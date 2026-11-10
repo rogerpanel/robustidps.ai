@@ -1,0 +1,21 @@
+% Pilot: tool calls per task against the optimal count (pgfplots, reads data/pilot_per_task.csv).
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  xbar, bar width=4pt, width=0.62\columnwidth, height=7.2cm,
+  xmin=0, xmax=13, xlabel={Tool calls}, xmajorgrids, grid style={gray!25},
+  symbolic y coords={gpsvc-service-host,w32time-runtime-key,lsass-query-by-svchost,python-http-server,run-key-and-beacon,bits-download,firewall-rule-added,hta-startup-folder,service-binpath-hijack,lsass-dump-comsvcs,logon-script-persistence},
+  ytick=data, yticklabel style={font=\tiny\ttfamily}, tick label style={font=\scriptsize},
+  legend style={font=\scriptsize, at={(0.98,0.02)}, anchor=south east, draw=gray!40},
+  enlarge y limits=0.06,
+]
+\addplot[fill=cA, draw=none] table[col sep=comma, x=calls, y=task] {data/pilot_per_task.csv};
+\addplot[fill=cB, draw=none] table[col sep=comma, x expr=\thisrow{optimal}+1, y=task] {data/pilot_per_task.csv};
+\legend{Used, Optimal + 1}
+\end{axis}
+\end{tikzpicture}
+\caption{Pilot run: tool calls used per task against the efficiency target (optimal + 1, at which efficiency
+reaches 1). Every verdict was correct; the gap between the bars is the efficiency loss.}
+\label{fig:pilotcalls}
+\end{figure}

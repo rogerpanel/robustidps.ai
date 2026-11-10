@@ -1,0 +1,122 @@
+{
+  "run_id": "local-run",
+  "tasks": 11,
+  "completed": 11,
+  "mean_quality": 0.9326,
+  "mean_efficiency": 0.6594,
+  "mean_reward": 0.87,
+  "mean_tool_calls": 7.27,
+  "task_results": [
+    {
+      "task_id": "logon-script-persistence",
+      "completion_reason": "terminated",
+      "total_reward": 0.8643,
+      "steps_taken": 7,
+      "tool_calls": 7,
+      "quality_score": 0.9167,
+      "efficiency_score": 0.7143,
+      "wall_time_seconds": 16.98
+    },
+    {
+      "task_id": "lsass-dump-comsvcs",
+      "completion_reason": "terminated",
+      "total_reward": 0.9429,
+      "steps_taken": 7,
+      "tool_calls": 7,
+      "quality_score": 1.0,
+      "efficiency_score": 0.7143,
+      "wall_time_seconds": 18.47
+    },
+    {
+      "task_id": "service-binpath-hijack",
+      "completion_reason": "terminated",
+      "total_reward": 0.8487,
+      "steps_taken": 10,
+      "tool_calls": 10,
+      "quality_score": 0.9225,
+      "efficiency_score": 0.6,
+      "wall_time_seconds": 25.12
+    },
+    {
+      "task_id": "hta-startup-folder",
+      "completion_reason": "terminated",
+      "total_reward": 0.8303,
+      "steps_taken": 12,
+      "tool_calls": 12,
+      "quality_score": 0.9225,
+      "efficiency_score": 0.5,
+      "wall_time_seconds": 26.32
+    },
+    {
+      "task_id": "firewall-rule-added",
+      "completion_reason": "terminated",
+      "total_reward": 0.828,
+      "steps_taken": 6,
+      "tool_calls": 6,
+      "quality_score": 0.8871,
+      "efficiency_score": 0.6667,
+      "wall_time_seconds": 40.2
+    },
+    {
+      "task_id": "bits-download",
+      "completion_reason": "terminated",
+      "total_reward": 0.8914,
+      "steps_taken": 5,
+      "tool_calls": 5,
+      "quality_score": 0.9286,
+      "efficiency_score": 0.8,
+      "wall_time_seconds": 41.52
+    },
+    {
+      "task_id": "run-key-and-beacon",
+      "completion_reason": "terminated",
+      "total_reward": 0.8401,
+      "steps_taken": 8,
+      "tool_calls": 8,
+      "quality_score": 0.9082,
+      "efficiency_score": 0.625,
+      "wall_time_seconds": 42.23
+    },
+    {
+      "task_id": "lsass-query-by-svchost",
+      "completion_reason": "terminated",
+      "total_reward": 1.0,
+      "steps_taken": 3,
+      "tool_calls": 3,
+      "quality_score": 1.0,
+      "efficiency_score": 1.0,
+      "wall_time_seconds": 52.33
+    },
+    {
+      "task_id": "python-http-server",
+      "completion_reason": "terminated",
+      "total_reward": 0.8219,
+      "steps_taken": 11,
+      "tool_calls": 11,
+      "quality_score": 0.9225,
+      "efficiency_score": 0.4545,
+      "wall_time_seconds": 52.92
+    },
+    {
+      "task_id": "w32time-runtime-key",
+      "completion_reason": "terminated",
+      "total_reward": 0.95,
+      "steps_taken": 4,
+      "tool_calls": 4,
+      "quality_score": 1.0,
+      "efficiency_score": 0.75,
+      "wall_time_seconds": 53.14
+    },
+    {
+      "task_id": "gpsvc-service-host",
+      "completion_reason": "terminated",
+      "total_reward": 0.7529,
+      "steps_taken": 7,
+      "tool_calls": 7,
+      "quality_score": 0.85,
+      "efficiency_score": 0.4286,
+      "wall_time_seconds": 56.27
+    }
+  ],
+  "peak_parallel_tasks": 4
+}

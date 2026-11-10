@@ -1,0 +1,19 @@
+\begin{table}[t]
+\centering
+\caption{Per AgentDojo suite: tasks, attack replays and goals, then benign unattended share, requests per benign task and unreviewed attack goals, for tiers alone and with conservative flow labels.}
+\label{tab:agentdojo-suites}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrcccccc}
+\toprule
+& & & & \multicolumn{3}{c}{Tiers} & \multicolumn{3}{c}{+ flow (conservative)} \\
+\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+Suite & Tasks & Attacks & Goals & Unatt. & Req. & Unrev. & Unatt. & Req. & Unrev. \\
+\midrule
+Workspace & 40 & 240 & 6 & 45\% & 0.65 & 0\% & 42\% & 0.68 & 0\% \\
+Travel & 20 & 120 & 6 & 70\% & 0.30 & 0\% & 70\% & 0.30 & 0\% \\
+Banking & 16 & 144 & 9 & 25\% & 0.88 & 0\% & 25\% & 0.88 & 0\% \\
+Slack & 21 & 105 & 5 & 5\% & 1.62 & 20\% & 0\% & 2.48 & 0\% \\
+\bottomrule
+\end{tabular}}
+\end{table}

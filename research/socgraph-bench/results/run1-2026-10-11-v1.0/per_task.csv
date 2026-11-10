@@ -1,0 +1,127 @@
+configuration,task_id,platform,expected_verdict,completion,quality,efficiency,reward,calls
+full,lsass-dump-comsvcs,windows,malicious,terminated,0.944,0.714,0.890,7
+full,logon-script-persistence,windows,malicious,terminated,0.917,0.714,0.864,7
+full,hta-startup-folder,windows,malicious,terminated,0.930,0.500,0.837,12
+full,service-binpath-hijack,windows,malicious,terminated,0.895,0.600,0.823,10
+full,firewall-rule-added,windows,malicious,terminated,0.833,0.800,0.800,5
+full,bits-download,windows,malicious,terminated,0.875,0.800,0.840,5
+full,run-key-and-beacon,windows,malicious,terminated,1.000,0.556,0.911,9
+full,lsass-query-by-svchost,windows,benign,terminated,1.000,1.000,1.000,3
+full,python-http-server,windows,malicious,terminated,0.857,0.455,0.764,11
+full,gpsvc-service-host,windows,benign,terminated,0.875,0.429,0.775,7
+full,w32time-runtime-key,windows,benign,terminated,1.000,0.750,0.950,4
+full,linux-shadow-read,linux,malicious,terminated,0.842,0.312,0.726,16
+full,linux-account-created,linux,malicious,terminated,0.750,0.714,0.707,7
+full,linux-kernel-module,linux,malicious,terminated,0.750,0.714,0.707,7
+full,linux-wiper-shred,linux,malicious,terminated,0.778,0.556,0.709,9
+full,linux-sudoers-nopasswd,linux,malicious,terminated,0.600,0.385,0.526,13
+full,linux-dpkg-service-start,linux,benign,terminated,0.683,0.667,0.638,6
+full,linux-ld-preload-hijack,linux,malicious,terminated,0.694,0.600,0.638,10
+full,linux-motd-discovery,linux,benign,terminated,0.683,0.667,0.638,6
+full,linux-motd-tmp-cleanup,linux,benign,terminated,0.750,1.000,0.750,4
+full,linux-service-stopped,linux,malicious,terminated,0.000,0.417,0.000,12
+no cache,lsass-dump-comsvcs,windows,malicious,terminated,1.000,0.625,0.925,8
+no cache,logon-script-persistence,windows,malicious,terminated,0.917,0.714,0.864,7
+no cache,service-binpath-hijack,windows,malicious,terminated,0.922,0.600,0.849,10
+no cache,hta-startup-folder,windows,malicious,terminated,0.955,0.500,0.859,12
+no cache,firewall-rule-added,windows,malicious,terminated,0.929,0.500,0.836,8
+no cache,bits-download,windows,malicious,terminated,0.875,0.800,0.840,5
+no cache,run-key-and-beacon,windows,malicious,terminated,1.000,0.556,0.911,9
+no cache,lsass-query-by-svchost,windows,benign,terminated,1.000,1.000,1.000,3
+no cache,w32time-runtime-key,windows,benign,terminated,0.938,0.600,0.863,5
+no cache,gpsvc-service-host,windows,benign,terminated,0.875,0.429,0.775,7
+no cache,python-http-server,windows,malicious,terminated,0.922,0.385,0.809,13
+no cache,linux-shadow-read,linux,malicious,terminated,0.842,0.312,0.726,16
+no cache,linux-kernel-module,linux,malicious,terminated,0.722,0.556,0.658,9
+no cache,linux-wiper-shred,linux,malicious,terminated,0.801,0.417,0.708,12
+no cache,linux-account-created,linux,malicious,terminated,0.750,0.714,0.707,7
+no cache,linux-sudoers-nopasswd,linux,malicious,terminated,0.618,0.500,0.556,10
+no cache,linux-ld-preload-hijack,linux,malicious,terminated,0.684,0.545,0.622,11
+no cache,linux-service-stopped,linux,malicious,terminated,0.833,0.625,0.771,8
+no cache,linux-dpkg-service-start,linux,benign,terminated,0.683,0.667,0.638,6
+no cache,linux-motd-discovery,linux,benign,terminated,0.683,0.667,0.638,6
+no cache,linux-motd-tmp-cleanup,linux,benign,terminated,0.750,1.000,0.750,4
+no validation,lsass-dump-comsvcs,windows,malicious,aborted,0.000,0.000,0.000,7
+no validation,logon-script-persistence,windows,malicious,terminated,0.917,0.714,0.864,7
+no validation,service-binpath-hijack,windows,malicious,terminated,0.895,0.545,0.813,11
+no validation,hta-startup-folder,windows,malicious,terminated,0.922,0.545,0.839,11
+no validation,bits-download,windows,malicious,terminated,0.929,0.800,0.891,5
+no validation,firewall-rule-added,windows,malicious,terminated,0.853,0.571,0.780,7
+no validation,run-key-and-beacon,windows,malicious,terminated,0.914,0.625,0.845,8
+no validation,w32time-runtime-key,windows,benign,terminated,1.000,0.750,0.950,4
+no validation,lsass-query-by-svchost,windows,benign,terminated,1.000,1.000,1.000,3
+no validation,python-http-server,windows,malicious,terminated,0.917,0.385,0.804,13
+no validation,gpsvc-service-host,windows,benign,terminated,0.917,0.500,0.825,6
+no validation,linux-wiper-shred,linux,malicious,terminated,0.778,0.625,0.719,8
+no validation,linux-shadow-read,linux,malicious,terminated,0.842,0.312,0.726,16
+no validation,linux-kernel-module,linux,malicious,terminated,0.744,0.625,0.688,8
+no validation,linux-account-created,linux,malicious,terminated,0.773,0.556,0.704,9
+no validation,linux-sudoers-nopasswd,linux,malicious,terminated,0.618,0.500,0.556,10
+no validation,linux-ld-preload-hijack,linux,malicious,terminated,0.684,0.545,0.622,11
+no validation,linux-dpkg-service-start,linux,benign,terminated,0.683,0.667,0.638,6
+no validation,linux-motd-tmp-cleanup,linux,benign,terminated,0.750,1.000,0.750,4
+no validation,linux-motd-discovery,linux,benign,terminated,0.683,0.667,0.638,6
+no validation,linux-service-stopped,linux,malicious,terminated,0.808,0.500,0.727,10
+no grounding,logon-script-persistence,windows,malicious,terminated,0.917,0.833,0.886,6
+no grounding,lsass-dump-comsvcs,windows,malicious,terminated,1.000,0.625,0.925,8
+no grounding,hta-startup-folder,windows,malicious,terminated,0.927,0.429,0.821,14
+no grounding,service-binpath-hijack,windows,malicious,terminated,0.955,0.545,0.868,11
+no grounding,bits-download,windows,malicious,terminated,0.875,0.800,0.840,5
+no grounding,firewall-rule-added,windows,malicious,terminated,0.833,0.800,0.800,5
+no grounding,run-key-and-beacon,windows,malicious,terminated,1.000,0.556,0.911,9
+no grounding,lsass-query-by-svchost,windows,benign,terminated,1.000,1.000,1.000,3
+no grounding,python-http-server,windows,malicious,terminated,0.922,0.357,0.804,14
+no grounding,w32time-runtime-key,windows,benign,terminated,1.000,0.750,0.950,4
+no grounding,gpsvc-service-host,windows,benign,terminated,0.875,0.429,0.775,7
+no grounding,linux-shadow-read,linux,malicious,terminated,0.826,0.312,0.712,16
+no grounding,linux-kernel-module,linux,malicious,terminated,0.700,0.714,0.660,7
+no grounding,linux-wiper-shred,linux,malicious,terminated,0.783,0.455,0.698,11
+no grounding,linux-account-created,linux,malicious,terminated,0.731,0.625,0.676,8
+no grounding,linux-sudoers-nopasswd,linux,malicious,terminated,0.591,0.500,0.532,10
+no grounding,linux-dpkg-service-start,linux,benign,terminated,0.683,0.667,0.638,6
+no grounding,linux-ld-preload-hijack,linux,malicious,terminated,0.797,0.462,0.711,13
+no grounding,linux-service-stopped,linux,malicious,terminated,0.000,0.417,0.000,12
+no grounding,linux-motd-tmp-cleanup,linux,benign,terminated,0.750,1.000,0.750,4
+no grounding,linux-motd-discovery,linux,benign,terminated,0.683,0.667,0.638,6
+no budget,lsass-dump-comsvcs,windows,malicious,terminated,1.000,0.714,0.943,7
+no budget,logon-script-persistence,windows,malicious,terminated,0.955,0.714,0.900,7
+no budget,hta-startup-folder,windows,malicious,terminated,0.927,0.375,0.811,16
+no budget,service-binpath-hijack,windows,malicious,terminated,0.895,0.500,0.805,12
+no budget,firewall-rule-added,windows,malicious,terminated,0.833,0.800,0.800,5
+no budget,run-key-and-beacon,windows,malicious,terminated,1.000,0.500,0.900,10
+no budget,bits-download,windows,malicious,terminated,0.875,0.800,0.840,5
+no budget,lsass-query-by-svchost,windows,benign,terminated,1.000,1.000,1.000,3
+no budget,gpsvc-service-host,windows,benign,terminated,0.917,0.600,0.843,5
+no budget,python-http-server,windows,malicious,terminated,0.885,0.455,0.788,11
+no budget,w32time-runtime-key,windows,benign,terminated,0.938,0.600,0.863,5
+no budget,linux-shadow-read,linux,malicious,terminated,0.870,0.250,0.740,20
+no budget,linux-wiper-shred,linux,malicious,terminated,0.767,0.714,0.723,7
+no budget,linux-kernel-module,linux,malicious,terminated,0.735,0.500,0.662,10
+no budget,linux-account-created,linux,malicious,terminated,0.731,0.357,0.637,14
+no budget,linux-sudoers-nopasswd,linux,malicious,terminated,0.618,0.500,0.556,10
+no budget,linux-service-stopped,linux,malicious,terminated,0.786,0.625,0.727,8
+no budget,linux-ld-preload-hijack,linux,malicious,terminated,0.841,0.333,0.729,18
+no budget,linux-dpkg-service-start,linux,benign,terminated,0.683,0.667,0.638,6
+no budget,linux-motd-discovery,linux,benign,terminated,0.683,0.571,0.625,7
+no budget,linux-motd-tmp-cleanup,linux,benign,terminated,0.708,1.000,0.708,4
+no method,lsass-dump-comsvcs,windows,malicious,terminated,1.000,0.500,0.900,10
+no method,logon-script-persistence,windows,malicious,terminated,1.000,0.556,0.911,9
+no method,hta-startup-folder,windows,malicious,terminated,0.933,0.400,0.821,15
+no method,service-binpath-hijack,windows,malicious,terminated,0.922,0.500,0.830,12
+no method,firewall-rule-added,windows,malicious,terminated,0.000,0.444,0.000,9
+no method,run-key-and-beacon,windows,malicious,terminated,1.000,0.500,0.900,10
+no method,bits-download,windows,malicious,terminated,1.000,0.500,0.900,8
+no method,python-http-server,windows,malicious,terminated,0.955,0.357,0.832,14
+no method,lsass-query-by-svchost,windows,benign,terminated,0.917,0.750,0.871,4
+no method,w32time-runtime-key,windows,benign,terminated,0.938,0.500,0.844,6
+no method,gpsvc-service-host,windows,benign,terminated,0.833,0.231,0.705,13
+no method,linux-wiper-shred,linux,malicious,terminated,0.761,0.385,0.667,13
+no method,linux-shadow-read,linux,malicious,terminated,0.842,0.312,0.726,16
+no method,linux-kernel-module,linux,malicious,terminated,0.778,0.333,0.674,15
+no method,linux-account-created,linux,malicious,terminated,0.731,0.357,0.637,14
+no method,linux-sudoers-nopasswd,linux,malicious,terminated,0.625,0.357,0.545,14
+no method,linux-ld-preload-hijack,linux,malicious,terminated,0.724,0.400,0.637,15
+no method,linux-dpkg-service-start,linux,benign,terminated,0.857,0.500,0.771,8
+no method,linux-service-stopped,linux,malicious,terminated,0.000,0.250,0.000,20
+no method,linux-motd-discovery,linux,benign,terminated,0.683,0.571,0.625,7
+no method,linux-motd-tmp-cleanup,linux,benign,terminated,0.667,0.571,0.610,7

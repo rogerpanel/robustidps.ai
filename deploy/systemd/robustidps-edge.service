@@ -1,0 +1,59 @@
+[Unit]
+Description=RobustIDPS.ai Edge Agent (capture → flow assembly → ONNX classifier → gRPC)
+Documentation=https://github.com/rogerpanel/robustidps.ai/tree/main/agent/agent-edge
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=robustidps
+Group=robustidps
+WorkingDirectory=/home/robustidps/robustidps.ai/agent
+
+# Loaded from a TOML config so the operator doesn't have to edit this
+# unit file to change interface / model paths / block list / gRPC bind.
+# See deploy/systemd/edge.toml.example for the schema.
+ExecStart=/home/robustidps/robustidps.ai/agent/target/release/robustidps-edge \
+  --config /etc/robustidps/edge.toml \
+  --onnx-model /var/lib/robustidps/edge/models/student_int8.onnx \
+  --onnx-labels /var/lib/robustidps/edge/models/labels.json \
+  --model-dir /var/lib/robustidps/edge/models
+
+# Resource limits.
+LimitNOFILE=65536
+
+# Restart policy: 5 s between attempts, give up after 3 failures in a
+# minute (operator should investigate rather than thrash the host).
+Restart=on-failure
+RestartSec=5
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Live capture mode needs CAP_NET_RAW + CAP_NET_ADMIN. PCAP-replay mode
+# does NOT need them — if the config selects PcapReplay, drop these
+# AmbientCapabilities lines (or override with `systemctl edit`).
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+NoNewPrivileges=yes
+
+# Hardening — restrict the daemon's privilege surface.
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/robustidps /var/log/robustidps
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+# Logging to the journal — view with `journalctl -fu robustidps-edge`.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=robustidps-edge
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=multi-user.target

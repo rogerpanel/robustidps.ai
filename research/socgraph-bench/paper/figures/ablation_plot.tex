@@ -1,0 +1,23 @@
+% Ablation: quality and efficiency per configuration (pgfplots, reads data/runs.csv).
+% Drawn only when the study results exist (\ResStudyAvailable = 1).
+\pgfplotstableread[col sep=comma]{data/runs.csv}\ablationruns
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=6pt, width=0.95\columnwidth, height=5.4cm,
+  ymin=0, ymax=1.05, ylabel={Mean over tasks}, ymajorgrids, grid style={gray!25},
+  xticklabels from table={\ablationruns}{configuration}, xtick=data,
+  xticklabel style={font=\scriptsize, rotate=25, anchor=north east},
+  tick label style={font=\scriptsize}, legend style={font=\scriptsize, at={(0.5,1.02)}, anchor=south, legend columns=2, draw=none},
+]
+\addplot[fill=cA, draw=none, error bars/.cd, y dir=both, y explicit]
+  table[x expr=\coordindex, y=mean_quality, y error=mean_quality_sd] {\ablationruns};
+\addplot[fill=cB, draw=none, error bars/.cd, y dir=both, y explicit]
+  table[x expr=\coordindex, y=mean_efficiency, y error=mean_efficiency_sd] {\ablationruns};
+\legend{Quality, Efficiency}
+\end{axis}
+\end{tikzpicture}
+\caption{Mean quality and efficiency per configuration (error bars: standard deviation over repeats).}
+\label{fig:ablation}
+\end{figure}
