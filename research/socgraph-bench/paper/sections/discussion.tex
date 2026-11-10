@@ -1,14 +1,27 @@
 \section{Discussion}
 \label{sec:discussion}
 
-\paragraph{Cost is a first-class objective} In the Windows pilot wasted tool calls cost almost as much reward as
+\paragraph{Cost is a first-class objective} \ifconf
+In the Windows pilot wasted tool calls cost almost as much reward as
 imperfect answers, and on the full benchmark about 0.06 of reward; accuracy-only evaluation hides this. Every
 lookup has latency and, with metered APIs, a price, so budgets belong in the agent and efficiency in the
 benchmark. Efficiency instructions are not free: the method prompt's rule not to look up the host named in the
 alert saved calls but withheld the identifier the response had to name -- a trade-off visible only in per-call
 traces, not aggregate scores.
+\else
+Accuracy alone is a misleading measure of an investigation agent. In the Windows pilot the reward lost to wasted
+tool calls was almost as large as the reward lost to imperfect answers, and on the full benchmark wasted calls
+still cost about $0.06$ of reward -- a penalty that an accuracy-only evaluation hides completely. The reason is
+operational: in a real SOC every lookup carries latency, and on a metered model API every lookup also carries a
+price, so the discipline of spending belongs inside the agent and the measurement of that discipline belongs
+inside the benchmark. Efficiency, however, is not free to ask for. The method prompt's instruction not to re-fetch
+the host already named in the alert saved calls, but by the same stroke it withheld the one identifier the final
+report was required to name. Trade-offs of this kind never surface in an aggregate score; they are visible only
+when one reads the per-call trace of a single task.
+\fi
 
-\paragraph{Prompted method beats mechanical guards, for a strong model} The cache, validation, grounding
+\paragraph{Prompted method beats mechanical guards, for a strong model} \ifconf
+The cache, validation, grounding
 check and budgets need no model change and apply unchanged to any model behind the driver interface. We expected
 them to matter; with Claude Opus 5.5 none moved reward measurably, because the guards had little to act on -- in
 63 tasks the full agent repeated no call, sent five malformed ones and invented one identifier, and never reached
@@ -18,6 +31,20 @@ practitioners is therefore method first, guards as insurance: the guards cost no
 lies in cases this study rarely produced -- weaker models, adversarial telemetry, and runtimes that do not
 validate inputs (the one malformed call that reached the v1.0 runtime crashed it, \S\ref{sec:benchmark}) -- which
 \bench does not yet provoke.
+\else
+The cache, schema validation, grounding check and budgets require no change to the model and apply unchanged to
+anything behind the driver interface, so we expected them to carry much of the agent's quality and efficiency.
+With Claude Opus 5.5 they did not: none moved reward by a measurable amount, simply because they had almost nothing
+to act on. Across 63 tasks the full agent repeated no call, issued only five malformed ones, invented a single
+identifier, and never approached the hard cap. What actually made the agent efficient was the investigation method
+written into the prompt -- start from the triggering event, hold competing hypotheses open, and stop once the
+evidence settles them -- which cut tool calls by roughly 30\% at unchanged quality. For a practitioner the order of
+work therefore inverts the usual intuition: write down the analyst's method first, and add the mechanical guards as
+insurance. The guards remain worth keeping, because they cost nothing measurable and because their value lies
+precisely in the situations this study rarely produced -- weaker or cheaper models, adversarial text in the
+telemetry, and runtimes that do not validate their own inputs (the single malformed call that reached the v1.0
+runtime crashed it, \S\ref{sec:benchmark}). A benchmark that provokes those situations is future work.
+\fi
 
 \ifconf\else
 \paragraph{Variance is concentrated in ambiguous tasks} Run-to-run variation hardly affected tasks with a clear
