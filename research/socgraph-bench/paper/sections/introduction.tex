@@ -17,78 +17,73 @@ evidence graph, follow relations from the triggering process to its parent, chil
 connections, and submit a verdict with the entities that require a response. Recent industrial evaluations frame
 exactly this task -- the BlueSec1 competition runtime~\cite{bluesec1_reference} gives an agent an alert and a
 small tool interface over the graph (\tool{search}, \tool{get\_entity}, \tool{get\_relation},
-\tool{finish\_investigation}) and scores both submission quality and the number of tool calls spent.
+\tool{finish\_investigation}), scoring both submission quality and tool calls spent.
 
 Building such an agent raises problems that general agent benchmarks~\cite{liu2024agentbench,jimenez2024swebench}
 and LLM security benchmarks~\cite{bhatt2023cyberseceval,alam2024ctibench,zhang2025cybench} do not address.
-\emph{Cost}: in a SOC, and under budget-scored evaluation, every lookup counts, so the agent must decide which
-evidence is worth fetching. \emph{Grounding}: an LLM may cite entities that appeared in no tool result, which is
-unacceptable for incident response. \emph{Robustness}: alerts that look alike can mean opposite things (an
-operator stopping a web service versus a package manager starting it), so benign activity must be cleared as
-reliably as attacks are confirmed. \emph{Evaluation}: public provenance datasets either lack entity-level ground
-truth or run to hundreds of gigabytes, and none packages alert-investigation tasks with benign look-alikes across
-operating systems. \emph{Shortcuts}: public attack recordings are labelled by how they were made, and those
-labels leak into dataset names, lab host names and the names operators chose for their tools; an agent can then
-be right for the wrong reason, and an intruder who avoids such names evades it -- the problem known from mimicry
-attacks on host-based detection~\cite{wagner2002mimicry,goyal2023mimicry}.
+\emph{Cost}: every lookup counts in a SOC and under budget-scored evaluation, so the agent must choose what to
+fetch. \emph{Grounding}: an LLM may cite entities that appeared in no tool result, unacceptable for incident
+response. \emph{Robustness}: alerts that look alike can mean opposite things (an operator stopping a web service
+versus a package manager starting it), so benign activity must be cleared as reliably as attacks are confirmed.
+\emph{Evaluation}: public provenance datasets either lack entity-level ground truth or run to hundreds of
+gigabytes, and none packages alert-investigation tasks with benign look-alikes across operating systems.
+\emph{Shortcuts}: public attack recordings are labelled by how they were made, and those labels leak into dataset
+names, lab host names and operator-chosen tool names; an agent can then be right for the wrong reason, and an
+intruder who avoids such names evades it -- the problem known from mimicry attacks on host-based
+detection~\cite{wagner2002mimicry,goyal2023mimicry}.
 
 This paper makes the following contributions.
 
 \begin{enumerate}
-\item \textbf{A grounded, budget-aware investigation agent} (\S\ref{sec:method}). Tools are derived from the
-runtime's advertised catalog, and every call passes through local safeguards that answer repeated, malformed,
-ungrounded or over-budget calls without spending a runtime call: a response cache, schema validation, a
-grounding check on the submission, and soft and hard budgets with deadline control. Tasks run in parallel under a
-limit the agent learns from refusals. We also report a practical failure mode -- model-side refusals of requests
-to externalise reasoning -- and a field-aliasing fix that keeps the runtime contract intact.
+\item \textbf{A grounded, budget-aware investigation agent} (\S\ref{sec:method}). Every tool call passes through
+local safeguards that answer repeated, malformed, ungrounded or over-budget calls without spending a runtime call
+-- a response cache, schema validation, a grounding check, and soft and hard budgets -- and tasks run in parallel
+under a limit the agent learns from refusals. We also report a model-side refusal of requests to externalise
+reasoning, and a field-aliasing fix for it.
 \item \textbf{\bench, a cross-platform benchmark from public telemetry} (\S\ref{sec:benchmark}). A graph builder
 converts Windows Sysmon and Sysmon-for-Linux recordings from OTRF Security-Datasets~\cite{otrf_securitydatasets}
 and Splunk attack\_data~\cite{splunk_attackdata} into 21 evidence-graph tasks: 15 ATT\&CK technique executions
-and 6 benign look-alikes from the same hosts, with ground truth as selectors over the graph and a scorer for
-verdict, response artifacts, legitimacy evidence and efficiency. It is a 0.55\,MB file, rebuildable from the
-original recordings. Two cue-controlled variants share its graphs and answers: \emph{blind} removes the
-recordings' label cues, and \emph{mimicry} also renames attacker-chosen artefacts without changing behaviour.
+and 6 benign look-alikes from the same hosts, with ground truth as graph selectors and a scorer for verdict,
+response artifacts, legitimacy evidence and efficiency. The 0.55\,MB benchmark is rebuildable from the
+recordings, and two cue-controlled variants share its graphs and answers: \emph{blind} removes the recordings'
+label cues, \emph{mimicry} also renames attacker-chosen artefacts without changing behaviour.
 \item \textbf{An empirical evaluation and ablation protocol} (\S\ref{sec:experiments}--\S\ref{sec:results}).
 \ifconf\else In a pilot on the \ResPilotTasks{} Windows tasks with Claude Opus 5.5, the agent reached the correct
 verdict on all of them, including all three benign tasks, with mean quality \ResPilotQuality{} and mean
 efficiency \ResPilotEfficiency{}. \fi The ablation switches off one safeguard at a time, reporting quality,
-efficiency, verdict accuracy, false-positive and false-negative rates and cost, by platform and verdict class,
-with paired task-level intervals.
+efficiency, accuracy, error rates and cost by platform and verdict class, with paired task-level intervals.
 \ifnum\ResStudyAvailable=1
-On all 21 tasks the full agent reached reward \ResFullReward{} with no false positives. The investigation-method
-prompt is what makes it efficient (\ResNoMethodCalls{} versus \ResFullCalls{} calls per task without it); the
-safeguards did not change reward measurably with this model, a negative result we report with its statistics.
-Per-call traces expose the actual sources of error: identifiers of the wrong type that a substring grounding
-check accepts, and an efficiency instruction that withheld a needed identifier.
+On all 21 tasks the full agent reached reward \ResFullReward{} with no false positives; the investigation-method
+prompt, not the safeguards, makes it efficient (\ResNoMethodCalls{} versus \ResFullCalls{} calls per task), a null
+result for the guards that we report with its statistics. Traces expose the real error sources: identifiers of
+the wrong type that a substring grounding check accepts, and an efficiency instruction that withheld a needed
+identifier.
 \fi
 \ifnum\ResCueAvailable=1
 \item \textbf{A shortcut and evasion analysis} (\S\ref{sec:cues}). Removing label cues left performance
 unchanged, but renaming attacker-chosen artefacts without changing behaviour raised missed attacks from
 \ResCueBaseMissed{} to \ResMimicryMissed{} and cut reward by \ResMimicryPairedReward{} (95\% CI
-\ResMimicryPairedRewardCI{}). On dual-use Linux behaviour (creating an account, loading a self-built kernel
-module, preloading a library) the verdict rested on names; a renaming intruder, the cheapest evasion there is,
-was cleared. GPT-6 astra, under the same agent, missed more attacks (\McGptBaseMissed{} against
+\ResMimicryPairedRewardCI{}): on dual-use Linux behaviour the verdict rested on names, and the cheapest evasion --
+a renaming intruder -- was cleared. GPT-6 astra missed more under the same agent (\McGptBaseMissed{} against
 \McClaudeBaseMissed{}) and lost significantly more under renaming (difference in differences \McDiD{}, 95\% CI
-\McDiDCI{}), its traces showing the same label cue read in the opposite direction.
+\McDiDCI{}), reading the same cue the opposite way.
 \fi
 \item \textbf{An open, reproducible release.} Agent, benchmark, traces of every tool call, and the script that
 regenerates all tables and plots from run folders\ifconf{} (\ArtifactURL)\fi.
 \end{enumerate}
 
 \ifnum\ResCueAvailable=1
-\paragraph{Take-home} We ask whether an LLM agent's verdict on provenance evidence can be trusted when the
-attacker writes part of that evidence. Across three models it cannot be by default: none raised a false alarm,
-yet renaming artefacts without changing behaviour raised the frontier models' missed attacks from
-\McClaudeBaseMissed{} to \McClaudeMimicryMissed{} and from \McGptBaseMissed{} to \McGptMimicryMissed{}, with the
-same Linux-localised pattern in an open-weight model. With Claude Opus 5.5 the call-level safeguards changed
-nothing measurable, while the prompted investigation method cut tool calls by about 30\%. For researchers,
-benchmarks from public recordings need cue-controlled variants to measure investigation, not name reading; for AI
-security engineers, the analyst's method and a rule that benign verdicts cite behaviour, not names, matter more
-than mechanical guards; for SOC analysts, a benign verdict justified by names alone should be reviewed as
-possible evasion.
+\paragraph{Take-home} Can an LLM agent's verdict on provenance evidence be trusted when the attacker writes part
+of that evidence? Across three models, not by default: none raised a false alarm, yet behaviour-preserving
+renaming raised the frontier models' missed attacks from \McClaudeBaseMissed{} to \McClaudeMimicryMissed{} and
+from \McGptBaseMissed{} to \McGptMimicryMissed{}, with the same Linux-localised pattern in an open-weight model.
+With Claude Opus 5.5 the call-level safeguards changed nothing measurable, while the prompted investigation method
+cut tool calls by about 30\%. The lessons: benchmarks from public recordings need cue-controlled variants to
+measure investigation rather than name reading; the analyst's method and a rule that benign verdicts cite
+behaviour outweigh mechanical guards; and a benign verdict justified by names alone should be reviewed as possible
+evasion.
 \fi
 
-The remainder of the paper reviews related work (\S\ref{sec:background}), defines the task
-(\S\ref{sec:problem}), presents the agent (\S\ref{sec:method}) and the benchmark (\S\ref{sec:benchmark}),
-describes the experimental setup (\S\ref{sec:experiments}), reports results (\S\ref{sec:results}), and discusses
-implications (\S\ref{sec:discussion}) and threats to validity (\S\ref{sec:limitations}).
+The paper proceeds through related work (\S\ref{sec:background}), the task (\S\ref{sec:problem}), the agent
+(\S\ref{sec:method}) and benchmark (\S\ref{sec:benchmark}), the setup (\S\ref{sec:experiments}), results
+(\S\ref{sec:results}), and discussion and threats to validity (\S\ref{sec:discussion},~\S\ref{sec:limitations}).
