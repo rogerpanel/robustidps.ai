@@ -5,9 +5,8 @@ We presented a budget-aware LLM agent for provenance-graph alert investigation a
 benchmark of 21 tasks from public Windows and Linux attack telemetry with benign look-alikes and cue-controlled
 variants.
 \ifnum\ResStudyAvailable=1
-With Claude Opus 5.5 it reached reward \ResFullReward{} and \ResFullAccuracy{} verdict accuracy at no false
-positives; the prompt's investigation method, not the safeguards, made it efficient, and per-call traces exposed
-what aggregate scores hid.
+With Claude Opus 5.5 it reached reward \ResFullReward{} at \ResFullAccuracy{} verdict accuracy and no false
+positives, made efficient by the prompt's investigation method rather than the safeguards.
 \fi
 \ifnum\ResCueAvailable=1
 \ifconf
@@ -15,9 +14,9 @@ Renaming artefacts without changing behaviour raised missed attacks from \ResCue
 \ResMimicryMissed{} (and for GPT-6 astra from \McGptBaseMissed{} to \McGptMimicryMissed{}) without a single false
 alarm -- a silent failure that shows up as cleared alerts. Neither defence we tested, canonicalising names away or
 a prompt rule to distrust them, restores accuracy (\S\ref{sec:remedy}): erasing names removes the attacker's lever
-but also the real-name crutch the models leaned on. The lessons are diagnostic, not a quick fix: evaluate triage
-agents on renamed variants, and trust a benign verdict only when it cites behaviour, not names. Future work
-includes instructions planted in telemetry, type-checked grounding, structural mimicry and SOC-analyst studies.
+but also the real-name crutch the models leaned on. The lessons are diagnostic: evaluate triage agents on renamed
+variants, and trust a benign verdict only when it cites behaviour, not names. Future work includes
+planted-telemetry instructions, type-checked grounding and SOC-analyst studies.
 \else
 Renaming attacker-chosen artefacts, while leaving the recorded behaviour untouched, raised the number of missed
 attacks from \ResCueBaseMissed{} to \ResMimicryMissed{} for Claude Opus 5.5 and from \McGptBaseMissed{} to

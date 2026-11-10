@@ -123,7 +123,7 @@ script from the run folders, and this subsection will report them.
 \label{sec:cues}
 % The model comparison (RQ6) floats are declared here so that they are placed within the body.
 \input{tables/models}
-\ifconf\else\input{figures/models_fig}\fi
+\input{figures/models_fig}
 The study's traces show the agent does read label cues: of \TrAllSubmissions{} submissions, \TrAllSourceCue{}
 (\TrAllSourceCuePct\%) justify the verdict partly by the source recording, most of them correct malicious
 verdicts (\TrAllSourceCueRight{}). The other \TrAllSourceCueWrong{} are every wrong verdict of the study; there
@@ -193,10 +193,9 @@ task-clustered \McMissClusterP{}),
 with recall \McGptBaseRecall{} against \McClaudeBaseRecall{} and MCC \McGptBaseMcc{} against
 \McClaudeBaseMcc{}. The paired difference in reward, \McDiffRewardBase{} (95\% CI \McDiffRewardBaseCI{}),
 is concentrated in four Windows tasks (\ifconf per-task verdicts are in the artifact\else Table~\ref{tab:verdictmatrix}\fi). The traces give the reason: in
-\McGptBaseCueMisses{} of its misses, \McModelB{} justified the benign verdict by test artefacts (a firewall rule
-named ``atomic testing'' added and deleted seconds later, read as ``a controlled firewall test, not an
-attack''), while the first model read the same artefacts as attack evidence. One label cue, opposite
-conclusions: whether a recorded technique test counts as an attack is a judgement the telemetry does not settle.
+\McGptBaseCueMisses{} of its misses, \McModelB{} justified the benign verdict by test artefacts, while the first
+model read the same artefacts as attack evidence. One label cue, opposite conclusions: whether a recorded
+technique test counts as an attack is a judgement the telemetry does not settle.
 
 \paragraph{Renaming hurts the second model more} Under \emph{mimicry}, \McModelB{} missed
 \McGptMimicryMissed{} attacks (recall \McGptMimicryRecall{}), including the dual-use Linux tasks the first model
@@ -210,18 +209,19 @@ The second model's verdicts on \emph{mimicry} were identical in all three repeat
 (\McGptLinuxBaseMissed{}~$\to$~\McGptLinuxMimicryMissed{} of the Linux runs; Windows
 \McGptWindowsBaseMissed{}~$\to$~\McGptWindowsMimicryMissed{}).
 
+\ifconf\else
 \paragraph{Cost and interface} \McModelB{} used more tool calls (\McGptBaseCalls{} against \McClaudeBaseCalls{}
 per task); it named hosts by their entity identifier, so the hostname loss of \S\ref{sec:study} is specific to
 the first model's prompt.
+\fi
 
 \paragraph{A third, open-weight model} \McModelC{}, run through an OpenAI-compatible endpoint under the same
-agent, is a weaker detector: on v1.1 it missed \McDeepseekVBaseMissed{} attacks (recall \McDeepseekVBaseRecall{})
-with no false alarm, and like \McModelB{} cleared attacks as authorised testing (\McDeepseekVBaseCueMisses{} of
-its base misses cite test cues). Under \emph{mimicry} its reward drop was \McDeepseekVMimicryDrop{} (95\% CI
-\McDeepseekVMimicryDropCI{}), not significant and bounded below by that low baseline, yet the misses still rise
-on Linux (\McDeepseekVLinuxBaseMissed{}~$\to$~\McDeepseekVLinuxMimicryMissed{}) and not on Windows. The shortcut
-thus recurs across all three model families, from clear (\McModelB{}) through suggestive (\McModelA{}) to small
-(\McModelC{}).
+agent, is a weaker detector: on v1.1 it missed \McDeepseekVBaseMissed{} attacks (recall \McDeepseekVBaseRecall{}),
+and like \McModelB{} cleared attacks as authorised testing. Under \emph{mimicry} its reward drop was
+\McDeepseekVMimicryDrop{} (95\% CI \McDeepseekVMimicryDropCI{}), not significant given that low baseline, yet the
+misses still rise on Linux (\McDeepseekVLinuxBaseMissed{}~$\to$~\McDeepseekVLinuxMimicryMissed{}) and not Windows.
+The shortcut thus recurs across all three model families, from clear (\McModelB{}) through suggestive
+(\McModelA{}) to small (\McModelC{}).
 
 \ifconf\else
 \input{tables/verdict_matrix}

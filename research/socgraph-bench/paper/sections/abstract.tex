@@ -1,31 +1,16 @@
 \begin{abstract}
 LLM agents are being built to investigate security alerts by walking provenance evidence through tools:
 which process started which, what it wrote, where it connected. In this adversarial setting an agent must be
-right for the right reasons, at bounded cost, on telemetry an attacker partly controls. We present an
-investigation agent that routes every tool call through local safeguards (response cache, schema validation, a
-grounding check on submitted identifiers, and call budgets), and \bench, a benchmark of 21 provenance-graph tasks
-built from public Windows Sysmon and Sysmon-for-Linux attack recordings: 15 ATT\&CK technique executions and 6
-benign look-alikes from the same hosts, including twins that share an alert with an attack.%
-\ifnum\ResStudyAvailable=1
-\ With Claude Opus 5.5 (Anthropic API) over \ResStudyRepeats{} repeats, the agent reached reward
-\ResFullReward{}, verdict accuracy \ResFullAccuracy{} and no false positives at \ResFullCalls{} tool calls per
-task. A paired ablation shows that the investigation method in the prompt drives efficiency
-(\ResNoMethodCalls{} calls per task without it), while the safeguards had no measurable effect, firing on fewer
-than one call in ten tasks. To test whether the agent is right for the right reasons,
-we build cue-controlled variants of \bench with identical graphs and answers. Removing the recordings' label
-cues changed nothing measurable, but renaming attacker-chosen artefacts without changing behaviour
-(\texttt{rootkit.ko} to \texttt{hidmon.ko}, \texttt{atomic\_user1} to \texttt{jsmith}) raised missed attacks
-from \ResCueBaseMissed{} to \ResMimicryMissed{}: on dual-use Linux behaviour the verdict rested on names the
-attacker chose. GPT-6 astra (OpenAI Responses API) under the same agent missed \McGptBaseMissed{} attacks and
-\McGptMimicryMissed{} under renaming (difference in differences \McDiD{}, 95\% CI \McDiDCI{}); a third,
-open-weight model (DeepSeek-V3.2) showed the same Linux-localised pattern. No model raised a false alarm;
-the errors were silent misses. Two lightweight defences -- erasing names, and a prompt rule to distrust them --
-did not restore accuracy: the loss is genuine graph ambiguity, not a labelling bug. LLM triage agents should be evaluated on cue-controlled variants such as ours, and a benign verdict
-trusted only when it cites behaviour, not attacker-chosen names.
-\else
-\ We define an ablation protocol that isolates each safeguard's contribution.
-\fi
-Agent, benchmark, variants, traces of every tool call and the scripts that regenerate every table are released.
+right for the right reasons, at bounded cost, on telemetry an attacker partly controls. We present a
+budget-aware investigation agent and \bench: 21 provenance-graph tasks (15 attacks, 6 benign look-alikes) with
+behaviour-preserving cue-controlled variants, evaluated on Claude Opus 5.5 (Anthropic API), GPT-6 astra (OpenAI
+Responses API), and -- for the open-weight comparison -- DeepSeek-V3.2 (via an OpenAI-compatible endpoint).
+Renaming attacker-chosen artefacts raised missed attacks from \ResCueBaseMissed{} to \ResMimicryMissed{} (Claude
+Opus 5.5) and from \McGptBaseMissed{} to \McGptMimicryMissed{} (GPT-6 astra; difference in differences \McDiD{},
+95\% CI \McDiDCI{}), with the same Linux-localised pattern in DeepSeek-V3.2. No model raised a false alarm -- the
+misses were silent -- and neither canonicalising names away nor a prompt rule restored accuracy. LLM triage
+agents should be evaluated on cue-controlled variants such as ours, and a benign verdict trusted only when it
+cites behaviour, not attacker-chosen names. Agent, benchmark, variants and traces are released.
 \end{abstract}
 
 \begin{IEEEkeywords}

@@ -9,7 +9,7 @@
 \pgfplotsset{
   modelbars/.style={
     ybar, bar width=5.5pt, enlarge x limits=0.28,
-    width=0.37\textwidth, height=4.1cm,
+    width=0.37\textwidth, height=2.7cm,
     symbolic x coords={Claude,GPT,DeepSeek}, xtick=data,
     x tick label style={font=\footnotesize}, tick align=outside,
     ylabel style={font=\footnotesize, yshift=-2pt}, y tick label style={font=\scriptsize},
@@ -38,9 +38,8 @@
 \end{groupplot}
 \end{tikzpicture}}
 \caption{All three models under the same agent on \bench v1.1 and the \emph{mimicry} variant (means over three
-repeats; error bars $\pm$ one standard deviation). Renaming attacker-chosen artefacts, with behaviour unchanged,
-lowers both (a)~reward and (b)~recall for every model. (c)~The extra attacks missed under \emph{mimicry} (mimicry
-minus v1.1 miss counts, summed over three repeats) fall almost entirely on the dual-use Linux tasks rather than
-Windows, for all three model families. Values are those of Table~\ref{tab:models}.}
+repeats; error bars $\pm$1\,s.d.). Behaviour-preserving renaming lowers (a)~reward and (b)~recall for every model,
+and (c)~the extra attacks missed under \emph{mimicry} (mimicry minus v1.1 miss counts) fall almost entirely on the
+dual-use Linux tasks, not Windows. Values are those of Table~\ref{tab:models}.}
 \label{fig:models}
 \end{figure*}
